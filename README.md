@@ -1,4 +1,4 @@
-# BS Families Fishing Tournament PWA
+# Jigoleberks Tournament PWA
 
 A small, self-hosted Progressive Web App for running club-scale catch-photo-release fishing tournaments. Members log catches from their phone (in-app camera, no gallery uploads), the app queues offline and syncs when the network returns, and a live leaderboard re-renders for everyone watching when a fish lands.
 
@@ -70,9 +70,7 @@ docker compose run --rm web bin/rails runner '
 '
 ```
 
-Paste the values into `.env` as `VAPID_PUBLIC_KEY` and `VAPID_PRIVATE_KEY`, and set `VAPID_SUBJECT` to a `mailto:` address you control.
-
-The repo also ships `config/vapid.yml.example`; copy it to `config/vapid.yml` (gitignored) — the file just reads the env vars via ERB, so a single copy works across environments.
+Paste the values into `.env` as `VAPID_PUBLIC_KEY` and `VAPID_PRIVATE_KEY`, and set `VAPID_SUBJECT` to a `mailto:` address you control. The committed `config/vapid.yml` reads these env vars via ERB — no copy step needed.
 
 ### 5. Resend SMTP for magic-link sign-in (optional)
 
@@ -88,7 +86,7 @@ If `RESEND_API_KEY` is unset, the app skips outbound mail entirely. You can stil
 docker compose exec web bin/rails runner '
   u = User.find_by!(email: "you@example.com")
   t = SignInToken.issue!(user: u)
-  puts "https://#{ENV.fetch(\"APP_HOST\", \"localhost\")}/sessions/consume?token=#{t.token}"
+  puts "https://#{ENV.fetch(\"APP_HOST\", \"localhost\")}/session/consume?token=#{t.token}"
 '
 ```
 
