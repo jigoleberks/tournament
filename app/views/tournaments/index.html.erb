@@ -1,0 +1,12 @@
+<h1 class="text-2xl font-semibold mt-4 mb-4">Tournaments</h1>
+<%= render "season_filter", tags: @season_tags, current: params[:season] %>
+<ul class="space-y-2 mt-4">
+  <% @tournaments.each do |t| %>
+    <li class="bg-slate-800 rounded-lg px-4 py-3">
+      <%= link_to t.name, t, class: "text-lg font-medium text-blue-300" %>
+      <% if t.season_tag.present? %>
+        <span class="text-sm text-slate-400">— <%= t.season_tag %></span>
+      <% end %>
+    </li>
+  <% end %>
+</ul>

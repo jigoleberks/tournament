@@ -1,0 +1,34 @@
+<h1 class="text-2xl font-semibold mt-4 mb-4">Catch</h1>
+
+<div class="bg-slate-800 rounded-xl p-4 space-y-4">
+  <% if @catch.photo.attached? %>
+    <%= image_tag url_for(@catch.photo), class: "w-full max-h-96 object-contain rounded-lg bg-black" %>
+  <% else %>
+    <div class="w-full h-64 rounded-lg bg-black flex items-center justify-center text-slate-500">no photo</div>
+  <% end %>
+
+  <% if @catch.video.attached? %>
+    <%= video_tag url_for(@catch.video), controls: true, class: "w-full max-h-96 rounded-lg bg-black" %>
+  <% end %>
+
+  <dl class="text-slate-300 text-sm space-y-1">
+    <div><dt class="inline text-slate-500">Angler:</dt> <dd class="inline text-slate-100"><%= @catch.user.name %></dd></div>
+    <div><dt class="inline text-slate-500">Species:</dt> <dd class="inline"><%= @catch.species.name %></dd></div>
+    <div><dt class="inline text-slate-500">Length:</dt> <dd class="inline"><%= format_length_dual(@catch.length_inches) %></dd></div>
+    <div><dt class="inline text-slate-500">Captured:</dt> <dd class="inline"><%= @catch.captured_at_device.strftime("%b %d %Y · %l:%M %p %Z") %></dd></div>
+    <% if @catch.latitude.present? %>
+      <div><dt class="inline text-slate-500">GPS:</dt> <dd class="inline"><%= @catch.latitude.to_f.round(4) %>, <%= @catch.longitude.to_f.round(4) %> (±<%= @catch.gps_accuracy_m %>m)</dd></div>
+    <% end %>
+    <div><dt class="inline text-slate-500">Status:</dt>
+      <dd class="inline">
+        <% if @catch.needs_review? %>
+          <span class="text-amber-400">needs review</span>
+        <% elsif @catch.disqualified? %>
+          <span class="text-red-400">disqualified</span>
+        <% else %>
+          <%= @catch.status %>
+        <% end %>
+      </dd>
+    </div>
+  </dl>
+</div>

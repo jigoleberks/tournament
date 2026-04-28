@@ -1,0 +1,30 @@
+<h1 class="text-2xl font-semibold mt-4 mb-4">Notification settings</h1>
+
+<div class="bg-slate-800 rounded-xl p-4 my-3">
+  <h2 class="text-lg font-semibold mb-3">Snooze</h2>
+  <div class="flex gap-2">
+    <%= button_to "Mute 1h", snooze_notification_settings_path, params: { hours: 1 },
+        class: "flex-1 h-12 px-4 rounded-lg bg-slate-700 active:bg-slate-600 text-slate-100" %>
+    <%= button_to "Mute 4h", snooze_notification_settings_path, params: { hours: 4 },
+        class: "flex-1 h-12 px-4 rounded-lg bg-slate-700 active:bg-slate-600 text-slate-100" %>
+    <%= button_to "Unmute",  unmute_notification_settings_path,
+        class: "flex-1 h-12 px-4 rounded-lg bg-blue-600 active:bg-blue-700 text-white" %>
+  </div>
+</div>
+
+<% if @tournaments.any? %>
+  <div class="bg-slate-800 rounded-xl p-4 my-3">
+    <h2 class="text-lg font-semibold mb-3">Per tournament</h2>
+    <% @tournaments.each do |t| %>
+      <div class="border-t border-slate-700 py-3 first:border-0 first:pt-0">
+        <p class="font-medium mb-2"><%= t.name %></p>
+        <div class="flex gap-2">
+          <%= button_to "Mute", mute_tournament_notification_settings_path, params: { tournament_id: t.id },
+              class: "flex-1 h-12 px-4 rounded-lg bg-slate-700 active:bg-slate-600 text-slate-100" %>
+          <%= button_to "Unmute", unmute_tournament_notification_settings_path, params: { tournament_id: t.id },
+              class: "flex-1 h-12 px-4 rounded-lg bg-blue-600 active:bg-blue-700 text-white" %>
+        </div>
+      </div>
+    <% end %>
+  </div>
+<% end %>

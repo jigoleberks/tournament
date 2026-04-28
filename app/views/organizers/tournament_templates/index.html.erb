@@ -1,0 +1,37 @@
+<h1 class="text-2xl font-semibold mt-4 mb-4">Tournament templates</h1>
+
+<%= link_to "New template", new_organizers_tournament_template_path,
+            class: "block w-full h-12 px-4 leading-[3rem] rounded-lg bg-blue-600 active:bg-blue-700 text-white text-center font-semibold mb-4" %>
+
+<% if @templates.any? %>
+  <ul class="space-y-2">
+    <% @templates.each do |t| %>
+      <li class="bg-slate-800 rounded-lg p-4">
+        <%= link_to t.name, edit_organizers_tournament_template_path(t),
+                    class: "block text-lg font-medium text-blue-300 mb-1" %>
+        <% if t.scheduled? %>
+          <p class="text-sm text-slate-400 mb-3"><%= t.default_schedule_summary %></p>
+        <% end %>
+        <div class="flex flex-wrap gap-2">
+          <% if t.scheduled? %>
+            <% starts, ends = t.next_occurrence_at %>
+            <%= button_to "Schedule next (#{l(starts, format: :short)})",
+                          clone_organizers_tournament_template_path(t),
+                          params: { starts_at: starts.iso8601, ends_at: ends.iso8601 },
+                          class: "h-12 px-4 rounded-lg bg-blue-600 active:bg-blue-700 text-white" %>
+          <% else %>
+            <%= button_to "Clone now (4h)", clone_organizers_tournament_template_path(t),
+                          params: { starts_at: Time.current, ends_at: 4.hours.from_now },
+                          class: "h-12 px-4 rounded-lg bg-slate-700 active:bg-slate-600 text-slate-100" %>
+          <% end %>
+          <%= button_to "Delete", organizers_tournament_template_path(t),
+                        method: :delete,
+                        data: { turbo_confirm: "Delete template '#{t.name}'? This cannot be undone." },
+                        class: "h-12 px-4 rounded-lg bg-red-600 active:bg-red-700 text-white" %>
+        </div>
+      </li>
+    <% end %>
+  </ul>
+<% else %>
+  <p class="text-slate-400 italic">No templates yet.</p>
+<% end %>

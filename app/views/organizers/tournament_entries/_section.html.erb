@@ -1,0 +1,43 @@
+<h3 class="text-lg font-semibold mt-6 mb-2">Entries (<%= @tournament.mode %>)</h3>
+
+<ul class="space-y-2">
+  <% @tournament.tournament_entries.includes(:users).order(:id).each do |entry| %>
+    <li class="bg-slate-800 rounded-lg px-3 py-2 flex items-center justify-between">
+      <div>
+        <% if entry.name.present? %><strong><%= entry.name %></strong>:<% end %>
+        <%= entry.users.map(&:name).join(", ") %>
+      </div>
+      <%= button_to "Remove",
+                    organizers_tournament_tournament_entry_path(tournament_id: @tournament.id, id: entry.id),
+                    method: :delete,
+                    data: { turbo_confirm: "Remove this entry?" },
+                    class: "h-10 px-3 rounded bg-red-600 active:bg-red-700 text-white" %>
+    </li>
+  <% end %>
+</ul>
+
+<% available = current_user.club.users.order(:name) %>
+
+<%= form_with url: organizers_tournament_tournament_entries_path(tournament_id: @tournament.id), local: true,
+              class: "mt-4 bg-slate-800 rounded-lg p-3 space-y-2" do |f| %>
+  <% if @tournament.mode_team? %>
+    <%= label_tag "tournament_entry[name]", "Boat name (optional)", class: "block text-sm font-medium text-slate-300" %>
+    <%= text_field_tag "tournament_entry[name]", nil,
+                       class: "w-full h-10 px-3 rounded bg-slate-900 border border-slate-700" %>
+    <p class="text-sm text-slate-300 mt-2">Pick 1 or 2 members:</p>
+    <% available.each do |u| %>
+      <label class="flex items-center gap-2 py-1">
+        <%= check_box_tag "tournament_entry[member_user_ids][]", u.id %>
+        <span><%= u.name %></span>
+      </label>
+    <% end %>
+  <% else %>
+    <%= label_tag "tournament_entry[member_user_ids][]", "Member", class: "block text-sm font-medium text-slate-300" %>
+    <%= select_tag "tournament_entry[member_user_ids][]",
+                   options_from_collection_for_select(available, :id, :name),
+                   class: "w-full h-10 px-3 rounded bg-slate-900 border border-slate-700",
+                   prompt: "—" %>
+  <% end %>
+  <%= submit_tag "Add entry",
+                 class: "h-12 px-4 rounded-lg bg-blue-600 active:bg-blue-700 text-white" %>
+<% end %>

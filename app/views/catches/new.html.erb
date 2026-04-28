@@ -1,0 +1,65 @@
+<h1 class="text-2xl font-semibold mt-4 mb-4">Log Catch</h1>
+
+<div data-controller="catch-form photo-capture video-capture"
+     data-catch-form-csrf-token-value="<%= form_authenticity_token %>"
+     data-action="photo-capture:captured->catch-form#onPhotoCaptured
+                  video-capture:captured->catch-form#onVideoCaptured
+                  video-capture:failed->catch-form#onVideoFailed">
+
+  <label class="block text-sm font-medium text-slate-300 mt-4 mb-1">Species</label>
+  <select data-catch-form-target="speciesSelect" data-action="change->catch-form#refresh"
+          class="w-full h-12 px-3 rounded-lg bg-slate-800 border border-slate-700 text-base text-slate-100">
+    <option value=""></option>
+    <% current_user.club.species.order(:name).each do |s| %>
+      <option value="<%= s.id %>"><%= s.name %></option>
+    <% end %>
+  </select>
+
+  <label class="block text-sm font-medium text-slate-300 mt-4 mb-1">
+    <%= current_user.metric? ? "Length (cm)" : "Length (in)" %>
+  </label>
+  <input type="number"
+         step="<%= current_user.metric? ? "0.5" : "0.25" %>"
+         min="0"
+         data-catch-form-target="lengthInput"
+         data-catch-form-unit="<%= current_user.length_unit %>"
+         data-action="input->catch-form#refresh"
+         class="w-full h-12 px-3 rounded-lg bg-slate-800 border border-slate-700 text-base text-slate-100">
+
+  <h3 class="text-lg font-semibold mt-6 mb-2">Photo</h3>
+  <video data-photo-capture-target="video" autoplay muted playsinline
+         class="w-full max-h-80 object-cover rounded-lg bg-black"></video>
+  <div class="flex gap-2 mt-2">
+    <button type="button" data-action="photo-capture#start"
+            class="flex-1 h-12 px-4 rounded-lg bg-slate-700 active:bg-slate-600 text-slate-100">Open camera</button>
+    <button type="button" data-action="photo-capture#capture"
+            class="flex-1 h-12 px-4 rounded-lg bg-slate-700 active:bg-slate-600 text-slate-100">Capture</button>
+    <button type="button" data-action="photo-capture#retake"
+            class="flex-1 h-12 px-4 rounded-lg bg-slate-700 active:bg-slate-600 text-slate-100">Retake</button>
+  </div>
+  <img data-photo-capture-target="preview" alt=""
+       class="w-full max-h-80 object-contain rounded-lg bg-black mt-2">
+
+  <% video_required = Tournaments::ActiveForUser.call(user: current_user).any?(&:requires_release_video) %>
+  <% if video_required %>
+    <h3 class="text-lg font-semibold mt-6 mb-2">Release video</h3>
+    <video data-video-capture-target="video" autoplay muted playsinline
+           class="w-full max-h-80 object-cover rounded-lg bg-black"></video>
+    <div class="flex gap-2 mt-2">
+      <button type="button" data-action="video-capture#start"
+              class="flex-1 h-12 px-4 rounded-lg bg-slate-700 active:bg-slate-600 text-slate-100">Start recording</button>
+      <button type="button" data-action="video-capture#stop"
+              class="flex-1 h-12 px-4 rounded-lg bg-slate-700 active:bg-slate-600 text-slate-100">Stop</button>
+    </div>
+    <button type="button" data-action="video-capture#markFailed"
+            class="w-full h-12 px-4 rounded-lg bg-slate-700 active:bg-slate-600 text-slate-100 mt-2">Mark video failed and submit anyway</button>
+    <video data-video-capture-target="preview" controls
+           class="w-full max-h-80 object-contain rounded-lg bg-black mt-2"></video>
+  <% end %>
+
+  <p data-catch-form-target="status" class="text-amber-300 text-sm mb-2 mt-4"></p>
+
+  <button data-catch-form-target="submitButton"
+          data-action="catch-form#submit"
+          class="w-full h-14 px-6 text-lg font-semibold rounded-lg bg-blue-600 active:bg-blue-700 text-white mt-2">Submit</button>
+</div>

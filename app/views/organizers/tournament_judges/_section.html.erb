@@ -1,0 +1,35 @@
+<h3 class="text-lg font-semibold mt-6 mb-2">Judges</h3>
+<p class="text-sm text-slate-400 mb-2">Judges can review catches but can't fish in this tournament.</p>
+
+<% if @tournament.tournament_judges.any? %>
+  <ul class="space-y-2 mb-3">
+    <% @tournament.tournament_judges.includes(:user).each do |tj| %>
+      <li class="bg-slate-800 rounded-lg px-3 py-2 flex items-center justify-between">
+        <span><%= tj.user.name %></span>
+        <%= button_to "Remove",
+                      organizers_tournament_tournament_judge_path(tournament_id: @tournament.id, id: tj.id),
+                      method: :delete,
+                      data: { turbo_confirm: "Remove #{tj.user.name} as judge?" },
+                      class: "h-10 px-3 rounded bg-red-600 active:bg-red-700 text-white" %>
+      </li>
+    <% end %>
+  </ul>
+<% else %>
+  <p class="text-slate-400 italic mb-3">No judges yet.</p>
+<% end %>
+
+<% available = current_user.club.users.where.not(id: @tournament.judge_users.pluck(:id)).order(:name) %>
+<% if available.any? %>
+  <%= form_with url: organizers_tournament_tournament_judges_path(tournament_id: @tournament.id),
+                local: true,
+                class: "bg-slate-800 rounded-lg p-3 space-y-2" do |f| %>
+    <%= label_tag "tournament_judge[user_id]", "Add judge",
+                  class: "block text-sm font-medium text-slate-300" %>
+    <%= select_tag "tournament_judge[user_id]",
+                   options_from_collection_for_select(available, :id, :name),
+                   prompt: "—",
+                   class: "w-full h-12 px-3 rounded bg-slate-900 border border-slate-700" %>
+    <%= submit_tag "Add judge",
+                   class: "h-12 px-4 rounded-lg bg-blue-600 active:bg-blue-700 text-white" %>
+  <% end %>
+<% end %>

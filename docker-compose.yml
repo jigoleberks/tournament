@@ -1,0 +1,26 @@
+services:
+  db:
+    image: postgres:16
+    environment:
+      POSTGRES_PASSWORD: postgres
+    volumes: ["pgdata:/var/lib/postgresql/data"]
+    ports: ["5432:5432"]
+  web:
+    build: { context: ., dockerfile: Dockerfile.dev }
+    command: sh -c "bin/rails tailwindcss:build && bin/rails server -b 0.0.0.0 -p 3000"
+    environment:
+      DATABASE_URL: postgres://postgres:postgres@db:5432/tournament_development
+      RAILS_ENV: development
+      APP_NAME: ${APP_NAME:-Tournament}
+      APP_HOST: ${APP_HOST:-localhost}
+      APP_TIME_ZONE: ${APP_TIME_ZONE:-UTC}
+      MAIL_FROM: ${MAIL_FROM:-Tournament <noreply@localhost>}
+      RESEND_API_KEY: ${RESEND_API_KEY:-}
+      VAPID_SUBJECT: ${VAPID_SUBJECT:-mailto:admin@example.com}
+      VAPID_PUBLIC_KEY: ${VAPID_PUBLIC_KEY:-}
+      VAPID_PRIVATE_KEY: ${VAPID_PRIVATE_KEY:-}
+    volumes: [".:/app"]
+    ports: ["3000:3000"]
+    depends_on: [db]
+volumes:
+  pgdata:

@@ -1,0 +1,64 @@
+import { Controller } from "@hotwired/stimulus"
+
+export default class extends Controller {
+  static targets = ["enableButton", "status"]
+
+  async connect() { this.refresh() }
+
+  async refresh() {
+    if (!("PushManager" in window)) {
+      this.statusTarget.textContent = "push not supported"
+      return
+    }
+    if (Notification.permission === "granted") this.statusTarget.textContent = "notifications on"
+    else if (Notification.permission === "denied") this.statusTarget.textContent = "blocked in browser"
+    else this.statusTarget.textContent = "off"
+  }
+
+  async enable() {
+    const perm = await Notification.requestPermission()
+    if (perm !== "granted") return this.refresh()
+
+    const reg = await navigator.serviceWorker.ready
+    const sub = await reg.pushManager.subscribe({
+      userVisibleOnly: true,
+      applicationServerKey: urlB64ToUint8Array(vapidPublicKey())
+    })
+
+    await fetch("/api/push_subscriptions", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "X-CSRF-Token": csrfToken() },
+      credentials: "same-origin",
+      body: JSON.stringify({ subscription: sub.toJSON() })
+    })
+    this.refresh()
+  }
+
+  async disable() {
+    const reg = await navigator.serviceWorker.ready
+    const sub = await reg.pushManager.getSubscription()
+    if (sub) {
+      await sub.unsubscribe()
+      await fetch("/api/push_subscriptions", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json", "X-CSRF-Token": csrfToken() },
+        credentials: "same-origin",
+        body: JSON.stringify({ endpoint: sub.endpoint })
+      })
+    }
+    this.refresh()
+  }
+}
+
+function vapidPublicKey() {
+  return document.querySelector("meta[name='vapid-public-key']").content
+}
+function csrfToken() {
+  return document.querySelector("meta[name='csrf-token']").content
+}
+function urlB64ToUint8Array(b64) {
+  const padding = "=".repeat((4 - (b64.length % 4)) % 4)
+  const base64 = (b64 + padding).replace(/-/g, "+").replace(/_/g, "/")
+  const raw = atob(base64)
+  return new Uint8Array([...raw].map((c) => c.charCodeAt(0)))
+}

@@ -1,0 +1,35 @@
+<table id="leaderboard" class="w-full text-base">
+  <thead>
+    <tr class="text-left text-sm text-slate-300 border-b border-slate-700">
+      <th class="px-3 py-2">#</th>
+      <th class="px-3 py-2">Entry</th>
+      <th class="px-3 py-2">Total</th>
+    </tr>
+  </thead>
+  <tbody>
+    <% leaderboard.each_with_index do |row, i| %>
+      <tr class="border-t border-slate-700 align-top">
+        <td class="px-3 py-3"><%= i + 1 %></td>
+        <td class="px-3 py-3">
+          <div class="font-medium"><%= row[:entry].display_name %></div>
+          <% if row[:fish].present? %>
+            <% can_open = local_assigns[:tournament].present? && can_open_catches_in?(local_assigns[:tournament]) %>
+            <div class="text-xs text-slate-400 mt-1 space-x-2">
+              <% row[:fish].each do |f| %>
+                <% if can_open %>
+                  <%= link_to format_length_dual(f[:length_inches]), catch_path(f[:id]),
+                              class: "text-blue-300 underline-offset-2 hover:underline" %>
+                <% else %>
+                  <span><%= format_length_dual(f[:length_inches]) %></span>
+                <% end %>
+              <% end %>
+            </div>
+          <% end %>
+        </td>
+        <td class="px-3 py-3 font-mono">
+          <%= format_length_dual(row[:total]) %>
+        </td>
+      </tr>
+    <% end %>
+  </tbody>
+</table>

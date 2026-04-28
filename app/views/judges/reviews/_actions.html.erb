@@ -1,0 +1,8 @@
+<%= form_with url: judges_tournament_catch_review_path(tournament_id: tournament.id, catch_id: catch.id), local: true do |f| %>
+  <%= label_tag :note %>
+  <%= text_area_tag :note %>
+  <%= button_tag "Approve",    name: "action_kind", value: "approve" %>
+  <%= button_tag "Flag",       name: "action_kind", value: "flag" %>
+  <%= button_tag "Disqualify", name: "action_kind", value: "disqualify" %>
+  <%= button_tag "Verified at dock", name: "action_kind", value: "dock_verify" %>
+<% end %>

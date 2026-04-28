@@ -1,0 +1,10 @@
+<div class="flex flex-col items-center justify-center min-h-[60vh] px-2">
+  <h1 class="text-2xl font-semibold mb-6">Sign in</h1>
+  <%= form_with url: session_path, method: :post, local: true, class: "w-full" do |f| %>
+    <%= f.label :email, "Email address", class: "block text-sm font-medium text-slate-300 mb-1" %>
+    <%= f.email_field :email, required: true,
+        class: "w-full h-12 px-3 rounded-lg bg-slate-800 border border-slate-700 text-base text-slate-100 mb-4" %>
+    <%= f.submit "Send sign-in link",
+        class: "w-full h-14 px-6 text-lg font-semibold rounded-lg bg-blue-600 active:bg-blue-700 text-white cursor-pointer" %>
+  <% end %>
+</div>

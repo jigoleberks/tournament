@@ -1,0 +1,37 @@
+<% catches = Catch
+                .joins(:catch_placements)
+                .where(catch_placements: { tournament_id: @tournament.id })
+                .distinct
+                .includes(:user, :species, photo_attachment: :blob)
+                .order(captured_at_device: :desc) %>
+
+<h3 class="text-lg font-semibold mt-6 mb-2">Catches (<%= catches.size %>)</h3>
+
+<% if catches.any? %>
+  <ul class="grid grid-cols-2 gap-2">
+    <% catches.each do |c| %>
+      <li class="bg-slate-800 rounded-lg p-2 flex flex-col">
+        <% if c.photo.attached? %>
+          <%= image_tag url_for(c.photo), class: "w-full h-32 object-cover rounded bg-black" %>
+        <% else %>
+          <div class="w-full h-32 rounded bg-black flex items-center justify-center text-slate-500 text-sm">no photo</div>
+        <% end %>
+        <div class="text-xs text-slate-300 mt-2 leading-snug">
+          <div class="font-medium text-slate-100"><%= c.user.name %></div>
+          <div><%= c.species.name %> · <%= format_length_dual(c.length_inches) %></div>
+          <div class="mt-1">
+            <% if c.disqualified? %>
+              <span class="text-red-400">disqualified</span>
+            <% elsif c.needs_review? %>
+              <span class="text-amber-400">needs review</span>
+            <% else %>
+              <span class="text-slate-500"><%= c.status %></span>
+            <% end %>
+          </div>
+        </div>
+      </li>
+    <% end %>
+  </ul>
+<% else %>
+  <p class="text-slate-400 italic">No catches yet.</p>
+<% end %>

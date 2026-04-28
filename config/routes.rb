@@ -1,0 +1,53 @@
+Rails.application.routes.draw do
+  resource :session, only: [:new, :create, :destroy] do
+    collection do
+      get :consume
+      get :check_email
+    end
+  end
+  root "home#index"
+
+  get "/manifest.webmanifest", to: "pwa#manifest"
+
+  namespace :organizers do
+    resources :tournaments do
+      resources :tournament_entries, only: [:create, :destroy]
+      resources :tournament_judges,  only: [:create, :destroy]
+    end
+    resources :members
+    resources :catches, only: [:index]
+    resources :tournament_templates do
+      member { post :clone }
+    end
+  end
+
+  resources :tournaments, only: [:index, :show]
+  resources :catches, only: [:new, :create, :show]
+
+  namespace :judges do
+    resources :tournaments, only: [] do
+      resources :catches, only: [:index, :show] do
+        resource :review,          only: [:create]
+        resource :manual_override, only: [:new, :create]
+      end
+    end
+  end
+
+  namespace :api do
+    resources :catches, only: [:create]
+    post   "push_subscriptions", to: "push_subscriptions#create"
+    delete "push_subscriptions", to: "push_subscriptions#destroy"
+  end
+
+  get "/pre_trip", to: "pre_trip#show", as: :pre_trip
+  patch "/me", to: "users#update", as: :me
+
+  resource :notification_settings, only: [:show], controller: :notification_settings do
+    collection do
+      post :snooze
+      post :unmute
+      post :mute_tournament
+      post :unmute_tournament
+    end
+  end
+end

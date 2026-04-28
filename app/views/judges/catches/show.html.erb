@@ -1,0 +1,13 @@
+<h1>Catch <%= @catch.id %></h1>
+<p><%= image_tag(url_for(@catch.photo)) if @catch.photo.attached? %></p>
+<p><%= video_tag(url_for(@catch.video), controls: true) if @catch.video.attached? %></p>
+<p>Status: <%= @catch.status %></p>
+
+<%= render "judges/reviews/actions", catch: @catch, tournament: @tournament %>
+
+<h2>Dispute log</h2>
+<ul>
+  <% @actions.each do |a| %>
+    <li><%= a.created_at %> — <%= a.judge_user.name %> — <%= a.action %> — <%= a.note %></li>
+  <% end %>
+</ul>

@@ -1,0 +1,17 @@
+<% is_ios = request.user_agent.to_s.match?(/iPhone|iPad/) %>
+<% is_standalone_request = request.headers["Sec-Fetch-Mode"] == "no-cors" %>
+<% if is_ios %>
+  <div id="ios-install-coach" hidden style="background:#fef9c3;padding:.75rem;border-radius:.5rem;margin:.5rem 0;">
+    <strong>Install for the best experience.</strong>
+    Tap the share button (□↑) at the bottom of Safari, then <em>Add to Home Screen</em>.
+    Push notifications work only after installing.
+    <button type="button" onclick="this.parentElement.hidden=true; localStorage.setItem('ios-coach-dismissed','1')">Got it</button>
+  </div>
+  <script>
+    if (window.matchMedia("(display-mode: standalone)").matches) {
+      document.getElementById("ios-install-coach").hidden = true;
+    } else if (!localStorage.getItem("ios-coach-dismissed")) {
+      document.getElementById("ios-install-coach").hidden = false;
+    }
+  </script>
+<% end %>

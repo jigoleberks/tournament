@@ -1,0 +1,44 @@
+<h1 class="text-2xl font-semibold mt-4 mb-4">Pre-trip check</h1>
+
+<div data-controller="pre-trip"
+     data-pre-trip-active-tournaments-value="<%= @active_tournament_count %>"
+     class="bg-slate-800 rounded-xl p-4 my-3">
+
+  <ul class="divide-y divide-slate-700">
+    <li data-check="session" class="flex justify-between items-center py-3">
+      <span>Logged in</span>
+      <span data-pre-trip-target="session" class="text-slate-400">…</span>
+    </li>
+    <li data-check="tournaments" class="flex justify-between items-center py-3">
+      <span>Tournaments loaded</span>
+      <span data-pre-trip-target="tournaments" class="text-slate-400">…</span>
+    </li>
+    <li data-check="camera" class="flex justify-between items-center py-3">
+      <span>Camera</span>
+      <span data-pre-trip-target="camera" class="text-slate-400">…</span>
+    </li>
+    <li data-check="microphone" class="flex justify-between items-center py-3">
+      <span>Microphone</span>
+      <span data-pre-trip-target="microphone" class="text-slate-400">…</span>
+    </li>
+    <li data-check="gps" class="flex justify-between items-center py-3">
+      <span>GPS</span>
+      <span data-pre-trip-target="gps" class="text-slate-400">…</span>
+    </li>
+    <li data-check="clock" class="flex justify-between items-center py-3">
+      <span>Clock</span>
+      <span data-pre-trip-target="clock" class="text-slate-400">…</span>
+    </li>
+    <li data-check="notifications" class="flex justify-between items-center py-3">
+      <span>Notifications</span>
+      <span data-pre-trip-target="notifications" class="text-slate-400">…</span>
+    </li>
+    <li data-check="network" class="flex justify-between items-center py-3">
+      <span>Network</span>
+      <span data-pre-trip-target="network" class="text-slate-400">…</span>
+    </li>
+  </ul>
+
+  <button type="button" data-action="pre-trip#runAll"
+          class="w-full h-14 px-6 text-lg font-semibold rounded-lg bg-blue-600 active:bg-blue-700 text-white mt-4">Re-test</button>
+</div>

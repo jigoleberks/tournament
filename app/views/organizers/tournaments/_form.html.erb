@@ -1,0 +1,88 @@
+<%= form_with model: [:organizers, @tournament], local: true, class: "space-y-4" do |f| %>
+  <% if @tournament.errors.any? %>
+    <ul class="text-red-300 text-sm bg-red-900/40 border border-red-800 rounded-lg p-3 space-y-1">
+      <% @tournament.errors.full_messages.each do |m| %><li><%= m %></li><% end %>
+    </ul>
+  <% end %>
+
+  <div class="bg-slate-800 rounded-xl p-4 space-y-4">
+    <div>
+      <%= f.label :name, class: "block text-sm font-medium text-slate-300 mb-1" %>
+      <%= f.text_field :name,
+                       class: "w-full h-12 px-3 rounded-lg bg-slate-900 border border-slate-700 text-base" %>
+    </div>
+
+    <div>
+      <%= f.label :kind, class: "block text-sm font-medium text-slate-300 mb-1" %>
+      <%= f.select :kind, Tournament.kinds.keys, {},
+                   class: "w-full h-12 px-3 rounded-lg bg-slate-900 border border-slate-700 text-base" %>
+    </div>
+
+    <div>
+      <%= f.label :mode, class: "block text-sm font-medium text-slate-300 mb-1" %>
+      <%= f.select :mode, Tournament.modes.keys, {},
+                   class: "w-full h-12 px-3 rounded-lg bg-slate-900 border border-slate-700 text-base" %>
+    </div>
+
+    <div>
+      <%= f.label :starts_at, class: "block text-sm font-medium text-slate-300 mb-1" %>
+      <%= f.datetime_local_field :starts_at,
+                                 class: "w-full h-12 px-3 rounded-lg bg-slate-900 border border-slate-700 text-base" %>
+    </div>
+
+    <div>
+      <%= f.label :ends_at, class: "block text-sm font-medium text-slate-300 mb-1" %>
+      <%= f.datetime_local_field :ends_at,
+                                 class: "w-full h-12 px-3 rounded-lg bg-slate-900 border border-slate-700 text-base" %>
+    </div>
+
+    <div>
+      <%= f.label :season_tag, "Season tag", class: "block text-sm font-medium text-slate-300 mb-1" %>
+      <%= f.text_field :season_tag,
+                       class: "w-full h-12 px-3 rounded-lg bg-slate-900 border border-slate-700 text-base" %>
+    </div>
+
+    <label class="flex items-center gap-3 mt-2">
+      <%= f.check_box :requires_release_video, class: "h-5 w-5" %>
+      <span class="text-slate-200">Require release video</span>
+    </label>
+    <p class="text-xs text-slate-500 -mt-2">When off, anglers won't be prompted to record a release video.</p>
+  </div>
+
+  <div class="bg-slate-800 rounded-xl p-4 space-y-3">
+    <h3 class="text-lg font-semibold">Scoring slots</h3>
+    <p class="text-sm text-slate-400">Pick a species and how many of that fish counts. Blank rows are ignored.</p>
+
+    <%= f.fields_for :scoring_slots do |sf| %>
+      <div class="bg-slate-900 rounded-lg p-3 space-y-2 border border-slate-700">
+        <label class="block text-sm text-slate-400">Species</label>
+        <%= sf.collection_select :species_id, current_user.club.species.order(:name), :id, :name,
+                                 { include_blank: "—" },
+                                 class: "w-full h-12 px-3 rounded-lg bg-slate-900 border border-slate-700 text-base" %>
+
+        <label class="block text-sm text-slate-400 mt-2">Slots</label>
+        <%= sf.number_field :slot_count, min: 1, value: sf.object.slot_count || 1,
+                            class: "w-full h-12 px-3 rounded-lg bg-slate-900 border border-slate-700 text-base" %>
+
+        <% if sf.object.persisted? %>
+          <label class="flex items-center gap-2 text-sm text-slate-400 mt-2">
+            <%= sf.check_box :_destroy, class: "h-5 w-5" %>
+            Remove this slot
+          </label>
+        <% end %>
+      </div>
+    <% end %>
+
+    <p class="text-xs text-slate-500 italic">
+      Save the tournament for another empty row to appear on the edit page.
+    </p>
+  </div>
+
+  <%= f.submit class: "w-full h-14 px-6 text-lg font-semibold rounded-lg bg-blue-600 active:bg-blue-700 text-white" %>
+<% end %>
+
+<% if @tournament.persisted? %>
+  <%= render "organizers/tournament_entries/section" %>
+  <%= render "organizers/tournament_judges/section" %>
+  <%= render "organizers/catches/section" %>
+<% end %>

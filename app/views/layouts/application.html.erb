@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <title><%= content_for(:title) || ENV.fetch("APP_NAME", "Tournament") %></title>
+    <meta name="viewport" content="width=device-width,initial-scale=1">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="mobile-web-app-capable" content="yes">
+    <%= csrf_meta_tags %>
+    <%= csp_meta_tag %>
+    <meta name="vapid-public-key" content="<%= VAPID[:public_key] %>">
+
+    <%= yield :head %>
+
+    <link rel="manifest" href="/manifest.webmanifest">
+    <meta name="theme-color" content="#0f172a">
+    <link rel="apple-touch-icon" href="/icon.png">
+
+    <link rel="icon" href="/icon.png" type="image/png">
+    <link rel="icon" href="/icon.svg" type="image/svg+xml">
+
+    <%= stylesheet_link_tag "tailwind", "data-turbo-track": "reload" %>
+    <%= javascript_importmap_tags %>
+  </head>
+
+  <body class="bg-slate-900 text-slate-100 min-h-screen">
+    <%= render "shared/ios_install_coach" %>
+
+    <% flash.each do |type, message| %>
+      <p id="flash_<%= type %>" class="bg-yellow-500/20 border border-yellow-500/40 text-yellow-200 rounded-lg px-3 py-2 my-2 mx-4"><%= message %></p>
+    <% end %>
+
+    <main class="max-w-md mx-auto px-4 pb-24">
+      <%= yield %>
+    </main>
+  </body>
+</html>

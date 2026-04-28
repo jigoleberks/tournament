@@ -1,0 +1,16 @@
+<h1 class="text-2xl font-semibold mt-4 mb-4"><%= @tournament.name %></h1>
+
+<% is_judge   = TournamentJudge.exists?(tournament_id: @tournament.id, user_id: current_user.id) %>
+<% is_entered = TournamentEntryMember.joins(:tournament_entry)
+                  .exists?(tournament_entries: { tournament_id: @tournament.id }, user_id: current_user.id) %>
+
+<% if is_judge %>
+  <p class="text-slate-400 mb-4">You're judging this tournament.</p>
+<% elsif is_entered %>
+  <%= link_to "Log Catch", new_catch_path, class: "block w-full h-14 px-6 text-lg font-semibold rounded-lg bg-blue-600 active:bg-blue-700 text-white text-center leading-[3.5rem] mb-4" %>
+<% else %>
+  <p class="text-slate-400 italic">You're not entered. Ask an organizer to add you.</p>
+<% end %>
+
+<%= turbo_stream_from "tournament:#{@tournament.id}:leaderboard" %>
+<%= render "leaderboard", leaderboard: @leaderboard, tournament: @tournament %>

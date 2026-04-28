@@ -1,0 +1,3 @@
+<p>Hi <%= @token.user.name %>,</p>
+<p>You're invited to <%= ENV.fetch("APP_NAME", "Tournament") %>. Tap to set up your phone:</p>
+<p><%= @url %></p>

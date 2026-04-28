@@ -1,0 +1,16 @@
+<h1>Judge: <%= @tournament.name %></h1>
+<table>
+  <thead><tr><th>#</th><th>Angler</th><th>Species</th><th>Length</th><th>Status</th><th></th></tr></thead>
+  <tbody>
+    <% @catches.each do |c| %>
+      <tr style="<%= 'background:#fef3c7' if c.needs_review? %>">
+        <td><%= c.id %></td>
+        <td><%= c.user.name %></td>
+        <td><%= c.species.name %></td>
+        <td><%= c.length_inches %>"</td>
+        <td><%= c.status %></td>
+        <td><%= link_to "Open", judges_tournament_catch_path(tournament_id: @tournament.id, id: c.id) %></td>
+      </tr>
+    <% end %>
+  </tbody>
+</table>

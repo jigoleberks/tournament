@@ -1,0 +1,17 @@
+default: &default
+  subject: <%= ENV.fetch("VAPID_SUBJECT", "mailto:admin@example.com").to_json %>
+
+development:
+  <<: *default
+  public_key: GENERATE_WITH_RAILS_RUNNER
+  private_key: GENERATE_WITH_RAILS_RUNNER
+
+test:
+  <<: *default
+  public_key: dGVzdC1wdWJsaWMta2V5
+  private_key: dGVzdC1wcml2YXRlLWtleQ==
+
+production:
+  <<: *default
+  public_key: <%= ENV.fetch("VAPID_PUBLIC_KEY", "") %>
+  private_key: <%= ENV.fetch("VAPID_PRIVATE_KEY", "") %>

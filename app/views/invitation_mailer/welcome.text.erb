@@ -1,0 +1,4 @@
+Hi <%= @token.user.name %>,
+
+You're invited to <%= ENV.fetch("APP_NAME", "Tournament") %>. Tap to set up your phone:
+<%= @url %>

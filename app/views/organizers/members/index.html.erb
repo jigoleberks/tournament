@@ -1,0 +1,16 @@
+<h1 class="text-2xl font-semibold mt-4 mb-4">Members</h1>
+<%= link_to "Invite", new_organizers_member_path,
+            class: "inline-block h-12 px-4 leading-[3rem] rounded-lg bg-blue-600 text-white" %>
+
+<ul class="mt-4 space-y-2">
+  <% @users.each do |u| %>
+    <% entries = u.tournament_entry_members.joins(:tournament_entry).count %>
+    <li class="bg-slate-800 rounded-lg px-4 py-3">
+      <strong><%= u.name %></strong>
+      — <%= u.role %>
+      <% if entries > 0 %>
+        <span class="text-sm text-slate-400">— in <%= entries %> tournament<%= 's' if entries != 1 %></span>
+      <% end %>
+    </li>
+  <% end %>
+</ul>
