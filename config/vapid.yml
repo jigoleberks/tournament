@@ -1,0 +1,15 @@
+default: &default
+  subject: <%= ENV.fetch("VAPID_SUBJECT", "mailto:admin@example.com") %>
+
+development: &dev
+  <<: *default
+  public_key: <%= ENV.fetch("VAPID_PUBLIC_KEY", "") %>
+  private_key: <%= ENV.fetch("VAPID_PRIVATE_KEY", "") %>
+
+test:
+  <<: *default
+  public_key: dGVzdC1wdWJsaWMta2V5
+  private_key: dGVzdC1wcml2YXRlLWtleQ==
+
+production:
+  <<: *dev
