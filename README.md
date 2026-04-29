@@ -163,13 +163,24 @@ docker compose run --rm web bin/rails test
 docker compose run --rm web bin/rails test:system
 ```
 
-## Updating after a `git pull`
+## Updating an existing install
+
+The repo ships a `bin/update` script that does it all in one shot — pull, rebuild image if needed, run pending migrations, recreate containers, then tail logs:
 
 ```bash
-git pull
-docker compose build web      # only if Gemfile changed
+./bin/update
+```
+
+It handles the common gotchas (stale `tmp/pids/server.pid` boot loop, auto-stashing the regenerated `app/assets/builds/tailwind.css` so `git pull` doesn't refuse). Press Ctrl-C to stop tailing once you've seen Puma listening.
+
+Manual equivalent if you'd rather run the steps individually:
+
+```bash
+git pull --ff-only --autostash
+rm -f tmp/pids/server.pid
+docker compose build web      # no-op unless Dockerfile/Gemfile changed
 docker compose run --rm web bin/rails db:migrate
-docker compose restart web    # if config files changed
+docker compose up -d
 ```
 
 ## Notes
