@@ -35,9 +35,16 @@ class Organizers::MembersController < Organizers::BaseController
   end
 
   def issue_code
-    @member = current_user.club.users.active.find(params[:id])
-    @token = SignInToken.issue_code!(user: @member)
-    render :code
+    member = current_user.club.users.active.find(params[:id])
+    token = SignInToken.issue_code!(user: member)
+    flash[:code] = token.token
+    redirect_to code_organizers_member_path(member), status: :see_other
+  end
+
+  def code
+    @member = current_user.club.users.find(params[:id])
+    @code = flash[:code]
+    redirect_to organizers_members_path and return unless @code
   end
 
   private

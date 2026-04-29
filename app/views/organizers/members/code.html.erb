@@ -2,7 +2,7 @@
 
 <div class="bg-slate-800 rounded-lg p-6">
   <p class="text-sm text-slate-400 mb-2">Read this code to <%= @member.name %> now. Valid 10 minutes.</p>
-  <p class="text-4xl font-mono tracking-widest text-emerald-300"><%= @token.token %></p>
+  <p class="text-4xl font-mono tracking-widest text-emerald-300"><%= @code %></p>
 </div>
 
 <%= link_to "Done", organizers_members_path,

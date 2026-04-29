@@ -20,6 +20,7 @@ Rails.application.routes.draw do
       member do
         post :reactivate
         post :issue_code
+        get  :code
       end
     end
     resources :catches, only: [:index]
