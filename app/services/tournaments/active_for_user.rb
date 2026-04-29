@@ -5,7 +5,7 @@ module Tournaments
     end
 
     def self.with_entries(user:, at: Time.current)
-      Tournament
+      tournaments = Tournament
         .joins(tournament_entries: :tournament_entry_members)
         .left_joins(:tournament_judges)
         .where(tournament_entry_members: { user_id: user.id })
@@ -13,7 +13,10 @@ module Tournaments
         .where("starts_at <= ?", at)
         .where("ends_at IS NULL OR ends_at >= ?", at)
         .select("tournaments.*, tournament_entries.id AS entry_id")
-        .map { |t| { tournament: t, entry: TournamentEntry.find(t.entry_id) } }
+        .to_a
+
+      entries_by_id = TournamentEntry.where(id: tournaments.map(&:entry_id)).index_by(&:id)
+      tournaments.map { |t| { tournament: t, entry: entries_by_id[t.entry_id] } }
     end
   end
 end
