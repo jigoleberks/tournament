@@ -2,31 +2,51 @@
 <p class="text-slate-400 text-sm mb-4">All catches submitted to the club, newest first.</p>
 
 <% if @catches.any? %>
-  <ul class="grid grid-cols-2 gap-2">
-    <% @catches.each do |c| %>
-      <li class="bg-slate-800 rounded-lg p-2 flex flex-col">
-        <% if c.photo.attached? %>
-          <%= image_tag url_for(c.photo), class: "w-full h-40 object-cover rounded bg-black" %>
-        <% else %>
-          <div class="w-full h-40 rounded bg-black flex items-center justify-center text-slate-500 text-sm">no photo</div>
-        <% end %>
-        <div class="text-xs text-slate-300 mt-2 leading-snug">
-          <div class="font-medium text-slate-100"><%= c.user.name %></div>
-          <div><%= c.species.name %> · <%= format_length_dual(c.length_inches) %></div>
-          <div class="text-slate-500"><%= c.captured_at_device.strftime("%b %d %Y · %l:%M %p") %></div>
-          <div class="mt-1">
-            <% if c.disqualified? %>
-              <span class="text-red-400">disqualified</span>
-            <% elsif c.needs_review? %>
-              <span class="text-amber-400">needs review</span>
-            <% else %>
-              <span class="text-slate-500"><%= c.status %></span>
-            <% end %>
+  <div data-controller="lightbox">
+    <ul class="grid grid-cols-2 gap-2">
+      <% @catches.each do |c| %>
+        <li class="bg-slate-800 rounded-lg p-2 flex flex-col">
+          <% if c.photo.attached? %>
+            <button type="button"
+                    data-action="lightbox#open"
+                    data-lightbox-src="<%= url_for(c.photo) %>"
+                    data-lightbox-alt="<%= "#{c.species.name} caught by #{c.user.name}" %>"
+                    class="block w-full p-0 border-0 bg-transparent cursor-zoom-in">
+              <%= image_tag url_for(c.photo), class: "w-full h-40 object-cover rounded bg-black" %>
+            </button>
+          <% else %>
+            <div class="w-full h-40 rounded bg-black flex items-center justify-center text-slate-500 text-sm">no photo</div>
+          <% end %>
+          <div class="text-xs text-slate-300 mt-2 leading-snug">
+            <div class="font-medium text-slate-100"><%= c.user.name %></div>
+            <div><%= c.species.name %> · <%= format_length_dual(c.length_inches) %></div>
+            <div class="text-slate-500"><%= c.captured_at_device.strftime("%b %d %Y · %l:%M %p") %></div>
+            <div class="mt-1">
+              <% if c.disqualified? %>
+                <span class="text-red-400">disqualified</span>
+              <% elsif c.needs_review? %>
+                <span class="text-amber-400">needs review</span>
+              <% else %>
+                <span class="text-slate-500"><%= c.status %></span>
+              <% end %>
+            </div>
           </div>
-        </div>
-      </li>
-    <% end %>
-  </ul>
+        </li>
+      <% end %>
+    </ul>
+
+    <dialog data-lightbox-target="dialog"
+            data-action="click->lightbox#backdropClose close->lightbox#close"
+            class="bg-transparent p-0 max-w-none max-h-none w-screen h-screen backdrop:bg-black/90">
+      <button type="button"
+              data-action="lightbox#close"
+              aria-label="Close"
+              class="fixed top-3 right-3 h-12 w-12 rounded-full bg-black/70 text-white text-2xl leading-none z-10">×</button>
+      <div class="w-full h-full flex items-center justify-center p-4">
+        <%= image_tag "", data: { lightbox_target: "image" }, class: "max-w-full max-h-full object-contain" %>
+      </div>
+    </dialog>
+  </div>
 <% else %>
   <p class="text-slate-400 italic">No catches yet.</p>
 <% end %>
