@@ -10,9 +10,17 @@ export default class extends Controller {
       this.statusTarget.textContent = "push not supported"
       return
     }
-    if (Notification.permission === "granted") this.statusTarget.textContent = "notifications on"
-    else if (Notification.permission === "denied") this.statusTarget.textContent = "blocked in browser"
-    else this.statusTarget.textContent = "off"
+    if (Notification.permission === "denied") {
+      this.statusTarget.textContent = "blocked in browser"
+      return
+    }
+    if (Notification.permission !== "granted") {
+      this.statusTarget.textContent = "off"
+      return
+    }
+    const reg = await navigator.serviceWorker.ready
+    const sub = await reg.pushManager.getSubscription()
+    this.statusTarget.textContent = sub ? "on" : "off"
   }
 
   async enable() {
