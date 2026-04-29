@@ -7,11 +7,12 @@
                   video-capture:failed->catch-form#onVideoFailed">
 
   <label class="block text-sm font-medium text-slate-300 mt-4 mb-1">Species</label>
+  <% default_species = current_user.club.species.where("LOWER(name) = ?", "walleye").first %>
   <select data-catch-form-target="speciesSelect" data-action="change->catch-form#refresh"
           class="w-full h-12 px-3 rounded-lg bg-slate-800 border border-slate-700 text-base text-slate-100">
-    <option value=""></option>
+    <option value=""<%= " selected" if default_species.nil? %>></option>
     <% current_user.club.species.order(:name).each do |s| %>
-      <option value="<%= s.id %>"><%= s.name %></option>
+      <option value="<%= s.id %>"<%= " selected" if s == default_species %>><%= s.name %></option>
     <% end %>
   </select>
 
