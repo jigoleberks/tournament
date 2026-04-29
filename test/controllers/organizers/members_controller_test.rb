@@ -44,6 +44,8 @@ class Organizers::MembersControllerTest < ActionDispatch::IntegrationTest
       post issue_code_organizers_member_path(member)
     end
     code = SignInToken.where(user: member, kind: "code").last
+    assert_redirected_to code_organizers_member_path(member)
+    follow_redirect!
     assert_response :success
     assert_match code.token, response.body
     assert_no_match(/#{code.token}/, flash[:notice].to_s)
