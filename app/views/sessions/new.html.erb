@@ -7,4 +7,9 @@
     <%= f.submit "Send sign-in link",
         class: "w-full h-14 px-6 text-lg font-semibold rounded-lg bg-blue-600 active:bg-blue-700 text-white cursor-pointer" %>
   <% end %>
+  <div class="mt-6 text-center text-sm text-slate-400">
+    No email on this device?
+    <%= link_to "Sign in with a code from your organizer", code_session_path,
+        class: "text-blue-400 underline" %>
+  </div>
 </div>

@@ -5,12 +5,38 @@
 <ul class="mt-4 space-y-2">
   <% @users.each do |u| %>
     <% entries = u.tournament_entry_members.joins(:tournament_entry).count %>
-    <li class="bg-slate-800 rounded-lg px-4 py-3">
-      <strong><%= u.name %></strong>
-      — <%= u.role %>
-      <% if entries > 0 %>
-        <span class="text-sm text-slate-400">— in <%= entries %> tournament<%= 's' if entries != 1 %></span>
-      <% end %>
+    <li class="bg-slate-800 rounded-lg px-4 py-3 flex items-center justify-between gap-3">
+      <div>
+        <strong><%= u.name %></strong>
+        — <%= u.role %>
+        <% if u.deactivated? %>
+          <span class="text-sm text-amber-400">— deactivated</span>
+        <% end %>
+        <% if entries > 0 %>
+          <span class="text-sm text-slate-400">— in <%= entries %> tournament<%= 's' if entries != 1 %></span>
+        <% end %>
+      </div>
+      <div class="flex items-center gap-2">
+        <% if u == current_user %>
+          <span class="text-sm text-slate-500">you</span>
+        <% elsif u.deactivated? %>
+          <%= button_to "Reactivate",
+                        reactivate_organizers_member_path(u),
+                        method: :post,
+                        class: "h-10 px-3 rounded bg-emerald-600 active:bg-emerald-700 text-white" %>
+        <% else %>
+          <%= button_to "Issue code",
+                        issue_code_organizers_member_path(u),
+                        method: :post,
+                        data: { turbo_confirm: "Generate a one-time sign-in code for #{u.name}? Valid 10 minutes." },
+                        class: "h-10 px-3 rounded bg-slate-700 active:bg-slate-600 text-white" %>
+          <%= button_to "Deactivate",
+                        organizers_member_path(u),
+                        method: :delete,
+                        data: { turbo_confirm: "Deactivate #{u.name}? They'll be hidden from new entries but past results stay." },
+                        class: "h-10 px-3 rounded bg-red-600 active:bg-red-700 text-white" %>
+        <% end %>
+      </div>
     </li>
   <% end %>
 </ul>

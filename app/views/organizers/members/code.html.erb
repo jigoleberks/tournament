@@ -1,0 +1,9 @@
+<h1 class="text-2xl font-semibold mt-4 mb-4">Sign-in code for <%= @member.name %></h1>
+
+<div class="bg-slate-800 rounded-lg p-6">
+  <p class="text-sm text-slate-400 mb-2">Read this code to <%= @member.name %> now. Valid 10 minutes.</p>
+  <p class="text-4xl font-mono tracking-widest text-emerald-300"><%= @token.token %></p>
+</div>
+
+<%= link_to "Done", organizers_members_path,
+            class: "inline-block mt-6 h-12 px-4 leading-[3rem] rounded-lg bg-blue-600 text-white" %>

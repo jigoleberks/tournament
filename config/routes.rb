@@ -3,6 +3,8 @@ Rails.application.routes.draw do
     collection do
       get :consume
       get :check_email
+      get :code
+      post :code, action: :submit_code
     end
   end
   root "home#index"
@@ -14,7 +16,12 @@ Rails.application.routes.draw do
       resources :tournament_entries, only: [:create, :destroy]
       resources :tournament_judges,  only: [:create, :destroy]
     end
-    resources :members
+    resources :members, only: [:index, :new, :create, :destroy] do
+      member do
+        post :reactivate
+        post :issue_code
+      end
+    end
     resources :catches, only: [:index]
     resources :tournament_templates do
       member { post :clone }

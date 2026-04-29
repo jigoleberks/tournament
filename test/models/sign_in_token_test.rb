@@ -32,4 +32,61 @@ class SignInTokenTest < ActiveSupport::TestCase
     SignInToken.consume!(token.token)
     assert_nil SignInToken.consume!(token.token)
   end
+
+  test "consume! refuses to accept code-kind tokens" do
+    code = SignInToken.issue_code!(user: @user)
+    assert_nil SignInToken.consume!(code.token)
+  end
+
+  test "issue_code! creates an 8-digit code valid 10 minutes" do
+    code = SignInToken.issue_code!(user: @user)
+    assert_match(/\A\d{8}\z/, code.token)
+    assert_equal "code", code.kind
+    assert_in_delta 10.minutes.from_now, code.expires_at, 5
+  end
+
+  test "issue_code! invalidates any prior open code for the user" do
+    first = SignInToken.issue_code!(user: @user)
+    SignInToken.issue_code!(user: @user)
+    assert_not_nil first.reload.used_at
+  end
+
+  test "consume_code! signs in when email and code match" do
+    code = SignInToken.issue_code!(user: @user)
+    assert_equal @user, SignInToken.consume_code!(email: @user.email, code: code.token)
+    assert_not_nil code.reload.used_at
+  end
+
+  test "consume_code! returns nil on email mismatch" do
+    code = SignInToken.issue_code!(user: @user)
+    assert_nil SignInToken.consume_code!(email: "wrong@example.com", code: code.token)
+    assert_nil code.reload.used_at
+  end
+
+  test "consume_code! locks the code after MAX_ATTEMPTS wrong tries" do
+    code = SignInToken.issue_code!(user: @user)
+    SignInToken::CODE_MAX_ATTEMPTS.times do
+      assert_nil SignInToken.consume_code!(email: @user.email, code: "00000000")
+    end
+    assert_not_nil code.reload.used_at
+    assert_nil SignInToken.consume_code!(email: @user.email, code: code.token)
+  end
+
+  test "consume_code! is nil when no open code exists" do
+    assert_nil SignInToken.consume_code!(email: @user.email, code: "12345678")
+  end
+
+  test "consume! returns nil for a deactivated user" do
+    token = SignInToken.issue!(user: @user)
+    @user.update!(deactivated_at: Time.current)
+    assert_nil SignInToken.consume!(token.token)
+    assert_nil token.reload.used_at
+  end
+
+  test "consume_code! returns nil for a deactivated user" do
+    code = SignInToken.issue_code!(user: @user)
+    @user.update!(deactivated_at: Time.current)
+    assert_nil SignInToken.consume_code!(email: @user.email, code: code.token)
+    assert_nil code.reload.used_at
+  end
 end

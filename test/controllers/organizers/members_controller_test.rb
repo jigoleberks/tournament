@@ -18,6 +18,53 @@ class Organizers::MembersControllerTest < ActionDispatch::IntegrationTest
     assert_match SignInToken.last.token, ActionMailer::Base.deliveries.last.body.encoded
   end
 
+  test "destroy deactivates the member without removing the record" do
+    member = create(:user, club: @club, role: :member)
+    assert_no_difference -> { User.count } do
+      delete organizers_member_path(member)
+    end
+    assert member.reload.deactivated?
+  end
+
+  test "destroy refuses to deactivate the current organizer" do
+    delete organizers_member_path(@organizer)
+    assert_not @organizer.reload.deactivated?
+    assert_equal "You can't deactivate yourself.", flash[:alert]
+  end
+
+  test "reactivate clears the deactivated_at timestamp" do
+    member = create(:user, club: @club, role: :member, deactivated_at: 1.day.ago)
+    post reactivate_organizers_member_path(member)
+    assert_not member.reload.deactivated?
+  end
+
+  test "issue_code creates a code-kind token and renders it on a dedicated page" do
+    member = create(:user, club: @club, role: :member)
+    assert_difference -> { SignInToken.where(kind: "code").count } => 1 do
+      post issue_code_organizers_member_path(member)
+    end
+    code = SignInToken.where(user: member, kind: "code").last
+    assert_response :success
+    assert_match code.token, response.body
+    assert_no_match(/#{code.token}/, flash[:notice].to_s)
+    assert_no_match(/#{code.token}/, flash[:alert].to_s)
+  end
+
+  test "issue_code refuses deactivated members" do
+    member = create(:user, club: @club, role: :member, deactivated_at: Time.current)
+    assert_no_difference -> { SignInToken.count } do
+      post issue_code_organizers_member_path(member)
+    end
+    assert_response :not_found
+  end
+
+  test "destroy is scoped to the current club" do
+    other_club_member = create(:user, club: create(:club), role: :member)
+    delete organizers_member_path(other_club_member)
+    assert_response :not_found
+    assert_not other_club_member.reload.deactivated?
+  end
+
   private
 
   def sign_in_as(user)

@@ -2,7 +2,7 @@ class Organizers::TournamentJudgesController < Organizers::BaseController
   before_action :load_tournament
 
   def create
-    user = current_user.club.users.find(params.dig(:tournament_judge, :user_id))
+    user = current_user.club.users.active.find(params.dig(:tournament_judge, :user_id))
     @tournament.tournament_judges.find_or_create_by(user: user)
     redirect_to edit_organizers_tournament_path(@tournament), notice: "Judge added."
   rescue ActiveRecord::RecordNotFound

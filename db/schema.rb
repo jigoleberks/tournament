@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2026_04_28_172203) do
+ActiveRecord::Schema[8.0].define(version: 2026_04_29_120000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -131,7 +131,10 @@ ActiveRecord::Schema[8.0].define(version: 2026_04_28_172203) do
     t.datetime "used_at"
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
+    t.string "kind", default: "link", null: false
+    t.integer "attempts", default: 0, null: false
     t.index ["token"], name: "index_sign_in_tokens_on_token", unique: true
+    t.index ["user_id", "kind"], name: "index_sign_in_tokens_on_user_id_and_kind"
     t.index ["user_id"], name: "index_sign_in_tokens_on_user_id"
   end
 
@@ -219,8 +222,10 @@ ActiveRecord::Schema[8.0].define(version: 2026_04_28_172203) do
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.string "length_unit", default: "inches", null: false
+    t.datetime "deactivated_at"
     t.index ["club_id", "email"], name: "index_users_on_club_id_and_email", unique: true
     t.index ["club_id"], name: "index_users_on_club_id"
+    t.index ["deactivated_at"], name: "index_users_on_deactivated_at"
   end
 
   add_foreign_key "active_storage_attachments", "active_storage_blobs", column: "blob_id"

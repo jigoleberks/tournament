@@ -1,6 +1,6 @@
 class Organizers::MembersController < Organizers::BaseController
   def index
-    @users = current_user.club.users.order(:name)
+    @users = current_user.club.users.order(:deactivated_at, :name)
   end
 
   def new
@@ -16,6 +16,28 @@ class Organizers::MembersController < Organizers::BaseController
     else
       render :new, status: :unprocessable_entity
     end
+  end
+
+  def destroy
+    user = current_user.club.users.find(params[:id])
+    if user == current_user
+      redirect_to organizers_members_path, alert: "You can't deactivate yourself."
+    else
+      user.update!(deactivated_at: Time.current)
+      redirect_to organizers_members_path, notice: "#{user.name} deactivated."
+    end
+  end
+
+  def reactivate
+    user = current_user.club.users.find(params[:id])
+    user.update!(deactivated_at: nil)
+    redirect_to organizers_members_path, notice: "#{user.name} reactivated."
+  end
+
+  def issue_code
+    @member = current_user.club.users.active.find(params[:id])
+    @token = SignInToken.issue_code!(user: @member)
+    render :code
   end
 
   private

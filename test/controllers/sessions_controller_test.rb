@@ -35,4 +35,34 @@ class SessionsControllerTest < ActionDispatch::IntegrationTest
     assert_redirected_to new_session_path
     assert_nil session[:user_id]
   end
+
+  test "POST /session/code signs in with a matching email and code" do
+    code = SignInToken.issue_code!(user: @user)
+    post code_session_path, params: { email: @user.email, code: code.token }
+    assert_redirected_to root_path
+    assert_equal @user.id, session[:user_id]
+  end
+
+  test "POST /session/code re-renders with an alert on bad code" do
+    SignInToken.issue_code!(user: @user)
+    post code_session_path, params: { email: @user.email, code: "00000000" }
+    assert_response :unprocessable_entity
+    assert_nil session[:user_id]
+  end
+
+  test "GET consume rejects a deactivated user" do
+    token = SignInToken.issue!(user: @user)
+    @user.update!(deactivated_at: Time.current)
+    get consume_session_path(token: token.token)
+    assert_redirected_to new_session_path
+    assert_nil session[:user_id]
+  end
+
+  test "POST /session/code rejects a deactivated user" do
+    code = SignInToken.issue_code!(user: @user)
+    @user.update!(deactivated_at: Time.current)
+    post code_session_path, params: { email: @user.email, code: code.token }
+    assert_response :unprocessable_entity
+    assert_nil session[:user_id]
+  end
 end

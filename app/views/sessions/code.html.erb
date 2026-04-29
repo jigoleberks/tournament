@@ -1,0 +1,22 @@
+<div class="flex flex-col items-center justify-center min-h-[60vh] px-2">
+  <h1 class="text-2xl font-semibold mb-2">Sign in with a code</h1>
+  <p class="text-sm text-slate-400 mb-6 text-center">Ask an organizer to issue you a one-time code from the members list.</p>
+
+  <%= form_with url: code_session_path, method: :post, local: true, class: "w-full" do |f| %>
+    <%= label_tag :email, "Email address", class: "block text-sm font-medium text-slate-300 mb-1" %>
+    <%= email_field_tag :email, params[:email], required: true,
+        class: "w-full h-12 px-3 rounded-lg bg-slate-800 border border-slate-700 text-base text-slate-100 mb-4" %>
+
+    <%= label_tag :code, "8-digit code", class: "block text-sm font-medium text-slate-300 mb-1" %>
+    <%= text_field_tag :code, nil, required: true, inputmode: "numeric", pattern: "[0-9]*",
+        autocomplete: "one-time-code", maxlength: 8,
+        class: "w-full h-12 px-3 rounded-lg bg-slate-800 border border-slate-700 text-base text-slate-100 mb-4 tracking-widest font-mono" %>
+
+    <%= submit_tag "Sign in",
+        class: "w-full h-14 px-6 text-lg font-semibold rounded-lg bg-blue-600 active:bg-blue-700 text-white cursor-pointer" %>
+  <% end %>
+
+  <div class="mt-6 text-center text-sm text-slate-400">
+    <%= link_to "Back to email sign-in", new_session_path, class: "text-blue-400 underline" %>
+  </div>
+</div>

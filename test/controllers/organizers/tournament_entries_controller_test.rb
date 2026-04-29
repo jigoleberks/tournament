@@ -38,6 +38,15 @@ class Organizers::TournamentEntriesControllerTest < ActionDispatch::IntegrationT
     assert_equal [@member, @teammate].sort_by(&:id), entry.users.sort_by(&:id)
   end
 
+  test "deactivated members can't be added to a new entry" do
+    @member.update!(deactivated_at: Time.current)
+    assert_no_difference "TournamentEntry.count" do
+      post organizers_tournament_tournament_entries_path(tournament_id: @solo.id),
+           params: { tournament_entry: { member_user_ids: [@member.id] } }
+    end
+    assert_match(/unavailable/i, flash[:alert])
+  end
+
   test "organizer destroys an entry" do
     entry = create(:tournament_entry, tournament: @solo)
     create(:tournament_entry_member, tournament_entry: entry, user: @member)

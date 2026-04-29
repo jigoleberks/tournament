@@ -16,7 +16,7 @@
   <% end %>
 </ul>
 
-<% available = current_user.club.users.order(:name) %>
+<% available = current_user.club.users.active.order(:name) %>
 
 <%= form_with url: organizers_tournament_tournament_entries_path(tournament_id: @tournament.id), local: true,
               class: "mt-4 bg-slate-800 rounded-lg p-3 space-y-2" do |f| %>

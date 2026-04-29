@@ -10,6 +10,12 @@ class User < ApplicationRecord
   validates :name, :email, presence: true
   validates :email, uniqueness: { scope: :club_id }
 
+  scope :active, -> { where(deactivated_at: nil) }
+
+  def deactivated?
+    deactivated_at.present?
+  end
+
   LENGTH_UNITS = %w[inches centimeters].freeze
   validates :length_unit, inclusion: { in: LENGTH_UNITS }
 

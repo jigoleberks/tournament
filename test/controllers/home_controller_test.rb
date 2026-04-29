@@ -16,4 +16,16 @@ class HomeControllerTest < ActionDispatch::IntegrationTest
     assert_select "h1", ENV.fetch("APP_NAME", "Tournament")
     assert_match "Joe", response.body
   end
+
+  test "deactivated user with an existing session is signed out on next request" do
+    user = create(:user)
+    post session_path, params: { email: user.email }
+    get consume_session_path(token: SignInToken.last.token)
+    assert_equal user.id, session[:user_id]
+
+    user.update!(deactivated_at: Time.current)
+    get root_path
+    assert_redirected_to new_session_path
+    assert_nil session[:user_id]
+  end
 end

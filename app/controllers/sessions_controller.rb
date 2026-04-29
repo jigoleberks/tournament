@@ -1,4 +1,13 @@
 class SessionsController < ApplicationController
+  rate_limit to: 5, within: 1.minute,
+             only: :create,
+             with: -> { redirect_to "/session/check_email" }
+
+  rate_limit to: 10, within: 3.minutes,
+             only: :submit_code,
+             by: -> { "code-attempt:#{request.remote_ip}:#{params[:email].to_s.downcase.strip}" },
+             with: -> { redirect_to code_session_path, alert: "Too many attempts. Try again shortly." }
+
   def new; end
 
   def create
@@ -21,6 +30,19 @@ class SessionsController < ApplicationController
   end
 
   def check_email; end
+
+  def code; end
+
+  def submit_code
+    user = SignInToken.consume_code!(email: params[:email], code: params[:code])
+    if user
+      sign_in!(user)
+      redirect_to root_path, notice: "Welcome, #{user.name}"
+    else
+      flash.now[:alert] = "That email and code don't match, or the code has expired."
+      render :code, status: :unprocessable_entity
+    end
+  end
 
   def destroy
     sign_out!
