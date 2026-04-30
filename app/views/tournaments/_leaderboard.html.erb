@@ -14,13 +14,13 @@
           <div class="font-medium"><%= row[:entry].display_name %></div>
           <% if row[:fish].present? %>
             <% can_open = local_assigns[:tournament].present? && can_open_catches_in?(local_assigns[:tournament]) %>
-            <div class="text-xs text-slate-400 mt-1 space-x-2">
+            <div class="text-xs text-slate-400 mt-1 space-y-1">
               <% row[:fish].each do |f| %>
                 <% if can_open %>
-                  <%= link_to format_length_dual(f[:length_inches]), catch_path(f[:id]),
-                              class: "text-blue-300 underline-offset-2 hover:underline" %>
+                  <%= link_to "#{f[:species_name]} · #{format_length_dual(f[:length_inches])}", catch_path(f[:id]),
+                              class: "block text-blue-300 underline-offset-2 hover:underline" %>
                 <% else %>
-                  <span><%= format_length_dual(f[:length_inches]) %></span>
+                  <div><%= f[:species_name] %> · <%= format_length_dual(f[:length_inches]) %></div>
                 <% end %>
               <% end %>
             </div>
