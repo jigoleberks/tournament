@@ -17,7 +17,7 @@
     <div><dt class="inline text-slate-500">Length:</dt> <dd class="inline"><%= format_length_dual(@catch.length_inches) %></dd></div>
     <div><dt class="inline text-slate-500">Captured:</dt> <dd class="inline"><%= @catch.captured_at_device.strftime("%b %d %Y · %l:%M %p %Z") %></dd></div>
     <% if @catch.latitude.present? %>
-      <div><dt class="inline text-slate-500">GPS:</dt> <dd class="inline"><%= @catch.latitude.to_f.round(4) %>, <%= @catch.longitude.to_f.round(4) %> (±<%= @catch.gps_accuracy_m %>m)</dd></div>
+      <div><dt class="inline text-slate-500">GPS:</dt> <dd class="inline">~<%= @catch.latitude.to_f.round(2) %>, <%= @catch.longitude.to_f.round(2) %></dd></div>
     <% end %>
     <div><dt class="inline text-slate-500">Status:</dt>
       <dd class="inline">
@@ -32,3 +32,27 @@
     </div>
   </dl>
 </div>
+
+<% if @action_tournament %>
+  <div class="bg-slate-800 rounded-xl p-4 mt-3 space-y-3">
+    <h2 class="text-sm font-semibold text-slate-300">Actions</h2>
+    <div class="flex gap-2">
+      <%= button_to "Disqualify",
+                    judges_tournament_catch_review_path(tournament_id: @action_tournament.id, catch_id: @catch.id),
+                    method: :post,
+                    params: { action_kind: "disqualify" },
+                    form: { data: { turbo_confirm: "Disqualify this catch? It will be removed from the leaderboard." } },
+                    class: "flex-1 h-12 px-4 rounded-lg bg-red-600 active:bg-red-700 text-white font-semibold" %>
+    </div>
+
+    <%= form_with url: judges_tournament_catch_manual_override_path(tournament_id: @action_tournament.id, catch_id: @catch.id),
+                  local: true, class: "flex gap-2 items-end" do |f| %>
+      <div class="flex-1">
+        <label for="length_inches" class="block text-xs text-slate-400 mb-1">Edit length (in)</label>
+        <%= number_field_tag :length_inches, @catch.length_inches, step: 0.25, min: 0,
+                             class: "w-full h-12 px-3 rounded-lg bg-slate-900 border border-slate-700 text-base text-slate-100" %>
+      </div>
+      <%= submit_tag "Save", class: "h-12 px-4 rounded-lg bg-blue-600 active:bg-blue-700 text-white font-semibold" %>
+    <% end %>
+  </div>
+<% end %>

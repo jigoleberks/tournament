@@ -17,7 +17,8 @@
             <div class="text-xs text-slate-400 mt-1 space-y-1">
               <% row[:fish].each do |f| %>
                 <% if can_open %>
-                  <%= link_to "#{f[:species_name]} · #{format_length_dual(f[:length_inches])}", catch_path(f[:id]),
+                  <%= link_to "#{f[:species_name]} · #{format_length_dual(f[:length_inches])}",
+                              catch_path(f[:id], t: local_assigns[:tournament].id),
                               class: "block text-blue-300 underline-offset-2 hover:underline" %>
                 <% else %>
                   <div><%= f[:species_name] %> · <%= format_length_dual(f[:length_inches]) %></div>

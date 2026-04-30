@@ -4,6 +4,7 @@ module CatchesHelper
   # Regular members can see catches on the leaderboard but not the detail.
   def can_view_catch?(catch_record)
     return false if current_user.nil?
+    return true  if catch_record.user_id == current_user.id
     return true  if current_user.organizer?
     judge_tournament_ids = TournamentJudge.where(user: current_user).pluck(:tournament_id)
     catch_tournament_ids = catch_record.catch_placements.pluck(:tournament_id).uniq
