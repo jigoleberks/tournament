@@ -183,6 +183,22 @@ docker compose run --rm web bin/rails db:migrate
 docker compose up -d
 ```
 
+## Maintenance (optional)
+
+A `storage:cleanup_orphans` rake task removes files in `storage/` that no longer have a matching `active_storage_blobs` row — useful after a DB wipe, restore from backup, or any case where blob metadata gets out of sync with disk. Idempotent; safe to run any time.
+
+```bash
+docker compose run --rm web bin/rails storage:cleanup_orphans
+```
+
+To run it monthly via cron (replace `/path/to/tournament` with the absolute path to your checkout):
+
+```cron
+0 4 1 * * cd /path/to/tournament && docker compose run --rm web bin/rails storage:cleanup_orphans >> log/cleanup.log 2>&1
+```
+
+Install with `crontab -e` as the user that runs docker — typically not root. `log/cleanup.log` is gitignored.
+
 ## Notes
 
 - **Time zone** is read from `APP_TIME_ZONE` (defaults to `UTC`). Use any Rails time zone name — e.g. `Saskatchewan` (UTC-6, no DST), `Eastern Time (US & Canada)`, etc.
