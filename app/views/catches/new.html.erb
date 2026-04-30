@@ -28,18 +28,38 @@
          class="w-full h-12 px-3 rounded-lg bg-slate-800 border border-slate-700 text-base text-slate-100">
 
   <h3 class="text-lg font-semibold mt-6 mb-2">Photo</h3>
-  <video data-photo-capture-target="video" autoplay muted playsinline
-         class="w-full max-h-80 object-cover rounded-lg bg-black"></video>
-  <div class="flex gap-2 mt-2">
-    <button type="button" data-action="photo-capture#start"
-            class="flex-1 h-12 px-4 rounded-lg bg-slate-700 active:bg-slate-600 text-slate-100">Open camera</button>
-    <button type="button" data-action="photo-capture#capture"
-            class="flex-1 h-12 px-4 rounded-lg bg-slate-700 active:bg-slate-600 text-slate-100">Capture</button>
-    <button type="button" data-action="photo-capture#retake"
-            class="flex-1 h-12 px-4 rounded-lg bg-slate-700 active:bg-slate-600 text-slate-100">Retake</button>
+  <div data-photo-capture-target="inlineSlot">
+    <video data-photo-capture-target="video" autoplay muted playsinline
+           class="hidden w-full aspect-[3/4] object-cover rounded-lg bg-black"></video>
   </div>
   <img data-photo-capture-target="preview" alt=""
-       class="w-full max-h-80 object-contain rounded-lg bg-black mt-2">
+       class="hidden w-full aspect-[3/4] object-contain rounded-lg bg-black">
+  <div class="flex gap-2 mt-2">
+    <button type="button" data-photo-capture-target="openButton"
+            data-action="photo-capture#start"
+            class="flex-1 h-12 px-4 rounded-lg bg-slate-700 active:bg-slate-600 text-slate-100">Open camera</button>
+    <button type="button" data-photo-capture-target="captureButton"
+            data-action="photo-capture#capture"
+            class="hidden flex-1 h-14 px-4 rounded-lg bg-blue-600 active:bg-blue-700 text-white font-semibold">Capture</button>
+    <button type="button" data-photo-capture-target="fullscreenButton"
+            data-action="photo-capture#enterFullscreen"
+            aria-label="Fullscreen camera"
+            class="hidden h-14 w-14 rounded-lg bg-slate-700 active:bg-slate-600 text-slate-100 text-xl">⛶</button>
+    <button type="button" data-photo-capture-target="retakeButton"
+            data-action="photo-capture#retake"
+            class="hidden flex-1 h-12 px-4 rounded-lg bg-slate-700 active:bg-slate-600 text-slate-100">Retake</button>
+  </div>
+
+  <div data-photo-capture-target="fullscreenContainer"
+       class="hidden fixed inset-0 z-50 bg-black">
+    <div data-photo-capture-target="fullscreenSlot" class="absolute inset-0 flex items-center justify-center"></div>
+    <button type="button" data-action="photo-capture#exitFullscreen"
+            aria-label="Close fullscreen"
+            class="absolute top-4 left-4 w-12 h-12 rounded-full bg-slate-900/70 text-white text-xl flex items-center justify-center">✕</button>
+    <button type="button" data-action="photo-capture#capture"
+            aria-label="Capture photo"
+            class="absolute right-6 top-1/2 -translate-y-1/2 w-20 h-20 rounded-full bg-white border-4 border-slate-300 active:bg-slate-200"></button>
+  </div>
 
   <% video_required = Tournaments::ActiveForUser.call(user: current_user).any?(&:requires_release_video) %>
   <% if video_required %>
