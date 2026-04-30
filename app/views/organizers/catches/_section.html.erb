@@ -7,28 +7,42 @@
 
 <h3 class="text-lg font-semibold mt-6 mb-2">Catches (<%= catches.size %>)</h3>
 
+<% if @tournament.friendly? %>
+  <p class="text-xs text-slate-400 mb-2">Friendly tournament — tap a catch to disqualify or adjust its length.</p>
+<% end %>
+
 <% if catches.any? %>
   <ul class="grid grid-cols-2 gap-2">
     <% catches.each do |c| %>
-      <li class="bg-slate-800 rounded-lg p-2 flex flex-col">
-        <% if c.photo.attached? %>
-          <%= image_tag url_for(c.photo), class: "w-full h-32 object-cover rounded bg-black" %>
-        <% else %>
-          <div class="w-full h-32 rounded bg-black flex items-center justify-center text-slate-500 text-sm">no photo</div>
-        <% end %>
-        <div class="text-xs text-slate-300 mt-2 leading-snug">
-          <div class="font-medium text-slate-100"><%= c.user.name %></div>
-          <div><%= c.species.name %> · <%= format_length_dual(c.length_inches) %></div>
-          <div class="mt-1">
-            <% if c.disqualified? %>
-              <span class="text-red-400">disqualified</span>
-            <% elsif c.needs_review? %>
-              <span class="text-amber-400">needs review</span>
-            <% else %>
-              <span class="text-slate-500"><%= c.status %></span>
-            <% end %>
+      <% tile_classes = "bg-slate-800 rounded-lg p-2 flex flex-col" %>
+      <% tile_classes += " active:bg-slate-700" if @tournament.friendly? %>
+      <li class="<%= tile_classes %>">
+        <% body = capture do %>
+          <% if c.photo.attached? %>
+            <%= image_tag url_for(c.photo), class: "w-full h-32 object-cover rounded bg-black" %>
+          <% else %>
+            <div class="w-full h-32 rounded bg-black flex items-center justify-center text-slate-500 text-sm">no photo</div>
+          <% end %>
+          <div class="text-xs text-slate-300 mt-2 leading-snug">
+            <div class="font-medium text-slate-100"><%= c.user.name %></div>
+            <div><%= c.species.name %> · <%= format_length_dual(c.length_inches) %></div>
+            <div class="mt-1">
+              <% if c.disqualified? %>
+                <span class="text-red-400">disqualified</span>
+              <% elsif c.needs_review? %>
+                <span class="text-amber-400">needs review</span>
+              <% else %>
+                <span class="text-slate-500"><%= c.status %></span>
+              <% end %>
+            </div>
           </div>
-        </div>
+        <% end %>
+        <% if @tournament.friendly? %>
+          <%= link_to body, judges_tournament_catch_path(tournament_id: @tournament.id, id: c.id),
+                      class: "block" %>
+        <% else %>
+          <%= body %>
+        <% end %>
       </li>
     <% end %>
   </ul>

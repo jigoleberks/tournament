@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2026_04_29_170000) do
+ActiveRecord::Schema[8.0].define(version: 2026_04_30_231350) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -220,7 +220,8 @@ ActiveRecord::Schema[8.0].define(version: 2026_04_29_170000) do
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.integer "template_source_id"
-    t.boolean "requires_release_video", default: true, null: false
+    t.boolean "requires_release_video", default: false, null: false
+    t.boolean "judged", default: false, null: false
     t.index ["club_id", "starts_at", "ends_at"], name: "index_tournaments_on_club_id_and_starts_at_and_ends_at"
     t.index ["club_id"], name: "index_tournaments_on_club_id"
   end

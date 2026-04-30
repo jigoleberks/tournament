@@ -47,6 +47,15 @@ class Organizers::TournamentEntriesControllerTest < ActionDispatch::IntegrationT
     assert_match(/unavailable/i, flash[:alert])
   end
 
+  test "entries are locked once tournament has ended" do
+    ended = create(:tournament, club: @club, mode: :solo, starts_at: 2.days.ago, ends_at: 1.hour.ago)
+    assert_no_difference "TournamentEntry.count" do
+      post organizers_tournament_tournament_entries_path(tournament_id: ended.id),
+           params: { tournament_entry: { member_user_ids: [@member.id] } }
+    end
+    assert_match(/ended/i, flash[:alert])
+  end
+
   test "organizer destroys an entry" do
     entry = create(:tournament_entry, tournament: @solo)
     create(:tournament_entry_member, tournament_entry: entry, user: @member)

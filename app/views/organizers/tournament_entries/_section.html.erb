@@ -16,6 +16,11 @@
   <% end %>
 </ul>
 
+<% if @tournament.ended? %>
+  <p class="mt-4 bg-slate-800 rounded-lg p-3 text-slate-400 text-sm">
+    Tournament has ended — entries are locked.
+  </p>
+<% else %>
 <% available = current_user.club.users.active.order(:name) %>
 
 <%= form_with url: organizers_tournament_tournament_entries_path(tournament_id: @tournament.id), local: true,
@@ -40,4 +45,5 @@
   <% end %>
   <%= submit_tag "Add entry",
                  class: "h-12 px-4 rounded-lg bg-blue-600 active:bg-blue-700 text-white" %>
+<% end %>
 <% end %>

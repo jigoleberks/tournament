@@ -33,4 +33,31 @@ class TournamentTest < ActiveSupport::TestCase
     t = create(:tournament, starts_at: 1.hour.from_now)
     assert_not t.active?
   end
+
+  test "ended? is true when ends_at is in the past" do
+    t = create(:tournament, starts_at: 2.days.ago, ends_at: 1.hour.ago)
+    assert t.ended?
+  end
+
+  test "ended? is false when ends_at is in the future" do
+    t = create(:tournament, starts_at: 1.hour.ago, ends_at: 1.hour.from_now)
+    assert_not t.ended?
+  end
+
+  test "ended? is false when ends_at is nil" do
+    t = create(:tournament, starts_at: 1.day.ago, ends_at: nil)
+    assert_not t.ended?
+  end
+
+  test "friendly? is true by default and judged? is false" do
+    t = create(:tournament, club: @club)
+    assert t.friendly?
+    assert_not t.judged?
+  end
+
+  test "judged? is true and friendly? is false when judged is set" do
+    t = create(:tournament, club: @club, judged: true)
+    assert t.judged?
+    assert_not t.friendly?
+  end
 end

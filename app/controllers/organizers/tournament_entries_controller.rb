@@ -2,6 +2,10 @@ class Organizers::TournamentEntriesController < Organizers::BaseController
   before_action :load_tournament
 
   def create
+    if @tournament.ended?
+      redirect_to edit_organizers_tournament_path(@tournament), alert: "Tournament has ended; entries are locked." and return
+    end
+
     user_ids = Array(params.dig(:tournament_entry, :member_user_ids)).map(&:to_i).reject(&:zero?).uniq
     name = params.dig(:tournament_entry, :name)
     valid_ids = current_user.club.users.active.where(id: user_ids).pluck(:id)

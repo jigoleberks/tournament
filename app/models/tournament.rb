@@ -20,6 +20,14 @@ class Tournament < ApplicationRecord
     starts_at <= at && (ends_at.nil? || ends_at >= at)
   end
 
+  def ended?(at: Time.current)
+    ends_at.present? && ends_at < at
+  end
+
+  def friendly?
+    !judged?
+  end
+
   after_save :schedule_lifecycle_jobs
 
   private

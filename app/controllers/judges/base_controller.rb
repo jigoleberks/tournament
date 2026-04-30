@@ -10,7 +10,9 @@ class Judges::BaseController < ApplicationController
   end
 
   def require_judge!
-    head :forbidden unless TournamentJudge.exists?(tournament: @tournament, user: current_user)
+    return if TournamentJudge.exists?(tournament: @tournament, user: current_user)
+    return if @tournament.friendly? && current_user.organizer? && current_user.club_id == @tournament.club_id
+    head :forbidden
   end
 
   # Catches a judge of @tournament is allowed to see/act on:

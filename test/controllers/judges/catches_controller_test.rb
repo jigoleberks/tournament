@@ -38,6 +38,29 @@ class Judges::CatchesControllerTest < ActionDispatch::IntegrationTest
     assert_response :forbidden
   end
 
+  test "organizer can review catches in friendly tournament" do
+    organizer = create(:user, club: @club, role: :organizer)
+    sign_in_as(organizer)
+    get judges_tournament_catches_path(tournament_id: @t.id)
+    assert_response :success
+  end
+
+  test "organizer cannot review catches in judged tournament unless they are a judge" do
+    @t.update!(judged: true)
+    organizer = create(:user, club: @club, role: :organizer)
+    sign_in_as(organizer)
+    get judges_tournament_catches_path(tournament_id: @t.id)
+    assert_response :forbidden
+  end
+
+  test "organizer from another club cannot review catches" do
+    other_club = create(:club)
+    foreign_organizer = create(:user, club: other_club, role: :organizer)
+    sign_in_as(foreign_organizer)
+    get judges_tournament_catches_path(tournament_id: @t.id)
+    assert_response :not_found
+  end
+
   test "GET show on a catch from another tournament is not found" do
     foreign_catch = create_foreign_synced_catch
     get judges_tournament_catch_path(tournament_id: @t.id, id: foreign_catch.id)
