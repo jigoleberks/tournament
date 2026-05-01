@@ -7,6 +7,22 @@ class CatchesController < ApplicationController
                            .order(captured_at_device: :desc)
   end
 
+  def map
+    @date = (Date.parse(params[:date]) rescue Time.current.to_date)
+    @catches = current_user.catches
+                           .where(captured_at_device: @date.beginning_of_day...@date.end_of_day)
+                           .includes(:species, photo_attachment: :blob)
+
+    @map_points = @catches.filter_map do |c|
+      next unless c.latitude && c.longitude
+      {
+        lat: c.latitude.to_f,
+        lng: c.longitude.to_f,
+        popup: render_to_string(partial: "catches/map_popup", locals: { catch: c }, formats: [:html])
+      }
+    end
+  end
+
   def show
     @catch = Catch.joins(:user)
                   .where(users: { club_id: current_user.club_id })

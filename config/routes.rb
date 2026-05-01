@@ -30,7 +30,9 @@ Rails.application.routes.draw do
   end
 
   resources :tournaments, only: [:index, :show]
-  resources :catches, only: [:index, :new, :create, :show]
+  resources :catches, only: [:index, :new, :create, :show] do
+    collection { get :map }
+  end
 
   namespace :judges do
     resources :tournaments, only: [] do

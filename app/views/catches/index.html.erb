@@ -1,4 +1,7 @@
-<h1 class="text-2xl font-semibold mt-4 mb-3">My catches</h1>
+<div class="flex items-center justify-between mt-4 mb-3">
+  <h1 class="text-2xl font-semibold">My catches</h1>
+  <%= link_to "View map", map_catches_path, class: "text-blue-400 font-medium" %>
+</div>
 
 <% if @catches.any? %>
   <ul class="grid grid-cols-2 gap-2">

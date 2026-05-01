@@ -79,6 +79,45 @@ class CatchesControllerTest < ActionDispatch::IntegrationTest
       judges_tournament_catch_manual_override_path(tournament_id: @tournament.id, catch_id: catch_record.id)
   end
 
+  test "map: defaults to today, includes signed-in user's geolocated catches only" do
+    own_with_gps = create(:catch, user: @user, species: @walleye, length_inches: 18.5,
+                          captured_at_device: Time.current, latitude: 49.1, longitude: -97.2)
+    own_without_gps = create(:catch, user: @user, species: @walleye, length_inches: 12,
+                             captured_at_device: Time.current, latitude: nil, longitude: nil)
+    other_user = create(:user, club: @club)
+    other_user_catch = create(:catch, user: other_user, species: @walleye, length_inches: 22,
+                              captured_at_device: Time.current, latitude: 49.1, longitude: -97.2)
+
+    get map_catches_path
+    assert_response :success
+    assert_match Time.current.strftime("%A, %b %d"), response.body
+    assert_select "a[href=?]", catch_path(own_with_gps.id)
+    assert_select "a[href=?]", catch_path(own_without_gps.id)
+    assert_select "a[href=?]", catch_path(other_user_catch.id), count: 0
+
+    points = JSON.parse(css_select("[data-map-points-value]").first["data-map-points-value"])
+    assert_equal 1, points.length
+    assert_in_delta 49.1, points.first["lat"]
+  end
+
+  test "map: filters catches to the requested date" do
+    yesterday_catch = create(:catch, user: @user, species: @walleye, length_inches: 18.5,
+                             captured_at_device: 1.day.ago, latitude: 49.1, longitude: -97.2)
+    today_catch = create(:catch, user: @user, species: @walleye, length_inches: 19,
+                         captured_at_device: Time.current, latitude: 49.1, longitude: -97.2)
+
+    get map_catches_path(date: 1.day.ago.to_date.iso8601)
+    assert_response :success
+    assert_select "a[href=?]", catch_path(yesterday_catch.id)
+    assert_select "a[href=?]", catch_path(today_catch.id), count: 0
+  end
+
+  test "map: unparseable date param falls back to today instead of 500ing" do
+    get map_catches_path(date: "banana")
+    assert_response :success
+    assert_match Time.current.strftime("%A, %b %d"), response.body
+  end
+
   test "show: organizer in judged tournament does not see actions when not a judge" do
     @tournament.update!(judged: true)
     catch_record = create(:catch, user: @user, species: @walleye, length_inches: 18.5)
