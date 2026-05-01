@@ -86,6 +86,12 @@ Minitest with parallel execution, FactoryBot for factories, and `fixtures :all`.
 
 Test directories: `test/models/`, `test/controllers/` (including api/judges/organizers namespaces), `test/services/`, `test/jobs/`, `test/mailers/`, `test/system/`.
 
+## Workflow
+
+- **Re-run the full test suite before any `git push`.** A green run from earlier in the session doesn't cover the most recent edit — run `docker compose exec web bin/rails test` again after the *last* code change, even if it's a one-line redirect or a renamed variable. Don't push and rely on CI to catch regressions; fix them locally first. When changing controller behavior, also scan the matching test file for assertions that depend on the old behavior.
+- **Anti-cheat posture is intentionally soft.** Catches carry flags (missing GPS, clock skew) for judge review, but the project has explicitly chosen *not* to add hard enforcement (EXIF validation, perceptual hashing, capture tokens) yet. Don't add those without asking first.
+- **After editing `.env`, run `docker compose up -d`, not `docker compose restart`.** `restart` reuses the existing container's environment and won't pick up new values. If `web` fails to boot afterwards, remove a stale `tmp/pids/server.pid` and try again.
+
 ## Conventions
 
 - Service objects for non-trivial business logic (`Module::Class` with `self.call`)
