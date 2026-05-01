@@ -1,0 +1,22 @@
+<h1 class="text-2xl font-semibold mt-4 mb-4">Completed tournaments</h1>
+
+<% if @tournaments.any? %>
+  <ul class="space-y-2">
+    <% @tournaments.each do |t| %>
+      <li class="bg-slate-800 rounded-lg px-4 py-3 opacity-75">
+        <%= link_to t.name, t, class: "text-lg font-medium text-blue-300" %>
+        <span class="text-sm text-slate-400">— ended <%= t.ends_at.strftime("%b %d, %Y") %></span>
+        <% if t.season_tag.present? %>
+          <span class="text-sm text-slate-400">— <%= t.season_tag %></span>
+        <% end %>
+      </li>
+    <% end %>
+  </ul>
+<% else %>
+  <p class="text-slate-400 italic">No archived tournaments yet.</p>
+<% end %>
+
+<div class="mt-6">
+  <%= link_to "Back", root_path,
+              class: "block w-full h-12 px-4 rounded-lg bg-slate-700 active:bg-slate-600 text-slate-100 text-center leading-[3rem]" %>
+</div>

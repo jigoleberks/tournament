@@ -25,12 +25,25 @@
 <% end %>
 
 <% other_tournaments = current_user.club.tournaments.where.not(id: active_tournaments.map(&:id)).order(starts_at: :desc) %>
-<% if other_tournaments.any? %>
+<% other_active, other_completed = other_tournaments.partition { |t| !t.ended? } %>
+<% recent_completed, archived_completed = other_completed.partition { |t| t.ends_at >= 24.hours.ago } %>
+<% if other_active.any? %>
   <div class="bg-slate-800 rounded-xl p-4 my-3">
     <h2 class="text-lg font-semibold mb-2">Other tournaments in your club</h2>
-    <% other_tournaments.each do |t| %>
+    <% other_active.each do |t| %>
       <%= link_to t.name, t, class: "block py-3 px-2 rounded hover:bg-slate-700 text-slate-100 border-b border-slate-700 last:border-0" %>
     <% end %>
+  </div>
+<% end %>
+
+<% if recent_completed.any? || archived_completed.any? %>
+  <div class="bg-slate-800 rounded-xl p-4 my-3">
+    <h2 class="text-lg font-semibold mb-2">Completed tournaments</h2>
+    <% recent_completed.each do |t| %>
+      <%= link_to t.name, t, class: "block py-3 px-2 rounded hover:bg-slate-700 text-slate-100 border-b border-slate-700 last:border-0 opacity-75" %>
+    <% end %>
+    <%= link_to "View older completed tournaments", archived_tournaments_path,
+                class: "block mt-3 h-12 px-4 rounded-lg bg-slate-700 active:bg-slate-600 text-slate-100 text-center leading-[3rem]" %>
   </div>
 <% end %>
 

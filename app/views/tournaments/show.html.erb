@@ -1,10 +1,17 @@
-<h1 class="text-2xl font-semibold mt-4 mb-4"><%= @tournament.name %></h1>
+<h1 class="text-2xl font-semibold mt-4 mb-4">
+  <%= @tournament.name %>
+  <% if @tournament.ended? %>
+    <span class="text-xs uppercase tracking-wide text-slate-300 bg-slate-700 rounded px-2 py-1 align-middle ml-2">Completed</span>
+  <% end %>
+</h1>
 
 <% is_judge   = TournamentJudge.exists?(tournament_id: @tournament.id, user_id: current_user.id) %>
 <% is_entered = TournamentEntryMember.joins(:tournament_entry)
                   .exists?(tournament_entries: { tournament_id: @tournament.id }, user_id: current_user.id) %>
 
-<% if is_judge %>
+<% if @tournament.ended? %>
+  <p class="text-slate-400 mb-4">This tournament has ended.</p>
+<% elsif is_judge %>
   <p class="text-slate-400 mb-4">You're judging this tournament.</p>
 <% elsif is_entered %>
   <%= link_to "Log Catch", new_catch_path, class: "block w-full h-14 px-6 text-lg font-semibold rounded-lg bg-blue-600 active:bg-blue-700 text-white text-center leading-[3.5rem] mb-4" %>

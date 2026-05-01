@@ -14,11 +14,20 @@ class Organizers::TournamentEntriesController < Organizers::BaseController
     end
 
     Tournament.transaction do
-      entry = @tournament.tournament_entries.create!(name: name)
-      valid_ids.each { |uid| entry.tournament_entry_members.create!(user_id: uid) }
+      if @tournament.mode_solo?
+        valid_ids.each do |uid|
+          entry = @tournament.tournament_entries.create!
+          entry.tournament_entry_members.create!(user_id: uid)
+        end
+      else
+        entry = @tournament.tournament_entries.create!(name: name)
+        valid_ids.each { |uid| entry.tournament_entry_members.create!(user_id: uid) }
+      end
     end
 
-    redirect_to edit_organizers_tournament_path(@tournament), notice: "Entry added."
+    added = @tournament.mode_solo? ? valid_ids.size : 1
+    redirect_to edit_organizers_tournament_path(@tournament),
+                notice: added == 1 ? "Entry added." : "#{added} entries added."
   rescue ActiveRecord::RecordInvalid => e
     redirect_to edit_organizers_tournament_path(@tournament), alert: e.message
   end

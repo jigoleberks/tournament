@@ -28,6 +28,16 @@ class Organizers::TournamentEntriesControllerTest < ActionDispatch::IntegrationT
     assert_redirected_to edit_organizers_tournament_path(@solo)
   end
 
+  test "organizer bulk-adds multiple solo entries in one submit" do
+    assert_difference "TournamentEntry.count", 2 do
+      post organizers_tournament_tournament_entries_path(tournament_id: @solo.id),
+           params: { tournament_entry: { member_user_ids: [@member.id, @teammate.id] } }
+    end
+    new_entries = TournamentEntry.order(:id).last(2)
+    assert_equal [[@member], [@teammate]], new_entries.map(&:users)
+    assert_equal "2 entries added.", flash[:notice]
+  end
+
   test "organizer creates a team entry with two members and a boat name" do
     assert_difference "TournamentEntry.count", 1 do
       post organizers_tournament_tournament_entries_path(tournament_id: @team.id),

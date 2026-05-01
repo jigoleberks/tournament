@@ -21,7 +21,11 @@ export default class extends Controller {
 
   async start() {
     this.stream = await navigator.mediaDevices.getUserMedia({
-      video: { facingMode: "environment" },
+      video: {
+        facingMode: "environment",
+        width: { ideal: 4032 },
+        height: { ideal: 3024 }
+      },
       audio: false
     })
     this.videoTarget.srcObject = this.stream

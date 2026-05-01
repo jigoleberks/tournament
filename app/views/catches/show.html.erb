@@ -2,7 +2,24 @@
 
 <div class="bg-slate-800 rounded-xl p-4 space-y-4">
   <% if @catch.photo.attached? %>
-    <%= image_tag url_for(@catch.photo), class: "w-full max-h-96 object-contain rounded-lg bg-black" %>
+    <%
+      filename_segments = [
+        @catch.species&.name,
+        (@catch.length_inches.present? ? "#{@catch.length_inches} in" : nil),
+        @catch.captured_at_device&.strftime("%Y-%m-%d %H%M")
+      ].compact
+      download_filename = "#{filename_segments.join(' - ')}.jpg"
+    %>
+    <div data-controller="photo-save"
+         data-photo-save-url-value="<%= url_for(@catch.photo) %>"
+         data-photo-save-filename-value="<%= download_filename %>">
+      <%= image_tag url_for(@catch.photo), class: "w-full max-h-96 object-contain rounded-lg bg-black" %>
+      <button type="button"
+              data-action="photo-save#save"
+              class="mt-3 h-12 px-4 rounded-lg bg-blue-600 active:bg-blue-700 text-white font-semibold w-full">
+        Save photo
+      </button>
+    </div>
   <% else %>
     <div class="w-full h-64 rounded-lg bg-black flex items-center justify-center text-slate-500">no photo</div>
   <% end %>
