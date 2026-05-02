@@ -31,6 +31,12 @@
 
 /public/assets
 
+# Club-specific icons — add your own after cloning, git will never overwrite them.
+/public/icon.jpg
+/public/icon.png
+/public/icon.svg
+/public/icons/
+
 # Ignore master key for decrypting credentials and more.
 /config/master.key
 

@@ -50,6 +50,28 @@
   </dl>
 </div>
 
+<% if @catch.temperature_c.present? || @catch.moon_phase.present? %>
+  <div class="bg-slate-800 rounded-xl p-4 mt-3 space-y-1">
+    <h2 class="text-sm font-semibold text-slate-400 mb-2">Conditions at catch</h2>
+    <dl class="text-slate-300 text-sm space-y-1">
+      <% if @catch.temperature_c.present? %>
+        <div><dt class="inline text-slate-500">Temp:</dt> <dd class="inline"><%= format_temperature_dual(@catch.temperature_c) %></dd></div>
+      <% end %>
+      <% if @catch.barometric_pressure_hpa.present? %>
+        <div><dt class="inline text-slate-500">Pressure:</dt> <dd class="inline"><%= @catch.barometric_pressure_hpa.to_f.round(1) %> hPa</dd></div>
+      <% end %>
+      <% if @catch.wind_speed_kph.present? %>
+        <div><dt class="inline text-slate-500">Wind:</dt> <dd class="inline"><%= format_wind_dual(@catch.wind_speed_kph) %></dd></div>
+      <% end %>
+      <% if @catch.moon_phase.present? %>
+        <div><dt class="inline text-slate-500">Moon:</dt> <dd class="inline"><%= @catch.moon_phase %></dd></div>
+      <% end %>
+    </dl>
+  </div>
+<% elsif @catch.latitude.present? %>
+  <div class="bg-slate-800 rounded-xl p-4 mt-3 text-sm text-slate-500">Conditions fetching…</div>
+<% end %>
+
 <% if @catch.user_id == current_user.id %>
   <%= form_with model: @catch, method: :patch, local: true,
                 class: "bg-slate-800 rounded-xl p-4 mt-3 space-y-2" do |f| %>

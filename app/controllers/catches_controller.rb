@@ -49,6 +49,7 @@ class CatchesController < ApplicationController
 
     if @catch.save && @catch.photo.attached?
       Catches::PlaceInSlots.call(catch: @catch)
+      FetchCatchConditionsJob.perform_later(catch_id: @catch.id)
       redirect_to root_path, notice: "Catch logged"
     else
       @catch.errors.add(:photo, "is required") unless @catch.photo.attached?
