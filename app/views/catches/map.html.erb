@@ -4,12 +4,13 @@
 </div>
 
 <div class="flex items-center justify-between bg-slate-800 rounded-lg p-3 mb-4">
-  <%= link_to "←", map_catches_path(date: @date - 1.day), class: "text-xl px-2" %>
+  <% display_date = @selected_start || Date.current %>
+  <%= link_to "←", map_catches_path(start: (display_date - 1.day).iso8601, end: (display_date - 1.day).iso8601), class: "text-xl px-2" %>
   <div class="text-center">
-    <div class="font-bold"><%= @date.strftime("%A, %b %d") %></div>
+    <div class="font-bold"><%= display_date.strftime("%A, %b %d") %></div>
     <div class="text-xs text-slate-400"><%= pluralize(@catches.count, "catch") %></div>
   </div>
-  <%= link_to "→", map_catches_path(date: @date + 1.day), class: "text-xl px-2" %>
+  <%= link_to "→", map_catches_path(start: (display_date + 1.day).iso8601, end: (display_date + 1.day).iso8601), class: "text-xl px-2" %>
 </div>
 
 <div class="relative w-full aspect-[3/4] rounded-xl overflow-hidden shadow-xl border border-slate-700"

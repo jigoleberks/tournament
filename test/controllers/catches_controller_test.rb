@@ -157,14 +157,15 @@ class CatchesControllerTest < ActionDispatch::IntegrationTest
     today_catch = create(:catch, user: @user, species: @walleye, length_inches: 19,
                          captured_at_device: Time.current, latitude: 49.1, longitude: -97.2)
 
-    get map_catches_path(date: 1.day.ago.to_date.iso8601)
+    d = 1.day.ago.to_date.iso8601
+    get map_catches_path(start: d, end: d)
     assert_response :success
     assert_select "a[href=?]", catch_path(yesterday_catch.id)
     assert_select "a[href=?]", catch_path(today_catch.id), count: 0
   end
 
   test "map: unparseable date param falls back to today instead of 500ing" do
-    get map_catches_path(date: "banana")
+    get map_catches_path(start: "banana", end: "banana")
     assert_response :success
     assert_match Time.current.strftime("%A, %b %d"), response.body
   end
@@ -470,6 +471,45 @@ class CatchesControllerTest < ActionDispatch::IntegrationTest
     %w[newest longest shortest].each do |key|
       assert_select "select[name='sort'] option[value='#{key}']"
     end
+  end
+
+  test "GET /catches/map?start=2026-05-05&end=2026-05-12 returns catches in range with map points" do
+    in_range = create_catch(captured_at: Time.zone.parse("2026-05-08 10:00"), length: 18.0)
+    in_range.update!(latitude: 49.41, longitude: -103.62)
+    out_of   = create_catch(captured_at: Time.zone.parse("2026-04-08 10:00"))
+
+    get map_catches_path, params: { start: "2026-05-05", end: "2026-05-12" }
+    assigned = assigns(:catches).to_a
+    assert_includes assigned, in_range
+    refute_includes assigned, out_of
+    assert_kind_of Array, assigns(:map_points)
+    assert_equal 1, assigns(:map_points).length
+  end
+
+  test "GET /catches/map with no params defaults to today (single day)" do
+    today_catch = create_catch(captured_at: Time.zone.now.change(hour: 12))
+    get map_catches_path
+    assert_equal Date.current, assigns(:selected_start)
+    assert_equal Date.current, assigns(:selected_end)
+    assert_includes assigns(:catches).to_a, today_catch
+  end
+
+  test "GET /catches/map?species=ID filters" do
+    pike = create(:species, club: @club, name: "Pike")
+    walleye_catch = create_catch(captured_at: 1.hour.ago, species: @walleye)
+    pike_catch    = create_catch(captured_at: 1.hour.ago, species: pike)
+    get map_catches_path, params: { species: pike.id, start: "", end: "" }
+    assigned = assigns(:catches).to_a
+    assert_includes assigned, pike_catch
+    refute_includes assigned, walleye_catch
+  end
+
+  test "GET /catches/map computes counts_by_date for the displayed month" do
+    create_catch(captured_at: Time.zone.parse("2026-05-08 10:00"))
+    create_catch(captured_at: Time.zone.parse("2026-05-12 10:00"))
+    get map_catches_path, params: { start: "2026-05-08", end: "2026-05-08" }
+    assert_equal 1, assigns(:counts_by_date)[Date.new(2026, 5, 8)]
+    assert_equal 1, assigns(:counts_by_date)[Date.new(2026, 5, 12)]
   end
 
   private

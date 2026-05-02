@@ -19,10 +19,24 @@ class CatchesController < ApplicationController
   end
 
   def map
-    @date = (Date.parse(params[:date]) rescue Time.current.to_date)
-    @catches = current_user.catches
-                           .where(captured_at_device: @date.beginning_of_day...@date.end_of_day)
-                           .includes(:species, photo_attachment: :blob)
+    @selected_start, @selected_end =
+      if params.key?(:start) || params.key?(:end)
+        parse_date_range(params)
+      else
+        default_date_range
+      end
+    @month_start = parse_date(params[:month]) || (@selected_start || Date.current).beginning_of_month
+    @month_start = @month_start.beginning_of_month
+    @species_filter_id = params[:species].presence&.to_i
+    @available_species = current_user.club.species.order(:name)
+
+    scope = current_user.catches.includes(:species, photo_attachment: :blob)
+    if @selected_start
+      scope = scope.where(captured_at_device: @selected_start.beginning_of_day..@selected_end.end_of_day)
+    end
+    scope = scope.where(species_id: @species_filter_id) if @species_filter_id
+    @catches = scope.order(captured_at_device: :desc)
+    @counts_by_date = counts_by_date(@month_start)
 
     @map_points = @catches.filter_map do |c|
       next unless c.latitude && c.longitude
