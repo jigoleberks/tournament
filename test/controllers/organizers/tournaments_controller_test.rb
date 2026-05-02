@@ -40,6 +40,29 @@ class Organizers::TournamentsControllerTest < ActionDispatch::IntegrationTest
     assert_redirected_to organizers_tournaments_path
   end
 
+  test "create accepts local: false" do
+    organizer = create(:user, club: @club, role: :organizer)
+    sign_in_as(organizer)
+    assert_difference -> { @club.tournaments.count }, 1 do
+      post organizers_tournaments_path, params: {
+        tournament: { name: "Away Trip", kind: "event", mode: "solo",
+                      starts_at: Time.current, ends_at: 1.day.from_now,
+                      local: "0" }
+      }
+    end
+    assert_equal false, @club.tournaments.last.local
+  end
+
+  test "create defaults local to true when checkbox omitted" do
+    organizer = create(:user, club: @club, role: :organizer)
+    sign_in_as(organizer)
+    post organizers_tournaments_path, params: {
+      tournament: { name: "Local Trip", kind: "event", mode: "solo",
+                    starts_at: Time.current, ends_at: 1.day.from_now }
+    }
+    assert_equal true, @club.tournaments.last.local
+  end
+
   private
 
   def sign_in_as(user)

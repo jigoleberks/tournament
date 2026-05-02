@@ -53,6 +53,12 @@
       <span class="text-slate-200">Judged tournament</span>
     </label>
     <p class="text-xs text-slate-500 -mt-2">Off = friendly: organizers can disqualify catches and adjust lengths. On: only assigned judges can.</p>
+
+    <label class="flex items-center gap-3 mt-2">
+      <%= f.check_box :local, class: "h-5 w-5" %>
+      <span class="text-slate-200">Local tournament</span>
+    </label>
+    <p class="text-xs text-slate-500 -mt-2">When on, catches with GPS outside the lake area won't count for this tournament. Off = away/destination tournament; geofence not enforced.</p>
   </div>
 
   <div class="bg-slate-800 rounded-xl p-4 space-y-3">
