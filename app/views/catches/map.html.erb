@@ -1,17 +1,40 @@
 <div class="flex items-center justify-between mt-4 mb-4">
   <h1 class="text-2xl font-semibold">Fishing Map</h1>
-  <%= link_to "List view", catches_path, class: "text-blue-400 font-medium" %>
+  <%= link_to "List view", catches_path(request.query_parameters), class: "text-blue-400 font-medium" %>
 </div>
 
-<div class="flex items-center justify-between bg-slate-800 rounded-lg p-3 mb-4">
-  <% display_date = @selected_start || Date.current %>
-  <%= link_to "←", map_catches_path(start: (display_date - 1.day).iso8601, end: (display_date - 1.day).iso8601), class: "text-xl px-2" %>
-  <div class="text-center">
-    <div class="font-bold"><%= display_date.strftime("%A, %b %d") %></div>
-    <div class="text-xs text-slate-400"><%= pluralize(@catches.count, "catch") %></div>
-  </div>
-  <%= link_to "→", map_catches_path(start: (display_date + 1.day).iso8601, end: (display_date + 1.day).iso8601), class: "text-xl px-2" %>
-</div>
+<%= render "shared/catch_calendar",
+           month_start: @month_start,
+           current_start: @selected_start,
+           current_end: @selected_end,
+           counts_by_date: @counts_by_date,
+           path_helper: :map_catches_path,
+           params: request.query_parameters %>
+
+<%= form_with url: map_catches_path, method: :get, local: true,
+              data: { controller: "auto-submit", action: "change->auto-submit#submit" },
+              class: "flex items-center gap-2 mt-3 mb-3 text-sm" do %>
+  <% request.query_parameters.except(:species, :start, :end, :controller, :action).each do |k, v| %>
+    <%= hidden_field_tag k, v %>
+  <% end %>
+  <%= hidden_field_tag :start, params[:start] if params.key?(:start) %>
+  <%= hidden_field_tag :end,   params[:end]   if params.key?(:end) %>
+
+  <%= link_to "Show all dates",
+              map_catches_path(request.query_parameters.except(:start, :end, :controller, :action).merge(start: "", end: "")),
+              "data-test": "show-all-dates",
+              class: "text-blue-400" %>
+
+  <span class="ml-auto"></span>
+
+  <label class="text-slate-300">Species</label>
+  <%= select_tag :species,
+                 options_for_select(
+                   [["All species", ""]] + @available_species.map { |s| [s.name, s.id] },
+                   @species_filter_id&.to_s
+                 ),
+                 class: "h-10 px-2 rounded-lg bg-slate-800 border border-slate-700 text-slate-100" %>
+<% end %>
 
 <div class="relative w-full aspect-[3/4] rounded-xl overflow-hidden shadow-xl border border-slate-700"
      data-controller="map"
@@ -22,7 +45,7 @@
 </div>
 
 <div class="mt-6">
-  <h2 class="text-lg font-semibold mb-3">Catches on this day</h2>
+  <h2 class="text-lg font-semibold mb-3">Catches in this view</h2>
   <% if @catches.any? %>
     <ul class="space-y-2">
       <% @catches.each do |c| %>
@@ -33,13 +56,13 @@
           <div class="flex-1 min-w-0">
             <div class="font-bold truncate"><%= c.species.name %></div>
             <div class="text-sm"><%= format_length_dual(c.length_inches) %></div>
-            <div class="text-xs text-slate-500"><%= c.captured_at_device.strftime("%l:%M %p") %></div>
+            <div class="text-xs text-slate-500"><%= c.captured_at_device.strftime("%b %d · %l:%M %p") %></div>
           </div>
           <%= link_to "View", catch_path(c), class: "px-3 py-1 bg-slate-700 rounded text-sm font-medium" %>
         </li>
       <% end %>
     </ul>
   <% else %>
-    <p class="text-slate-400 italic">No catches for this day.</p>
+    <p class="text-slate-400 italic">No catches in this view.</p>
   <% end %>
 </div>

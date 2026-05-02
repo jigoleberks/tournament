@@ -141,7 +141,7 @@ class CatchesControllerTest < ActionDispatch::IntegrationTest
 
     get map_catches_path
     assert_response :success
-    assert_match Time.current.strftime("%A, %b %d"), response.body
+    assert_match Time.current.strftime("%B %Y"), response.body
     assert_select "a[href=?]", catch_path(own_with_gps.id)
     assert_select "a[href=?]", catch_path(own_without_gps.id)
     assert_select "a[href=?]", catch_path(other_user_catch.id), count: 0
@@ -167,7 +167,7 @@ class CatchesControllerTest < ActionDispatch::IntegrationTest
   test "map: unparseable date param falls back to today instead of 500ing" do
     get map_catches_path(start: "banana", end: "banana")
     assert_response :success
-    assert_match Time.current.strftime("%A, %b %d"), response.body
+    assert_match Time.current.strftime("%B %Y"), response.body
   end
 
   test "show: organizer in judged tournament does not see actions when not a judge" do
