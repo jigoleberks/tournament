@@ -4,6 +4,7 @@
 #
 # Edit the values below before running `bin/rails db:seed` for the first time, OR set the
 # corresponding env vars (SEED_CLUB_NAME, SEED_ORGANIZER_NAME, SEED_ORGANIZER_EMAIL).
+# Set SEED_DEMO_DATA=true to also create stub members and sample tournaments (off by default).
 
 club_name = ENV.fetch("SEED_CLUB_NAME", "Example Fishing Club")
 org_name  = ENV.fetch("SEED_ORGANIZER_NAME", "Organizer")
@@ -17,33 +18,37 @@ User.find_or_create_by!(club: club, email: org_email) do |u|
   u.role = :organizer
 end
 
-%w[member1 member2 member3].each_with_index do |handle, i|
-  User.find_or_create_by!(club: club, email: "#{handle}@example.com") do |u|
-    u.name = "Member #{i + 1}"
-    u.role = :member
+# Demo members and sample tournaments are only created when SEED_DEMO_DATA=true.
+# Without this guard, db:seed silently re-creates them in real clubs on every run.
+if ENV["SEED_DEMO_DATA"] == "true"
+  %w[member1 member2 member3].each_with_index do |handle, i|
+    User.find_or_create_by!(club: club, email: "#{handle}@example.com") do |u|
+      u.name = "Member #{i + 1}"
+      u.role = :member
+    end
   end
-end
 
-walleye = Species.find_by!(club: club, name: "Walleye")
-perch   = Species.find_by!(club: club, name: "Perch")
+  walleye = Species.find_by!(club: club, name: "Walleye")
+  perch   = Species.find_by!(club: club, name: "Perch")
 
-Tournament.find_or_create_by!(club: club, name: "Sample Event Tournament") do |t|
-  t.kind = :event
-  t.mode = :solo
-  t.starts_at = 1.hour.ago
-  t.ends_at   = 4.hours.from_now
-  t.season_tag = "Open Water 2026"
-end.tap do |t|
-  t.scoring_slots.find_or_create_by!(species: walleye) { |s| s.slot_count = 2 }
-  t.scoring_slots.find_or_create_by!(species: perch)   { |s| s.slot_count = 1 }
-end
+  Tournament.find_or_create_by!(club: club, name: "Sample Event Tournament") do |t|
+    t.kind = :event
+    t.mode = :solo
+    t.starts_at = 1.hour.ago
+    t.ends_at   = 4.hours.from_now
+    t.season_tag = "Open Water 2026"
+  end.tap do |t|
+    t.scoring_slots.find_or_create_by!(species: walleye) { |s| s.slot_count = 2 }
+    t.scoring_slots.find_or_create_by!(species: perch)   { |s| s.slot_count = 1 }
+  end
 
-Tournament.find_or_create_by!(club: club, name: "Sample Ongoing: Biggest Walleye") do |t|
-  t.kind = :ongoing
-  t.mode = :solo
-  t.starts_at = 1.month.ago
-  t.ends_at   = nil
-  t.season_tag = "Open Water 2026"
-end.tap do |t|
-  t.scoring_slots.find_or_create_by!(species: walleye) { |s| s.slot_count = 1 }
+  Tournament.find_or_create_by!(club: club, name: "Sample Ongoing: Biggest Walleye") do |t|
+    t.kind = :ongoing
+    t.mode = :solo
+    t.starts_at = 1.month.ago
+    t.ends_at   = nil
+    t.season_tag = "Open Water 2026"
+  end.tap do |t|
+    t.scoring_slots.find_or_create_by!(species: walleye) { |s| s.slot_count = 1 }
+  end
 end

@@ -22,6 +22,10 @@ services:
       VAPID_SUBJECT: ${VAPID_SUBJECT:-mailto:admin@example.com}
       VAPID_PUBLIC_KEY: ${VAPID_PUBLIC_KEY:-}
       VAPID_PRIVATE_KEY: ${VAPID_PRIVATE_KEY:-}
+      SEED_CLUB_NAME: ${SEED_CLUB_NAME:-Example Fishing Club}
+      SEED_ORGANIZER_NAME: ${SEED_ORGANIZER_NAME:-Organizer}
+      SEED_ORGANIZER_EMAIL: ${SEED_ORGANIZER_EMAIL:-organizer@example.com}
+      SEED_DEMO_DATA: ${SEED_DEMO_DATA:-}
     volumes: [".:/app"]
     ports: ["127.0.0.1:3000:3000"]
     depends_on: [db]
