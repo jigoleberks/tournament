@@ -66,4 +66,20 @@ class CatchTest < ActiveSupport::TestCase
     big = build(:catch, user: @user, species: trout, length_inches: 200)
     assert big.valid?
   end
+
+  test "note up to 500 chars is valid" do
+    catch_record = build(:catch, user: @user, species: @walleye, note: "a" * 500)
+    assert catch_record.valid?
+  end
+
+  test "note over 500 chars is invalid" do
+    catch_record = build(:catch, user: @user, species: @walleye, note: "a" * 501)
+    assert_not catch_record.valid?
+    assert_includes catch_record.errors[:note].join, "too long"
+  end
+
+  test "note nil is valid" do
+    catch_record = build(:catch, user: @user, species: @walleye, note: nil)
+    assert catch_record.valid?
+  end
 end

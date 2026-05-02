@@ -22,6 +22,7 @@ class Catch < ApplicationRecord
   validates :client_uuid, presence: true, uniqueness: true
   validate :photo_must_be_attached
   validate :length_within_species_cap
+  validates :note, length: { maximum: 500 }, allow_blank: true
 
   private
 
