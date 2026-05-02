@@ -43,8 +43,8 @@ class CatchesController < ApplicationController
 
   def create
     @catch = current_user.catches.build(catch_params)
-    flags = Catches::ComputeFlags.call(@catch)
-    @catch.status = flags.empty? ? :synced : :needs_review
+    @catch.flags = Catches::ComputeFlags.call(@catch)
+    @catch.status = @catch.flags.empty? ? :synced : :needs_review
     @catch.synced_at = Time.current
 
     if @catch.save && @catch.photo.attached?

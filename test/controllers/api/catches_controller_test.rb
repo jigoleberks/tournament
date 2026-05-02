@@ -93,6 +93,17 @@ class Api::CatchesControllerTest < ActionDispatch::IntegrationTest
     assert_not_includes response.body, "note"
   end
 
+  test "POST /api/catches persists flags on the catch record" do
+    photo = fixture_file_upload("sample_walleye.jpg", "image/jpeg")
+    post "/api/catches", params: {
+      catch: { species_id: @walleye.id, length_inches: 12,
+               captured_at_device: Time.current.iso8601,
+               client_uuid: "uuid-PERSIST", photo: photo }
+    }, headers: { "Accept" => "application/json" }
+    persisted = Catch.find_by(client_uuid: "uuid-PERSIST")
+    assert_includes persisted.flags, "missing_gps"
+  end
+
   test "out-of-bounds GPS flags catch as needs_review" do
     photo = fixture_file_upload("sample_walleye.jpg", "image/jpeg")
     post "/api/catches", params: {

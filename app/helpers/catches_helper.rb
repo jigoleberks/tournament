@@ -17,4 +17,14 @@ module CatchesHelper
     return false if current_user.nil? || tournament.nil?
     current_user.organizer? || TournamentJudge.exists?(tournament: tournament, user: current_user)
   end
+
+  FLAG_LABELS = {
+    "missing_gps"   => "no GPS",
+    "clock_skew"    => "clock mismatch",
+    "out_of_bounds" => "outside lake"
+  }.freeze
+
+  def flag_label(flag)
+    FLAG_LABELS.fetch(flag, flag.humanize.downcase)
+  end
 end

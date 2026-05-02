@@ -8,7 +8,13 @@
         <td><%= c.user.name %></td>
         <td><%= c.species.name %></td>
         <td><%= c.length_inches %>"</td>
-        <td><%= c.status %></td>
+        <td>
+          <% if c.flags.any? %>
+            <%= render "catches/flag_badges", catch_record: c %>
+          <% else %>
+            <%= c.status %>
+          <% end %>
+        </td>
         <td><%= link_to "Open", judges_tournament_catch_path(tournament_id: @tournament.id, id: c.id) %></td>
       </tr>
     <% end %>

@@ -36,6 +36,8 @@
             <div class="mt-1">
               <% if c.disqualified? %>
                 <span class="text-red-400">disqualified</span>
+              <% elsif c.flags.any? %>
+                <%= render "catches/flag_badges", catch_record: c %>
               <% elsif c.needs_review? %>
                 <span class="text-amber-400">needs review</span>
               <% else %>
