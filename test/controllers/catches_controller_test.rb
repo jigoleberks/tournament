@@ -180,6 +180,29 @@ class CatchesControllerTest < ActionDispatch::IntegrationTest
     assert_match "too long", flash[:alert]
   end
 
+  test "show: owner sees their note text and the edit form" do
+    own = create(:catch, user: @user, species: @walleye, length_inches: 18.5,
+                         note: "OWNER-NOTE-VISIBLE")
+    get catch_path(own.id)
+    assert_response :success
+    assert_match "OWNER-NOTE-VISIBLE", response.body
+    assert_select "form[action=?][method=?]", catch_path(own.id), "post" do
+      assert_select "input[name=?][value=?]", "_method", "patch"
+      assert_select "textarea[name=?]", "catch[note]"
+    end
+  end
+
+  test "show: organizer cannot see another member's note" do
+    catch_record = create(:catch, user: @user, species: @walleye, length_inches: 18.5,
+                                  note: "OWNER-NOTE-HIDDEN")
+    organizer = create(:user, club: @club, role: :organizer)
+    sign_in_as(organizer)
+    get catch_path(catch_record.id)
+    assert_response :success
+    assert_no_match "OWNER-NOTE-HIDDEN", response.body
+    assert_select "textarea[name=?]", "catch[note]", count: 0
+  end
+
   private
 
   def sign_in_as(user)
