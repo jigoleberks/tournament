@@ -2,7 +2,7 @@ import { Controller } from "@hotwired/stimulus"
 import { enqueueCatch } from "offline/db"
 
 export default class extends Controller {
-  static targets = ["speciesSelect", "lengthInput", "noteInput", "submitButton", "status"]
+  static targets = ["speciesSelect", "lengthInput", "lengthLabel", "noteInput", "submitButton", "status"]
   static values = { csrfToken: String, capsBySpeciesId: Object }
 
   connect() {
@@ -66,6 +66,38 @@ export default class extends Controller {
 
     window.dispatchEvent(new Event("bsfamilies:try-sync"))
     window.location.href = "/"
+  }
+
+  setUnit(event) {
+    const newUnit = event.target.value
+    const oldUnit = this.lengthInputTarget.dataset.catchFormUnit
+    if (oldUnit === newUnit) return
+
+    const v = parseFloat(this.lengthInputTarget.value)
+    if (!Number.isNaN(v)) {
+      const factor = oldUnit === "inches" && newUnit === "centimeters" ? 2.54
+                   : oldUnit === "centimeters" && newUnit === "inches" ? 1 / 2.54
+                   : 1
+      this.lengthInputTarget.value = (v * factor).toFixed(2)
+    }
+
+    this.lengthInputTarget.dataset.catchFormUnit = newUnit
+    this.lengthInputTarget.step = newUnit === "centimeters" ? "0.5" : "0.25"
+    if (this.hasLengthLabelTarget) {
+      this.lengthLabelTarget.textContent = newUnit === "centimeters" ? "Length (cm)" : "Length (in)"
+    }
+
+    fetch("/me", {
+      method: "PATCH",
+      headers: {
+        "Content-Type": "application/json",
+        "Accept": "application/json",
+        "X-CSRF-Token": this.csrfTokenValue
+      },
+      body: JSON.stringify({ user: { length_unit: newUnit } })
+    }).catch(() => {})
+
+    this.refresh()
   }
 
   _toInches(rawValue) {

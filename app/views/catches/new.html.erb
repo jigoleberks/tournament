@@ -17,7 +17,7 @@
     <% end %>
   </select>
 
-  <label for="catch_length_inches" class="block text-sm font-medium text-slate-300 mt-4 mb-1">
+  <label for="catch_length_inches" data-catch-form-target="lengthLabel" class="block text-sm font-medium text-slate-300 mt-4 mb-1">
     <%= current_user.metric? ? "Length (cm)" : "Length (in)" %>
   </label>
   <input id="catch_length_inches" type="number"
@@ -27,6 +27,21 @@
          data-catch-form-unit="<%= current_user.length_unit %>"
          data-action="input->catch-form#refresh"
          class="w-full h-12 px-3 rounded-lg bg-slate-800 border border-slate-700 text-base text-slate-100">
+
+  <label class="block text-sm font-medium text-slate-300 mt-4 mb-1">Length unit</label>
+  <div class="flex gap-2">
+    <% User::LENGTH_UNITS.each do |unit| %>
+      <label class="flex-1">
+        <input type="radio" name="length_unit_toggle" value="<%= unit %>"
+               <%= "checked" if current_user.length_unit == unit %>
+               data-action="change->catch-form#setUnit"
+               class="sr-only peer">
+        <span class="block w-full h-12 leading-[3rem] text-center rounded-lg bg-slate-700 peer-checked:bg-blue-600 text-slate-100 peer-checked:text-white cursor-pointer">
+          <%= unit == "inches" ? "Inches" : "Centimeters" %>
+        </span>
+      </label>
+    <% end %>
+  </div>
 
   <label for="catch_note" class="block text-sm font-medium text-slate-300 mt-4 mb-1">Notes (private)</label>
   <textarea id="catch_note" name="catch[note]" maxlength="500" rows="4"
