@@ -172,12 +172,14 @@ class CatchesControllerTest < ActionDispatch::IntegrationTest
     assert_equal 18.5, own.length_inches.to_f
   end
 
-  test "update: overly long note is rejected and flash alert is set" do
+  test "update: overly long note is rejected, re-renders show, and preserves typed text" do
     own = create(:catch, user: @user, species: @walleye, length_inches: 18.5)
-    patch catch_path(own.id), params: { catch: { note: "a" * 501 } }
-    assert_redirected_to catch_path(own.id)
+    long_note = "a" * 501
+    patch catch_path(own.id), params: { catch: { note: long_note } }
+    assert_response :unprocessable_entity
     assert_nil own.reload.note
-    assert_match "too long", flash[:alert]
+    assert_match "too long", response.body
+    assert_match long_note, response.body
   end
 
   test "show: owner sees their note text and the edit form" do

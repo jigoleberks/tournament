@@ -61,7 +61,10 @@ class CatchesController < ApplicationController
     if catch_record.update(catch_note_params)
       redirect_to catch_record, notice: "Notes saved"
     else
-      redirect_to catch_record, alert: catch_record.errors.full_messages.to_sentence
+      @catch = catch_record
+      @action_tournament = resolve_action_tournament(@catch)
+      flash.now[:alert] = catch_record.errors.full_messages.to_sentence
+      render :show, status: :unprocessable_entity
     end
   end
 

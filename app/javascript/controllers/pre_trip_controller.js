@@ -18,7 +18,7 @@ export default class extends Controller {
   }
 
   _reset() {
-    for (const name of ["session", "tournaments", "camera", "microphone", "gps", "clock", "notifications", "network"]) {
+    for (const name of this.constructor.targets) {
       this.set(name, "…")
     }
   }
