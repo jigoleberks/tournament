@@ -5,7 +5,8 @@ import { Controller } from "@hotwired/stimulus"
 export default class extends Controller {
   static targets = [
     "preview", "video", "openButton", "captureButton", "retakeButton",
-    "fullscreenButton", "fullscreenContainer", "fullscreenSlot", "inlineSlot"
+    "fullscreenButton", "fullscreenContainer", "fullscreenSlot", "inlineSlot",
+    "leftGuide", "rightGuide"
   ]
 
   async connect() {
@@ -60,6 +61,8 @@ export default class extends Controller {
   enterFullscreen() {
     if (!this.stream || !this.hasFullscreenContainerTarget) return
     this.fullscreenSlotTarget.appendChild(this.videoTarget)
+    this.fullscreenSlotTarget.appendChild(this.leftGuideTarget)
+    this.fullscreenSlotTarget.appendChild(this.rightGuideTarget)
     this.videoTarget.classList.remove("aspect-[3/4]", "rounded-lg")
     this.videoTarget.classList.add("w-full", "h-full")
     this.fullscreenContainerTarget.classList.remove("hidden")
@@ -90,6 +93,8 @@ export default class extends Controller {
     this._toggle(this.videoTarget,            state === "streaming")
     this._toggle(this.captureButtonTarget,    state === "streaming")
     this._toggle(this.fullscreenButtonTarget, state === "streaming")
+    this._toggle(this.leftGuideTarget,        state === "streaming")
+    this._toggle(this.rightGuideTarget,       state === "streaming")
     this._toggle(this.previewTarget,          state === "captured")
     this._toggle(this.retakeButtonTarget,     state === "captured")
   }
@@ -107,6 +112,8 @@ export default class extends Controller {
   _collapseFullscreen() {
     if (!this.hasFullscreenContainerTarget) return
     this.inlineSlotTarget.appendChild(this.videoTarget)
+    this.inlineSlotTarget.appendChild(this.leftGuideTarget)
+    this.inlineSlotTarget.appendChild(this.rightGuideTarget)
     this.videoTarget.classList.remove("w-full", "h-full")
     this.videoTarget.classList.add("aspect-[3/4]", "rounded-lg")
     this.fullscreenContainerTarget.classList.add("hidden")
