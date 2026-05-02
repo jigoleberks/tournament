@@ -58,6 +58,22 @@ class CatchesControllerTest < ActionDispatch::IntegrationTest
     assert_response :success
   end
 
+  test "show: renders Save photo button with download wiring when photo attached" do
+    own = create(:catch, user: @user, species: @walleye, length_inches: 18.5,
+                         captured_at_device: Time.zone.local(2026, 4, 30, 14, 35))
+    get catch_path(own.id)
+    assert_response :success
+
+    assert_select "[data-controller~=?]", "photo-save" do |containers|
+      container = containers.first
+      assert_match %r{rails/active_storage|/blobs/}, container["data-photo-save-url-value"],
+                   "expected an Active Storage URL"
+      assert_equal "Walleye - 18.5 in - 2026-04-30 1435.jpg",
+                   container["data-photo-save-filename-value"]
+    end
+    assert_select "button[data-action=?]", "photo-save#save", text: "Save photo"
+  end
+
   test "show: member cannot view another member's catch detail" do
     other_user = create(:user, club: @club)
     foreign = create(:catch, user: other_user, species: @walleye, length_inches: 22)

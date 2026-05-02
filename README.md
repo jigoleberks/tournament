@@ -8,10 +8,12 @@ A small, self-hosted Progressive Web App for running club-scale catch-photo-rele
 - **Offline catch capture** — IndexedDB queue + Background Sync; works with zero bars
 - **In-app camera** — anti-cheat: photo and (optional) release video must come from `getUserMedia`, no gallery import
 - **Live leaderboard** — Turbo Streams over Action Cable; updates every viewer when placement changes
+- **Judged or friendly tournaments** — judged events run through review/approve/DQ; friendly events skip judging and let placements settle from member submissions
 - **Organizer flow** — tournament CRUD, scoring slots per species, templates, season tags, entries (members can't self-sign-up; organizers control who's in), judge assignment, full catch history with photos
 - **Judge workflow** — needs-review queue, approve / flag / disqualify / dock-verify, manual override (length + slot), append-only `JudgeAction` audit log
 - **Web Push** — VAPID; bumped-from-slot, took-the-lead, judge-flagged, tournament started/ended; per-user mute / snooze / per-tournament mute
 - **Per-user units** — inches or centimeters; leaderboard shows both
+- **Completed-tournaments archive** — anything ended within the last 24h stays on the home page; older completions move to a dedicated archive page
 - **Configurable time zone** — set `APP_TIME_ZONE` to any Rails time zone name; defaults to UTC
 
 ## Tech stack
@@ -38,7 +40,8 @@ These steps assume Linux (tested on Debian/Ubuntu); macOS works the same with Ho
 
 - Docker + Docker Compose v2 (`docker compose ...`)
 - Git
-- ImageMagick on the host *only* if you want to regenerate PWA icons from `public/icon.png`. The shipped icons in `public/icons/` are fine for most installs.
+
+That's it — no Ruby, Postgres, or image tooling on the host. To rebrand the favicon and PWA icon, drop a square image in at `public/icon.jpg` (browsers and Android scale it; 512×512 looks best for the home-screen install).
 
 ### 2. Clone
 
@@ -202,9 +205,11 @@ Install with `crontab -e` as the user that runs docker — typically not root. `
 ## Notes
 
 - **Time zone** is read from `APP_TIME_ZONE` (defaults to `UTC`). Use any Rails time zone name — e.g. `Saskatchewan` (UTC-6, no DST), `Eastern Time (US & Canada)`, etc.
-- **Per-tournament release-video toggle** — organizers can disable the release-video step on a tournament. The catch form hides that section if none of the angler's active tournaments require it.
+- **Per-tournament release-video toggle** — organizers can disable the release-video step on a tournament. The catch form hides that section if none of the angler's active tournaments require it. New tournaments default to "video off"; flip it on per tournament when the rules call for it.
+- **Judged vs friendly mode** — friendly tournaments skip the judge queue entirely; member submissions place straight onto the leaderboard. Judged tournaments require approval and support flag/DQ/manual override.
 - **Member self-sign-up is disabled by design.** Organizers add members to tournaments via the tournament edit page.
 - **Catch detail privacy** — the `/catches/:id` photo+meta page is gated to organizers and judges of the relevant tournament. Members see lengths on the leaderboard but not the underlying photos.
+- **Completed tournaments** appear on the home page for 24h after `ends_at`, then move to `/tournaments/archived`, reachable from the "View older completed tournaments" button on the home page.
 
 ## License
 

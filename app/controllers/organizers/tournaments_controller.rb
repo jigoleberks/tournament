@@ -2,7 +2,9 @@ class Organizers::TournamentsController < Organizers::BaseController
   before_action :set_tournament, only: [:edit, :update, :destroy]
 
   def index
-    @tournaments = current_user.club.tournaments.order(starts_at: :desc)
+    scope = current_user.club.tournaments.order(starts_at: :desc)
+    now = Time.current
+    @active_tournaments = scope.where("ends_at IS NULL OR ends_at >= ?", now)
   end
 
   def new

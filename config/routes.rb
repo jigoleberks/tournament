@@ -29,7 +29,9 @@ Rails.application.routes.draw do
     end
   end
 
-  resources :tournaments, only: [:index, :show]
+  resources :tournaments, only: [:index, :show] do
+    collection { get :archived }
+  end
   resources :catches, only: [:index, :new, :create, :show] do
     collection { get :map }
   end

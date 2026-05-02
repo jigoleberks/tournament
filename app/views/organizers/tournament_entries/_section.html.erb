@@ -29,21 +29,35 @@
     <%= label_tag "tournament_entry[name]", "Boat name (optional)", class: "block text-sm font-medium text-slate-300" %>
     <%= text_field_tag "tournament_entry[name]", nil,
                        class: "w-full h-10 px-3 rounded bg-slate-900 border border-slate-700" %>
-    <p class="text-sm text-slate-300 mt-2">Pick 1 or 2 members:</p>
-    <% available.each do |u| %>
-      <label class="flex items-center gap-2 py-1">
-        <%= check_box_tag "tournament_entry[member_user_ids][]", u.id %>
-        <span><%= u.name %></span>
-      </label>
-    <% end %>
+    <details class="bg-slate-900 border border-slate-700 rounded mt-2">
+      <summary class="h-10 px-3 leading-[2.5rem] cursor-pointer text-slate-100 select-none">
+        Pick 1 or 2 members
+      </summary>
+      <div class="px-3 pb-3 pt-1 space-y-1">
+        <% available.each do |u| %>
+          <label class="flex items-center gap-2 py-1">
+            <%= check_box_tag "tournament_entry[member_user_ids][]", u.id %>
+            <span><%= u.name %></span>
+          </label>
+        <% end %>
+      </div>
+    </details>
   <% else %>
-    <%= label_tag "tournament_entry[member_user_ids][]", "Member", class: "block text-sm font-medium text-slate-300" %>
-    <%= select_tag "tournament_entry[member_user_ids][]",
-                   options_from_collection_for_select(available, :id, :name),
-                   class: "w-full h-10 px-3 rounded bg-slate-900 border border-slate-700",
-                   prompt: "—" %>
+    <details class="bg-slate-900 border border-slate-700 rounded">
+      <summary class="h-10 px-3 leading-[2.5rem] cursor-pointer text-slate-100 select-none">
+        Pick members
+      </summary>
+      <div class="px-3 pb-3 pt-1 space-y-1">
+        <% available.each do |u| %>
+          <label class="flex items-center gap-2 py-1">
+            <%= check_box_tag "tournament_entry[member_user_ids][]", u.id %>
+            <span><%= u.name %></span>
+          </label>
+        <% end %>
+      </div>
+    </details>
   <% end %>
-  <%= submit_tag "Add entry",
-                 class: "h-12 px-4 rounded-lg bg-blue-600 active:bg-blue-700 text-white" %>
+  <%= submit_tag(@tournament.mode_team? ? "Add entry" : "Add entries",
+                 class: "h-12 px-4 rounded-lg bg-blue-600 active:bg-blue-700 text-white") %>
 <% end %>
 <% end %>

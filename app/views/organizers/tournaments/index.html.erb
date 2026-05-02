@@ -11,19 +11,26 @@
               class: "h-12 px-4 leading-[3rem] rounded-lg bg-blue-600 text-white" %>
 </nav>
 
-<h2 class="text-lg font-semibold mt-6 mb-2">Tournaments</h2>
-<ul class="space-y-2">
-  <% @tournaments.each do |t| %>
-    <li class="bg-slate-800 rounded-lg p-4">
-      <div class="mb-3">
-        <%= link_to t.name, edit_organizers_tournament_path(t),
-                    class: "text-blue-300 font-medium text-lg" %>
-        <span class="text-sm text-slate-400">— <%= t.starts_at.strftime("%b %d") %></span>
-      </div>
-      <%= button_to "Delete", organizers_tournament_path(t),
-                    method: :delete,
-                    data: { turbo_confirm: "Delete '#{t.name}'? This removes the tournament, its entries, and all placements. This cannot be undone." },
-                    class: "h-12 px-4 rounded-lg bg-red-600 active:bg-red-700 text-white" %>
-    </li>
-  <% end %>
-</ul>
+<h2 class="text-lg font-semibold mt-6 mb-2">Active tournaments</h2>
+<% if @active_tournaments.any? %>
+  <ul class="space-y-2">
+    <% @active_tournaments.each do |t| %>
+      <li class="relative bg-slate-800 rounded-lg p-4 hover:bg-slate-700">
+        <div class="mb-3">
+          <%= link_to edit_organizers_tournament_path(t), class: "text-blue-300 font-medium text-lg" do %>
+            <span class="absolute inset-0 rounded-lg" aria-hidden="true"></span>
+            <span class="relative"><%= t.name %></span>
+          <% end %>
+          <span class="relative text-sm text-slate-400">— <%= t.starts_at.strftime("%b %d") %></span>
+        </div>
+        <%= button_to "Delete", organizers_tournament_path(t),
+                      method: :delete,
+                      data: { turbo_confirm: "Delete '#{t.name}'? This removes the tournament, its entries, and all placements. This cannot be undone." },
+                      class: "relative h-12 px-4 rounded-lg bg-red-600 active:bg-red-700 text-white" %>
+      </li>
+    <% end %>
+  </ul>
+<% else %>
+  <p class="text-slate-400 italic">No active tournaments.</p>
+<% end %>
+
