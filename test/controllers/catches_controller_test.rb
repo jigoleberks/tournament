@@ -387,6 +387,42 @@ class CatchesControllerTest < ActionDispatch::IntegrationTest
     refute_includes assigned, out_of_range
   end
 
+  test "GET /catches assigns @month_start to the selected month's first day" do
+    create_catch(captured_at: Time.zone.parse("2026-05-08 10:00"))
+    get catches_path, params: { start: "2026-05-08", end: "2026-05-08" }
+    assert_equal Date.new(2026, 5, 1), assigns(:month_start)
+  end
+
+  test "GET /catches assigns @counts_by_date for the displayed month" do
+    create_catch(captured_at: Time.zone.parse("2026-05-08 10:00"))
+    create_catch(captured_at: Time.zone.parse("2026-05-08 14:00"))
+    create_catch(captured_at: Time.zone.parse("2026-05-12 10:00"))
+    create_catch(captured_at: Time.zone.parse("2026-04-30 10:00"))
+    create_catch(captured_at: Time.zone.parse("2026-06-01 10:00"))
+
+    get catches_path, params: { start: "2026-05-08", end: "2026-05-08" }
+    counts = assigns(:counts_by_date)
+    assert_equal 2, counts[Date.new(2026, 5, 8)]
+    assert_equal 1, counts[Date.new(2026, 5, 12)]
+    assert_nil counts[Date.new(2026, 4, 30)]
+    assert_nil counts[Date.new(2026, 6, 1)]
+  end
+
+  test "GET /catches?month=2026-05-01 controls the displayed month independently of selection" do
+    create_catch(captured_at: Time.zone.parse("2026-05-15 10:00"))
+    get catches_path, params: { start: "", end: "", month: "2026-05-01" }
+    assert_equal Date.new(2026, 5, 1), assigns(:month_start)
+    assert_equal 1, assigns(:counts_by_date)[Date.new(2026, 5, 15)]
+  end
+
+  test "GET /catches assigns @available_species ordered by name" do
+    pike  = create(:species, club: @club, name: "Pike")
+    perch = create(:species, club: @club, name: "Perch")
+    get catches_path
+    names = assigns(:available_species).map(&:name)
+    assert_equal %w[Perch Pike Walleye], names
+  end
+
   private
 
   def sign_in_as(user)

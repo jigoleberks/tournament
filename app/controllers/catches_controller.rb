@@ -8,10 +8,13 @@ class CatchesController < ApplicationController
       else
         default_date_range
       end
+    @month_start = parse_date(params[:month]) || (@selected_start || Date.current).beginning_of_month
+    @month_start = @month_start.beginning_of_month
     @species_filter_id = params[:species].presence&.to_i
     @sort = params[:sort].presence&.to_sym || :newest
 
     @catches = filter_and_sort(current_user.catches.includes(:species, photo_attachment: :blob))
+    @counts_by_date = counts_by_date(@month_start)
     @available_species = current_user.club.species.order(:name)
   end
 
@@ -151,5 +154,14 @@ class CatchesController < ApplicationController
     when :shortest then scope.order(length_inches: :asc, captured_at_device: :desc)
     else                scope.order(captured_at_device: :desc)
     end
+  end
+
+  def counts_by_date(month_start)
+    range = month_start.beginning_of_day..month_start.end_of_month.end_of_day
+    current_user.catches
+      .where(captured_at_device: range)
+      .group("DATE(captured_at_device)")
+      .count
+      .transform_keys { |v| v.is_a?(Date) ? v : Date.parse(v.to_s) }
   end
 end
