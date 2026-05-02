@@ -17,15 +17,19 @@ class TournamentEntryTest < ActiveSupport::TestCase
     assert_not too_many.valid?
   end
 
-  test "team mode: at most 2 members" do
-    entry = TournamentEntry.create!(tournament: @team_t, name: "Curtis's Boat")
-    entry.tournament_entry_members.create!(user: @users[0])
-    entry.tournament_entry_members.create!(user: @users[1])
+  test "team mode: respects MAX_TEAM_MEMBERS cap" do
+    cap = TournamentEntryMember::MAX_TEAM_MEMBERS
+    users = Array.new(cap + 1) { create(:user, club: @club) }
+    entry = TournamentEntry.create!(tournament: @team_t, name: "Big Boat")
+
+    cap.times do |i|
+      entry.tournament_entry_members.create!(user: users[i])
+    end
     assert entry.valid?
 
-    third = entry.tournament_entry_members.build(user: @users[2])
-    assert_not third.valid?
-    assert_includes third.errors[:base], "team is at capacity (2 anglers max)"
+    one_too_many = entry.tournament_entry_members.build(user: users[cap])
+    assert_not one_too_many.valid?
+    assert_includes one_too_many.errors[:base], "team is at capacity (#{cap} anglers max)"
   end
 
   test "an angler cannot be on two entries in the same tournament" do

@@ -1,4 +1,6 @@
 class TournamentEntryMember < ApplicationRecord
+  MAX_TEAM_MEMBERS = 5
+
   belongs_to :tournament_entry
   belongs_to :user
 
@@ -17,8 +19,8 @@ class TournamentEntryMember < ApplicationRecord
         errors.add(:base, "solo entries have exactly 1 angler")
       end
     when "team"
-      if siblings_count >= 2
-        errors.add(:base, "team is at capacity (2 anglers max)")
+      if siblings_count >= MAX_TEAM_MEMBERS
+        errors.add(:base, "team is at capacity (#{MAX_TEAM_MEMBERS} anglers max)")
       end
     end
   end

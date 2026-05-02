@@ -31,7 +31,7 @@
                        class: "w-full h-10 px-3 rounded bg-slate-900 border border-slate-700" %>
     <details class="bg-slate-900 border border-slate-700 rounded mt-2">
       <summary class="h-10 px-3 leading-[2.5rem] cursor-pointer text-slate-100 select-none">
-        Pick 1 or 2 members
+        Pick up to <%= TournamentEntryMember::MAX_TEAM_MEMBERS %> members
       </summary>
       <div class="px-3 pb-3 pt-1 space-y-1">
         <% available.each do |u| %>
