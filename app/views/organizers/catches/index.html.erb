@@ -1,6 +1,18 @@
 <h1 class="text-2xl font-semibold mt-4 mb-4">Catch history</h1>
 <p class="text-slate-400 text-sm mb-4">All catches submitted to the club, newest first.</p>
 
+<% if @members.any? %>
+  <%= form_with url: organizers_catches_path, method: :get, local: true,
+                data: { controller: "auto-submit", action: "change->auto-submit#submit" },
+                class: "mb-4" do %>
+    <%= label_tag :user_id, "Member", class: "block text-xs text-slate-400 mb-1" %>
+    <%= select_tag :user_id,
+                   options_from_collection_for_select(@members, :id, :name, @selected_user_id),
+                   include_blank: "All members",
+                   class: "w-full bg-slate-800 text-slate-100 rounded-lg px-3 py-2" %>
+  <% end %>
+<% end %>
+
 <% if @catches.any? %>
   <div data-controller="lightbox">
     <ul class="grid grid-cols-2 gap-2">
