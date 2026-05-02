@@ -148,6 +148,30 @@ class CatchesControllerTest < ActionDispatch::IntegrationTest
       count: 0
   end
 
+  test "update: owner can save a note" do
+    own = create(:catch, user: @user, species: @walleye, length_inches: 18.5)
+    patch catch_path(own.id), params: { catch: { note: "released near bridge" } }
+    assert_redirected_to catch_path(own.id)
+    assert_equal "released near bridge", own.reload.note
+  end
+
+  test "update: non-owner gets 404" do
+    other_user = create(:user, club: @club)
+    foreign = create(:catch, user: other_user, species: @walleye, length_inches: 18.5)
+    patch catch_path(foreign.id), params: { catch: { note: "sneaky" } }
+    assert_response :not_found
+    assert_nil foreign.reload.note
+  end
+
+  test "update: strong-params discards non-note fields" do
+    own = create(:catch, user: @user, species: @walleye, length_inches: 18.5)
+    patch catch_path(own.id), params: { catch: { note: "ok", length_inches: 99 } }
+    assert_redirected_to catch_path(own.id)
+    own.reload
+    assert_equal "ok", own.note
+    assert_equal 18.5, own.length_inches.to_f
+  end
+
   private
 
   def sign_in_as(user)

@@ -52,6 +52,15 @@ class CatchesController < ApplicationController
     end
   end
 
+  def update
+    catch_record = current_user.catches.find(params[:id])
+    if catch_record.update(catch_note_params)
+      redirect_to catch_record, notice: "Notes saved"
+    else
+      redirect_to catch_record, alert: catch_record.errors.full_messages.to_sentence
+    end
+  end
+
   private
 
   def authorized_to_view?(catch_record)
@@ -78,10 +87,14 @@ class CatchesController < ApplicationController
     TournamentJudge.exists?(tournament: tournament, user: current_user)
   end
 
+  def catch_note_params
+    params.require(:catch).permit(:note)
+  end
+
   def catch_params
     params.require(:catch).permit(
       :species_id, :length_inches, :captured_at_device, :captured_at_gps,
-      :latitude, :longitude, :gps_accuracy_m, :app_build, :client_uuid, :photo
+      :latitude, :longitude, :gps_accuracy_m, :app_build, :client_uuid, :photo, :note
     )
   end
 end
