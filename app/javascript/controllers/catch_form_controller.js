@@ -65,7 +65,7 @@ export default class extends Controller {
     }
 
     window.dispatchEvent(new Event("bsfamilies:try-sync"))
-    window.location.href = "/?queued=1"
+    window.location.href = "/"
   }
 
   _toInches(rawValue) {

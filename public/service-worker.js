@@ -1,4 +1,4 @@
-const CACHE = "shell-v5";
+const CACHE = "shell-v6";
 const SHELL = ["/manifest.webmanifest", "/icon.png"];
 
 self.addEventListener("install", (event) => {
@@ -18,10 +18,16 @@ self.addEventListener("fetch", (event) => {
   if (event.request.method !== "GET") return;
   if (url.pathname.startsWith("/api/")) return;       // never cache API
 
-  // Network-first for navigations so dynamic HTML stays fresh.
+  // Network-first for navigations so dynamic HTML stays fresh; cache on success for offline fallback.
   if (event.request.mode === "navigate") {
     event.respondWith(
-      fetch(event.request).catch(() => caches.match(event.request).then((c) => c || new Response("offline", { status: 503 })))
+      fetch(event.request).then((res) => {
+        if (res.status === 200) {
+          const copy = res.clone();
+          caches.open(CACHE).then((c) => c.put(event.request, copy));
+        }
+        return res;
+      }).catch(() => caches.match(event.request).then((c) => c || new Response("offline", { status: 503 })))
     );
     return;
   }
