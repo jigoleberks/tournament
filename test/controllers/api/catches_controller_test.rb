@@ -72,6 +72,27 @@ class Api::CatchesControllerTest < ActionDispatch::IntegrationTest
     assert_includes JSON.parse(response.body)["flags"], "clock_skew"
   end
 
+  test "POST /api/catches persists note but does not echo it in response" do
+    photo = fixture_file_upload("sample_walleye.jpg", "image/jpeg")
+    post "/api/catches", params: {
+      catch: {
+        species_id: @walleye.id,
+        length_inches: 18,
+        captured_at_device: Time.current.iso8601,
+        latitude: 49.0, longitude: -98.0, gps_accuracy_m: 5,
+        client_uuid: "uuid-NOTE",
+        photo: photo,
+        note: "personal-secret-XYZ"
+      }
+    }, headers: { "Accept" => "application/json" }
+
+    assert_response :created
+    persisted = Catch.find_by(client_uuid: "uuid-NOTE")
+    assert_equal "personal-secret-XYZ", persisted.note
+    assert_not_includes response.body, "personal-secret-XYZ"
+    assert_not_includes response.body, "note"
+  end
+
   private
 
   def sign_in_as(user)
