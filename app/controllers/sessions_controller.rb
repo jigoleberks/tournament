@@ -11,10 +11,13 @@ class SessionsController < ApplicationController
   def new; end
 
   def create
-    user = User.find_by(email: params[:email])
+    email = params[:email].to_s.downcase.strip
+    user = User.find_by(email: email)
     if user
-      token = SignInToken.issue!(user: user)
-      SignInMailer.magic_link(token).deliver_later
+      SignInToken.issue!(user: user).tap { |t| SignInMailer.magic_link(t).deliver_later }
+      login_log "link_sent", email: email, ip: request.remote_ip
+    else
+      login_log "email_not_found", email: email, ip: request.remote_ip
     end
     redirect_to "/session/check_email"
   end
@@ -23,8 +26,10 @@ class SessionsController < ApplicationController
     user = SignInToken.consume!(params[:token])
     if user
       sign_in!(user)
+      login_log "link_success", email: user.email, ip: request.remote_ip
       redirect_to root_path, notice: "Welcome, #{user.name}"
     else
+      login_log "link_invalid", ip: request.remote_ip
       redirect_to new_session_path, alert: "That sign-in link is invalid or expired."
     end
   end
@@ -34,11 +39,14 @@ class SessionsController < ApplicationController
   def code; end
 
   def submit_code
-    user = SignInToken.consume_code!(email: params[:email], code: params[:code])
+    email = params[:email].to_s.downcase.strip
+    user = SignInToken.consume_code!(email: email, code: params[:code])
     if user
       sign_in!(user)
+      login_log "code_success", email: user.email, ip: request.remote_ip
       redirect_to root_path, notice: "Welcome, #{user.name}"
     else
+      login_log "code_failed", email: email, ip: request.remote_ip
       flash.now[:alert] = "That email and code don't match, or the code has expired."
       render :code, status: :unprocessable_entity
     end
@@ -47,5 +55,14 @@ class SessionsController < ApplicationController
   def destroy
     sign_out!
     redirect_to new_session_path
+  end
+
+  private
+
+  def login_log(outcome, email: nil, ip: nil)
+    parts = { ts: Time.current.iso8601, outcome: outcome }
+    parts[:email] = email if email
+    parts[:ip] = ip if ip
+    LOGIN_LOGGER.info(parts.map { |k, v| "#{k}=#{v}" }.join(" "))
   end
 end
