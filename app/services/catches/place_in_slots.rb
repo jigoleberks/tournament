@@ -66,7 +66,7 @@ module Catches
     def skip_for_local_out_of_bounds?(tournament)
       return false unless tournament.local?
       return false if @catch.latitude.nil?
-      !Geofence.includes?(@catch.latitude, @catch.longitude)
+      !::Geofence.includes?(@catch.latitude, @catch.longitude)
     end
   end
 end
