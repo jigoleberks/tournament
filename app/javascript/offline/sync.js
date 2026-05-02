@@ -16,6 +16,7 @@ async function drain() {
       if (rec.longitude != null) fd.append("catch[longitude]", rec.longitude)
       if (rec.gps_accuracy_m != null) fd.append("catch[gps_accuracy_m]", rec.gps_accuracy_m)
       if (rec.app_build) fd.append("catch[app_build]", rec.app_build)
+      if (rec.note) fd.append("catch[note]", rec.note)
       if (rec.photo) fd.append("catch[photo]", rec.photo, "photo.jpg")
       if (rec.video) fd.append("catch[video]", rec.video, "video.webm")
 

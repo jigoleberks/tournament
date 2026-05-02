@@ -2,6 +2,7 @@
 
 <div data-controller="catch-form photo-capture video-capture"
      data-catch-form-csrf-token-value="<%= form_authenticity_token %>"
+     data-catch-form-caps-by-species-id-value="<%= @length_caps.to_json %>"
      data-action="photo-capture:captured->catch-form#onPhotoCaptured
                   video-capture:captured->catch-form#onVideoCaptured
                   video-capture:failed->catch-form#onVideoFailed">
@@ -26,6 +27,12 @@
          data-catch-form-unit="<%= current_user.length_unit %>"
          data-action="input->catch-form#refresh"
          class="w-full h-12 px-3 rounded-lg bg-slate-800 border border-slate-700 text-base text-slate-100">
+
+  <label class="block text-sm font-medium text-slate-300 mt-4 mb-1">Notes (private)</label>
+  <textarea name="catch[note]" maxlength="500" rows="4"
+            data-catch-form-target="noteInput"
+            placeholder="Only you will see these notes."
+            class="w-full px-3 py-2 rounded-lg bg-slate-800 border border-slate-700 text-base text-slate-100"></textarea>
 
   <h3 class="text-lg font-semibold mt-6 mb-2">Photo</h3>
   <div data-photo-capture-target="inlineSlot">

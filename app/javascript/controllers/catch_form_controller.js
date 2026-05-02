@@ -2,8 +2,8 @@ import { Controller } from "@hotwired/stimulus"
 import { enqueueCatch } from "offline/db"
 
 export default class extends Controller {
-  static targets = ["speciesSelect", "lengthInput", "submitButton", "status"]
-  static values = { csrfToken: String }
+  static targets = ["speciesSelect", "lengthInput", "noteInput", "submitButton", "status"]
+  static values = { csrfToken: String, capsBySpeciesId: Object }
 
   connect() {
     this.photoBlob = null
@@ -23,7 +23,13 @@ export default class extends Controller {
   _missingFieldMessage() {
     if (!this.speciesSelectTarget.value) return "Pick a species."
     if (!this.lengthInputTarget.value)   return "Enter the length."
-    if (!this.photoBlob)                 return "Take a photo first."
+    const cap = this.capsBySpeciesIdValue[this.speciesSelectTarget.value]
+    const inches = parseFloat(this._toInches(this.lengthInputTarget.value))
+    if (cap && inches > cap) {
+      const speciesName = this.speciesSelectTarget.selectedOptions[0]?.text ?? "this species"
+      return `${speciesName} can't exceed ${cap}″.`
+    }
+    if (!this.photoBlob) return "Take a photo first."
     return null
   }
 
@@ -43,6 +49,7 @@ export default class extends Controller {
       longitude: position?.coords?.longitude ?? null,
       gps_accuracy_m: position?.coords?.accuracy ?? null,
       app_build: document.documentElement.dataset.appBuild,
+      note: this.noteInputTarget.value,
       photo: this.photoBlob,
       video: this.videoBlob,
       video_failed: this.videoFailed

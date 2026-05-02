@@ -148,6 +148,63 @@ class CatchesControllerTest < ActionDispatch::IntegrationTest
       count: 0
   end
 
+  test "update: owner can save a note" do
+    own = create(:catch, user: @user, species: @walleye, length_inches: 18.5)
+    patch catch_path(own.id), params: { catch: { note: "released near bridge" } }
+    assert_redirected_to catch_path(own.id)
+    assert_equal "released near bridge", own.reload.note
+  end
+
+  test "update: non-owner gets 404" do
+    other_user = create(:user, club: @club)
+    foreign = create(:catch, user: other_user, species: @walleye, length_inches: 18.5)
+    patch catch_path(foreign.id), params: { catch: { note: "sneaky" } }
+    assert_response :not_found
+    assert_nil foreign.reload.note
+  end
+
+  test "update: strong-params discards non-note fields" do
+    own = create(:catch, user: @user, species: @walleye, length_inches: 18.5)
+    patch catch_path(own.id), params: { catch: { note: "ok", length_inches: 99 } }
+    assert_redirected_to catch_path(own.id)
+    own.reload
+    assert_equal "ok", own.note
+    assert_equal 18.5, own.length_inches.to_f
+  end
+
+  test "update: overly long note is rejected, re-renders show, and preserves typed text" do
+    own = create(:catch, user: @user, species: @walleye, length_inches: 18.5)
+    long_note = "a" * 501
+    patch catch_path(own.id), params: { catch: { note: long_note } }
+    assert_response :unprocessable_entity
+    assert_nil own.reload.note
+    assert_match "too long", response.body
+    assert_match long_note, response.body
+  end
+
+  test "show: owner sees their note text and the edit form" do
+    own = create(:catch, user: @user, species: @walleye, length_inches: 18.5,
+                         note: "OWNER-NOTE-VISIBLE")
+    get catch_path(own.id)
+    assert_response :success
+    assert_match "OWNER-NOTE-VISIBLE", response.body
+    assert_select "form[action=?][method=?]", catch_path(own.id), "post" do
+      assert_select "input[name=?][value=?]", "_method", "patch"
+      assert_select "textarea[name=?]", "catch[note]"
+    end
+  end
+
+  test "show: organizer cannot see another member's note" do
+    catch_record = create(:catch, user: @user, species: @walleye, length_inches: 18.5,
+                                  note: "OWNER-NOTE-HIDDEN")
+    organizer = create(:user, club: @club, role: :organizer)
+    sign_in_as(organizer)
+    get catch_path(catch_record.id)
+    assert_response :success
+    assert_no_match "OWNER-NOTE-HIDDEN", response.body
+    assert_select "textarea[name=?]", "catch[note]", count: 0
+  end
+
   private
 
   def sign_in_as(user)

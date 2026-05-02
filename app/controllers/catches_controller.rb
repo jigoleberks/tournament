@@ -35,6 +35,10 @@ class CatchesController < ApplicationController
     @catch = current_user.catches.build(captured_at_device: Time.current,
                                          client_uuid: SecureRandom.uuid)
     @species = current_user.club.species.order(:name)
+    @length_caps = @species.each_with_object({}) do |s, h|
+      cap = Catch::MAX_LENGTH_BY_SPECIES[s.name.to_s.downcase]
+      h[s.id] = cap if cap
+    end
   end
 
   def create
@@ -49,6 +53,18 @@ class CatchesController < ApplicationController
       @catch.errors.add(:photo, "is required") unless @catch.photo.attached?
       @species = current_user.club.species.order(:name)
       render :new, status: :unprocessable_entity
+    end
+  end
+
+  def update
+    catch_record = current_user.catches.find(params[:id])
+    if catch_record.update(catch_note_params)
+      redirect_to catch_record, notice: "Notes saved"
+    else
+      @catch = catch_record
+      @action_tournament = resolve_action_tournament(@catch)
+      flash.now[:alert] = catch_record.errors.full_messages.to_sentence
+      render :show, status: :unprocessable_entity
     end
   end
 
@@ -78,10 +94,14 @@ class CatchesController < ApplicationController
     TournamentJudge.exists?(tournament: tournament, user: current_user)
   end
 
+  def catch_note_params
+    params.require(:catch).permit(:note)
+  end
+
   def catch_params
     params.require(:catch).permit(
       :species_id, :length_inches, :captured_at_device, :captured_at_gps,
-      :latitude, :longitude, :gps_accuracy_m, :app_build, :client_uuid, :photo
+      :latitude, :longitude, :gps_accuracy_m, :app_build, :client_uuid, :photo, :note
     )
   end
 end

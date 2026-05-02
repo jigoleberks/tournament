@@ -7,6 +7,7 @@ export default class extends Controller {
   connect() { this.runAll() }
 
   async runAll() {
+    this._reset()
     this.set("session", "✓")
     this.set("tournaments", this.activeTournamentsValue > 0 ? "✓" : "⚠ no active tournaments today")
     await this.checkCamera()
@@ -14,6 +15,12 @@ export default class extends Controller {
     await this.checkGps()
     await this.checkNotifications()
     this.set("network", navigator.onLine ? `✓ (${navigator.connection?.effectiveType ?? "online"})` : "ℹ offline (sync deferred)")
+  }
+
+  _reset() {
+    for (const name of this.constructor.targets) {
+      this.set(name, "…")
+    }
   }
 
   set(name, text) { this[`${name}Target`].textContent = text }
