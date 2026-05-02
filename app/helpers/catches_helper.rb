@@ -27,4 +27,17 @@ module CatchesHelper
   def flag_label(flag)
     FLAG_LABELS.fetch(flag, flag.humanize.downcase)
   end
+
+  # Returns [target_start, target_end] given a tapped day and the current
+  # selection state. Implements the tap-rule table:
+  #   - no selection         → single day on tapped
+  #   - single day, same tap → no change
+  #   - single day, diff tap → range (min/max of the two)
+  #   - existing range, tap  → reset to single day on tapped
+  def next_range(day, current_start, current_end)
+    return [day, day] if current_start.nil?
+    return [current_start, current_end] if current_start == current_end && day == current_start
+    return [[current_start, day].min, [current_start, day].max] if current_start == current_end
+    [day, day]
+  end
 end
