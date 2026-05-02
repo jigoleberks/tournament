@@ -423,6 +423,22 @@ class CatchesControllerTest < ActionDispatch::IntegrationTest
     assert_equal %w[Perch Pike Walleye], names
   end
 
+  test "GET /catches renders the catch calendar with a count badge for days that have catches" do
+    create_catch(captured_at: Time.zone.parse("2026-05-08 10:00"))
+    get catches_path, params: { start: "2026-05-08", end: "2026-05-08", month: "2026-05-01" }
+    assert_response :ok
+    assert_select "[data-test='catch-calendar']"
+    assert_select "[data-test='calendar-day-2026-05-08']"
+    assert_select "[data-test='calendar-day-2026-05-08'] [data-test='count-badge']", text: /1/
+    assert_select "[data-test='calendar-day-2026-05-09'] [data-test='count-badge']", count: 0
+  end
+
+  test "GET /catches calendar marks the selected day with selected styling" do
+    create_catch(captured_at: Time.zone.parse("2026-05-08 10:00"))
+    get catches_path, params: { start: "2026-05-08", end: "2026-05-08", month: "2026-05-01" }
+    assert_select "[data-test='calendar-day-2026-05-08'][data-selected='true']"
+  end
+
   private
 
   def sign_in_as(user)

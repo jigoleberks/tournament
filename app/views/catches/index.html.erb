@@ -1,10 +1,18 @@
 <div class="flex items-center justify-between mt-4 mb-3">
   <h1 class="text-2xl font-semibold">My catches</h1>
-  <%= link_to "View map", map_catches_path, class: "text-blue-400 font-medium" %>
+  <%= link_to "View map", map_catches_path(request.query_parameters), class: "text-blue-400 font-medium" %>
 </div>
 
+<%= render "shared/catch_calendar",
+           month_start: @month_start,
+           current_start: @selected_start,
+           current_end: @selected_end,
+           counts_by_date: @counts_by_date,
+           path_helper: :catches_path,
+           params: request.query_parameters %>
+
 <% if @catches.any? %>
-  <ul class="grid grid-cols-2 gap-2">
+  <ul class="grid grid-cols-2 gap-2 mt-4">
     <% @catches.each do |c| %>
       <li class="bg-slate-800 rounded-lg p-2 active:bg-slate-700">
         <%= link_to catch_path(c.id), class: "block" do %>
@@ -30,5 +38,5 @@
     <% end %>
   </ul>
 <% else %>
-  <p class="text-slate-400 italic">No catches yet — go log one.</p>
+  <p class="text-slate-400 italic mt-4">No catches in this view.</p>
 <% end %>

@@ -1,0 +1,50 @@
+<%# locals: month_start:, current_start:, current_end:, counts_by_date:, path_helper:, params: %>
+<div data-test="catch-calendar" class="bg-slate-800 rounded-xl p-3">
+  <div class="flex items-center justify-between mb-2">
+    <%= link_to "◀",
+                public_send(path_helper, params.to_h.with_indifferent_access.except(:controller, :action).merge(month: (month_start - 1.month).iso8601)),
+                "aria-label": "Previous month",
+                class: "px-3 py-1 text-slate-300 hover:text-white" %>
+    <div class="font-semibold text-slate-100"><%= month_start.strftime("%B %Y") %></div>
+    <%= link_to "▶",
+                public_send(path_helper, params.to_h.with_indifferent_access.except(:controller, :action).merge(month: (month_start + 1.month).iso8601)),
+                "aria-label": "Next month",
+                class: "px-3 py-1 text-slate-300 hover:text-white" %>
+  </div>
+
+  <div class="grid grid-cols-7 gap-1 text-xs text-slate-400 mb-1">
+    <% %w[Sun Mon Tue Wed Thu Fri Sat].each do |dow| %>
+      <div class="text-center"><%= dow %></div>
+    <% end %>
+  </div>
+
+  <div class="grid grid-cols-7 gap-1">
+    <% catch_calendar_grid(month_start).flatten.each do |day| %>
+      <% in_displayed_month = (day.month == month_start.month && day.year == month_start.year) %>
+      <% selected = current_start && day >= current_start && day <= (current_end || current_start) %>
+      <% if in_displayed_month %>
+        <%= link_to month_calendar_link_url(day,
+                                            current_start: current_start,
+                                            current_end: current_end,
+                                            params: params,
+                                            path_helper: path_helper),
+                    "data-test": "calendar-day-#{day.iso8601}",
+                    "data-selected": selected.to_s,
+                    class: catch_calendar_day_classes(day: day,
+                                                     selected_start: current_start,
+                                                     selected_end: current_end,
+                                                     in_displayed_month: true) do %>
+          <span><%= day.day %></span>
+          <% if (n = counts_by_date[day]) && n > 0 %>
+            <span data-test="count-badge"
+                  class="absolute top-0 right-0 -mt-1 -mr-1 bg-blue-500 text-white text-[10px] leading-none rounded-full px-1.5 py-0.5"><%= n %></span>
+          <% end %>
+        <% end %>
+      <% else %>
+        <div class="<%= catch_calendar_day_classes(day: day, selected_start: current_start, selected_end: current_end, in_displayed_month: false) %>">
+          <span><%= day.day %></span>
+        </div>
+      <% end %>
+    <% end %>
+  </div>
+</div>

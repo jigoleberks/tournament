@@ -53,4 +53,37 @@ module CatchesHelper
     return [[current_start, day].min, [current_start, day].max] if current_start == current_end
     [day, day]
   end
+
+  # CSS class for a single calendar day cell, given the day and the current
+  # selection range. Caller adds layout classes (size, padding) on top.
+  def catch_calendar_day_classes(day:, selected_start:, selected_end:, in_displayed_month:)
+    base = ["relative", "flex", "items-center", "justify-center", "h-10", "text-sm"]
+    return base + ["text-slate-600"] unless in_displayed_month
+
+    classes = base + ["text-slate-200", "rounded"]
+    if selected_start && day >= selected_start && day <= (selected_end || selected_start)
+      if day == selected_start && day == selected_end
+        classes += ["bg-blue-600", "text-white", "rounded"]
+      elsif day == selected_start
+        classes += ["bg-blue-600", "text-white", "rounded-l", "rounded-r-none"]
+      elsif day == selected_end
+        classes += ["bg-blue-600", "text-white", "rounded-r", "rounded-l-none"]
+      else
+        classes += ["bg-blue-600/40", "rounded-none"]
+      end
+    end
+    classes += ["ring-2", "ring-blue-400"] if day == Date.current
+    classes.join(" ")
+  end
+
+  # The 6×7 grid of dates that fills the visible month, including dim
+  # leading/trailing days from the prior/next months. Returns an array of
+  # arrays (rows of 7 Date objects).
+  def catch_calendar_grid(month_start)
+    first = month_start.beginning_of_month
+    grid_start = first.beginning_of_week(:sunday)
+    last = month_start.end_of_month
+    grid_end = last.end_of_week(:sunday)
+    (grid_start..grid_end).each_slice(7).to_a
+  end
 end
