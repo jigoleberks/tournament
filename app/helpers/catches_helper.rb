@@ -28,6 +28,19 @@ module CatchesHelper
     FLAG_LABELS.fetch(flag, flag.humanize.downcase)
   end
 
+  # Returns a URL for the given day-cell on the calendar. The URL encodes the
+  # next selection state per `next_range`, while passing other params (species,
+  # sort, page, etc.) through unchanged. Drops Rails-internal :controller and
+  # :action keys that may show up in `request.query_parameters`.
+  def month_calendar_link_url(day, current_start:, current_end:, params:, path_helper:)
+    target_start, target_end = next_range(day, current_start, current_end)
+    cleaned = params.to_h.with_indifferent_access.except(:controller, :action)
+    public_send(path_helper, cleaned.merge(
+      start: target_start&.iso8601,
+      end: target_end&.iso8601
+    ).compact)
+  end
+
   # Returns [target_start, target_end] given a tapped day and the current
   # selection state. Implements the tap-rule table:
   #   - no selection         → single day on tapped
