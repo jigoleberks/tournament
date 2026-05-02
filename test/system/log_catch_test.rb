@@ -12,6 +12,7 @@ class LogCatchTest < ApplicationSystemTestCase
   end
 
   test "angler logs a catch end-to-end" do
+    skip "Photo capture is camera-driven (no <input type=file>); needs a Cuprite getUserMedia stub to drive the JS capture flow."
     token = SignInToken.issue!(user: @user)
     visit consume_session_path(token: token.token)
 
