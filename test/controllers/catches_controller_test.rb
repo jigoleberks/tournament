@@ -32,6 +32,41 @@ class CatchesControllerTest < ActionDispatch::IntegrationTest
     assert_equal 0, placement.slot_index
   end
 
+  test "POST /catches persists flags and sets needs_review when GPS missing" do
+    photo = fixture_file_upload("sample_walleye.jpg", "image/jpeg")
+    post catches_path, params: {
+      catch: { species_id: @walleye.id, length_inches: 18.5,
+               captured_at_device: Time.current,
+               client_uuid: "client-flags", photo: photo }
+    }
+    persisted = Catch.find_by(client_uuid: "client-flags")
+    assert_includes persisted.flags, "missing_gps"
+    assert_equal "needs_review", persisted.status
+  end
+
+  test "POST /catches with in-bounds GPS has empty flags and synced status" do
+    photo = fixture_file_upload("sample_walleye.jpg", "image/jpeg")
+    now = Time.current
+    post catches_path, params: {
+      catch: { species_id: @walleye.id, length_inches: 18.5,
+               captured_at_device: now, captured_at_gps: now,
+               latitude: 49.41, longitude: -103.62,
+               client_uuid: "client-clean", photo: photo }
+    }
+    persisted = Catch.find_by(client_uuid: "client-clean")
+    assert_empty persisted.flags
+    assert_equal "synced", persisted.status
+  end
+
+  test "show: renders flag badges with humanized labels for a flagged catch" do
+    own = create(:catch, user: @user, species: @walleye, length_inches: 18.5,
+                         flags: ["missing_gps", "out_of_bounds"], status: :needs_review)
+    get catch_path(own.id)
+    assert_response :success
+    assert_match "no GPS", response.body
+    assert_match "outside lake", response.body
+  end
+
   test "missing photo is rejected" do
     assert_no_difference "Catch.count" do
       post catches_path, params: {

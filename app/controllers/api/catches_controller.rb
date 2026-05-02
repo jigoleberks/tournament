@@ -6,14 +6,14 @@ class Api::CatchesController < Api::BaseController
     end
 
     catch_record = current_user.catches.build(catch_params)
-    flags = Catches::ComputeFlags.call(catch_record)
-    catch_record.status = flags.empty? ? :synced : :needs_review
+    catch_record.flags = Catches::ComputeFlags.call(catch_record)
+    catch_record.status = catch_record.flags.empty? ? :synced : :needs_review
     catch_record.synced_at = Time.current
 
     if catch_record.save && catch_record.photo.attached?
       placements = Catches::PlaceInSlots.call(catch: catch_record)
       FetchCatchConditionsJob.perform_later(catch_id: catch_record.id)
-      render json: serialize(catch_record, placements: placements[:created], flags: flags), status: :created
+      render json: serialize(catch_record, placements: placements[:created], flags: catch_record.flags), status: :created
     else
       catch_record.errors.add(:photo, "is required") unless catch_record.photo.attached?
       render json: { errors: catch_record.errors.full_messages }, status: :unprocessable_entity
