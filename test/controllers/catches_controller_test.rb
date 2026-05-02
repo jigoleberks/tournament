@@ -205,6 +205,46 @@ class CatchesControllerTest < ActionDispatch::IntegrationTest
     assert_select "textarea[name=?]", "catch[note]", count: 0
   end
 
+  test "show: judge sees Approve button when catch is needs_review" do
+    catch_record = create(:catch, user: @user, species: @walleye, length_inches: 18.5, status: :needs_review)
+    Catches::PlaceInSlots.call(catch: catch_record)
+    judge = create(:user, club: @club)
+    create(:tournament_judge, tournament: @tournament, user: judge)
+    sign_in_as(judge)
+
+    get catch_path(catch_record.id, t: @tournament.id)
+    assert_response :success
+    assert_select "form[action=?]",
+      judges_tournament_catch_review_path(tournament_id: @tournament.id, catch_id: catch_record.id) do
+      assert_select "input[name=?][value=?]", "action_kind", "approve"
+      assert_select "button", text: "Approve"
+    end
+  end
+
+  test "show: Approve button is hidden when catch is synced" do
+    catch_record = create(:catch, user: @user, species: @walleye, length_inches: 18.5, status: :synced)
+    Catches::PlaceInSlots.call(catch: catch_record)
+    judge = create(:user, club: @club)
+    create(:tournament_judge, tournament: @tournament, user: judge)
+    sign_in_as(judge)
+
+    get catch_path(catch_record.id, t: @tournament.id)
+    assert_response :success
+    assert_select "input[name=?][value=?]", "action_kind", "approve", count: 0
+  end
+
+  test "show: Approve button is hidden when catch is disqualified" do
+    catch_record = create(:catch, user: @user, species: @walleye, length_inches: 18.5, status: :disqualified)
+    Catches::PlaceInSlots.call(catch: catch_record)
+    judge = create(:user, club: @club)
+    create(:tournament_judge, tournament: @tournament, user: judge)
+    sign_in_as(judge)
+
+    get catch_path(catch_record.id, t: @tournament.id)
+    assert_response :success
+    assert_select "input[name=?][value=?]", "action_kind", "approve", count: 0
+  end
+
   private
 
   def sign_in_as(user)
