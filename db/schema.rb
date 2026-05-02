@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.0].define(version: 2026_05_02_021359) do
+ActiveRecord::Schema[8.0].define(version: 2026_05_02_090835) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -75,6 +75,11 @@ ActiveRecord::Schema[8.0].define(version: 2026_05_02_021359) do
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.text "note"
+    t.decimal "temperature_c", precision: 5, scale: 2
+    t.decimal "wind_speed_kph", precision: 5, scale: 1
+    t.decimal "barometric_pressure_hpa", precision: 7, scale: 2
+    t.string "moon_phase"
+    t.decimal "moon_phase_fraction", precision: 5, scale: 4
     t.index ["client_uuid"], name: "index_catches_on_client_uuid", unique: true
     t.index ["species_id"], name: "index_catches_on_species_id"
     t.index ["user_id"], name: "index_catches_on_user_id"
