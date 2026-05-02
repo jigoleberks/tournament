@@ -9,7 +9,10 @@ services:
     build: { context: ., dockerfile: Dockerfile.dev }
     command: sh -c "bin/rails tailwindcss:build && bin/rails server -b 0.0.0.0 -p 3000"
     environment:
-      DATABASE_URL: postgres://postgres:postgres@db:5432/tournament_development
+      # No database path here — let config/database.yml pick the name per env
+      # so dev → tournament_development, test → tournament_test (separate DBs).
+      # Including the path made `bin/rails test` truncate the dev DB on every run.
+      DATABASE_URL: postgres://postgres:postgres@db:5432
       RAILS_ENV: development
       APP_NAME: ${APP_NAME:-Tournament}
       APP_HOST: ${APP_HOST:-localhost}
