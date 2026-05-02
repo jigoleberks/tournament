@@ -1,6 +1,4 @@
 class Api::CatchesController < Api::BaseController
-  CLOCK_SKEW_THRESHOLD = 5.minutes
-
   def create
     existing = current_user.catches.find_by(client_uuid: params.dig(:catch, :client_uuid))
     if existing
@@ -8,7 +6,7 @@ class Api::CatchesController < Api::BaseController
     end
 
     catch_record = current_user.catches.build(catch_params)
-    flags = compute_flags(catch_record)
+    flags = Catches::ComputeFlags.call(catch_record)
     catch_record.status = flags.empty? ? :synced : :needs_review
     catch_record.synced_at = Time.current
 
@@ -29,16 +27,6 @@ class Api::CatchesController < Api::BaseController
       :species_id, :length_inches, :captured_at_device, :captured_at_gps,
       :latitude, :longitude, :gps_accuracy_m, :app_build, :client_uuid, :photo, :video, :note
     )
-  end
-
-  def compute_flags(catch_record)
-    flags = []
-    flags << "missing_gps" if catch_record.latitude.nil?
-    if catch_record.captured_at_device && catch_record.captured_at_gps
-      skew = (catch_record.captured_at_device - catch_record.captured_at_gps).abs
-      flags << "clock_skew" if skew > CLOCK_SKEW_THRESHOLD
-    end
-    flags
   end
 
   def serialize(catch_record, placements: nil, flags: [])

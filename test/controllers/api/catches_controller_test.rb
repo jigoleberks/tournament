@@ -21,7 +21,7 @@ class Api::CatchesControllerTest < ActionDispatch::IntegrationTest
           length_inches: 19.5,
           captured_at_device: Time.current.iso8601,
           captured_at_gps: Time.current.iso8601,
-          latitude: 49.5, longitude: -98.5, gps_accuracy_m: 8,
+          latitude: 49.41, longitude: -103.62, gps_accuracy_m: 8,
           app_build: "phase2-rc1",
           client_uuid: "uuid-A",
           photo: photo
@@ -91,6 +91,19 @@ class Api::CatchesControllerTest < ActionDispatch::IntegrationTest
     assert_equal "personal-secret-XYZ", persisted.note
     assert_not_includes response.body, "personal-secret-XYZ"
     assert_not_includes response.body, "note"
+  end
+
+  test "out-of-bounds GPS flags catch as needs_review" do
+    photo = fixture_file_upload("sample_walleye.jpg", "image/jpeg")
+    post "/api/catches", params: {
+      catch: { species_id: @walleye.id, length_inches: 12,
+               captured_at_device: Time.current.iso8601, captured_at_gps: Time.current.iso8601,
+               latitude: 49.9, longitude: -97.1, gps_accuracy_m: 5,
+               client_uuid: "uuid-OOB", photo: photo }
+    }, headers: { "Accept" => "application/json" }
+    body = JSON.parse(response.body)
+    assert_equal "needs_review", body["status"]
+    assert_includes body["flags"], "out_of_bounds"
   end
 
   private

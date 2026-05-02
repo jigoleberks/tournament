@@ -228,6 +228,7 @@ ActiveRecord::Schema[8.0].define(version: 2026_05_02_090835) do
     t.integer "template_source_id"
     t.boolean "requires_release_video", default: false, null: false
     t.boolean "judged", default: false, null: false
+    t.boolean "local", default: true, null: false
     t.index ["club_id", "starts_at", "ends_at"], name: "index_tournaments_on_club_id_and_starts_at_and_ends_at"
     t.index ["club_id"], name: "index_tournaments_on_club_id"
   end
