@@ -439,6 +439,39 @@ class CatchesControllerTest < ActionDispatch::IntegrationTest
     assert_select "[data-test='calendar-day-2026-05-08'][data-selected='true']"
   end
 
+  test "GET /catches renders Show all dates link that clears start/end but keeps species/sort" do
+    get catches_path, params: { start: "2026-05-08", species: "0", sort: "longest" }
+    assert_select "a[data-test='show-all-dates']" do |els|
+      href = els.first["href"]
+      assert_includes href, "sort=longest"
+      refute_includes href, "start=2026-05-08"
+    end
+  end
+
+  test "GET /catches renders species filter dropdown with All option and one per available species" do
+    pike = create(:species, club: @club, name: "Pike")
+    get catches_path
+    assert_select "select[name='species']" do
+      assert_select "option", text: "All species"
+      assert_select "option[value='#{pike.id}']", text: "Pike"
+      assert_select "option[value='#{@walleye.id}']", text: "Walleye"
+    end
+  end
+
+  test "GET /catches?species=ID marks that option as selected" do
+    pike = create(:species, club: @club, name: "Pike")
+    get catches_path, params: { species: pike.id, start: "", end: "" }
+    assert_select "select[name='species'] option[selected][value='#{pike.id}']"
+  end
+
+  test "GET /catches renders sort dropdown with the four labels and current selection" do
+    get catches_path, params: { sort: "longest", start: "", end: "" }
+    assert_select "select[name='sort'] option[selected][value='longest']"
+    %w[newest longest shortest].each do |key|
+      assert_select "select[name='sort'] option[value='#{key}']"
+    end
+  end
+
   private
 
   def sign_in_as(user)

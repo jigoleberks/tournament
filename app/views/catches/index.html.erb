@@ -11,6 +11,39 @@
            path_helper: :catches_path,
            params: request.query_parameters %>
 
+<%= form_with url: catches_path, method: :get, local: true,
+              data: { controller: "auto-submit", action: "change->auto-submit#submit" },
+              class: "flex flex-wrap items-center gap-3 mt-3 mb-3 text-sm" do %>
+  <% request.query_parameters.except(:species, :sort, :start, :end, :controller, :action).each do |k, v| %>
+    <%= hidden_field_tag k, v %>
+  <% end %>
+  <%= hidden_field_tag :start, params[:start] if params.key?(:start) %>
+  <%= hidden_field_tag :end,   params[:end]   if params.key?(:end) %>
+
+  <%= link_to "Show all dates",
+              catches_path(request.query_parameters.except(:start, :end, :controller, :action).merge(start: "", end: "")),
+              "data-test": "show-all-dates",
+              class: "text-blue-400" %>
+
+  <span class="ml-auto"></span>
+
+  <label class="text-slate-300">Species</label>
+  <%= select_tag :species,
+                 options_for_select(
+                   [["All species", ""]] + @available_species.map { |s| [s.name, s.id] },
+                   @species_filter_id&.to_s
+                 ),
+                 class: "h-10 px-2 rounded-lg bg-slate-800 border border-slate-700 text-slate-100" %>
+
+  <label class="text-slate-300">Sort</label>
+  <%= select_tag :sort,
+                 options_for_select(
+                   [["Newest first", "newest"], ["Longest first", "longest"], ["Shortest first", "shortest"]],
+                   @sort.to_s
+                 ),
+                 class: "h-10 px-2 rounded-lg bg-slate-800 border border-slate-700 text-slate-100" %>
+<% end %>
+
 <% if @catches.any? %>
   <ul class="grid grid-cols-2 gap-2 mt-4">
     <% @catches.each do |c| %>
