@@ -8,12 +8,11 @@ class CatchesController < ApplicationController
       else
         default_date_range
       end
+    @species_filter_id = params[:species].presence&.to_i
+    @sort = params[:sort].presence&.to_sym || :newest
 
-    scope = current_user.catches.includes(:species, photo_attachment: :blob)
-    if @selected_start
-      scope = scope.where(captured_at_device: @selected_start.beginning_of_day..@selected_end.end_of_day)
-    end
-    @catches = scope.order(captured_at_device: :desc)
+    @catches = filter_and_sort(current_user.catches.includes(:species, photo_attachment: :blob))
+    @available_species = current_user.club.species.order(:name)
   end
 
   def map
@@ -140,5 +139,17 @@ class CatchesController < ApplicationController
   def parse_date(s)
     return nil unless s.present?
     Date.parse(s) rescue nil
+  end
+
+  def filter_and_sort(scope)
+    if @selected_start
+      scope = scope.where(captured_at_device: @selected_start.beginning_of_day..@selected_end.end_of_day)
+    end
+    scope = scope.where(species_id: @species_filter_id) if @species_filter_id
+    case @sort
+    when :longest  then scope.order(length_inches: :desc, captured_at_device: :desc)
+    when :shortest then scope.order(length_inches: :asc, captured_at_device: :desc)
+    else                scope.order(captured_at_device: :desc)
+    end
   end
 end

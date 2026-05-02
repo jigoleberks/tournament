@@ -339,6 +339,54 @@ class CatchesControllerTest < ActionDispatch::IntegrationTest
     assert_includes assigns(:catches).to_a, older
   end
 
+  test "GET /catches?species=ID filters to that species" do
+    pike = create(:species, club: @club, name: "Pike")
+    walleye_catch = create_catch(captured_at: 1.day.ago, species: @walleye)
+    pike_catch    = create_catch(captured_at: 1.day.ago, species: pike)
+    get catches_path, params: { species: pike.id, start: "", end: "" }
+    assigned = assigns(:catches).to_a
+    assert_includes assigned, pike_catch
+    refute_includes assigned, walleye_catch
+  end
+
+  test "GET /catches?sort=longest orders by length descending" do
+    short = create_catch(captured_at: 1.hour.ago, length: 14.0)
+    long  = create_catch(captured_at: 2.hours.ago, length: 32.0)
+    mid   = create_catch(captured_at: 3.hours.ago, length: 22.0)
+    get catches_path, params: { sort: "longest", start: "", end: "" }
+    assigned = assigns(:catches).to_a
+    assert_equal [long, mid, short], assigned.first(3)
+  end
+
+  test "GET /catches?sort=shortest orders by length ascending" do
+    a = create_catch(captured_at: 1.hour.ago, length: 14.0)
+    b = create_catch(captured_at: 2.hours.ago, length: 32.0)
+    c = create_catch(captured_at: 3.hours.ago, length: 22.0)
+    get catches_path, params: { sort: "shortest", start: "", end: "" }
+    assert_equal [a, c, b], assigns(:catches).to_a.first(3)
+  end
+
+  test "GET /catches?sort=newest is default ordering by captured_at_device desc" do
+    older  = create_catch(captured_at: 3.days.ago)
+    newer  = create_catch(captured_at: 1.day.ago)
+    middle = create_catch(captured_at: 2.days.ago)
+    get catches_path, params: { sort: "newest", start: "", end: "" }
+    assert_equal [newer, middle, older], assigns(:catches).to_a.first(3)
+  end
+
+  test "GET /catches with species + sort + range — all three apply" do
+    pike = create(:species, club: @club, name: "Pike")
+    target = create_catch(captured_at: Time.zone.parse("2026-05-08 10:00"), length: 30.0, species: pike)
+    other_species = create_catch(captured_at: Time.zone.parse("2026-05-08 10:00"), length: 35.0, species: @walleye)
+    out_of_range  = create_catch(captured_at: Time.zone.parse("2026-04-08 10:00"), length: 50.0, species: pike)
+    get catches_path, params: { start: "2026-05-05", end: "2026-05-12",
+                                species: pike.id, sort: "longest" }
+    assigned = assigns(:catches).to_a
+    assert_includes assigned, target
+    refute_includes assigned, other_species
+    refute_includes assigned, out_of_range
+  end
+
   private
 
   def sign_in_as(user)
