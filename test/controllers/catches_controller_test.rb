@@ -280,10 +280,80 @@ class CatchesControllerTest < ActionDispatch::IntegrationTest
     assert_select "input[name=?][value=?]", "action_kind", "approve", count: 0
   end
 
+  test "GET /catches?start=2026-05-05&end=2026-05-12 returns only catches in range" do
+    in_range  = create_catch(captured_at: Time.zone.parse("2026-05-08 10:00"))
+    too_early = create_catch(captured_at: Time.zone.parse("2026-05-04 10:00"))
+    too_late  = create_catch(captured_at: Time.zone.parse("2026-05-13 10:00"))
+
+    get catches_path, params: { start: "2026-05-05", end: "2026-05-12" }
+    assigned = assigns(:catches).to_a
+
+    assert_includes  assigned, in_range
+    refute_includes  assigned, too_early
+    refute_includes  assigned, too_late
+  end
+
+  test "GET /catches?start=2026-05-12&end=2026-05-05 swaps and returns inclusive range" do
+    in_range = create_catch(captured_at: Time.zone.parse("2026-05-08 10:00"))
+    get catches_path, params: { start: "2026-05-12", end: "2026-05-05" }
+    assert_includes assigns(:catches).to_a, in_range
+    assert_equal Date.new(2026, 5, 5),  assigns(:selected_start)
+    assert_equal Date.new(2026, 5, 12), assigns(:selected_end)
+  end
+
+  test "GET /catches?start=2026-05-05 with no end is treated as single day" do
+    in_range = create_catch(captured_at: Time.zone.parse("2026-05-05 10:00"))
+    out_of   = create_catch(captured_at: Time.zone.parse("2026-05-06 10:00"))
+    get catches_path, params: { start: "2026-05-05" }
+    assert_includes assigns(:catches).to_a, in_range
+    refute_includes assigns(:catches).to_a, out_of
+  end
+
+  test "GET /catches?start=&end= treats explicit empty as no date filter" do
+    a = create_catch(captured_at: 3.days.ago)
+    b = create_catch(captured_at: 30.days.ago)
+    get catches_path, params: { start: "", end: "" }
+    assigned = assigns(:catches).to_a
+    assert_includes assigned, a
+    assert_includes assigned, b
+    assert_nil assigns(:selected_start)
+    assert_nil assigns(:selected_end)
+  end
+
+  test "GET /catches with no params defaults to today (single day)" do
+    today_catch = create_catch(captured_at: Time.zone.now.change(hour: 12))
+    yesterday_catch = create_catch(captured_at: 1.day.ago.change(hour: 12))
+    get catches_path
+    assigned = assigns(:catches).to_a
+    assert_includes assigned, today_catch
+    refute_includes assigned, yesterday_catch
+    assert_equal Date.current, assigns(:selected_start)
+    assert_equal Date.current, assigns(:selected_end)
+  end
+
+  test "GET /catches with no params and no catches today falls back to most recent day with catches" do
+    older = create_catch(captured_at: 5.days.ago.change(hour: 12))
+    get catches_path
+    assert_equal older.captured_at_device.to_date, assigns(:selected_start)
+    assert_equal older.captured_at_device.to_date, assigns(:selected_end)
+    assert_includes assigns(:catches).to_a, older
+  end
+
   private
 
   def sign_in_as(user)
     token = SignInToken.issue!(user: user)
     get consume_session_path(token: token.token)
+  end
+
+  def create_catch(captured_at:, length: 18.0, species: @walleye, photo_attached: true)
+    rec = build(:catch, user: @user, species: species, length_inches: length,
+                        captured_at_device: captured_at)
+    if photo_attached
+      rec.photo.attach(io: file_fixture("sample_walleye.jpg").open,
+                       filename: "sample_walleye.jpg", content_type: "image/jpeg")
+    end
+    rec.save!
+    rec
   end
 end

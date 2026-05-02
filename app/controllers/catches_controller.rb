@@ -2,9 +2,18 @@ class CatchesController < ApplicationController
   before_action :require_sign_in!
 
   def index
-    @catches = current_user.catches
-                           .includes(:species, photo_attachment: :blob)
-                           .order(captured_at_device: :desc)
+    @selected_start, @selected_end =
+      if params.key?(:start) || params.key?(:end)
+        parse_date_range(params)
+      else
+        default_date_range
+      end
+
+    scope = current_user.catches.includes(:species, photo_attachment: :blob)
+    if @selected_start
+      scope = scope.where(captured_at_device: @selected_start.beginning_of_day..@selected_end.end_of_day)
+    end
+    @catches = scope.order(captured_at_device: :desc)
   end
 
   def map
@@ -105,5 +114,31 @@ class CatchesController < ApplicationController
       :species_id, :length_inches, :captured_at_device, :captured_at_gps,
       :latitude, :longitude, :gps_accuracy_m, :app_build, :client_uuid, :photo, :note
     )
+  end
+
+  def parse_date_range(params)
+    start = parse_date(params[:start])
+    finish = parse_date(params[:end]) || start
+    return [nil, nil] if start.nil? && finish.nil?
+    start ||= finish
+    start, finish = finish, start if start > finish
+    [start, finish]
+  end
+
+  def default_date_range
+    today = Date.current
+    if current_user.catches.where(captured_at_device: today.beginning_of_day..today.end_of_day).exists?
+      [today, today]
+    elsif (latest = current_user.catches.maximum(:captured_at_device))
+      d = latest.to_date
+      [d, d]
+    else
+      [nil, nil]
+    end
+  end
+
+  def parse_date(s)
+    return nil unless s.present?
+    Date.parse(s) rescue nil
   end
 end
