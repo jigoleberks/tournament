@@ -35,6 +35,10 @@ class CatchesController < ApplicationController
     @catch = current_user.catches.build(captured_at_device: Time.current,
                                          client_uuid: SecureRandom.uuid)
     @species = current_user.club.species.order(:name)
+    @length_caps = @species.each_with_object({}) do |s, h|
+      cap = Catch::MAX_LENGTH_BY_SPECIES[s.name.to_s.downcase]
+      h[s.id] = cap if cap
+    end
   end
 
   def create
