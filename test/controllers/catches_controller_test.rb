@@ -64,7 +64,7 @@ class CatchesControllerTest < ActionDispatch::IntegrationTest
     get catch_path(own.id)
     assert_response :success
     assert_match "no GPS", response.body
-    assert_match "outside lake", response.body
+    assert_match "outside local", response.body
   end
 
   test "missing photo is rejected" do
