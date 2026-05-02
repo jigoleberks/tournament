@@ -10,7 +10,7 @@ org_name  = ENV.fetch("SEED_ORGANIZER_NAME", "Organizer")
 org_email = ENV.fetch("SEED_ORGANIZER_EMAIL", "organizer@example.com")
 
 club = Club.find_or_create_by!(name: club_name)
-%w[Walleye Perch Pike].each { |n| Species.find_or_create_by!(club: club, name: n) }
+%w[Walleye Perch Pike Other].each { |n| Species.find_or_create_by!(club: club, name: n) }
 
 User.find_or_create_by!(club: club, email: org_email) do |u|
   u.name = org_name
