@@ -20,6 +20,9 @@
           <%= link_to edit_organizers_tournament_path(t), class: "text-blue-300 font-medium text-lg" do %>
             <span class="absolute inset-0 rounded-lg" aria-hidden="true"></span>
             <span class="relative"><%= t.name %></span>
+            <% unless t.local %>
+              <span class="relative text-xs text-slate-400">(away)</span>
+            <% end %>
           <% end %>
           <span class="relative text-sm text-slate-400">— <%= t.starts_at.strftime("%b %d") %></span>
         </div>

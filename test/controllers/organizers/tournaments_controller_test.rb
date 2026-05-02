@@ -63,6 +63,16 @@ class Organizers::TournamentsControllerTest < ActionDispatch::IntegrationTest
     assert_equal true, @club.tournaments.last.local
   end
 
+  test "index shows (away) tag for non-local tournaments" do
+    organizer = create(:user, club: @club, role: :organizer)
+    sign_in_as(organizer)
+    away = create(:tournament, club: @club, local: false, name: "Out of Town",
+                               starts_at: 1.day.from_now)
+    get organizers_tournaments_path
+    assert_response :success
+    assert_match "(away)", response.body
+  end
+
   private
 
   def sign_in_as(user)
