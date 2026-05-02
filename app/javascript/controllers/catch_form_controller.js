@@ -2,7 +2,7 @@ import { Controller } from "@hotwired/stimulus"
 import { enqueueCatch } from "offline/db"
 
 export default class extends Controller {
-  static targets = ["speciesSelect", "lengthInput", "submitButton", "status"]
+  static targets = ["speciesSelect", "lengthInput", "noteInput", "submitButton", "status"]
   static values = { csrfToken: String }
 
   connect() {
@@ -43,6 +43,7 @@ export default class extends Controller {
       longitude: position?.coords?.longitude ?? null,
       gps_accuracy_m: position?.coords?.accuracy ?? null,
       app_build: document.documentElement.dataset.appBuild,
+      note: this.noteInputTarget.value,
       photo: this.photoBlob,
       video: this.videoBlob,
       video_failed: this.videoFailed
