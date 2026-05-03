@@ -72,4 +72,22 @@ class SeasonPointsTest < ApplicationSystemTestCase
     assert_no_text "Angler 4"
     assert_link "Past league nights →"
   end
+
+  test "past league nights page lists ended points-eligible tournaments with winner" do
+    t = build_finished_solo_tournament(
+      season_tag: "Wednesday 2026",
+      ends_at: 1.week.ago,
+      names_with_lengths: { "Winner" => [25], "Second" => [20], "Third" => [15] }
+    )
+    t.update!(name: "League Night #1")
+
+    sign_in_as(@member)
+    visit season_points_tournaments_path
+
+    assert_text "Wednesday 2026 league nights"
+    assert_text "League Night #1"
+    assert_text "Won by: Winner"
+    click_link "League Night #1"
+    assert_current_path tournament_path(t)
+  end
 end
