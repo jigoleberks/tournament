@@ -10,7 +10,21 @@ export default class extends Controller {
     this.videoBlob = null
     this.videoFailed = false
     this.clientUuid = crypto.randomUUID()
+    this._restoreUnitFromStorage()
     this.refresh()
+  }
+
+  _restoreUnitFromStorage() {
+    let stored
+    try { stored = localStorage.getItem("catchLengthUnit") } catch (_) { return }
+    if (!stored) return
+    if (!["inches", "centimeters"].includes(stored)) return
+    const current = this.lengthInputTarget.dataset.catchFormUnit
+    if (stored === current) return
+    const radio = this.element.querySelector(`input[name="length_unit_toggle"][value="${stored}"]`)
+    if (!radio) return
+    radio.checked = true
+    this.setUnit({ target: radio })
   }
 
   onPhotoCaptured(event) { this.photoBlob = event.detail.blob; this.refresh() }
@@ -87,6 +101,8 @@ export default class extends Controller {
     if (this.hasLengthLabelTarget) {
       this.lengthLabelTarget.textContent = newUnit === "centimeters" ? "Length (cm)" : "Length (in)"
     }
+
+    try { localStorage.setItem("catchLengthUnit", newUnit) } catch (_) {}
 
     fetch("/me", {
       method: "PATCH",

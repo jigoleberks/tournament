@@ -3,7 +3,7 @@
     <h1 class="text-2xl font-bold mb-2">Season standings</h1>
     <p class="text-slate-400">No season-points tournaments configured yet.</p>
   <% else %>
-    <h1 class="text-2xl font-bold mb-3"><%= @season_tag %> standings</h1>
+    <h1 class="text-2xl font-bold mb-3"><%= @season_tag.to_s.split.first %> League Night Standings</h1>
     <% if @standings.empty? %>
       <p class="text-slate-400">No points awarded yet this season.</p>
     <% else %>

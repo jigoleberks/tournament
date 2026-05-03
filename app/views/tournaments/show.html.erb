@@ -19,5 +19,23 @@
   <p class="text-slate-400 italic">You're not entered. Ask an organizer to add you.</p>
 <% end %>
 
+<% slots = @tournament.scoring_slots.includes(:species).order(:id) %>
+<% if slots.any? %>
+  <section class="bg-slate-800 rounded-xl p-4 mb-4">
+    <h2 class="text-sm uppercase tracking-wide text-slate-400 mb-2">Scoring</h2>
+    <ul class="text-slate-100 space-y-1">
+      <% slots.each do |slot| %>
+        <li>
+          <% if slot.slot_count == 1 %>
+            Largest <%= slot.species.name.downcase %>
+          <% else %>
+            Top <%= slot.slot_count %> <%= slot.species.name.downcase.pluralize %>
+          <% end %>
+        </li>
+      <% end %>
+    </ul>
+  </section>
+<% end %>
+
 <%= turbo_stream_from "tournament:#{@tournament.id}:leaderboard" %>
 <%= render "leaderboard", leaderboard: @leaderboard, tournament: @tournament %>

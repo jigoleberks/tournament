@@ -14,21 +14,35 @@
           <div class="font-medium"><%= row[:entry].display_name %></div>
           <% if row[:fish].present? %>
             <% can_open = local_assigns[:tournament].present? && can_open_catches_in?(local_assigns[:tournament]) %>
-            <div class="text-xs text-slate-400 mt-1 space-y-1">
+            <div class="text-xs text-slate-400 mt-1 space-y-2">
               <% row[:fish].each do |f| %>
+                <% inches_str, cm_str = format_length_parts(f[:length_inches]) %>
                 <% if can_open %>
-                  <%= link_to "#{f[:species_name]} · #{format_length_dual(f[:length_inches])}",
-                              catch_path(f[:id], t: local_assigns[:tournament].id),
-                              class: "block text-blue-300 underline-offset-2 hover:underline" %>
+                  <%= link_to catch_path(f[:id], t: local_assigns[:tournament].id),
+                              class: "flex gap-2 text-blue-300 underline-offset-2 hover:underline" do %>
+                    <span><%= f[:species_name] %></span>
+                    <span>
+                      <span class="block"><%= inches_str %></span>
+                      <span class="block"><%= cm_str %></span>
+                    </span>
+                  <% end %>
                 <% else %>
-                  <div><%= f[:species_name] %> · <%= format_length_dual(f[:length_inches]) %></div>
+                  <div class="flex gap-2">
+                    <span><%= f[:species_name] %></span>
+                    <span>
+                      <span class="block"><%= inches_str %></span>
+                      <span class="block"><%= cm_str %></span>
+                    </span>
+                  </div>
                 <% end %>
               <% end %>
             </div>
           <% end %>
         </td>
         <td class="px-3 py-3 font-mono">
-          <%= format_length_dual(row[:total]) %>
+          <% inches_total, cm_total = format_length_parts(row[:total]) %>
+          <div><%= inches_total %></div>
+          <div><%= cm_total %></div>
         </td>
       </tr>
     <% end %>
