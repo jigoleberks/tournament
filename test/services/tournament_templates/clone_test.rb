@@ -20,5 +20,25 @@ module TournamentTemplates
       assert_in_delta starts, tournament.starts_at, 1
       assert_equal @template.id, tournament.template_source_id
     end
+
+    test "carries awards_season_points from template onto cloned tournament" do
+      template = create(:tournament_template, club: @club, awards_season_points: true)
+      tournament = Clone.call(
+        template: template,
+        starts_at: 1.day.from_now,
+        ends_at: 1.day.from_now + 4.hours
+      )
+      assert tournament.awards_season_points?
+    end
+
+    test "does not award season points by default when template flag is off" do
+      template = create(:tournament_template, club: @club, awards_season_points: false)
+      tournament = Clone.call(
+        template: template,
+        starts_at: 1.day.from_now,
+        ends_at: 1.day.from_now + 4.hours
+      )
+      refute tournament.awards_season_points?
+    end
   end
 end
