@@ -409,6 +409,19 @@ class CatchesControllerTest < ActionDispatch::IntegrationTest
     assert_nil counts[Date.new(2026, 6, 1)]
   end
 
+  test "GET /catches counts_by_date buckets by Time.zone-local date, not UTC" do
+    Time.use_zone("America/Regina") do
+      # 11pm Regina May 8 = 5am UTC May 9. Buggy DATE(captured_at_device)
+      # would bucket onto May 9; fixed code keys by local date (May 8).
+      late_evening = Time.zone.local(2026, 5, 8, 23, 0)
+      create_catch(captured_at: late_evening)
+      get catches_path, params: { start: "2026-05-08", end: "2026-05-08", month: "2026-05-01" }
+      counts = assigns(:counts_by_date)
+      assert_equal 1, counts[Date.new(2026, 5, 8)]
+      assert_nil counts[Date.new(2026, 5, 9)]
+    end
+  end
+
   test "GET /catches?month=2026-05-01 controls the displayed month independently of selection" do
     create_catch(captured_at: Time.zone.parse("2026-05-15 10:00"))
     get catches_path, params: { start: "", end: "", month: "2026-05-01" }
