@@ -24,6 +24,16 @@ class Catch < ApplicationRecord
   validate :length_within_species_cap
   validates :note, length: { maximum: 500 }, allow_blank: true
 
+  def latest_approver
+    last = judge_actions.order(:created_at).last
+    last&.approve? ? last.judge_user : nil
+  end
+
+  def disqualification_note
+    return nil unless disqualified?
+    judge_actions.where(action: :disqualify).order(:created_at).last&.note
+  end
+
   private
 
   def photo_must_be_attached

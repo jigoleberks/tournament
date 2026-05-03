@@ -49,6 +49,14 @@
   </div>
 <% end %>
 
+<%
+  current_tag = SeasonPoints::CurrentSeasonTag.call(club: current_user.club)
+  current_standings = current_tag ? SeasonPoints::Standings.call(club: current_user.club, season_tag: current_tag) : []
+%>
+<% if current_tag %>
+  <%= render "home/season_points_top", season_tag: current_tag, standings: current_standings %>
+<% end %>
+
 <% current_user.tournament_judges.includes(:tournament).each do |tj| %>
   <% if tj.tournament.active? %>
     <div class="bg-slate-800 rounded-xl p-4 my-3">

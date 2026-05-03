@@ -22,11 +22,50 @@ module Catches
       assert @catch.reload.synced?
     end
 
+    test "approve raises SelfApprovalError when judge is the catch owner" do
+      own_catch = create(:catch, user: @judge, species: @walleye, length_inches: 19, status: :needs_review)
+      assert_no_difference "JudgeAction.count" do
+        assert_raises(ApplyJudgeAction::SelfApprovalError) do
+          ApplyJudgeAction.call(tournament: @t, catch: own_catch, judge: @judge, action: :approve, note: "self")
+        end
+      end
+      assert own_catch.reload.needs_review?
+    end
+
     test "disqualify deactivates active placements and re-broadcasts leaderboard" do
       assert @catch.catch_placements.active.exists?
       ApplyJudgeAction.call(tournament: @t, catch: @catch, judge: @judge, action: :disqualify, note: "bad photo")
       assert @catch.reload.disqualified?
       assert_equal 0, @catch.catch_placements.active.count
+    end
+
+    test "disqualify promotes a backup catch into the freed slot" do
+      backup = create(:catch, user: @user, species: @walleye, length_inches: 16,
+                              captured_at_device: 30.minutes.ago)
+      assert_empty backup.catch_placements
+
+      ApplyJudgeAction.call(tournament: @t, catch: @catch, judge: @judge, action: :disqualify, note: "bad photo")
+
+      assert @catch.reload.disqualified?
+      promoted = @t.catch_placements.active.where(species: @walleye).first
+      assert_not_nil promoted, "expected a promoted backup placement"
+      assert_equal backup.id, promoted.catch_id
+    end
+
+    test "disqualify raises DisqualifyNoteRequired when note is blank" do
+      assert_no_difference "JudgeAction.count" do
+        assert_raises(ApplyJudgeAction::DisqualifyNoteRequired) do
+          ApplyJudgeAction.call(tournament: @t, catch: @catch, judge: @judge, action: :disqualify, note: "")
+        end
+      end
+      assert @catch.reload.needs_review?
+      assert @catch.catch_placements.active.exists?
+    end
+
+    test "disqualify raises DisqualifyNoteRequired when note is whitespace only" do
+      assert_raises(ApplyJudgeAction::DisqualifyNoteRequired) do
+        ApplyJudgeAction.call(tournament: @t, catch: @catch, judge: @judge, action: :disqualify, note: "   \n")
+      end
     end
 
     test "dock_verify transitions to synced and notes the manual verification" do

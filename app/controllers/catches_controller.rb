@@ -74,6 +74,7 @@ class CatchesController < ApplicationController
 
     if @catch.save && @catch.photo.attached?
       Catches::PlaceInSlots.call(catch: @catch)
+      Catches::FlagDuplicates.call(catch: @catch) if @catch.flags.include?("possible_duplicate")
       FetchCatchConditionsJob.perform_later(catch_id: @catch.id)
       redirect_to root_path, notice: "Catch logged"
     else

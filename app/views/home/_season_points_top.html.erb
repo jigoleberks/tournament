@@ -1,0 +1,21 @@
+<section class="bg-slate-800 rounded-xl p-4 my-3">
+  <h2 class="text-lg font-semibold mb-2"><%= season_tag %> League Night Standings</h2>
+  <% if standings.empty? %>
+    <p class="text-slate-400 text-sm mb-3">Standings will appear after the first league night ends.</p>
+  <% else %>
+    <ol class="text-sm text-slate-200 mb-3">
+      <% standings.first(5).each_with_index do |row, i| %>
+        <li class="flex justify-between py-2 border-b border-slate-700 last:border-0">
+          <span><%= i + 1 %>. <%= row[:user].name %></span>
+          <span class="font-mono"><%= row[:points] %> pts</span>
+        </li>
+      <% end %>
+    </ol>
+  <% end %>
+  <div class="grid grid-cols-2 gap-2">
+    <%= link_to "Full standings →", season_points_path,
+                class: "h-12 px-2 rounded-lg bg-slate-700 active:bg-slate-600 text-slate-100 text-sm text-center flex items-center justify-center" %>
+    <%= link_to "Past nights →", season_points_tournaments_path,
+                class: "h-12 px-2 rounded-lg bg-slate-700 active:bg-slate-600 text-slate-100 text-sm text-center flex items-center justify-center" %>
+  </div>
+</section>

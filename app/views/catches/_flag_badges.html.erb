@@ -1,3 +1,6 @@
 <% Array(catch_record.flags).each do |flag| %>
   <span class="inline-block px-1.5 py-0.5 rounded bg-amber-900/40 text-amber-300 text-xs mr-1"><%= flag_label(flag) %></span>
 <% end %>
+<% if (approver = catch_record.latest_approver) %>
+  <span class="inline-block px-1.5 py-0.5 rounded bg-emerald-900/40 text-emerald-300 text-xs mr-1">Approved by <%= approver.name %></span>
+<% end %>

@@ -4,6 +4,6 @@
   <% end %>
   <div class="font-bold"><%= catch.species.name %></div>
   <div><%= format_length_dual(catch.length_inches) %></div>
-  <div class="text-xs text-slate-500"><%= catch.captured_at_device.strftime("%l:%M %p") %></div>
+  <div class="text-xs text-slate-500"><%= catch.captured_at_device.strftime("%l:%M:%S %p") %></div>
   <%= link_to "View details", catch_path(catch), class: "text-blue-600 font-semibold text-sm mt-1 block" %>
 </div>

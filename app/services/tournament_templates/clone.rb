@@ -9,7 +9,8 @@ module TournamentTemplates
           starts_at: starts_at,
           ends_at: ends_at,
           season_tag: season_tag,
-          template_source_id: template.id
+          template_source_id: template.id,
+          awards_season_points: template.awards_season_points
         )
         template.tournament_template_scoring_slots.each do |slot|
           tournament.scoring_slots.create!(species: slot.species, slot_count: slot.slot_count)
