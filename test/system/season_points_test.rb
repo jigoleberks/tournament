@@ -56,4 +56,20 @@ class SeasonPointsTest < ApplicationSystemTestCase
       assert_no_text "4. Angler"
     end
   end
+
+  test "view full standings page shows all placers with point totals" do
+    names_with_lengths = (1..10).map { |i| ["Angler #{i}", [25 - i]] }.to_h
+    build_finished_solo_tournament(season_tag: "Wednesday 2026", names_with_lengths: names_with_lengths)
+
+    sign_in_as(@member)
+    visit season_points_path
+
+    assert_text "Wednesday 2026 standings"
+    assert_text "Angler 1"
+    assert_text "Angler 2"
+    assert_text "Angler 3"
+    # 4th and beyond have 0 points → excluded
+    assert_no_text "Angler 4"
+    assert_link "Past league nights →"
+  end
 end
