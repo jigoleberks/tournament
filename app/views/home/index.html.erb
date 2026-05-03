@@ -57,22 +57,6 @@
   <% end %>
 <% end %>
 
-<%= form_with url: me_path, method: :patch, local: true,
-              data: { controller: "auto-submit", action: "change->auto-submit#submit" },
-              class: "bg-slate-800 rounded-xl p-4 my-3" do |f| %>
-  <p class="text-slate-300 mb-2 font-medium">My length unit</p>
-  <div class="flex gap-2">
-    <% User::LENGTH_UNITS.each do |unit| %>
-      <label class="flex-1">
-        <%= radio_button_tag "user[length_unit]", unit, current_user.length_unit == unit, class: "sr-only peer" %>
-        <span class="block w-full h-12 leading-[3rem] text-center rounded-lg bg-slate-700 peer-checked:bg-blue-600 text-slate-100 peer-checked:text-white cursor-pointer">
-          <%= unit == "inches" ? "Inches" : "Centimeters" %>
-        </span>
-      </label>
-    <% end %>
-  </div>
-<% end %>
-
 <div class="my-3">
   <%= link_to "Pre-trip check", pre_trip_path, class: "block w-full h-12 px-4 rounded-lg bg-slate-700 active:bg-slate-600 text-slate-100 text-center leading-[3rem]" %>
 </div>
