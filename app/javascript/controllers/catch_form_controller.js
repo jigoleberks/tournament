@@ -9,6 +9,7 @@ export default class extends Controller {
     this.photoBlob = null
     this.videoBlob = null
     this.videoFailed = false
+    this.clientUuid = crypto.randomUUID()
     this.refresh()
   }
 
@@ -40,7 +41,7 @@ export default class extends Controller {
 
     const position = await this.tryGeolocate()
     const record = {
-      client_uuid: crypto.randomUUID(),
+      client_uuid: this.clientUuid,
       species_id: this.speciesSelectTarget.value,
       length_inches: this._toInches(this.lengthInputTarget.value),
       captured_at_device: new Date().toISOString(),

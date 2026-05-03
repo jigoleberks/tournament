@@ -16,6 +16,19 @@ class UsersControllerTest < ActionDispatch::IntegrationTest
     assert_equal "inches", @user.reload.length_unit
   end
 
+  test "PATCH /me as JSON updates length_unit and returns 204" do
+    patch me_path, params: { user: { length_unit: "centimeters" } }, as: :json
+    assert_response :no_content
+    assert_equal "centimeters", @user.reload.length_unit
+  end
+
+  test "PATCH /me as JSON rejects invalid length_unit with 422" do
+    patch me_path, params: { user: { length_unit: "feet" } }, as: :json
+    assert_response :unprocessable_entity
+    assert_equal "inches", @user.reload.length_unit
+    assert_includes JSON.parse(response.body)["errors"].join(" "), "Length unit"
+  end
+
   private
 
   def sign_in_as(user)
