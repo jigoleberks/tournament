@@ -82,6 +82,33 @@ module Catches
       assert_equal second.id, promoted.catch_id
     end
 
+    test "eligible? filters out-of-lake catch in a local tournament" do
+      local_t = create(:tournament, club: @club, local: true, starts_at: 1.hour.ago, ends_at: 1.hour.from_now)
+      create(:scoring_slot, tournament: local_t, species: @walleye, slot_count: 1)
+      local_entry = create(:tournament_entry, tournament: local_t)
+      create(:tournament_entry_member, tournament_entry: local_entry, user: @user)
+
+      placed = create(:catch, user: @user, species: @walleye, length_inches: 22, captured_at_device: 30.minutes.ago)
+      Catches::PlaceInSlots.call(catch: placed)
+
+      # out_of_lake is longer, so it would win on length — but eligible? must reject it
+      out_of_lake = create(:catch, user: @user, species: @walleye, length_inches: 20,
+                                   captured_at_device: 25.minutes.ago,
+                                   latitude: 49.9, longitude: -97.1)
+      in_lake     = create(:catch, user: @user, species: @walleye, length_inches: 17,
+                                   captured_at_device: 20.minutes.ago,
+                                   latitude: 49.41, longitude: -103.62)
+
+      freed = placed.catch_placements.where(tournament: local_t).first
+      freed.update!(active: false)
+
+      Catches::PromoteBackup.call(freed_placement: freed)
+      promoted = local_entry.catch_placements.active.where(species: @walleye, slot_index: freed.slot_index).first
+      assert_not_nil promoted, "expected a catch to be promoted into the freed slot"
+      assert_equal in_lake.id, promoted.catch_id,
+                   "expected the in-lake catch to be promoted, not the out-of-lake catch"
+    end
+
     test "considers a teammate's catch on a team entry" do
       team_t = create(:tournament, club: @club, mode: :team, starts_at: 1.hour.ago, ends_at: 1.hour.from_now)
       create(:scoring_slot, tournament: team_t, species: @walleye, slot_count: 1)
