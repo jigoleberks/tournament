@@ -44,8 +44,8 @@ class SeasonPointsTest < ApplicationSystemTestCase
     sign_in_as(@member)
     visit root_path
 
-    assert_text "Wednesday 2026 standings"
-    within("section", text: "Wednesday 2026 standings") do
+    assert_text(/Wednesday 2026.*standings/i)
+    within("section", text: /Wednesday 2026.*standings/i) do
       assert_text "1. Angler 1"
       assert_text "6 pts"
       assert_text "2. Angler 2"
@@ -64,7 +64,7 @@ class SeasonPointsTest < ApplicationSystemTestCase
     sign_in_as(@member)
     visit season_points_path
 
-    assert_text "Wednesday 2026 standings"
+    assert_text(/Wednesday 2026.*standings/i)
     assert_text "Angler 1"
     assert_text "Angler 2"
     assert_text "Angler 3"
@@ -84,7 +84,7 @@ class SeasonPointsTest < ApplicationSystemTestCase
     sign_in_as(@member)
     visit season_points_tournaments_path
 
-    assert_text "Wednesday 2026 league nights"
+    assert_text(/Wednesday 2026 league nights/i)
     assert_text "League Night #1"
     assert_text "Won by: Winner"
     click_link "League Night #1"

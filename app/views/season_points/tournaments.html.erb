@@ -3,7 +3,7 @@
     <h1 class="text-2xl font-bold mb-2">Past league nights</h1>
     <p class="text-slate-400">No season-points tournaments configured yet.</p>
   <% else %>
-    <h1 class="text-2xl font-bold mb-3"><%= @season_tag.to_s.split.first %> League Nights</h1>
+    <h1 class="text-2xl font-bold mb-3"><%= @season_tag %> League Nights</h1>
     <% tournaments = @tournaments.respond_to?(:to_a) ? @tournaments.to_a : @tournaments %>
     <% if tournaments.empty? %>
       <p class="text-slate-400">No league nights have ended yet.</p>
