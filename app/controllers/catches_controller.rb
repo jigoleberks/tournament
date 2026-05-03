@@ -171,11 +171,13 @@ class CatchesController < ApplicationController
   end
 
   def counts_by_date(month_start)
+    # Group in Time.zone, not Postgres's session zone — DATE() on a UTC-stored
+    # timestamp would mis-bucket evening catches in non-UTC deployments.
     range = month_start.beginning_of_day..month_start.end_of_month.end_of_day
     current_user.catches
       .where(captured_at_device: range)
-      .group("DATE(captured_at_device)")
-      .count
-      .transform_keys { |v| v.is_a?(Date) ? v : Date.parse(v.to_s) }
+      .pluck(:captured_at_device)
+      .group_by { |t| t.in_time_zone.to_date }
+      .transform_values(&:size)
   end
 end
