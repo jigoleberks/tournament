@@ -19,6 +19,20 @@ class Organizers::TournamentTemplatesControllerTest < ActionDispatch::Integratio
     assert_redirected_to organizers_tournaments_path
   end
 
+  test "create accepts awards_season_points: true" do
+    assert_difference -> { TournamentTemplate.count }, 1 do
+      post organizers_tournament_templates_path, params: {
+        tournament_template: {
+          name: "Wednesday League",
+          mode: "solo",
+          awards_season_points: "1"
+        }
+      }
+    end
+    assert_redirected_to organizers_tournament_templates_path
+    assert TournamentTemplate.last.awards_season_points?
+  end
+
   private
 
   def sign_in_as(user)
