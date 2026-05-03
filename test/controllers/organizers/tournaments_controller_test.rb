@@ -73,6 +73,19 @@ class Organizers::TournamentsControllerTest < ActionDispatch::IntegrationTest
     assert_match "(away)", response.body
   end
 
+  test "create accepts awards_season_points: true" do
+    sign_in_as(@organizer)
+    assert_difference -> { @club.tournaments.count }, 1 do
+      post organizers_tournaments_path, params: {
+        tournament: { name: "Season Tournament", kind: "event", mode: "solo",
+                      starts_at: 1.day.from_now, ends_at: 1.day.from_now + 4.hours,
+                      awards_season_points: "1" }
+      }
+    end
+    assert_redirected_to organizers_tournaments_path
+    assert @club.tournaments.last.awards_season_points?
+  end
+
   private
 
   def sign_in_as(user)

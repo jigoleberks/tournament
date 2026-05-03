@@ -24,6 +24,12 @@
       <%= f.number_field :default_duration_days,
                          class: "w-full h-12 px-3 rounded-lg bg-slate-900 border border-slate-700 text-base" %>
     </div>
+
+    <label class="flex items-center gap-3 mt-2">
+      <%= f.check_box :awards_season_points, class: "h-5 w-5" %>
+      <span class="text-slate-200">Awards season points</span>
+    </label>
+    <p class="text-xs text-slate-500 -mt-2">When on, tournaments cloned from this template are points-eligible by default.</p>
   </div>
 
   <div class="bg-slate-800 rounded-xl p-4 space-y-4">
