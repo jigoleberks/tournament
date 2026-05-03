@@ -51,6 +51,9 @@ Rails.application.routes.draw do
     delete "push_subscriptions", to: "push_subscriptions#destroy"
   end
 
+  get "season-points",             to: "season_points#show",        as: :season_points
+  get "season-points/tournaments", to: "season_points#tournaments", as: :season_points_tournaments
+
   get "/pre_trip", to: "pre_trip#show", as: :pre_trip
   patch "/me", to: "users#update", as: :me
 
