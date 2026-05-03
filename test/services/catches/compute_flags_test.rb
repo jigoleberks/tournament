@@ -39,4 +39,26 @@ class Catches::ComputeFlagsTest < ActiveSupport::TestCase
                                   captured_at_gps: now - 10.minutes)
     assert_includes Catches::ComputeFlags.call(catch_record), "clock_skew"
   end
+
+  test "possible_duplicate when same user has another catch within 90s" do
+    now = Time.current
+    create(:catch, user: @user, species: @walleye, captured_at_device: now - 30.seconds)
+    catch_record = build(:catch, user: @user, species: @walleye, captured_at_device: now)
+    assert_includes Catches::ComputeFlags.call(catch_record), "possible_duplicate"
+  end
+
+  test "possible_duplicate NOT set when nearest sibling is outside 90s window" do
+    now = Time.current
+    create(:catch, user: @user, species: @walleye, captured_at_device: now - 91.seconds)
+    catch_record = build(:catch, user: @user, species: @walleye, captured_at_device: now)
+    assert_not_includes Catches::ComputeFlags.call(catch_record), "possible_duplicate"
+  end
+
+  test "possible_duplicate NOT triggered by another user's nearby catch" do
+    now = Time.current
+    other = create(:user, club: @club)
+    create(:catch, user: other, species: @walleye, captured_at_device: now - 30.seconds)
+    catch_record = build(:catch, user: @user, species: @walleye, captured_at_device: now)
+    assert_not_includes Catches::ComputeFlags.call(catch_record), "possible_duplicate"
+  end
 end

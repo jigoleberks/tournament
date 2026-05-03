@@ -28,6 +28,26 @@ class Judges::ReviewsControllerTest < ActionDispatch::IntegrationTest
     assert_equal 0, @catch.catch_placements.active.count
   end
 
+  test "POST disqualify with blank note is rejected" do
+    post judges_tournament_catch_review_path(tournament_id: @t.id, catch_id: @catch.id),
+         params: { action_kind: "disqualify", note: "" }
+    assert @catch.reload.needs_review?, "blank-note DQ must not flip status"
+    assert @catch.catch_placements.active.exists?, "blank-note DQ must not deactivate placements"
+    assert_match(/reason note is required/i, flash[:alert])
+  end
+
+  test "POST approve on judge's own catch is rejected" do
+    own_entry = create(:tournament_entry, tournament: @t)
+    create(:tournament_entry_member, tournament_entry: own_entry, user: @judge)
+    own_catch = create(:catch, user: @judge, species: @walleye, length_inches: 22, status: :needs_review)
+    Catches::PlaceInSlots.call(catch: own_catch)
+
+    post judges_tournament_catch_review_path(tournament_id: @t.id, catch_id: own_catch.id),
+         params: { action_kind: "approve", note: "self" }
+    assert own_catch.reload.needs_review?, "self-approval must not flip status"
+    assert_match(/own catch/i, flash[:alert])
+  end
+
   test "POST review on a catch from another tournament is not found" do
     other_t = create(:tournament, club: @club, starts_at: 1.hour.ago, ends_at: 1.hour.from_now)
     other_angler = create(:user, club: @club)

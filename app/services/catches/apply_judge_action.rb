@@ -1,5 +1,8 @@
 module Catches
   class ApplyJudgeAction
+    class SelfApprovalError < StandardError; end
+    class DisqualifyNoteRequired < StandardError; end
+
     def self.call(tournament:, catch:, judge:, action:, note: nil, length_inches: nil, slot_index: nil, entry_id: nil)
       new(tournament: tournament, catch: catch, judge: judge, action: action, note: note,
           length_inches: length_inches, slot_index: slot_index, entry_id: entry_id).call
@@ -11,6 +14,9 @@ module Catches
     end
 
     def call
+      raise SelfApprovalError if @action == :approve && @judge.id == @catch.user_id
+      raise DisqualifyNoteRequired if @action == :disqualify && @note.to_s.strip.empty?
+
       ActiveRecord::Base.transaction do
         before = snapshot
         case @action
@@ -19,8 +25,13 @@ module Catches
         when :flag
           @catch.update!(status: :needs_review)
         when :disqualify
+          freed = @catch.catch_placements.active.to_a
           @catch.catch_placements.active.update_all(active: false)
           @catch.update!(status: :disqualified)
+          freed.each do |p|
+            p.reload
+            Catches::PromoteBackup.call(freed_placement: p)
+          end
         when :manual_override
           @catch.update!(length_inches: @length_inches) if @length_inches
           if @slot_index && @entry_id

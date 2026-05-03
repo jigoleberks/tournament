@@ -76,10 +76,50 @@ class Organizers::TournamentEntriesControllerTest < ActionDispatch::IntegrationT
     assert_redirected_to edit_organizers_tournament_path(@solo)
   end
 
+  test "solo entry creation enqueues a push to each new member" do
+    with_perform_later_capture do |enqueued|
+      post organizers_tournament_tournament_entries_path(tournament_id: @solo.id),
+           params: { tournament_entry: { member_user_ids: [@member.id, @teammate.id] } }
+      assert_equal 2, enqueued.size
+      assert_equal [@member.id, @teammate.id].sort, enqueued.map { |e| e[:user_id] }.sort
+      assert(enqueued.all? { |e| e[:body].include?("entered into") && e[:body].include?(@solo.name) })
+      assert(enqueued.all? { |e| e[:tournament_id] == @solo.id })
+    end
+  end
+
+  test "team entry creation enqueues a push to each member of the entry" do
+    with_perform_later_capture do |enqueued|
+      post organizers_tournament_tournament_entries_path(tournament_id: @team.id),
+           params: { tournament_entry: { name: "Boat", member_user_ids: [@member.id, @teammate.id] } }
+      assert_equal 2, enqueued.size
+      assert_equal [@member.id, @teammate.id].sort, enqueued.map { |e| e[:user_id] }.sort
+    end
+  end
+
+  test "no push enqueued when validation rejects the request" do
+    @member.update!(deactivated_at: Time.current)
+    with_perform_later_capture do |enqueued|
+      post organizers_tournament_tournament_entries_path(tournament_id: @solo.id),
+           params: { tournament_entry: { member_user_ids: [@member.id] } }
+      assert_empty enqueued
+    end
+  end
+
   private
 
   def sign_in_as(user)
     token = SignInToken.issue!(user: user)
     get consume_session_path(token: token.token)
+  end
+
+  def with_perform_later_capture
+    enqueued = []
+    klass = DeliverPushNotificationJob
+    original = klass.method(:perform_later)
+    klass.define_singleton_method(:perform_later) { |**kwargs| enqueued << kwargs }
+    yield enqueued
+  ensure
+    klass.singleton_class.send(:remove_method, :perform_later)
+    klass.define_singleton_method(:perform_later, original) if original
   end
 end

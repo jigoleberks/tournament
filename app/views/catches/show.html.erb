@@ -32,7 +32,7 @@
     <div><dt class="inline text-slate-500">Angler:</dt> <dd class="inline text-slate-100"><%= @catch.user.name %></dd></div>
     <div><dt class="inline text-slate-500">Species:</dt> <dd class="inline"><%= @catch.species.name %></dd></div>
     <div><dt class="inline text-slate-500">Length:</dt> <dd class="inline"><%= format_length_dual(@catch.length_inches) %></dd></div>
-    <div><dt class="inline text-slate-500">Captured:</dt> <dd class="inline"><%= @catch.captured_at_device.strftime("%b %d %Y · %l:%M %p %Z") %></dd></div>
+    <div><dt class="inline text-slate-500">Captured:</dt> <dd class="inline"><%= @catch.captured_at_device.strftime("%b %d %Y · %l:%M:%S %p %Z") %></dd></div>
     <% if @catch.latitude.present? %>
       <div><dt class="inline text-slate-500">GPS:</dt> <dd class="inline">~<%= @catch.latitude.to_f.round(2) %>, <%= @catch.longitude.to_f.round(2) %></dd></div>
     <% end %>
@@ -40,7 +40,7 @@
       <dd class="inline">
         <% if @catch.disqualified? %>
           <span class="text-red-400">disqualified</span>
-        <% elsif @catch.flags.any? %>
+        <% elsif @catch.flags.any? || @catch.latest_approver %>
           <%= render "catches/flag_badges", catch_record: @catch %>
         <% elsif @catch.needs_review? %>
           <span class="text-amber-400">needs review</span>
@@ -51,6 +51,17 @@
     </div>
   </dl>
 </div>
+
+<% if @catch.disqualified? %>
+  <div class="bg-slate-800 border border-red-900/40 rounded-xl p-4 mt-3">
+    <h2 class="text-sm font-semibold text-red-400 mb-2">Reason for disqualification</h2>
+    <% if @catch.disqualification_note.present? %>
+      <p class="text-slate-200 whitespace-pre-line"><%= @catch.disqualification_note %></p>
+    <% else %>
+      <p class="text-slate-500 italic">No reason provided.</p>
+    <% end %>
+  </div>
+<% end %>
 
 <% if @catch.temperature_c.present? || @catch.moon_phase.present? %>
   <div class="bg-slate-800 rounded-xl p-4 mt-3 space-y-1">
@@ -88,22 +99,24 @@
 <% if @action_tournament %>
   <div class="bg-slate-800 rounded-xl p-4 mt-3 space-y-3">
     <h2 class="text-sm font-semibold text-slate-300">Actions</h2>
-    <div class="flex gap-2">
-      <% if @catch.needs_review? || @catch.disputed? %>
-        <%= button_to "Approve",
-                      judges_tournament_catch_review_path(tournament_id: @action_tournament.id, catch_id: @catch.id),
-                      method: :post,
-                      params: { action_kind: "approve" },
-                      form: { data: { turbo_confirm: "Approve this catch? It will count for scoring." } },
-                      class: "flex-1 h-12 px-4 rounded-lg bg-emerald-600 active:bg-emerald-700 text-white font-semibold" %>
-      <% end %>
-      <%= button_to "Disqualify",
+    <% if @catch.needs_review? || @catch.disputed? %>
+      <%= button_to "Approve",
                     judges_tournament_catch_review_path(tournament_id: @action_tournament.id, catch_id: @catch.id),
                     method: :post,
-                    params: { action_kind: "disqualify" },
-                    form: { data: { turbo_confirm: "Disqualify this catch? It will be removed from the leaderboard." } },
-                    class: "flex-1 h-12 px-4 rounded-lg bg-red-600 active:bg-red-700 text-white font-semibold" %>
-    </div>
+                    params: { action_kind: "approve" },
+                    form: { data: { turbo_confirm: "Approve this catch? It will count for scoring." } },
+                    class: "block w-full h-12 px-4 rounded-lg bg-emerald-600 active:bg-emerald-700 text-white font-semibold" %>
+    <% end %>
+    <%= form_with url: judges_tournament_catch_review_path(tournament_id: @action_tournament.id, catch_id: @catch.id),
+                  local: true, class: "space-y-2",
+                  data: { turbo_confirm: "Disqualify this catch? It will be removed from the leaderboard." } do %>
+      <%= hidden_field_tag :action_kind, "disqualify" %>
+      <label for="dq_note" class="block text-xs text-slate-400">Reason for disqualification (required)</label>
+      <%= text_area_tag :note, nil, id: "dq_note", required: true, rows: 2, maxlength: 500,
+                        class: "w-full px-3 py-2 rounded-lg bg-slate-900 border border-slate-700 text-base text-slate-100" %>
+      <%= submit_tag "Disqualify",
+                     class: "w-full h-12 px-4 rounded-lg bg-red-600 active:bg-red-700 text-white font-semibold" %>
+    <% end %>
 
     <%= form_with url: judges_tournament_catch_manual_override_path(tournament_id: @action_tournament.id, catch_id: @catch.id),
                   local: true, class: "flex gap-2 items-end" do |f| %>

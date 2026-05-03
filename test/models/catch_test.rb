@@ -82,4 +82,48 @@ class CatchTest < ActiveSupport::TestCase
     catch_record = build(:catch, user: @user, species: @walleye, note: nil)
     assert catch_record.valid?
   end
+
+  test "latest_approver returns the judge of the most recent approve action" do
+    judge = create(:user, club: @club, role: :organizer, name: "Judy")
+    catch_record = create(:catch, user: @user, species: @walleye, status: :needs_review)
+    create(:judge_action, catch: catch_record, judge_user: judge, action: :approve)
+    assert_equal judge, catch_record.latest_approver
+  end
+
+  test "latest_approver returns nil when no judge actions exist" do
+    catch_record = create(:catch, user: @user, species: @walleye)
+    assert_nil catch_record.latest_approver
+  end
+
+  test "latest_approver returns nil when most recent action is a flag" do
+    judge = create(:user, club: @club, role: :organizer)
+    catch_record = create(:catch, user: @user, species: @walleye, status: :needs_review)
+    create(:judge_action, catch: catch_record, judge_user: judge, action: :approve, created_at: 2.minutes.ago)
+    create(:judge_action, catch: catch_record, judge_user: judge, action: :flag, created_at: 1.minute.ago)
+    assert_nil catch_record.latest_approver
+  end
+
+  test "disqualification_note returns the latest disqualify note when DQ'd" do
+    judge = create(:user, club: @club, role: :organizer)
+    catch_record = create(:catch, user: @user, species: @walleye, status: :disqualified)
+    create(:judge_action, catch: catch_record, judge_user: judge, action: :disqualify, note: "blurry photo")
+    assert_equal "blurry photo", catch_record.disqualification_note
+  end
+
+  test "disqualification_note returns the most recent of multiple DQ actions" do
+    judge = create(:user, club: @club, role: :organizer)
+    catch_record = create(:catch, user: @user, species: @walleye, status: :disqualified)
+    create(:judge_action, catch: catch_record, judge_user: judge, action: :disqualify,
+                          note: "first reason", created_at: 2.minutes.ago)
+    create(:judge_action, catch: catch_record, judge_user: judge, action: :disqualify,
+                          note: "actual reason", created_at: 1.minute.ago)
+    assert_equal "actual reason", catch_record.disqualification_note
+  end
+
+  test "disqualification_note returns nil when catch is not disqualified" do
+    judge = create(:user, club: @club, role: :organizer)
+    catch_record = create(:catch, user: @user, species: @walleye, status: :needs_review)
+    create(:judge_action, catch: catch_record, judge_user: judge, action: :disqualify, note: "stale")
+    assert_nil catch_record.disqualification_note
+  end
 end

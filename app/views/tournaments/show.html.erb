@@ -19,6 +19,13 @@
   <p class="text-slate-400 italic">You're not entered. Ask an organizer to add you.</p>
 <% end %>
 
+<% if @tournament.ends_at.present? %>
+  <section class="bg-slate-800 rounded-xl p-4 mb-4">
+    <h2 class="text-sm uppercase tracking-wide text-slate-400 mb-2"><%= @tournament.ended? ? "Ended" : "Ends" %></h2>
+    <p class="text-slate-100"><%= @tournament.ends_at.strftime("%b %d, %Y · %l:%M %p") %></p>
+  </section>
+<% end %>
+
 <% slots = @tournament.scoring_slots.includes(:species).order(:id) %>
 <% if slots.any? %>
   <section class="bg-slate-800 rounded-xl p-4 mb-4">

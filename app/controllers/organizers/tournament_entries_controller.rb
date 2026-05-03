@@ -25,6 +25,16 @@ class Organizers::TournamentEntriesController < Organizers::BaseController
       end
     end
 
+    valid_ids.each do |uid|
+      DeliverPushNotificationJob.perform_later(
+        user_id: uid,
+        title: @tournament.name,
+        body: "You've been entered into #{@tournament.name}.",
+        url: "/tournaments/#{@tournament.id}",
+        tournament_id: @tournament.id
+      )
+    end
+
     added = @tournament.mode_solo? ? valid_ids.size : 1
     redirect_to edit_organizers_tournament_path(@tournament),
                 notice: added == 1 ? "Entry added." : "#{added} entries added."

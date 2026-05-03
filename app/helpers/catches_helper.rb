@@ -19,9 +19,10 @@ module CatchesHelper
   end
 
   FLAG_LABELS = {
-    "missing_gps"   => "no GPS",
-    "clock_skew"    => "clock mismatch",
-    "out_of_bounds" => "outside local"
+    "missing_gps"        => "no GPS",
+    "clock_skew"         => "clock mismatch",
+    "out_of_bounds"      => "outside local",
+    "possible_duplicate" => "possible duplicate"
   }.freeze
 
   def flag_label(flag)

@@ -12,6 +12,7 @@ class Api::CatchesController < Api::BaseController
 
     if catch_record.save && catch_record.photo.attached?
       placements = Catches::PlaceInSlots.call(catch: catch_record)
+      Catches::FlagDuplicates.call(catch: catch_record) if catch_record.flags.include?("possible_duplicate")
       FetchCatchConditionsJob.perform_later(catch_id: catch_record.id)
       render json: serialize(catch_record, placements: placements[:created], flags: catch_record.flags), status: :created
     else

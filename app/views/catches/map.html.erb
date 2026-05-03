@@ -56,7 +56,7 @@
           <div class="flex-1 min-w-0">
             <div class="font-bold truncate"><%= c.species.name %></div>
             <div class="text-sm"><%= format_length_dual(c.length_inches) %></div>
-            <div class="text-xs text-slate-500"><%= c.captured_at_device.strftime("%b %d · %l:%M %p") %></div>
+            <div class="text-xs text-slate-500"><%= c.captured_at_device.strftime("%b %d · %l:%M:%S %p") %></div>
           </div>
           <%= link_to "View", catch_path(c), class: "px-3 py-1 bg-slate-700 rounded text-sm font-medium" %>
         </li>
