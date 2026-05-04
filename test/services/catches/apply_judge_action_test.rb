@@ -157,6 +157,7 @@ module Catches
       angler = create(:user, club: @club)
       entry = create(:tournament_entry, tournament: t3)
       create(:tournament_entry_member, tournament_entry: entry, user: angler)
+        .update_column(:created_at, 2.hours.ago)
 
       # Three placed (24, 22, 20) and one unplaced (18).
       placed = [24, 22, 20].map do |inches|
@@ -191,6 +192,36 @@ module Catches
         )
       end
       assert_equal 0, other_entry.catch_placements.count
+    end
+
+    test "manual_override edit-down does not pull in a catch logged before the angler joined the entry" do
+      # The default @entry is solo; build a team tournament so we can have two members.
+      # Use fresh users (not @user) so @catch from setup cannot leak into team_t's window.
+      team_t = create(:tournament, club: @club, mode: :team, starts_at: 1.hour.ago, ends_at: 1.hour.from_now)
+      create(:scoring_slot, tournament: team_t, species: @walleye, slot_count: 1)
+      team_entry = create(:tournament_entry, tournament: team_t)
+      early = create(:user, club: @club)
+      member = create(:tournament_entry_member, tournament_entry: team_entry, user: early)
+      member.update_column(:created_at, 2.hours.ago)
+      late = create(:user, club: @club)
+      late_member = create(:tournament_entry_member, tournament_entry: team_entry, user: late)
+      late_member.update_column(:created_at, 30.minutes.ago)
+
+      # early catches a 20" placed in slot 0.
+      placed = create(:catch, user: early, species: @walleye, length_inches: 20, captured_at_device: 30.minutes.ago)
+      Catches::PlaceInSlots.call(catch: placed)
+
+      # Late-joiner has a 30" pre-membership catch — must not become a candidate.
+      pre_join = create(:catch, user: late, species: @walleye, length_inches: 30, captured_at_device: 1.hour.ago)
+
+      # Judge edits placed (20") down to 14" — no eligible candidate exists, slot stays as-is (with 14" length).
+      ApplyJudgeAction.call(tournament: team_t, catch: placed, judge: @judge, action: :manual_override,
+                            note: "remeasured", length_inches: 14)
+
+      active = team_entry.catch_placements.active.where(species: @walleye)
+      assert_equal 1, active.count
+      assert_equal placed.id, active.first.catch_id, "pre-membership catch must not have taken the slot"
+      assert_not ::CatchPlacement.exists?(catch_id: pre_join.id, active: true)
     end
   end
 end
