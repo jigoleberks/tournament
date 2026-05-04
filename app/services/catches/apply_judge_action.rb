@@ -33,6 +33,7 @@ module Catches
             Catches::PromoteBackup.call(freed_placement: p)
           end
         when :manual_override
+          prior_length = @catch.length_inches
           @catch.update!(length_inches: @length_inches) if @length_inches
           if @slot_index && @entry_id
             entry = @tournament.tournament_entries.find(@entry_id)
@@ -44,6 +45,13 @@ module Catches
               catch: @catch, tournament: @tournament, tournament_entry: entry,
               species: @catch.species, slot_index: @slot_index, active: true
             )
+          elsif @length_inches && prior_length && @length_inches.to_f < prior_length.to_f
+            # Length shrank — re-evaluate every (entry, species) pair this catch
+            # is currently placed in; a previously-unplaced larger catch should
+            # take its slot.
+            @catch.catch_placements.active.includes(:tournament, :tournament_entry).each do |p|
+              Catches::RebalanceSlots.call(tournament: p.tournament, entry: p.tournament_entry, species: @catch.species)
+            end
           end
         end
         after = snapshot

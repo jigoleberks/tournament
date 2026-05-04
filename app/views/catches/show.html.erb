@@ -119,13 +119,28 @@
     <% end %>
 
     <%= form_with url: judges_tournament_catch_manual_override_path(tournament_id: @action_tournament.id, catch_id: @catch.id),
-                  local: true, class: "flex gap-2 items-end" do |f| %>
-      <div class="flex-1">
-        <label for="length_inches" class="block text-xs text-slate-400 mb-1">Edit length (in)</label>
-        <%= number_field_tag :length_inches, @catch.length_inches, step: 0.25, min: 0,
-                             class: "w-full h-12 px-3 rounded-lg bg-slate-900 border border-slate-700 text-base text-slate-100" %>
+                  local: true, class: "space-y-2" do |f| %>
+      <%
+        unit = current_user.length_unit
+        prefill = unit == "centimeters" ? (@catch.length_inches.to_f * LengthHelper::CM_PER_INCH).round(1) : @catch.length_inches
+        step    = unit == "centimeters" ? 0.5 : 0.25
+      %>
+      <label for="length" class="block text-xs text-slate-400">Edit length</label>
+      <div class="flex gap-2 items-stretch">
+        <%= number_field_tag :length, prefill, step: step, min: 0,
+                             class: "flex-1 h-12 px-3 rounded-lg bg-slate-900 border border-slate-700 text-base text-slate-100" %>
+        <div class="flex rounded-lg overflow-hidden border border-slate-700">
+          <% User::LENGTH_UNITS.each do |u| %>
+            <label class="cursor-pointer">
+              <input type="radio" name="length_unit" value="<%= u %>" <%= "checked" if u == unit %> class="sr-only peer">
+              <span class="block h-12 px-3 leading-[3rem] text-sm bg-slate-900 peer-checked:bg-blue-600 peer-checked:text-white text-slate-300">
+                <%= u == "inches" ? "in" : "cm" %>
+              </span>
+            </label>
+          <% end %>
+        </div>
+        <%= submit_tag "Save", class: "h-12 px-4 rounded-lg bg-blue-600 active:bg-blue-700 text-white font-semibold" %>
       </div>
-      <%= submit_tag "Save", class: "h-12 px-4 rounded-lg bg-blue-600 active:bg-blue-700 text-white font-semibold" %>
     <% end %>
   </div>
 <% end %>

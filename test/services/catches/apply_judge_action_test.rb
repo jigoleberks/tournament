@@ -9,8 +9,8 @@ module Catches
       @user = create(:user, club: @club)
       @t = create(:tournament, club: @club, starts_at: 1.hour.ago, ends_at: 1.hour.from_now)
       create(:scoring_slot, tournament: @t, species: @walleye, slot_count: 1)
-      entry = create(:tournament_entry, tournament: @t)
-      create(:tournament_entry_member, tournament_entry: entry, user: @user)
+      @entry = create(:tournament_entry, tournament: @t)
+      create(:tournament_entry_member, tournament_entry: @entry, user: @user)
       @catch = create(:catch, user: @user, species: @walleye, length_inches: 20, status: :needs_review)
       Catches::PlaceInSlots.call(catch: @catch)
     end
@@ -104,6 +104,79 @@ module Catches
       )
       # @catch should now be inactive in its entry, slot 0
       assert_not @catch.catch_placements.first.reload.active?
+    end
+
+    test "manual_override edit-down promotes a previously-unplaced larger catch into the slot" do
+      # @catch (20") is in slot 0. A smaller fish (16") never displaced it.
+      backup = create(:catch, user: @user, species: @walleye, length_inches: 16,
+                              captured_at_device: 30.minutes.ago)
+      assert_empty backup.catch_placements
+
+      # Judge edits @catch down to 14" — backup (16") should now take the slot.
+      ApplyJudgeAction.call(tournament: @t, catch: @catch, judge: @judge, action: :manual_override,
+                            note: "remeasured", length_inches: 14)
+
+      assert_equal 14.0, @catch.reload.length_inches.to_f
+      active = @t.catch_placements.active.where(species: @walleye)
+      assert_equal 1, active.count
+      assert_equal backup.id, active.first.catch_id
+      assert_not @catch.catch_placements.where(slot_index: 0).first.active?
+    end
+
+    test "manual_override edit-down does not swap when no larger candidate exists" do
+      # Only @catch (20") exists; edit it down to 14". No swap, but length updates.
+      ApplyJudgeAction.call(tournament: @t, catch: @catch, judge: @judge, action: :manual_override,
+                            note: "remeasured", length_inches: 14)
+
+      assert_equal 14.0, @catch.reload.length_inches.to_f
+      active = @t.catch_placements.active.where(species: @walleye)
+      assert_equal 1, active.count
+      assert_equal @catch.id, active.first.catch_id
+    end
+
+    test "manual_override edit-up does not disturb a smaller unplaced catch" do
+      backup = create(:catch, user: @user, species: @walleye, length_inches: 16,
+                              captured_at_device: 30.minutes.ago)
+
+      ApplyJudgeAction.call(tournament: @t, catch: @catch, judge: @judge, action: :manual_override,
+                            note: "remeasured", length_inches: 22)
+
+      assert_equal 22.0, @catch.reload.length_inches.to_f
+      active = @t.catch_placements.active.where(species: @walleye)
+      assert_equal 1, active.count
+      assert_equal @catch.id, active.first.catch_id
+      assert_empty backup.reload.catch_placements
+    end
+
+    test "manual_override rebalances a top-N slot when the edit pushes a placed fish below an unplaced one" do
+      # Build a top-3 slot in a fresh tournament with its own user, so the setup
+      # @catch can't leak in as a candidate.
+      t3 = create(:tournament, club: @club, starts_at: 1.hour.ago, ends_at: 1.hour.from_now)
+      create(:scoring_slot, tournament: t3, species: @walleye, slot_count: 3)
+      angler = create(:user, club: @club)
+      entry = create(:tournament_entry, tournament: t3)
+      create(:tournament_entry_member, tournament_entry: entry, user: angler)
+
+      # Three placed (24, 22, 20) and one unplaced (18).
+      placed = [24, 22, 20].map do |inches|
+        c = create(:catch, user: angler, species: @walleye, length_inches: inches,
+                           captured_at_device: 30.minutes.ago)
+        Catches::PlaceInSlots.call(catch: c)
+        c
+      end
+      unplaced = create(:catch, user: angler, species: @walleye, length_inches: 18,
+                                captured_at_device: 30.minutes.ago)
+      assert_empty unplaced.catch_placements
+
+      # Edit the 20" fish down to 16" — unplaced 18" should take its slot.
+      shrinker = placed.last
+      ApplyJudgeAction.call(tournament: t3, catch: shrinker, judge: @judge, action: :manual_override,
+                            note: "remeasured", length_inches: 16)
+
+      active_ids = t3.catch_placements.active.where(species: @walleye).pluck(:catch_id)
+      assert_equal 3, active_ids.size
+      assert_includes active_ids, unplaced.id
+      assert_not_includes active_ids, shrinker.id
     end
 
     test "manual_override rejects an entry that belongs to a different tournament" do
