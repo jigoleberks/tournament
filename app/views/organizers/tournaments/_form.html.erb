@@ -1,3 +1,8 @@
+<% if @tournament.persisted? %>
+  <%= render "organizers/tournament_entries/section" %>
+  <%= render "organizers/tournament_judges/section" %>
+<% end %>
+
 <%= form_with model: [:organizers, @tournament], local: true, class: "space-y-4" do |f| %>
   <% if @tournament.errors.any? %>
     <ul class="text-red-300 text-sm bg-red-900/40 border border-red-800 rounded-lg p-3 space-y-1">
@@ -100,7 +105,5 @@
 <% end %>
 
 <% if @tournament.persisted? %>
-  <%= render "organizers/tournament_entries/section" %>
-  <%= render "organizers/tournament_judges/section" %>
   <%= render "organizers/catches/section" %>
 <% end %>
