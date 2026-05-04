@@ -11,15 +11,21 @@ module Catches
     end
 
     def call
-      loop do
-        smallest = smallest_active_placement
-        break if smallest.nil?
+      # Each swap! is two writes (deactivate the old placement, then activate
+      # or create the candidate's). Wrap so a mid-swap failure rolls back to
+      # a consistent state. Rails flattens to a savepoint when the caller
+      # (e.g. ApplyJudgeAction) already has an outer transaction open.
+      ActiveRecord::Base.transaction do
+        loop do
+          smallest = smallest_active_placement
+          break if smallest.nil?
 
-        candidate = find_candidate
-        break if candidate.nil?
-        break if candidate.length_inches.to_f <= smallest.catch.length_inches.to_f
+          candidate = find_candidate
+          break if candidate.nil?
+          break if candidate.length_inches.to_f <= smallest.catch.length_inches.to_f
 
-        swap!(smallest, candidate)
+          swap!(smallest, candidate)
+        end
       end
     end
 

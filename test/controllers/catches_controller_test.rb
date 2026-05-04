@@ -159,6 +159,19 @@ class CatchesControllerTest < ActionDispatch::IntegrationTest
     assert_match "possible duplicate", response.body
   end
 
+  test "show: judge of the relevant tournament sees possible-duplicate badge" do
+    catch_record = create(:catch, user: @user, species: @walleye, length_inches: 18.5,
+                                  flags: ["possible_duplicate"], status: :needs_review)
+    Catches::PlaceInSlots.call(catch: catch_record)
+    judge = create(:user, club: @club)
+    create(:tournament_judge, tournament: @tournament, user: judge)
+    sign_in_as(judge)
+
+    get catch_path(catch_record.id)
+    assert_response :success
+    assert_match "possible duplicate", response.body
+  end
+
   test "map: defaults to today, includes signed-in user's geolocated catches only" do
     own_with_gps = create(:catch, user: @user, species: @walleye, length_inches: 18.5,
                           captured_at_device: Time.current, latitude: 49.1, longitude: -97.2)
