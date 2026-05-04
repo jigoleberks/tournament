@@ -23,6 +23,8 @@ module CatchesHelper
   def can_review_catch?(catch_record)
     return false if current_user.nil?
     return true  if current_user.organizer?
+    # Helper instances are per-request, so this ivar memo is request-scoped —
+    # the TournamentJudge lookup runs once per request, not once per catch.
     judge_ids = (@_judge_tournament_ids ||= TournamentJudge.where(user: current_user).pluck(:tournament_id))
     return false if judge_ids.empty?
     catch_tournament_ids = catch_record.catch_placements.pluck(:tournament_id).uniq
