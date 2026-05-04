@@ -49,8 +49,9 @@ module Catches
     end
 
     def eligible?(catch_record)
-      return true unless @tournament.local?
       return true if catch_record.latitude.nil?
+      return false unless ::Geofence.includes?(:sask, catch_record.latitude, catch_record.longitude)
+      return true unless @tournament.local?
       ::Geofence.includes?(:lake, catch_record.latitude, catch_record.longitude)
     end
   end
