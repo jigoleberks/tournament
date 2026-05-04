@@ -5,7 +5,10 @@ class Api::BaseController < ActionController::Base
   private
 
   def current_user
-    @current_user ||= User.find_by(id: session[:user_id])
+    return @current_user if defined?(@current_user)
+    user = User.find_by(id: session[:user_id])
+    user = nil if user&.deactivated?
+    @current_user = user
   end
 
   def signed_in?

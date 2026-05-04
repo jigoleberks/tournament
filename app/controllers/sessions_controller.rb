@@ -1,6 +1,7 @@
 class SessionsController < ApplicationController
   rate_limit to: 5, within: 1.minute,
              only: :create,
+             by: -> { "link:#{params[:email].to_s.downcase.strip}" },
              with: -> { redirect_to "/session/check_email" }
 
   rate_limit to: 10, within: 3.minutes,
