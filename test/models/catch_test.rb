@@ -38,6 +38,28 @@ class CatchTest < ActiveSupport::TestCase
     assert catch_record.photo.attached?
   end
 
+  test "rejects a non-image photo content_type" do
+    catch_record = build(:catch, user: @user, species: @walleye)
+    catch_record.photo.attach(
+      io: StringIO.new("not really an image"),
+      filename: "evil.txt",
+      content_type: "text/plain"
+    )
+    assert_not catch_record.valid?
+    assert_includes catch_record.errors[:photo].join, "JPEG"
+  end
+
+  test "rejects a photo larger than the byte cap" do
+    catch_record = build(:catch, user: @user, species: @walleye)
+    catch_record.photo.attach(
+      io: StringIO.new("x" * (Catch::PHOTO_MAX_BYTES + 1)),
+      filename: "huge.jpg",
+      content_type: "image/jpeg"
+    )
+    assert_not catch_record.valid?
+    assert_includes catch_record.errors[:photo].join, "larger"
+  end
+
   test "walleye over 50 inches is invalid" do
     too_big = build(:catch, user: @user, species: @walleye, length_inches: 50.5)
     assert_not too_big.valid?

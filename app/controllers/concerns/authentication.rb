@@ -24,6 +24,7 @@ module Authentication
   end
 
   def sign_in!(user)
+    reset_session
     session[:user_id] = user.id
     @current_user = user
   end

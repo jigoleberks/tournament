@@ -16,11 +16,14 @@ class Catch < ApplicationRecord
   }
 
   MAX_LENGTH_BY_SPECIES = { "perch" => 20, "walleye" => 50, "pike" => 70 }.freeze
+  PHOTO_CONTENT_TYPES = %w[image/jpeg image/png image/heic image/heif image/webp].freeze
+  PHOTO_MAX_BYTES = 25.megabytes
 
   validates :length_inches, numericality: { greater_than: 0 }
   validates :captured_at_device, presence: true
   validates :client_uuid, presence: true, uniqueness: true
   validate :photo_must_be_attached
+  validate :photo_within_limits
   validate :length_within_species_cap
   validates :note, length: { maximum: 500 }, allow_blank: true
 
@@ -41,6 +44,16 @@ class Catch < ApplicationRecord
 
   def photo_must_be_attached
     errors.add(:photo, "is required") unless photo.attached?
+  end
+
+  def photo_within_limits
+    return unless photo.attached?
+    unless PHOTO_CONTENT_TYPES.include?(photo.content_type)
+      errors.add(:photo, "must be a JPEG, PNG, HEIC, or WebP image")
+    end
+    if photo.byte_size.to_i > PHOTO_MAX_BYTES
+      errors.add(:photo, "is larger than #{PHOTO_MAX_BYTES / 1.megabyte}MB")
+    end
   end
 
   def length_within_species_cap

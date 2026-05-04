@@ -117,6 +117,21 @@ class Api::CatchesControllerTest < ActionDispatch::IntegrationTest
     assert_includes body["flags"], "out_of_bounds"
   end
 
+  test "POST /api/catches returns 401 once the user is deactivated" do
+    @user.update!(deactivated_at: Time.current)
+    photo = fixture_file_upload("sample_walleye.jpg", "image/jpeg")
+    post "/api/catches", params: {
+      catch: {
+        species_id: @walleye.id,
+        length_inches: 19.5,
+        captured_at_device: Time.current.iso8601,
+        client_uuid: "uuid-DEACT",
+        photo: photo
+      }
+    }, headers: { "Accept" => "application/json" }
+    assert_response :unauthorized
+  end
+
   private
 
   def sign_in_as(user)
