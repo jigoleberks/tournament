@@ -4,12 +4,21 @@ module Leaderboards
       entries = tournament.tournament_entries.includes(:users)
       placements_by_entry = CatchPlacement.active
         .where(tournament_id: tournament.id)
-        .includes(catch: :species)
+        .includes(catch: [:species, { judge_actions: :judge_user }])
         .group_by(&:tournament_entry_id)
 
       rows = entries.map do |entry|
         placements = placements_by_entry[entry.id] || []
-        fish = placements.map { |p| { id: p.catch.id, length_inches: p.catch.length_inches, species_name: p.catch.species.name } }
+        fish = placements
+          .map { |p|
+            {
+              id: p.catch.id,
+              length_inches: p.catch.length_inches,
+              species_name: p.catch.species.name,
+              approver_name: p.catch.latest_approver&.name
+            }
+          }
+          .sort_by { |f| -f[:length_inches] }
         total = fish.sum { |f| f[:length_inches] }
         earliest = placements.map { |p| p.catch.captured_at_device }.compact.min
         {

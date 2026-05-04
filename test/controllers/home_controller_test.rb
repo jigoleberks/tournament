@@ -17,6 +17,18 @@ class HomeControllerTest < ActionDispatch::IntegrationTest
     assert_match "Joe", response.body
   end
 
+  test "notifications Enable button defaults to non-blue (JS swaps it on when subscribed)" do
+    user = create(:user)
+    post session_path, params: { email: user.email }
+    get consume_session_path(token: SignInToken.last.token)
+    get root_path
+    assert_response :success
+    assert_select "button[data-action~=?]", "push-register#enable" do |btns|
+      assert_not btns.first["class"].to_s.include?("bg-blue"),
+                 "Enable button should default to non-blue; the JS controller flips it to blue when the subscription is active"
+    end
+  end
+
   test "deactivated user with an existing session is signed out on next request" do
     user = create(:user)
     post session_path, params: { email: user.email }

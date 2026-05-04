@@ -21,8 +21,10 @@
 
 <% if @tournament.ends_at.present? %>
   <section class="bg-slate-800 rounded-xl p-4 mb-4">
-    <h2 class="text-sm uppercase tracking-wide text-slate-400 mb-2"><%= @tournament.ended? ? "Ended" : "Ends" %></h2>
-    <p class="text-slate-100"><%= @tournament.ends_at.strftime("%b %d, %Y · %l:%M %p") %></p>
+    <div class="flex items-baseline justify-between">
+      <span class="text-sm uppercase tracking-wide text-slate-400"><%= @tournament.ended? ? "Ended" : "Ends" %></span>
+      <span class="text-slate-100"><%= @tournament.ends_at.strftime("%b %d, %Y · %l:%M %p") %></span>
+    </div>
   </section>
 <% end %>
 
@@ -45,4 +47,10 @@
 <% end %>
 
 <%= turbo_stream_from "tournament:#{@tournament.id}:leaderboard" %>
-<%= render "leaderboard", leaderboard: @leaderboard, tournament: @tournament %>
+<%= turbo_frame_tag :leaderboard_frame,
+                    data: {
+                      controller: "leaderboard-refresh",
+                      "leaderboard-refresh-url-value": leaderboard_tournament_path(@tournament)
+                    } do %>
+  <%= render "leaderboard", leaderboard: @leaderboard, tournament: @tournament %>
+<% end %>

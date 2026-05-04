@@ -1,4 +1,4 @@
-const CACHE = "shell-v6";
+const CACHE = "shell-v7";
 const SHELL = ["/manifest.webmanifest", "/icon.png"];
 
 self.addEventListener("install", (event) => {
@@ -16,31 +16,34 @@ self.addEventListener("activate", (event) => {
 self.addEventListener("fetch", (event) => {
   const url = new URL(event.request.url);
   if (event.request.method !== "GET") return;
-  if (url.pathname.startsWith("/api/")) return;       // never cache API
+  if (url.pathname.startsWith("/api/")) return;
+  if (url.origin !== location.origin) return;
 
-  // Network-first for navigations so dynamic HTML stays fresh; cache on success for offline fallback.
-  if (event.request.mode === "navigate") {
+  // Cache-first for immutable fingerprinted assets.
+  if (url.pathname.startsWith("/assets/") || url.pathname === "/manifest.webmanifest" || url.pathname === "/icon.png") {
     event.respondWith(
-      fetch(event.request).then((res) => {
+      caches.match(event.request).then((cached) => cached || fetch(event.request).then((res) => {
         if (res.status === 200) {
           const copy = res.clone();
           caches.open(CACHE).then((c) => c.put(event.request, copy));
         }
         return res;
-      }).catch(() => caches.match(event.request).then((c) => c || new Response("offline", { status: 503 })))
+      }))
     );
     return;
   }
 
-  // Cache-first for static assets.
+  // Network-first for everything else. Checking request.mode === "navigate" alone
+  // misses Turbo Drive's fetch() calls (mode "cors"/"same-origin"), which previously
+  // caused visited pages to be served stale from cache after backgrounding.
   event.respondWith(
-    caches.match(event.request).then((cached) => cached || fetch(event.request).then((res) => {
-      if (res.status === 200 && url.origin === location.origin) {
+    fetch(event.request).then((res) => {
+      if (res.status === 200) {
         const copy = res.clone();
         caches.open(CACHE).then((c) => c.put(event.request, copy));
       }
       return res;
-    }))
+    }).catch(() => caches.match(event.request).then((c) => c || new Response("offline", { status: 503 })))
   );
 });
 

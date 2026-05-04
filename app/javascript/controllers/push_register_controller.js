@@ -8,19 +8,32 @@ export default class extends Controller {
   async refresh() {
     if (!("PushManager" in window)) {
       this.statusTarget.textContent = "push not supported"
+      this.setEnabled(false)
       return
     }
     if (Notification.permission === "denied") {
       this.statusTarget.textContent = "blocked in browser"
+      this.setEnabled(false)
       return
     }
     if (Notification.permission !== "granted") {
       this.statusTarget.textContent = "off"
+      this.setEnabled(false)
       return
     }
     const reg = await navigator.serviceWorker.ready
     const sub = await reg.pushManager.getSubscription()
     this.statusTarget.textContent = sub ? "on" : "off"
+    this.setEnabled(!!sub)
+  }
+
+  setEnabled(on) {
+    if (!this.hasEnableButtonTarget) return
+    const btn = this.enableButtonTarget
+    const blue   = ["bg-blue-600", "active:bg-blue-700", "text-white"]
+    const slate  = ["bg-slate-700", "active:bg-slate-600", "text-slate-100"]
+    btn.classList.remove(...(on ? slate : blue))
+    btn.classList.add(...(on ? blue : slate))
   }
 
   async enable() {

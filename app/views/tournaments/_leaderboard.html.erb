@@ -16,13 +16,21 @@
             <% can_open = local_assigns[:tournament].present? && can_open_catches_in?(local_assigns[:tournament]) %>
             <div class="text-xs text-slate-400 mt-1 space-y-2">
               <% row[:fish].each do |f| %>
-                <% if can_open %>
-                  <%= link_to "#{f[:species_name]} · #{format_length_dual(f[:length_inches])}",
-                              catch_path(f[:id], t: local_assigns[:tournament].id),
-                              class: "block text-blue-300 underline-offset-2 hover:underline" %>
-                <% else %>
-                  <div><%= f[:species_name] %> · <%= format_length_dual(f[:length_inches]) %></div>
-                <% end %>
+                <div>
+                  <% label = "#{f[:species_name]} · #{format_length_dual(f[:length_inches])}" %>
+                  <% if can_open %>
+                    <%= link_to label, catch_path(f[:id], t: local_assigns[:tournament].id),
+                                class: "text-blue-300 underline-offset-2 hover:underline" %>
+                  <% else %>
+                    <span><%= label %></span>
+                  <% end %>
+                  <% if f[:approver_name] %>
+                    <span data-test="approved-check" class="text-green-400 ml-1" aria-label="approved">✓</span>
+                    <div class="mt-1">
+                      <span class="inline-block px-1.5 py-0.5 rounded bg-emerald-900/40 text-emerald-300 text-xs">Approved by <%= f[:approver_name] %></span>
+                    </div>
+                  <% end %>
+                </div>
               <% end %>
             </div>
           <% end %>

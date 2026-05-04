@@ -40,7 +40,7 @@
       <dd class="inline">
         <% if @catch.disqualified? %>
           <span class="text-red-400">disqualified</span>
-        <% elsif @catch.flags.any? || @catch.latest_approver %>
+        <% elsif visible_flags_for(@catch).any? || @catch.latest_approver %>
           <%= render "catches/flag_badges", catch_record: @catch %>
         <% elsif @catch.needs_review? %>
           <span class="text-amber-400">needs review</span>
