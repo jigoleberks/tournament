@@ -11,6 +11,7 @@ module Catches
       create(:scoring_slot, tournament: @t, species: @walleye, slot_count: 1)
       @entry = create(:tournament_entry, tournament: @t)
       create(:tournament_entry_member, tournament_entry: @entry, user: @user)
+        .update_column(:created_at, 2.hours.ago)
       @catch = create(:catch, user: @user, species: @walleye, length_inches: 20, status: :needs_review)
       Catches::PlaceInSlots.call(catch: @catch)
     end

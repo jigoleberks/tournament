@@ -38,6 +38,8 @@ module Catches
                          .pluck(:catch_id)
       ::Catches::EntryEligibility
         .candidates_for(entry: @entry, tournament: @tournament, species: @species)
+        # Exclude the freed placement's catch: in unit tests it's deactivated but not DQ'd,
+        # so EntryEligibility's DQ filter would otherwise let it re-promote into the slot it just vacated.
         .find { |c| !placed_ids.include?(c.id) && c.id != @placement.catch_id }
     end
   end
