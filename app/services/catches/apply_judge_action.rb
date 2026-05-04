@@ -17,6 +17,9 @@ module Catches
       raise SelfApprovalError if @action == :approve && @judge.id == @catch.user_id
       raise DisqualifyNoteRequired if @action == :disqualify && @note.to_s.strip.empty?
 
+      notify_resize = false
+      notify_dq = false
+
       ActiveRecord::Base.transaction do
         before = snapshot
         case @action
@@ -25,6 +28,7 @@ module Catches
         when :flag
           @catch.update!(status: :needs_review)
         when :disqualify
+          notify_dq = !@catch.disqualified?
           freed = @catch.catch_placements.active.to_a
           @catch.catch_placements.active.update_all(active: false)
           @catch.update!(status: :disqualified)
@@ -34,7 +38,10 @@ module Catches
           end
         when :manual_override
           prior_length = @catch.length_inches
-          @catch.update!(length_inches: @length_inches) if @length_inches
+          if @length_inches
+            @catch.update!(length_inches: @length_inches)
+            notify_resize = prior_length != @catch.length_inches
+          end
           if @slot_index && @entry_id
             entry = @tournament.tournament_entries.find(@entry_id)
             # Deactivate whatever is currently in (entry, species, slot_index)
@@ -65,9 +72,41 @@ module Catches
           Placements::BroadcastLeaderboard.call(tournament: t)
         end
       end
+
+      push_resize_notification if notify_resize && @judge.id != @catch.user_id
+      push_dq_notification    if notify_dq    && @judge.id != @catch.user_id
     end
 
     private
+
+    def push_resize_notification
+      DeliverPushNotificationJob.perform_later(
+        user_id: @catch.user_id,
+        title: @tournament.name,
+        body: "Your #{@catch.species.name.downcase} was resized to #{display_length}.",
+        url: "/catches/#{@catch.id}",
+        tournament_id: @tournament.id
+      )
+    end
+
+    def push_dq_notification
+      DeliverPushNotificationJob.perform_later(
+        user_id: @catch.user_id,
+        title: @tournament.name,
+        body: "Your #{@catch.species.name.downcase} was disqualified: #{@note.to_s.strip}",
+        url: "/catches/#{@catch.id}",
+        tournament_id: @tournament.id
+      )
+    end
+
+    def display_length
+      if @catch.user.length_unit == "centimeters"
+        "#{(@catch.length_inches.to_f * LengthHelper::CM_PER_INCH).round(1)} cm"
+      else
+        inches = @catch.length_inches.to_f
+        inches == inches.to_i ? "#{inches.to_i}\"" : "#{inches.round(2)}\""
+      end
+    end
 
     def snapshot
       {

@@ -2,6 +2,8 @@ require "test_helper"
 
 module Catches
   class ApplyJudgeActionTest < ActiveSupport::TestCase
+    include ActiveJob::TestHelper
+
     setup do
       @club = create(:club)
       @walleye = create(:species, club: @club)
@@ -222,6 +224,88 @@ module Catches
       assert_equal 1, active.count
       assert_equal placed.id, active.first.catch_id, "pre-membership catch must not have taken the slot"
       assert_not ::CatchPlacement.exists?(catch_id: pre_join.id, active: true)
+    end
+
+    test "disqualify pushes a notification to the catch owner with the reason" do
+      assert_enqueued_with(job: DeliverPushNotificationJob,
+                           args: [{ user_id: @user.id, title: @t.name,
+                                    body: "Your #{@walleye.name.downcase} was disqualified: bad photo",
+                                    url: "/catches/#{@catch.id}",
+                                    tournament_id: @t.id }]) do
+        ApplyJudgeAction.call(tournament: @t, catch: @catch, judge: @judge,
+                              action: :disqualify, note: "bad photo")
+      end
+    end
+
+    test "disqualify does not push when judge is the catch owner" do
+      own = create(:catch, user: @judge, species: @walleye, length_inches: 19, status: :needs_review)
+      Catches::PlaceInSlots.call(catch: own)
+      assert_no_enqueued_jobs only: DeliverPushNotificationJob do
+        ApplyJudgeAction.call(tournament: @t, catch: own, judge: @judge,
+                              action: :disqualify, note: "owner DQ")
+      end
+    end
+
+    test "disqualify does not push twice when re-DQing an already-disqualified catch" do
+      ApplyJudgeAction.call(tournament: @t, catch: @catch, judge: @judge,
+                            action: :disqualify, note: "first DQ")
+      assert_no_enqueued_jobs only: DeliverPushNotificationJob do
+        ApplyJudgeAction.call(tournament: @t, catch: @catch, judge: @judge,
+                              action: :disqualify, note: "second DQ")
+      end
+    end
+
+    test "manual_override length change pushes a resize notification to the catch owner" do
+      assert_enqueued_with(job: DeliverPushNotificationJob,
+                           args: [{ user_id: @user.id, title: @t.name,
+                                    body: "Your #{@walleye.name.downcase} was resized to 19.75\".",
+                                    url: "/catches/#{@catch.id}",
+                                    tournament_id: @t.id }]) do
+        ApplyJudgeAction.call(tournament: @t, catch: @catch, judge: @judge,
+                              action: :manual_override, note: "remeasured", length_inches: 19.75)
+      end
+    end
+
+    test "manual_override resize body uses cm when the catch owner prefers centimeters" do
+      @user.update!(length_unit: "centimeters")
+      ApplyJudgeAction.call(tournament: @t, catch: @catch, judge: @judge,
+                            action: :manual_override, note: "remeasured", length_inches: 19.69)
+      job = enqueued_jobs.last
+      assert_equal "DeliverPushNotificationJob", job["job_class"]
+      args = ::ActiveJob::Arguments.deserialize(job["arguments"]).first
+      assert_match(/resized to 50\.0 cm\.\z/, args[:body])
+    end
+
+    test "manual_override does not push when only a slot is forced (no length change)" do
+      user2 = create(:user, club: @club)
+      entry2 = create(:tournament_entry, tournament: @t)
+      create(:tournament_entry_member, tournament_entry: entry2, user: user2)
+        .update_column(:created_at, 2.hours.ago)
+      alt = create(:catch, user: user2, species: @walleye, length_inches: 16)
+      Catches::PlaceInSlots.call(catch: alt)
+
+      assert_no_enqueued_jobs only: DeliverPushNotificationJob do
+        ApplyJudgeAction.call(
+          tournament: @t, catch: alt, judge: @judge, action: :manual_override, note: "judge call",
+          slot_index: 0, entry_id: @catch.catch_placements.first.tournament_entry_id
+        )
+      end
+    end
+
+    test "manual_override does not push when length_inches matches current length" do
+      assert_no_enqueued_jobs only: DeliverPushNotificationJob do
+        ApplyJudgeAction.call(tournament: @t, catch: @catch, judge: @judge,
+                              action: :manual_override, note: "no-op", length_inches: 20)
+      end
+    end
+
+    test "manual_override does not push when judge is the catch owner" do
+      own = create(:catch, user: @judge, species: @walleye, length_inches: 18)
+      Catches::PlaceInSlots.call(catch: own)
+      assert_no_enqueued_jobs only: DeliverPushNotificationJob do
+        ApplyJudgeAction.call(tournament: @t, catch: own, judge: @judge,
+                              action: :manual_override, note: "owner remeasure", length_inches: 17)
+      end
     end
   end
 end
