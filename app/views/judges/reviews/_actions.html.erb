@@ -1,14 +1,22 @@
-<%= form_with url: judges_tournament_catch_review_path(tournament_id: tournament.id, catch_id: catch.id), local: true do |f| %>
-  <%= label_tag :note, "Note (required if disqualifying)" %>
-  <%= text_area_tag :note %>
+<%= form_with url: judges_tournament_catch_review_path(tournament_id: tournament.id, catch_id: catch.id), local: true, class: "space-y-3" do |f| %>
+  <div>
+    <%= label_tag :note, "Note (required if disqualifying)", class: "block text-sm text-slate-300 mb-1" %>
+    <%= text_area_tag :note, nil, rows: 3, class: "w-full rounded-lg bg-slate-900 border border-slate-700 text-slate-100 p-2" %>
+  </div>
   <% own_catch = current_user.id == catch.user_id %>
-  <% unless own_catch %>
-    <%= button_tag "Approve", name: "action_kind", value: "approve" %>
-  <% end %>
-  <%= button_tag "Flag",       name: "action_kind", value: "flag" %>
-  <%= button_tag "Disqualify", name: "action_kind", value: "disqualify" %>
-  <%= button_tag "Verified at dock", name: "action_kind", value: "dock_verify" %>
+  <div class="flex flex-wrap gap-2">
+    <% unless own_catch %>
+      <%= button_tag "Approve", name: "action_kind", value: "approve",
+                     class: "h-12 px-4 rounded-lg bg-emerald-600 active:bg-emerald-700 text-white font-medium" %>
+    <% end %>
+    <%= button_tag "Flag", name: "action_kind", value: "flag",
+                   class: "h-12 px-4 rounded-lg bg-amber-600 active:bg-amber-700 text-white font-medium" %>
+    <%= button_tag "Disqualify", name: "action_kind", value: "disqualify",
+                   class: "h-12 px-4 rounded-lg bg-red-600 active:bg-red-700 text-white font-medium" %>
+    <%= button_tag "Verified at dock", name: "action_kind", value: "dock_verify",
+                   class: "h-12 px-4 rounded-lg bg-slate-700 active:bg-slate-600 text-slate-100 font-medium" %>
+  </div>
   <% if own_catch %>
-    <p class="text-xs text-slate-500 mt-1">You can't approve your own catch.</p>
+    <p class="text-xs text-slate-500">You can't approve your own catch.</p>
   <% end %>
 <% end %>

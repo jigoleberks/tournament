@@ -27,6 +27,41 @@ module Leaderboards
       assert_equal [37, 22], result.map { |row| row[:total].to_i }
     end
 
+    test "fish exposes approver_name when last judge action is an approve" do
+      a = create(:user, club: @club, name: "A")
+      e = create(:tournament_entry, tournament: @tournament)
+      create(:tournament_entry_member, tournament_entry: e, user: a)
+      judge = create(:user, club: @club, name: "Judge Judy")
+
+      approved = create(:catch, user: a, species: @walleye, length_inches: 22)
+      Catches::PlaceInSlots.call(catch: approved)
+      create(:judge_action, judge_user: judge, catch: approved, action: :approve)
+
+      unreviewed = create(:catch, user: a, species: @walleye, length_inches: 18)
+      Catches::PlaceInSlots.call(catch: unreviewed)
+
+      row = Build.call(tournament: @tournament).first
+      by_id = row[:fish].index_by { |f| f[:id] }
+      assert_equal "Judge Judy", by_id[approved.id][:approver_name]
+      assert_nil by_id[unreviewed.id][:approver_name]
+    end
+
+    test "fish list per entry is ordered largest to smallest" do
+      a = create(:user, club: @club, name: "A")
+      e = create(:tournament_entry, tournament: @tournament)
+      create(:tournament_entry_member, tournament_entry: e, user: a)
+
+      # Insert in ascending order so the natural placement-id order is ascending too;
+      # only an explicit length sort can yield [22, 18].
+      [15, 18, 22].each do |len|
+        Catches::PlaceInSlots.call(catch: create(:catch, user: a, species: @walleye, length_inches: len))
+      end
+
+      row = Build.call(tournament: @tournament).first
+      assert_equal [22, 18], row[:fish].map { |f| f[:length_inches].to_i },
+                   "expected per-entry fish list to be ordered largest to smallest"
+    end
+
     test "breaks total-length ties by largest single fish" do
       a = create(:user, club: @club, name: "A")
       b = create(:user, club: @club, name: "B")

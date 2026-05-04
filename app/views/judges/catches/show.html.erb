@@ -1,13 +1,31 @@
-<h1>Catch <%= @catch.id %></h1>
-<p><%= image_tag(url_for(@catch.photo)) if @catch.photo.attached? %></p>
-<p><%= video_tag(url_for(@catch.video), controls: true) if @catch.video.attached? %></p>
-<p>Status: <%= @catch.status %></p>
+<h1 class="text-2xl font-semibold mt-4 mb-3">Catch <%= @catch.id %></h1>
 
-<%= render "judges/reviews/actions", catch: @catch, tournament: @tournament %>
+<% if @catch.photo.attached? %>
+  <%= image_tag url_for(@catch.photo), class: "w-full rounded-lg bg-black mb-3" %>
+<% end %>
+<% if @catch.video.attached? %>
+  <%= video_tag url_for(@catch.video), controls: true, class: "w-full rounded-lg bg-black mb-3" %>
+<% end %>
 
-<h2>Dispute log</h2>
-<ul>
-  <% @actions.each do |a| %>
-    <li><%= a.created_at %> — <%= a.judge_user.name %> — <%= a.action %> — <%= a.note %></li>
+<p class="text-slate-300 mb-4">Status: <span class="text-slate-100 font-medium"><%= @catch.status.to_s.humanize %></span></p>
+
+<section class="bg-slate-800 rounded-xl p-4 mb-4">
+  <%= render "judges/reviews/actions", catch: @catch, tournament: @tournament %>
+</section>
+
+<section class="bg-slate-800 rounded-xl p-4 mb-4">
+  <h2 class="text-sm uppercase tracking-wide text-slate-400 mb-2">Dispute log</h2>
+  <% if @actions.any? %>
+    <ul class="text-sm text-slate-200 space-y-1">
+      <% @actions.each do |a| %>
+        <li>
+          <span class="text-slate-500"><%= a.created_at.strftime("%b %d %Y · %l:%M %p") %></span>
+          — <%= a.judge_user.name %> — <span class="font-medium"><%= a.action %></span>
+          <% if a.note.present? %> — <%= a.note %><% end %>
+        </li>
+      <% end %>
+    </ul>
+  <% else %>
+    <p class="text-slate-400 italic text-sm">No actions yet.</p>
   <% end %>
-</ul>
+</section>

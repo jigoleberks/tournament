@@ -13,7 +13,10 @@ class CatchesController < ApplicationController
     @species_filter_id = params[:species].presence&.to_i
     @sort = params[:sort].presence&.to_sym || :newest
 
-    @catches = filter_and_sort(current_user.catches.includes(:species, photo_attachment: :blob))
+    # :catch_placements is preloaded so visible_flags_for -> can_review_catch?
+    # (which walks placements to find tournament_ids) doesn't N+1 for staff
+    # viewers when any rendered catch carries the possible_duplicate flag.
+    @catches = filter_and_sort(current_user.catches.includes(:species, :catch_placements, photo_attachment: :blob))
     @counts_by_date = counts_by_date(@month_start)
     @available_species = current_user.club.species.order(:name)
   end

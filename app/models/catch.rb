@@ -25,7 +25,10 @@ class Catch < ApplicationRecord
   validates :note, length: { maximum: 500 }, allow_blank: true
 
   def latest_approver
-    last = judge_actions.order(:created_at).last
+    # max_by walks the in-memory array so an eager-loaded :judge_actions stays
+    # consumed; .order(:created_at).last would re-query Postgres per row and
+    # defeat Leaderboards::Build's includes(:judge_actions => :judge_user).
+    last = judge_actions.max_by(&:created_at)
     last&.approve? ? last.judge_user : nil
   end
 

@@ -47,4 +47,49 @@ class TournamentsControllerTest < ActionDispatch::IntegrationTest
     get archived_tournaments_path
     assert_no_match "OtherClubTourney", response.body
   end
+
+  test "show renders the ends label and date/time on the same line, date right-aligned" do
+    ends_at = Time.zone.local(2026, 6, 15, 18, 30)
+    tournament = create(:tournament, club: @club, ends_at: ends_at)
+    get tournament_path(tournament)
+    assert_response :success
+    assert_select "[class~='justify-between']" do
+      assert_select "*", text: /Ends|Ended/
+      assert_select "*", text: /Jun 15, 2026 ·\s+6:30 PM/
+    end
+  end
+
+  test "show shows a green check beside an approved fish on the leaderboard (no 'Approved by' tag here)" do
+    tournament = create(:tournament, club: @club)
+    species = create(:species, club: @club)
+    create(:scoring_slot, tournament: tournament, species: species, slot_count: 1)
+    entry = create(:tournament_entry, tournament: tournament, name: "Team Reel Deal")
+    create(:tournament_entry_member, tournament_entry: entry, user: @user)
+    catch_record = create(:catch, user: @user, species: species, length_inches: 18.5)
+    create(:catch_placement, catch: catch_record, tournament: tournament,
+                              tournament_entry: entry, species: species, slot_index: 0)
+    judge = create(:user, club: @club, name: "Judge Judy")
+    create(:judge_action, judge_user: judge, catch: catch_record, action: :approve)
+
+    get tournament_path(tournament)
+    assert_response :success
+    assert_select "[data-test=approved-check]", count: 1
+    assert_no_match "Approved by", response.body
+  end
+
+  test "show does not render approved markers for unreviewed fish" do
+    tournament = create(:tournament, club: @club)
+    species = create(:species, club: @club)
+    create(:scoring_slot, tournament: tournament, species: species, slot_count: 1)
+    entry = create(:tournament_entry, tournament: tournament, name: "Team Reel Deal")
+    create(:tournament_entry_member, tournament_entry: entry, user: @user)
+    catch_record = create(:catch, user: @user, species: species, length_inches: 18.5)
+    create(:catch_placement, catch: catch_record, tournament: tournament,
+                              tournament_entry: entry, species: species, slot_index: 0)
+
+    get tournament_path(tournament)
+    assert_response :success
+    assert_select "[data-test=approved-check]", count: 0
+    assert_no_match "Approved by", response.body
+  end
 end

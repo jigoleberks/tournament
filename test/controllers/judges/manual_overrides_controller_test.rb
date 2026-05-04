@@ -22,6 +22,19 @@ class Judges::ManualOverridesControllerTest < ActionDispatch::IntegrationTest
     assert_equal 19.75, @catch.reload.length_inches.to_f
   end
 
+  test "POST with length and length_unit=inches stores inches as-is" do
+    post judges_tournament_catch_manual_override_path(tournament_id: @t.id, catch_id: @catch.id),
+         params: { length: "19.5", length_unit: "inches", note: "remeasured" }
+    assert_equal 19.5, @catch.reload.length_inches.to_f
+  end
+
+  test "POST with length and length_unit=centimeters converts cm to inches" do
+    post judges_tournament_catch_manual_override_path(tournament_id: @t.id, catch_id: @catch.id),
+         params: { length: "50", length_unit: "centimeters", note: "remeasured" }
+    # 50 cm / 2.54 = 19.685 in, stored to 2dp by the schema (~19.69)
+    assert_in_delta 19.685, @catch.reload.length_inches.to_f, 0.01
+  end
+
   test "GET new on a catch from another tournament is not found" do
     foreign_catch = build_foreign_catch
     get new_judges_tournament_catch_manual_override_path(tournament_id: @t.id, catch_id: foreign_catch.id)

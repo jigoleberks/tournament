@@ -27,7 +27,7 @@ class JudgeWorkflowTest < ApplicationSystemTestCase
     fill_in "note", with: "Looks fine to me"
     click_button "Approve"
 
-    assert_text "Status: synced"
+    assert_text "Status: Synced"
     assert_text "Mike — approve"
   end
 

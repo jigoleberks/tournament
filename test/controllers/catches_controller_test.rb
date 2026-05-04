@@ -67,6 +67,24 @@ class CatchesControllerTest < ActionDispatch::IntegrationTest
     assert_match "outside local", response.body
   end
 
+  test "show: hides possible-duplicate badge from member viewing own catch" do
+    own = create(:catch, user: @user, species: @walleye, length_inches: 18.5,
+                         flags: ["missing_gps", "possible_duplicate"], status: :needs_review)
+    get catch_path(own.id)
+    assert_response :success
+    assert_match "no GPS", response.body
+    refute_match "possible duplicate", response.body
+  end
+
+  test "index: hides possible-duplicate badge from member on own catches list" do
+    create(:catch, user: @user, species: @walleye, length_inches: 18.5,
+                   flags: ["possible_duplicate"], status: :needs_review,
+                   captured_at_device: Time.current)
+    get catches_path
+    assert_response :success
+    refute_match "possible duplicate", response.body
+  end
+
   test "missing photo is rejected" do
     assert_no_difference "Catch.count" do
       post catches_path, params: {
@@ -128,6 +146,30 @@ class CatchesControllerTest < ActionDispatch::IntegrationTest
       judges_tournament_catch_review_path(tournament_id: @tournament.id, catch_id: catch_record.id)
     assert_select "form[action=?]",
       judges_tournament_catch_manual_override_path(tournament_id: @tournament.id, catch_id: catch_record.id)
+  end
+
+  test "show: organizer sees possible-duplicate badge" do
+    catch_record = create(:catch, user: @user, species: @walleye, length_inches: 18.5,
+                                  flags: ["possible_duplicate"], status: :needs_review)
+    organizer = create(:user, club: @club, role: :organizer)
+    sign_in_as(organizer)
+
+    get catch_path(catch_record.id)
+    assert_response :success
+    assert_match "possible duplicate", response.body
+  end
+
+  test "show: judge of the relevant tournament sees possible-duplicate badge" do
+    catch_record = create(:catch, user: @user, species: @walleye, length_inches: 18.5,
+                                  flags: ["possible_duplicate"], status: :needs_review)
+    Catches::PlaceInSlots.call(catch: catch_record)
+    judge = create(:user, club: @club)
+    create(:tournament_judge, tournament: @tournament, user: judge)
+    sign_in_as(judge)
+
+    get catch_path(catch_record.id)
+    assert_response :success
+    assert_match "possible duplicate", response.body
   end
 
   test "map: defaults to today, includes signed-in user's geolocated catches only" do
