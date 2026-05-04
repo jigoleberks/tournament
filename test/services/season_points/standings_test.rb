@@ -28,7 +28,8 @@ module SeasonPoints
       user = ::User.find_by(club: @club, name: name) ||
              create(:user, club: @club, name: name)
       entry = create(:tournament_entry, tournament: tournament)
-      create(:tournament_entry_member, tournament_entry: entry, user: user)
+      mem = create(:tournament_entry_member, tournament_entry: entry, user: user)
+      mem.update_column(:created_at, in_window - 1.hour)
       lengths.each do |len|
         Catches::PlaceInSlots.call(
           catch: create(:catch, user: user, species: @walleye, length_inches: len, captured_at_device: in_window)

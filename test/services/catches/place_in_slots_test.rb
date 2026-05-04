@@ -83,5 +83,18 @@ module Catches
       entries = result[:created].map(&:tournament_entry).sort_by(&:id)
       assert_equal [@entry, boat].sort_by(&:id), entries
     end
+
+    test "does not place a catch logged before the angler joined the entry" do
+      # late_user gets their own solo entry; backdate its membership so it predates
+      # the tournament start, then log a catch that predates the membership.
+      late_user = create(:user, club: @club)
+      late_entry = create(:tournament_entry, tournament: @tournament)
+      late_member = create(:tournament_entry_member, tournament_entry: late_entry, user: late_user)
+      late_member.update_column(:created_at, 30.minutes.ago)
+      pre_join = create(:catch, user: late_user, species: @walleye, length_inches: 30,
+                                captured_at_device: 1.hour.ago)
+      Catches::PlaceInSlots.call(catch: pre_join)
+      assert_empty pre_join.catch_placements
+    end
   end
 end

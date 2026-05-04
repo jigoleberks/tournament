@@ -8,7 +8,8 @@ class CatchesControllerTest < ActionDispatch::IntegrationTest
     @tournament = create(:tournament, club: @club, starts_at: 1.hour.ago, ends_at: 1.hour.from_now)
     create(:scoring_slot, tournament: @tournament, species: @walleye, slot_count: 2)
     @entry = create(:tournament_entry, tournament: @tournament)
-    create(:tournament_entry_member, tournament_entry: @entry, user: @user)
+    mem = create(:tournament_entry_member, tournament_entry: @entry, user: @user)
+    mem.update_column(:created_at, 2.hours.ago)
     sign_in_as(@user)
   end
 

@@ -84,8 +84,10 @@ module Leaderboards
       b = create(:user, club: @club, name: "B")
       ea = create(:tournament_entry, tournament: @tournament)
       eb = create(:tournament_entry, tournament: @tournament)
-      create(:tournament_entry_member, tournament_entry: ea, user: a)
-      create(:tournament_entry_member, tournament_entry: eb, user: b)
+      mem_a = create(:tournament_entry_member, tournament_entry: ea, user: a)
+      mem_b = create(:tournament_entry_member, tournament_entry: eb, user: b)
+      mem_a.update_column(:created_at, 2.hours.ago)
+      mem_b.update_column(:created_at, 2.hours.ago)
 
       earlier = create(:catch, user: a, species: @walleye, length_inches: 22, captured_at_device: 30.minutes.ago)
       later   = create(:catch, user: b, species: @walleye, length_inches: 22, captured_at_device: 10.minutes.ago)
@@ -98,7 +100,8 @@ module Leaderboards
     test "row exposes earliest_catch_at" do
       a = create(:user, club: @club, name: "A")
       ea = create(:tournament_entry, tournament: @tournament)
-      create(:tournament_entry_member, tournament_entry: ea, user: a)
+      mem_a = create(:tournament_entry_member, tournament_entry: ea, user: a)
+      mem_a.update_column(:created_at, 2.hours.ago)
       early = create(:catch, user: a, species: @walleye, length_inches: 18, captured_at_device: 1.hour.ago)
       late  = create(:catch, user: a, species: @walleye, length_inches: 19, captured_at_device: 30.minutes.ago)
       [early, late].each { |c| Catches::PlaceInSlots.call(catch: c) }

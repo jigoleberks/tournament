@@ -23,7 +23,8 @@ module Tournaments
       anglers = n_anglers.times.map do |i|
         u = create(:user, club: @club)
         e = create(:tournament_entry, tournament: tournament)
-        create(:tournament_entry_member, tournament_entry: e, user: u)
+        mem = create(:tournament_entry_member, tournament_entry: e, user: u)
+        mem.update_column(:created_at, 2.days.ago)
         Array(lengths_by_index[i]).each do |len|
           Catches::PlaceInSlots.call(catch: create(:catch, user: u, species: @walleye, length_inches: len, captured_at_device: 1.5.days.ago))
         end
@@ -101,19 +102,19 @@ module Tournaments
       # Team 1 (3 anglers): biggest fish → wins (25")
       team1_users = 3.times.map { create(:user, club: @club) }
       team1 = create(:tournament_entry, tournament: tournament)
-      team1_users.each { |u| create(:tournament_entry_member, tournament_entry: team1, user: u) }
+      team1_users.each { |u| create(:tournament_entry_member, tournament_entry: team1, user: u).tap { |m| m.update_column(:created_at, 2.days.ago) } }
       Catches::PlaceInSlots.call(catch: create(:catch, user: team1_users.first, species: @walleye, length_inches: 25, captured_at_device: 1.5.days.ago))
 
       # Team 2 (2 anglers): second (18")
       team2_users = 2.times.map { create(:user, club: @club) }
       team2 = create(:tournament_entry, tournament: tournament)
-      team2_users.each { |u| create(:tournament_entry_member, tournament_entry: team2, user: u) }
+      team2_users.each { |u| create(:tournament_entry_member, tournament_entry: team2, user: u).tap { |m| m.update_column(:created_at, 2.days.ago) } }
       Catches::PlaceInSlots.call(catch: create(:catch, user: team2_users.first, species: @walleye, length_inches: 18, captured_at_device: 1.5.days.ago))
 
       # Team 3 (3 anglers): third (12")
       team3_users = 3.times.map { create(:user, club: @club) }
       team3 = create(:tournament_entry, tournament: tournament)
-      team3_users.each { |u| create(:tournament_entry_member, tournament_entry: team3, user: u) }
+      team3_users.each { |u| create(:tournament_entry_member, tournament_entry: team3, user: u).tap { |m| m.update_column(:created_at, 2.days.ago) } }
       Catches::PlaceInSlots.call(catch: create(:catch, user: team3_users.first, species: @walleye, length_inches: 12, captured_at_device: 1.5.days.ago))
 
       # 8 anglers total → [3,2,1] scale
