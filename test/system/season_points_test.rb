@@ -24,6 +24,7 @@ class SeasonPointsTest < ApplicationSystemTestCase
       u = create(:user, club: @club, name: name)
       e = create(:tournament_entry, tournament: t)
       create(:tournament_entry_member, tournament_entry: e, user: u)
+        .update_column(:created_at, starts_at)
       lengths.each do |len|
         Catches::PlaceInSlots.call(catch: create(:catch, user: u, species: @walleye, length_inches: len, captured_at_device: in_window))
       end
