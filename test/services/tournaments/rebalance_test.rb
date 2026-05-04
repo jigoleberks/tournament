@@ -79,6 +79,7 @@ module Tournaments
       active = @t.catch_placements.active.where(species: @walleye)
       assert_equal 1, active.count
       assert_equal catches.first.id, active.first.catch_id
+      assert_equal 0, active.first.slot_index
     end
 
     test "removing a species' scoring_slot deactivates all that species' placements" do
@@ -95,6 +96,44 @@ module Tournaments
       Tournaments::Rebalance.call(tournament: @t)
 
       assert_equal 0, @t.catch_placements.active.where(species: @walleye).count
+    end
+
+    test "shrinking ends_at deactivates placements for catches now outside the window" do
+      user = create(:user, club: @club)
+      entry = create(:tournament_entry, tournament: @t)
+      member = create(:tournament_entry_member, tournament_entry: entry, user: user)
+      member.update_column(:created_at, 2.hours.ago)
+      create(:scoring_slot, tournament: @t, species: @walleye, slot_count: 1)
+      late = create(:catch, user: user, species: @walleye, length_inches: 22,
+                            captured_at_device: 90.minutes.from_now)
+      Catches::PlaceInSlots.call(catch: late)
+      assert_equal late.id, @t.catch_placements.active.where(species: @walleye).first.catch_id
+
+      @t.update!(ends_at: 1.hour.from_now)
+
+      Tournaments::Rebalance.call(tournament: @t)
+
+      assert_equal 0, @t.catch_placements.active.where(species: @walleye).count
+    end
+
+    test "expanding ends_at pulls in newly-eligible catches" do
+      user = create(:user, club: @club)
+      entry = create(:tournament_entry, tournament: @t)
+      member = create(:tournament_entry_member, tournament_entry: entry, user: user)
+      member.update_column(:created_at, 2.hours.ago)
+      create(:scoring_slot, tournament: @t, species: @walleye, slot_count: 1)
+      # Tournament currently ends in 2h; create a catch 3h from now (out of window).
+      future = create(:catch, user: user, species: @walleye, length_inches: 22,
+                              captured_at_device: 3.hours.from_now)
+      Catches::PlaceInSlots.call(catch: future)
+      assert_empty future.catch_placements
+
+      @t.update!(ends_at: 4.hours.from_now)
+      Tournaments::Rebalance.call(tournament: @t)
+
+      active = @t.catch_placements.active.where(species: @walleye)
+      assert_equal 1, active.count
+      assert_equal future.id, active.first.catch_id
     end
 
     private
