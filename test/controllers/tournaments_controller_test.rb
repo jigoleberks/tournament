@@ -88,7 +88,7 @@ class TournamentsControllerTest < ActionDispatch::IntegrationTest
     end
   end
 
-  test "leaderboard shows a green check beside an approved fish and an 'Approved by NAME' tag" do
+  test "leaderboard shows a green check beside an approved fish (no 'Approved by' tag here)" do
     tournament = create(:tournament, club: @club)
     species = create(:species, club: @club)
     create(:scoring_slot, tournament: tournament, species: species, slot_count: 1)
@@ -103,7 +103,7 @@ class TournamentsControllerTest < ActionDispatch::IntegrationTest
     get leaderboard_tournament_path(tournament)
     assert_response :success
     assert_select "[data-test=approved-check]", count: 1
-    assert_match "Approved by Judge Judy", response.body
+    assert_no_match "Approved by", response.body
   end
 
   test "leaderboard does not render approved markers for unreviewed fish" do
