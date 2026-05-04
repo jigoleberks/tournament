@@ -15,6 +15,7 @@ class Organizers::TournamentsController < Organizers::BaseController
   def create
     @tournament = current_user.club.tournaments.new(tournament_params)
     if @tournament.save
+      Tournaments::Rebalance.call(tournament: @tournament)
       redirect_to organizers_tournaments_path, notice: "Tournament created."
     else
       render :new, status: :unprocessable_entity
@@ -32,6 +33,7 @@ class Organizers::TournamentsController < Organizers::BaseController
 
   def update
     if @tournament.update(tournament_params)
+      Tournaments::Rebalance.call(tournament: @tournament)
       redirect_to organizers_tournaments_path
     else
       render :edit, status: :unprocessable_entity

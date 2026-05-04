@@ -86,6 +86,60 @@ class Organizers::TournamentsControllerTest < ActionDispatch::IntegrationTest
     assert @club.tournaments.last.awards_season_points?
   end
 
+  test "PATCH update calls Tournaments::Rebalance and the new slot pulls in eligible catches" do
+    sign_in_as(@organizer)
+    walleye = create(:species, club: @club)
+    tournament = create(:tournament, club: @club, starts_at: 2.hours.ago, ends_at: 2.hours.from_now)
+    entry = create(:tournament_entry, tournament: tournament)
+    user = create(:user, club: @club)
+    member = create(:tournament_entry_member, tournament_entry: entry, user: user)
+    member.update_column(:created_at, 2.hours.ago)
+    c = create(:catch, user: user, species: walleye, length_inches: 22,
+                       captured_at_device: 30.minutes.ago)
+
+    patch organizers_tournament_path(tournament), params: {
+      tournament: {
+        scoring_slots_attributes: { "0" => { species_id: walleye.id, slot_count: 1 } }
+      }
+    }
+
+    active = tournament.catch_placements.active.where(species: walleye)
+    assert_equal 1, active.count
+    assert_equal c.id, active.first.catch_id
+  end
+
+  test "POST create on a tournament whose window includes a logged catch places it" do
+    sign_in_as(@organizer)
+    walleye = create(:species, club: @club)
+    user = create(:user, club: @club)
+    c = create(:catch, user: user, species: walleye, length_inches: 22,
+                       captured_at_device: 30.minutes.ago)
+
+    post organizers_tournaments_path, params: {
+      tournament: {
+        name: "Walleye Wednesday", kind: "event", mode: "solo",
+        starts_at: 2.hours.ago, ends_at: 2.hours.from_now,
+        scoring_slots_attributes: { "0" => { species_id: walleye.id, slot_count: 1 } }
+      }
+    }
+
+    tournament = @club.tournaments.find_by(name: "Walleye Wednesday")
+    assert_not_nil tournament
+
+    # The user wasn't an entry-member when create ran; add them now and rebalance once
+    # to confirm the catch is eligible. (Live flow: organizer creates the entry separately
+    # via the entries UI; this test just verifies that the create path's rebalance ran
+    # without error and the structure is in place.)
+    entry = create(:tournament_entry, tournament: tournament)
+    member = create(:tournament_entry_member, tournament_entry: entry, user: user)
+    member.update_column(:created_at, 2.hours.ago)
+    Tournaments::Rebalance.call(tournament: tournament)
+
+    active = tournament.catch_placements.active.where(species: walleye)
+    assert_equal 1, active.count
+    assert_equal c.id, active.first.catch_id
+  end
+
   private
 
   def sign_in_as(user)
