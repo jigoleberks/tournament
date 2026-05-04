@@ -20,11 +20,10 @@ class SignInToken < ApplicationRecord
   def self.consume!(token_string)
     record = where(kind: "link").find_by(token: token_string)
     return nil if record.nil?
-    return nil if record.used_at.present?
     return nil if record.expires_at < Time.current
     return nil if record.user.deactivated?
 
-    record.update!(used_at: Time.current)
+    return nil unless claim(record)
     record.user
   end
 
@@ -39,16 +38,21 @@ class SignInToken < ApplicationRecord
     return nil unless record
 
     if ActiveSupport::SecurityUtils.secure_compare(record.token, code.to_s.strip)
-      record.update!(used_at: Time.current)
-      return record.user
+      return claim(record) ? record.user : nil
     end
 
     record.increment!(:attempts)
-    if record.attempts >= CODE_MAX_ATTEMPTS
-      record.update!(used_at: Time.current)
-    end
+    claim(record) if record.attempts >= CODE_MAX_ATTEMPTS
     nil
   end
+
+  # Atomic claim — only one concurrent caller wins. The WHERE used_at IS NULL
+  # is the guard: if a parallel request already consumed the row, update_all
+  # returns 0 and we treat the call as a miss.
+  def self.claim(record)
+    where(id: record.id, used_at: nil).update_all(used_at: Time.current) == 1
+  end
+  private_class_method :claim
 
   def self.generate_code
     loop do

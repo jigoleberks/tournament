@@ -89,4 +89,22 @@ class SignInTokenTest < ActiveSupport::TestCase
     assert_nil SignInToken.consume_code!(email: @user.email, code: code.token)
     assert_nil code.reload.used_at
   end
+
+  # Simulates a TOCTOU race against consume!: in-memory used_at is still nil,
+  # but the DB row was claimed by a parallel request between find_by and the
+  # atomic update. The WHERE used_at IS NULL guard makes the second call miss.
+  test "consume! does not double-consume when the row is claimed mid-flight" do
+    token = SignInToken.issue!(user: @user)
+    SignInToken.where(id: token.id).update_all(used_at: 1.second.ago)
+    assert_nil SignInToken.consume!(token.token)
+  end
+
+  # Direct test of the atomic primitive. consume_code!'s race window opens
+  # after .open.first returns a record, and a single-threaded test can't
+  # easily reproduce that — but if the primitive is atomic, the race is closed.
+  test "claim only succeeds once for the same row" do
+    code = SignInToken.issue_code!(user: @user)
+    assert SignInToken.send(:claim, code), "first claim should win"
+    assert_not SignInToken.send(:claim, code), "second claim should miss"
+  end
 end
