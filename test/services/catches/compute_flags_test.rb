@@ -61,4 +61,29 @@ class Catches::ComputeFlagsTest < ActiveSupport::TestCase
     catch_record = build(:catch, user: @user, species: @walleye, captured_at_device: now)
     assert_not_includes Catches::ComputeFlags.call(catch_record), "possible_duplicate"
   end
+
+  test "out_of_province set when GPS present but outside Saskatchewan" do
+    catch_record = build(:catch, user: @user, species: @walleye,
+                                  latitude: 49.9, longitude: -97.1) # Winnipeg
+    assert_includes Catches::ComputeFlags.call(catch_record), "out_of_province"
+  end
+
+  test "out_of_province NOT set when GPS is inside Saskatchewan (out of lake)" do
+    catch_record = build(:catch, user: @user, species: @walleye,
+                                  latitude: 50.45, longitude: -104.61) # Regina
+    assert_not_includes Catches::ComputeFlags.call(catch_record), "out_of_province"
+  end
+
+  test "out_of_province NOT set when GPS missing" do
+    catch_record = build(:catch, user: @user, species: @walleye, latitude: nil, longitude: nil)
+    assert_not_includes Catches::ComputeFlags.call(catch_record), "out_of_province"
+  end
+
+  test "out_of_bounds and out_of_province both set when catch is outside both polygons" do
+    catch_record = build(:catch, user: @user, species: @walleye,
+                                  latitude: 49.9, longitude: -97.1) # Winnipeg — out of lake AND out of Sask
+    flags = Catches::ComputeFlags.call(catch_record)
+    assert_includes flags, "out_of_bounds"
+    assert_includes flags, "out_of_province"
+  end
 end

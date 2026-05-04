@@ -10,8 +10,11 @@ module Catches
         skew = (catch_record.captured_at_device - catch_record.captured_at_gps).abs
         flags << "clock_skew" if skew > CLOCK_SKEW_THRESHOLD
       end
-      if catch_record.latitude.present? && !::Geofence.includes?(catch_record.latitude, catch_record.longitude)
+      if catch_record.latitude.present? && !::Geofence.includes?(:lake, catch_record.latitude, catch_record.longitude)
         flags << "out_of_bounds"
+      end
+      if catch_record.latitude.present? && !::Geofence.includes?(:sask, catch_record.latitude, catch_record.longitude)
+        flags << "out_of_province"
       end
       flags << "possible_duplicate" if duplicate_neighbor?(catch_record)
       flags

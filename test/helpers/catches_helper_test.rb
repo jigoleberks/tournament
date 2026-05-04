@@ -80,4 +80,8 @@ class CatchesHelperTest < ActionView::TestCase
     refute_match "controller=", url
     refute_match "action=", url
   end
+
+  test "flag_label renders out_of_province as 'outside Saskatchewan'" do
+    assert_equal "outside Saskatchewan", flag_label("out_of_province")
+  end
 end
