@@ -122,6 +122,28 @@ class TournamentsControllerTest < ActionDispatch::IntegrationTest
     assert_no_match "Approved by", response.body
   end
 
+  test "leaderboard catch link breaks out of the leaderboard turbo-frame" do
+    organizer = create(:user, club: @club, role: :organizer)
+    delete session_path
+    post session_path, params: { email: organizer.email }
+    get consume_session_path(token: SignInToken.last.token)
+
+    tournament = create(:tournament, club: @club)
+    species = create(:species, club: @club)
+    create(:scoring_slot, tournament: tournament, species: species, slot_count: 1)
+    entry = create(:tournament_entry, tournament: tournament, name: "Team Reel Deal")
+    create(:tournament_entry_member, tournament_entry: entry, user: organizer)
+    catch_record = create(:catch, user: organizer, species: species, length_inches: 18.5)
+    create(:catch_placement, catch: catch_record, tournament: tournament,
+                              tournament_entry: entry, species: species, slot_index: 0)
+
+    get tournament_path(tournament)
+    assert_response :success
+    link = response.body[/<a[^>]*href="#{Regexp.escape(catch_path(catch_record.id, t: tournament.id))}"[^>]*>/]
+    assert_match %r{data-turbo-frame="_top"}, link.to_s,
+                 "expected catch link to break out of :leaderboard_frame so the show page renders full-page; got: #{link.inspect}"
+  end
+
   test "leaderboard 404s for tournaments outside the current user's club" do
     other_club = create(:club)
     other_tournament = create(:tournament, club: other_club)

@@ -20,7 +20,8 @@
                   <% label = "#{f[:species_name]} · #{format_length_dual(f[:length_inches])}" %>
                   <% if can_open %>
                     <%= link_to label, catch_path(f[:id], t: local_assigns[:tournament].id),
-                                class: "text-blue-300 underline-offset-2 hover:underline" %>
+                                class: "text-blue-300 underline-offset-2 hover:underline",
+                                data: { turbo_frame: "_top" } %>
                   <% else %>
                     <span><%= label %></span>
                   <% end %>
