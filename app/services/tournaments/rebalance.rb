@@ -13,7 +13,7 @@ module Tournaments
         rebalance_scoring_slots!
         deactivate_orphan_species_placements!
       end
-      Placements::BroadcastLeaderboard.call(tournament: @tournament)
+      ::Placements::BroadcastLeaderboard.call(tournament: @tournament)
     end
 
     private
