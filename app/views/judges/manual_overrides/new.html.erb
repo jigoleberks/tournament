@@ -1,15 +1,16 @@
 <h2>Manual override</h2>
-<%= form_with url: judges_tournament_catch_manual_override_path(tournament_id: @tournament.id, catch_id: @catch.id), local: true do |f| %>
+<%= form_with url: judges_tournament_catch_manual_override_path(tournament_id: @tournament.id, catch_id: @catch.id), local: true, data: { controller: "length-unit" } do |f| %>
   <%
     unit = current_user.length_unit
     prefill = unit == "centimeters" ? (@catch.length_inches.to_f * LengthHelper::CM_PER_INCH).round(1) : @catch.length_inches
     step    = unit == "centimeters" ? 0.5 : 0.25
   %>
   <%= label_tag :length, "Override length" %>
-  <%= number_field_tag :length, prefill, step: step %>
+  <%= number_field_tag :length, prefill, step: step,
+                       data: { length_unit_target: "input", length_unit_unit: unit } %>
   <% User::LENGTH_UNITS.each do |u| %>
     <label>
-      <%= radio_button_tag :length_unit, u, u == unit %>
+      <%= radio_button_tag :length_unit, u, u == unit, data: { action: "change->length-unit#setUnit" } %>
       <%= u == "inches" ? "Inches" : "Centimeters" %>
     </label>
   <% end %>
