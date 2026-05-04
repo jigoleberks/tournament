@@ -9,7 +9,10 @@ module Catches
       @t = create(:tournament, club: @club, starts_at: 1.hour.ago, ends_at: 1.hour.from_now)
       create(:scoring_slot, tournament: @t, species: @walleye, slot_count: 2)
       @entry = create(:tournament_entry, tournament: @t)
+      # Backdate to before tournament start so EntryEligibility's per-member window
+      # resolves to tournament.starts_at (not the DB insert time).
       create(:tournament_entry_member, tournament_entry: @entry, user: @user)
+        .update_column(:created_at, 2.hours.ago)
     end
 
     test "promotes the largest eligible unplaced catch into the freed slot" do
@@ -87,6 +90,7 @@ module Catches
       create(:scoring_slot, tournament: local_t, species: @walleye, slot_count: 1)
       local_entry = create(:tournament_entry, tournament: local_t)
       create(:tournament_entry_member, tournament_entry: local_entry, user: @user)
+        .update_column(:created_at, 2.hours.ago)
 
       placed = create(:catch, user: @user, species: @walleye, length_inches: 22, captured_at_device: 30.minutes.ago)
       Catches::PlaceInSlots.call(catch: placed)
@@ -114,6 +118,7 @@ module Catches
       create(:scoring_slot, tournament: away_t, species: @walleye, slot_count: 1)
       away_entry = create(:tournament_entry, tournament: away_t)
       create(:tournament_entry_member, tournament_entry: away_entry, user: @user)
+        .update_column(:created_at, 2.hours.ago)
 
       placed = create(:catch, user: @user, species: @walleye, length_inches: 22, captured_at_device: 30.minutes.ago)
       Catches::PlaceInSlots.call(catch: placed)
@@ -142,7 +147,9 @@ module Catches
       teammate = create(:user, club: @club)
       team_entry = create(:tournament_entry, tournament: team_t, name: "Boat")
       create(:tournament_entry_member, tournament_entry: team_entry, user: @user)
+        .update_column(:created_at, 2.hours.ago)
       create(:tournament_entry_member, tournament_entry: team_entry, user: teammate)
+        .update_column(:created_at, 2.hours.ago)
 
       placed = create(:catch, user: @user, species: @walleye, length_inches: 22, captured_at_device: 30.minutes.ago)
       Catches::PlaceInSlots.call(catch: placed)
@@ -154,6 +161,32 @@ module Catches
       Catches::PromoteBackup.call(freed_placement: freed)
       promoted = team_entry.catch_placements.active.first
       assert_equal backup.id, promoted.catch_id
+    end
+
+    test "does not promote a catch logged before the candidate joined the entry" do
+      # @entry is solo-mode by default; build a team tournament so we can have two members.
+      team_t = create(:tournament, club: @club, mode: :team, starts_at: 1.hour.ago, ends_at: 1.hour.from_now)
+      create(:scoring_slot, tournament: team_t, species: @walleye, slot_count: 1)
+      team_entry = create(:tournament_entry, tournament: team_t)
+      create(:tournament_entry_member, tournament_entry: team_entry, user: @user)
+      late = create(:user, club: @club)
+      late_member = create(:tournament_entry_member, tournament_entry: team_entry, user: late)
+      late_member.update_column(:created_at, 30.minutes.ago)
+
+      # @user has a placed catch in slot 0; free it and try to promote.
+      placed = create(:catch, user: @user, species: @walleye, length_inches: 18, captured_at_device: 30.minutes.ago)
+      Catches::PlaceInSlots.call(catch: placed)
+      freed = placed.catch_placements.where(tournament: team_t).first
+      freed.update!(active: false)
+
+      # The Day-2-joiner has a bigger catch from BEFORE they joined — must not be promoted.
+      pre_join = create(:catch, user: late, species: @walleye, length_inches: 30, captured_at_device: 1.hour.ago)
+
+      Catches::PromoteBackup.call(freed_placement: freed)
+
+      active = team_entry.catch_placements.active.where(species: @walleye, slot_index: freed.slot_index)
+      assert_equal 0, active.count, "no candidate should be promoted; the only larger catch is pre-membership"
+      assert_not ::CatchPlacement.exists?(catch_id: pre_join.id, active: true)
     end
   end
 end

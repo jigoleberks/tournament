@@ -33,26 +33,12 @@ module Catches
     private
 
     def find_candidate
-      window = (@tournament.starts_at..(@tournament.ends_at || Time.current))
-      member_ids = @entry.tournament_entry_members.pluck(:user_id)
       placed_ids = @entry.catch_placements
-                          .where(species_id: @species.id, active: true)
-                          .pluck(:catch_id)
-      excluded_ids = (placed_ids + [@placement.catch_id]).uniq
-      scope = ::Catch.where(user_id: member_ids,
-                            species_id: @species.id,
-                            captured_at_device: window)
-                     .where.not(status: ::Catch.statuses[:disqualified])
-                     .where.not(id: excluded_ids)
-                     .order(length_inches: :desc, captured_at_device: :asc)
-      scope.detect { |c| eligible?(c) }
-    end
-
-    def eligible?(catch_record)
-      return true if catch_record.latitude.nil?
-      return false unless ::Geofence.includes?(:sask, catch_record.latitude, catch_record.longitude)
-      return true unless @tournament.local?
-      ::Geofence.includes?(:lake, catch_record.latitude, catch_record.longitude)
+                         .where(species_id: @species.id, active: true)
+                         .pluck(:catch_id)
+      ::Catches::EntryEligibility
+        .candidates_for(entry: @entry, tournament: @tournament, species: @species)
+        .find { |c| !placed_ids.include?(c.id) && c.id != @placement.catch_id }
     end
   end
 end
