@@ -47,10 +47,4 @@
 <% end %>
 
 <%= turbo_stream_from "tournament:#{@tournament.id}:leaderboard" %>
-<%= turbo_frame_tag :leaderboard_frame,
-                    data: {
-                      controller: "leaderboard-refresh",
-                      "leaderboard-refresh-url-value": leaderboard_tournament_path(@tournament)
-                    } do %>
-  <%= render "leaderboard", leaderboard: @leaderboard, tournament: @tournament %>
-<% end %>
+<%= render "leaderboard", leaderboard: @leaderboard, tournament: @tournament %>

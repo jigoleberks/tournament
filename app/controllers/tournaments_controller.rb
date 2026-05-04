@@ -15,12 +15,6 @@ class TournamentsController < ApplicationController
     @leaderboard = Leaderboards::Build.call(tournament: @tournament)
   end
 
-  def leaderboard
-    @tournament = current_user.club.tournaments.find(params[:id])
-    @leaderboard = Leaderboards::Build.call(tournament: @tournament)
-    render layout: false
-  end
-
   def archived
     @tournaments = current_user.club.tournaments
       .where("ends_at IS NOT NULL AND ends_at < ?", 24.hours.ago)

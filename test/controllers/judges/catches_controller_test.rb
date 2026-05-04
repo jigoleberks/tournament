@@ -61,6 +61,15 @@ class Judges::CatchesControllerTest < ActionDispatch::IntegrationTest
     assert_response :not_found
   end
 
+  test "show renders styled action buttons (color-coded by action)" do
+    get judges_tournament_catch_path(tournament_id: @t.id, id: @needs_review.id)
+    assert_response :success
+    assert_select "button[value=approve][class*='bg-emerald']"
+    assert_select "button[value=flag][class*='bg-amber']"
+    assert_select "button[value=disqualify][class*='bg-red']"
+    assert_select "button[value=dock_verify][class*='bg-']"
+  end
+
   test "GET show on a catch from another tournament is not found" do
     foreign_catch = create_foreign_synced_catch
     get judges_tournament_catch_path(tournament_id: @t.id, id: foreign_catch.id)
