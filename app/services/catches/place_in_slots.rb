@@ -17,6 +17,7 @@ module Catches
         entry      = row[:entry]
         slot       = tournament.scoring_slots.find_by(species_id: @catch.species_id)
         next if slot.nil?
+        next if skip_for_out_of_province?
         next if skip_for_local_out_of_bounds?(tournament)
 
         active_placements = entry.catch_placements
@@ -62,6 +63,11 @@ module Catches
     end
 
     private
+
+    def skip_for_out_of_province?
+      return false if @catch.latitude.nil?
+      !::Geofence.includes?(:sask, @catch.latitude, @catch.longitude)
+    end
 
     def skip_for_local_out_of_bounds?(tournament)
       return false unless tournament.local?
