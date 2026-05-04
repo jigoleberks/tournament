@@ -22,6 +22,7 @@ module CatchesHelper
     "missing_gps"        => "no GPS",
     "clock_skew"         => "clock mismatch",
     "out_of_bounds"      => "outside local",
+    "out_of_province"    => "outside Saskatchewan",
     "possible_duplicate" => "possible duplicate"
   }.freeze
 
