@@ -40,5 +40,32 @@ module TournamentTemplates
       )
       refute tournament.awards_season_points?
     end
+
+    test "carries blind_leaderboard from template to tournament" do
+      club = create(:club)
+      template = create(:tournament_template, club: club, blind_leaderboard: true)
+
+      tournament = TournamentTemplates::Clone.call(
+        template: template,
+        starts_at: 1.hour.from_now,
+        ends_at: 4.hours.from_now,
+        name: "League Night"
+      )
+
+      assert tournament.blind_leaderboard?
+    end
+
+    test "does not flip blind_leaderboard on if template has it off" do
+      club = create(:club)
+      template = create(:tournament_template, club: club, blind_leaderboard: false)
+
+      tournament = TournamentTemplates::Clone.call(
+        template: template,
+        starts_at: 1.hour.from_now,
+        ends_at: 4.hours.from_now
+      )
+
+      assert_not tournament.blind_leaderboard?
+    end
   end
 end

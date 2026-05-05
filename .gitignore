@@ -49,3 +49,6 @@
 
 # Local Claude Code settings.
 /.claude/
+
+# Local docker-compose overrides (host port remaps, etc.) — worktree-specific.
+/docker-compose.override.yml

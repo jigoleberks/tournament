@@ -30,7 +30,7 @@ module Placements
           url: "/tournaments/#{row[:tournament].id}"
         }
       end
-      payloads
+      payloads.reject { |p| p[:tournament].blind?(at: Time.current) }
     end
 
     private

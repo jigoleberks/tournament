@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_05_04_010000) do
+ActiveRecord::Schema[8.1].define(version: 2026_05_05_172221) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -327,6 +327,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_05_04_010000) do
 
   create_table "tournament_templates", force: :cascade do |t|
     t.boolean "awards_season_points", default: false, null: false
+    t.boolean "blind_leaderboard", default: false, null: false
     t.bigint "club_id", null: false
     t.datetime "created_at", null: false
     t.integer "default_duration_days"
@@ -341,11 +342,13 @@ ActiveRecord::Schema[8.1].define(version: 2026_05_04_010000) do
 
   create_table "tournaments", force: :cascade do |t|
     t.boolean "awards_season_points", default: false, null: false
+    t.boolean "blind_leaderboard", default: false, null: false
     t.bigint "club_id", null: false
     t.datetime "created_at", null: false
     t.datetime "ends_at"
     t.boolean "judged", default: false, null: false
     t.integer "kind", default: 0, null: false
+    t.datetime "lifecycle_ended_announced_at"
     t.boolean "local", default: true, null: false
     t.integer "mode", default: 0, null: false
     t.string "name", null: false
