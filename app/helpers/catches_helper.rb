@@ -1,4 +1,12 @@
 module CatchesHelper
+  # Renders a resized, lazy-loaded <img> for an Active Storage attachment.
+  # Catch photos are full-resolution phone JPEGs (multi-MB); resizing on the
+  # server keeps list pages snappy. The variant is generated on first request
+  # and cached on disk thereafter.
+  def thumb(attachment, size: [400, 400], **html_options)
+    image_tag attachment.variant(resize_to_limit: size), loading: "lazy", **html_options
+  end
+
   # An organizer of the club, or a judge of any tournament where this catch
   # is placed, may open the catch detail page (photo, video, GPS, etc.).
   # Regular members can see catches on the leaderboard but not the detail.

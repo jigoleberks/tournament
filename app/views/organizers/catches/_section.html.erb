@@ -19,7 +19,7 @@
       <li class="<%= tile_classes %>">
         <% body = capture do %>
           <% if c.photo.attached? %>
-            <%= image_tag url_for(c.photo), class: "w-full h-32 object-cover rounded bg-black" %>
+            <%= thumb c.photo, class: "w-full h-32 object-cover rounded bg-black" %>
           <% else %>
             <div class="w-full h-32 rounded bg-black flex items-center justify-center text-slate-500 text-sm">no photo</div>
           <% end %>

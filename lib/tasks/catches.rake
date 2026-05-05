@@ -25,4 +25,17 @@ namespace :catches do
     end
     puts "Done. Updated #{updated} of #{total}."
   end
+
+  desc "Pre-generate photo variants so the first user-facing load isn't slow"
+  task warm_photo_variants: :environment do
+    sizes = [[200, 200], [400, 400], [1200, 1200]]
+    scope = Catch.joins(:photo_attachment).includes(photo_attachment: :blob)
+    total = scope.count
+    puts "Warming #{sizes.size} variants × #{total} catches…"
+    scope.find_each.with_index do |c, i|
+      sizes.each { |size| c.photo.variant(resize_to_limit: size).processed }
+      puts "  #{i + 1}/#{total}"
+    end
+    puts "Done."
+  end
 end

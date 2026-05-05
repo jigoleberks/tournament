@@ -1,6 +1,6 @@
 <div class="w-48 text-slate-900">
   <% if catch.photo.attached? %>
-    <%= image_tag url_for(catch.photo), class: "w-full h-32 object-cover rounded bg-black mb-2" %>
+    <%= thumb catch.photo, class: "w-full h-32 object-cover rounded bg-black mb-2" %>
   <% end %>
   <div class="font-bold"><%= catch.species.name %></div>
   <div><%= format_length_dual(catch.length_inches) %></div>
