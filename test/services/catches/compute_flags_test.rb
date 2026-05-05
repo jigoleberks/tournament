@@ -54,12 +54,25 @@ class Catches::ComputeFlagsTest < ActiveSupport::TestCase
     assert_not_includes Catches::ComputeFlags.call(catch_record), "possible_duplicate"
   end
 
-  test "possible_duplicate NOT triggered by another user's nearby catch" do
+  test "possible_duplicate NOT triggered by another user's nearby catch when not on the same team" do
     now = Time.current
     other = create(:user, club: @club)
     create(:catch, user: other, species: @walleye, captured_at_device: now - 30.seconds)
     catch_record = build(:catch, user: @user, species: @walleye, captured_at_device: now)
     assert_not_includes Catches::ComputeFlags.call(catch_record), "possible_duplicate"
+  end
+
+  test "possible_duplicate IS triggered by a teammate's nearby catch" do
+    now = Time.current
+    teammate = create(:user, club: @club)
+    tournament = create(:tournament, club: @club, mode: :team,
+                                      starts_at: 1.hour.ago, ends_at: 1.hour.from_now)
+    entry = create(:tournament_entry, tournament: tournament)
+    create(:tournament_entry_member, tournament_entry: entry, user: @user)
+    create(:tournament_entry_member, tournament_entry: entry, user: teammate)
+    create(:catch, user: teammate, species: @walleye, captured_at_device: now - 30.seconds)
+    catch_record = build(:catch, user: @user, species: @walleye, captured_at_device: now)
+    assert_includes Catches::ComputeFlags.call(catch_record), "possible_duplicate"
   end
 
   test "out_of_province set when GPS present but outside Saskatchewan" do
