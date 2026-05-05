@@ -1,0 +1,45 @@
+<% available = current_user.club.users.active.where.not(id: @tournament.judge_users.pluck(:id)).order(:name) %>
+
+<% if available.any? %>
+  <%= form_with url: admin_tournament_tournament_judges_path(tournament_id: @tournament.id),
+                local: true,
+                class: "mb-8 space-y-4" do |f| %>
+    <div class="bg-slate-900 rounded-xl border border-slate-700 overflow-hidden">
+      <div class="p-3 border-b border-slate-700 bg-slate-800/50">
+        <span class="text-xs font-bold text-slate-400 uppercase tracking-widest">Assign Judge</span>
+      </div>
+      <div class="p-4 space-y-4">
+        <div>
+          <%= select_tag "tournament_judge[user_id]",
+                         options_from_collection_for_select(available, :id, :name),
+                         prompt: "Select Member...",
+                         class: "w-full h-10 px-3 rounded bg-slate-800 border border-slate-700 text-sm text-slate-100 focus:ring-1 focus:ring-blue-500 outline-none" %>
+        </div>
+        <%= submit_tag "Assign as Judge",
+                       class: "w-full h-10 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-sm font-bold transition-colors cursor-pointer" %>
+      </div>
+    </div>
+  <% end %>
+<% end %>
+
+<div class="space-y-3">
+  <% if @tournament.tournament_judges.any? %>
+    <% @tournament.tournament_judges.includes(:user).each do |tj| %>
+      <div class="bg-slate-900 border border-slate-700 rounded-lg p-3 group hover:border-slate-500 transition-colors">
+        <div class="flex items-center justify-between gap-3">
+          <div class="text-sm font-medium text-slate-200"><%= tj.user.name %></div>
+          <%= button_to admin_tournament_tournament_judge_path(tournament_id: @tournament.id, id: tj.id),
+                        method: :delete,
+                        data: { turbo_confirm: "Remove #{tj.user.name} as judge?" },
+                        class: "text-slate-500 hover:text-red-400 p-1 transition-colors" do %>
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-4 h-4">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          <% end %>
+        </div>
+      </div>
+    <% end %>
+  <% else %>
+    <p class="text-center py-8 text-slate-500 text-sm italic border-2 border-dashed border-slate-800 rounded-xl">No judges assigned</p>
+  <% end %>
+</div>

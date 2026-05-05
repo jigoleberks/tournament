@@ -7,11 +7,33 @@ Rails.application.routes.draw do
       post :code, action: :submit_code
     end
   end
+  constraints(host: "admin.jigoleberks.com") do
+    root to: redirect("/admin"), as: :admin_host_root
+  end
   root "home#index"
 
   get "/manifest.webmanifest", to: "pwa#manifest"
 
   namespace :organizers do
+    resources :tournaments do
+      resources :tournament_entries, only: [:create, :destroy]
+      resources :tournament_judges,  only: [:create, :destroy]
+    end
+    resources :members, only: [:index, :new, :create, :destroy] do
+      member do
+        post :reactivate
+        post :issue_code
+        get  :code
+      end
+    end
+    resources :catches, only: [:index]
+    resources :tournament_templates do
+      member { post :clone }
+    end
+  end
+
+  namespace :admin do
+    root to: "dashboards#index"
     resources :tournaments do
       resources :tournament_entries, only: [:create, :destroy]
       resources :tournament_judges,  only: [:create, :destroy]

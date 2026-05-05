@@ -1,0 +1,137 @@
+<%= form_with model: [:admin, @tournament], local: true, class: "space-y-8" do |f| %>
+  <% if @tournament.errors.any? %>
+    <div class="bg-red-900/40 border border-red-800 rounded-lg p-4">
+      <h3 class="text-red-300 font-semibold mb-2">Please fix the following errors:</h3>
+      <ul class="text-red-400 text-sm list-disc list-inside">
+        <% @tournament.errors.full_messages.each do |m| %><li><%= m %></li><% end %>
+      </ul>
+    </div>
+  <% end %>
+
+  <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+    <div class="space-y-4">
+      <div>
+        <%= f.label :name, class: "block text-sm font-semibold text-slate-300 mb-1.5" %>
+        <%= f.text_field :name, placeholder: "e.g. Spring Walleye Classic",
+                         class: "w-full h-11 px-4 rounded-lg bg-slate-900 border border-slate-700 text-slate-100 focus:ring-2 focus:ring-blue-500 outline-none transition-all" %>
+      </div>
+
+      <div class="grid grid-cols-2 gap-4">
+        <div>
+          <%= f.label :kind, class: "block text-sm font-semibold text-slate-300 mb-1.5" %>
+          <%= f.select :kind, Tournament.kinds.keys, {},
+                       class: "w-full h-11 px-3 rounded-lg bg-slate-900 border border-slate-700 text-slate-100 focus:ring-2 focus:ring-blue-500 outline-none transition-all" %>
+        </div>
+        <div>
+          <%= f.label :mode, class: "block text-sm font-semibold text-slate-300 mb-1.5" %>
+          <%= f.select :mode, Tournament.modes.keys, {},
+                       class: "w-full h-11 px-3 rounded-lg bg-slate-900 border border-slate-700 text-slate-100 focus:ring-2 focus:ring-blue-500 outline-none transition-all" %>
+        </div>
+      </div>
+
+      <div class="grid grid-cols-2 gap-4">
+        <div>
+          <%= f.label :starts_at, class: "block text-sm font-semibold text-slate-300 mb-1.5" %>
+          <%= f.datetime_local_field :starts_at,
+                                     class: "w-full h-11 px-4 rounded-lg bg-slate-900 border border-slate-700 text-slate-100 focus:ring-2 focus:ring-blue-500 outline-none transition-all" %>
+        </div>
+        <div>
+          <%= f.label :ends_at, class: "block text-sm font-semibold text-slate-300 mb-1.5" %>
+          <%= f.datetime_local_field :ends_at,
+                                     class: "w-full h-11 px-4 rounded-lg bg-slate-900 border border-slate-700 text-slate-100 focus:ring-2 focus:ring-blue-500 outline-none transition-all" %>
+        </div>
+      </div>
+
+      <div>
+        <%= f.label :season_tag, "Season Tag", class: "block text-sm font-semibold text-slate-300 mb-1.5" %>
+        <%= f.text_field :season_tag, placeholder: "e.g. 2026",
+                         class: "w-full h-11 px-4 rounded-lg bg-slate-900 border border-slate-700 text-slate-100 focus:ring-2 focus:ring-blue-500 outline-none transition-all" %>
+        <p class="text-[10px] text-slate-500 mt-1 uppercase tracking-wider">Groups tournaments for season leaderboards</p>
+      </div>
+    </div>
+
+    <div class="bg-slate-900/50 rounded-xl p-6 border border-slate-700 space-y-6">
+      <h3 class="text-sm font-bold text-slate-400 uppercase tracking-widest">Configuration</h3>
+      
+      <div class="space-y-4">
+        <label class="flex items-start gap-3 cursor-pointer group">
+          <div class="mt-1">
+            <%= f.check_box :requires_release_video, class: "h-5 w-5 rounded border-slate-700 bg-slate-800 text-blue-600 focus:ring-offset-slate-800" %>
+          </div>
+          <div>
+            <span class="block font-medium text-slate-200 group-hover:text-white transition-colors">Require Release Video</span>
+            <span class="block text-xs text-slate-500">Anglers must record video evidence of the fish being released.</span>
+          </div>
+        </label>
+
+        <label class="flex items-start gap-3 cursor-pointer group">
+          <div class="mt-1">
+            <%= f.check_box :judged, class: "h-5 w-5 rounded border-slate-700 bg-slate-800 text-blue-600 focus:ring-offset-slate-800" %>
+          </div>
+          <div>
+            <span class="block font-medium text-slate-200 group-hover:text-white transition-colors">Judged Tournament</span>
+            <span class="block text-xs text-slate-500">Catches require approval from assigned judges. Friendly mode skips review.</span>
+          </div>
+        </label>
+
+        <label class="flex items-start gap-3 cursor-pointer group">
+          <div class="mt-1">
+            <%= f.check_box :local, class: "h-5 w-5 rounded border-slate-700 bg-slate-800 text-blue-600 focus:ring-offset-slate-800" %>
+          </div>
+          <div>
+            <span class="block font-medium text-slate-200 group-hover:text-white transition-colors">Geofence Enforcement</span>
+            <span class="block text-xs text-slate-500">Only catches within the club's defined lake area will be accepted.</span>
+          </div>
+        </label>
+
+        <label class="flex items-start gap-3 cursor-pointer group">
+          <div class="mt-1">
+            <%= f.check_box :awards_season_points, class: "h-5 w-5 rounded border-slate-700 bg-slate-800 text-blue-600 focus:ring-offset-slate-800" %>
+          </div>
+          <div>
+            <span class="block font-medium text-slate-200 group-hover:text-white transition-colors">Awards Season Points</span>
+            <span class="block text-xs text-slate-500">Top finishers earn points toward the <%= @tournament.season_tag || "annual" %> leaderboard.</span>
+          </div>
+        </label>
+      </div>
+    </div>
+  </div>
+
+  <div class="pt-6 border-t border-slate-700">
+    <div class="flex items-center justify-between mb-4">
+      <h3 class="text-lg font-bold">Scoring Slots</h3>
+      <p class="text-xs text-slate-500 italic">Save tournament to add more slots</p>
+    </div>
+    
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+      <%= f.fields_for :scoring_slots do |sf| %>
+        <div class="bg-slate-900 rounded-xl p-4 border border-slate-700 relative group">
+          <div class="grid grid-cols-1 gap-3">
+            <div>
+              <%= sf.label :species_id, "Species", class: "block text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1" %>
+              <%= sf.collection_select :species_id, current_user.club.species.order(:name), :id, :name,
+                                       { include_blank: "—" },
+                                       class: "w-full h-10 px-3 rounded bg-slate-800 border border-slate-700 text-sm text-slate-100" %>
+            </div>
+            <div>
+              <%= sf.label :slot_count, "Slot Count", class: "block text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1" %>
+              <%= sf.number_field :slot_count, min: 1, value: sf.object.slot_count || 1,
+                                  class: "w-full h-10 px-3 rounded bg-slate-800 border border-slate-700 text-sm text-slate-100" %>
+            </div>
+          </div>
+
+          <% if sf.object.persisted? %>
+            <label class="mt-3 flex items-center gap-2 text-xs text-red-400 cursor-pointer hover:text-red-300 transition-colors">
+              <%= sf.check_box :_destroy, class: "h-4 w-4 rounded border-slate-700 bg-slate-800 text-red-600 focus:ring-offset-slate-800" %>
+              <span>Remove this slot</span>
+            </label>
+          <% end %>
+        </div>
+      <% end %>
+    </div>
+  </div>
+
+  <div class="flex justify-end pt-6 border-t border-slate-700">
+    <%= f.submit class: "h-12 px-8 text-base font-bold rounded-lg bg-blue-600 hover:bg-blue-700 text-white shadow-lg shadow-blue-900/20 transition-all cursor-pointer" %>
+  </div>
+<% end %>

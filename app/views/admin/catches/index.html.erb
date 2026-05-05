@@ -1,0 +1,85 @@
+<div class="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
+  <div>
+    <h1 class="text-3xl font-bold">Catch History</h1>
+    <p class="text-slate-400 text-sm mt-1">All catches submitted to the club, newest first.</p>
+  </div>
+
+  <% if @members.any? %>
+    <div class="w-full md:w-64">
+      <%= form_with url: admin_catches_path, method: :get, local: true,
+                    data: { controller: "auto-submit", action: "change->auto-submit#submit" } do %>
+        <%= label_tag :user_id, "Filter by Member", class: "block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1" %>
+        <%= select_tag :user_id,
+                       options_from_collection_for_select(@members, :id, :name, @selected_user_id),
+                       include_blank: "All Members",
+                       class: "w-full bg-slate-800 border border-slate-700 text-slate-100 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition-all" %>
+      <% end %>
+    </div>
+  <% end %>
+</div>
+
+<% if @catches.any? %>
+  <div data-controller="lightbox">
+    <ul class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+      <% @catches.each do |c| %>
+        <li class="bg-slate-800 rounded-xl border border-slate-700 overflow-hidden hover:border-slate-500 transition-colors flex flex-col">
+          <% if c.photo.attached? %>
+            <button type="button"
+                    data-action="lightbox#open"
+                    data-lightbox-src="<%= url_for(c.photo) %>"
+                    data-lightbox-alt="<%= "#{c.species.name} caught by #{c.user.name}" %>"
+                    class="block w-full p-0 border-0 bg-black cursor-zoom-in aspect-[4/3]">
+              <%= image_tag url_for(c.photo), class: "w-full h-full object-cover" %>
+            </button>
+          <% else %>
+            <div class="w-full aspect-[4/3] bg-black flex items-center justify-center text-slate-500 text-sm italic">No photo attached</div>
+          <% end %>
+          
+          <div class="p-4 flex flex-col flex-1">
+            <div class="flex items-start justify-between gap-2 mb-2">
+              <div class="font-bold text-slate-100 text-lg leading-tight"><%= c.user.name %></div>
+              <div class="font-bold text-blue-400 whitespace-nowrap"><%= format_length_dual(c.length_inches) %></div>
+            </div>
+            
+            <div class="text-sm text-slate-300 mb-4 capitalize">
+              <%= c.species.name %>
+              <span class="text-slate-600 px-1">•</span>
+              <span class="text-slate-500"><%= c.captured_at_device.strftime("%b %d, %Y") %></span>
+            </div>
+
+            <div class="mt-auto pt-3 border-t border-slate-700 flex items-center justify-between">
+              <div class="text-[10px] text-slate-500 uppercase tracking-widest"><%= c.captured_at_device.strftime("%l:%M %p") %></div>
+              <div>
+                <% if c.disqualified? %>
+                  <span class="px-2 py-1 rounded bg-red-500/10 text-red-400 text-[10px] font-bold uppercase tracking-wider border border-red-500/20">Disqualified</span>
+                <% elsif c.flags.any? || c.latest_approver %>
+                  <%= render "catches/flag_badges", catch_record: c %>
+                <% elsif c.needs_review? %>
+                  <span class="px-2 py-1 rounded bg-amber-500/10 text-amber-400 text-[10px] font-bold uppercase tracking-wider border border-amber-500/20">Needs Review</span>
+                <% else %>
+                  <span class="px-2 py-1 rounded bg-slate-700 text-slate-300 text-[10px] font-bold uppercase tracking-wider capitalize"><%= c.status %></span>
+                <% end %>
+              </div>
+            </div>
+          </div>
+        </li>
+      <% end %>
+    </ul>
+
+    <dialog data-lightbox-target="dialog"
+            data-action="click->lightbox#backdropClose close->lightbox#close"
+            class="bg-transparent p-0 max-w-none max-h-none w-screen h-screen backdrop:bg-black/95">
+      <button type="button"
+              data-action="lightbox#close"
+              aria-label="Close"
+              class="fixed top-6 right-6 h-12 w-12 rounded-full bg-slate-800 text-white text-3xl leading-none z-50 hover:bg-slate-700 transition-colors shadow-xl flex items-center justify-center">&times;</button>
+      <div class="w-full h-full flex items-center justify-center p-8">
+        <%= image_tag "", data: { lightbox_target: "image" }, class: "max-w-full max-h-full object-contain shadow-2xl" %>
+      </div>
+    </dialog>
+  </div>
+<% else %>
+  <div class="bg-slate-800 rounded-xl border border-dashed border-slate-700 p-12 text-center">
+    <p class="text-slate-400 italic text-lg">No catches found.</p>
+  </div>
+<% end %>

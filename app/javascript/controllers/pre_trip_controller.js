@@ -44,8 +44,15 @@ export default class extends Controller {
   checkGps() {
     return new Promise((resolve) => {
       if (!navigator.geolocation) { this.set("gps", "✗ no API"); this.set("clock", "⚠ no GPS clock"); return resolve() }
+      // Safety timeout: some browsers never fire success or error.
+      const safetyTimeout = setTimeout(() => {
+        this.set("gps", "✗ no fix (timeout)")
+        this.set("clock", "⚠ no GPS clock")
+        resolve()
+      }, 10000)
       navigator.geolocation.getCurrentPosition(
         (pos) => {
+          clearTimeout(safetyTimeout)
           const acc = pos.coords.accuracy
           if (acc <= 50) this.set("gps", `✓ ${acc.toFixed(0)}m`)
           else if (acc <= 200) this.set("gps", `⚠ ${acc.toFixed(0)}m (low)`)
@@ -53,7 +60,12 @@ export default class extends Controller {
           this.checkClock(pos.timestamp)
           resolve()
         },
-        () => { this.set("gps", "✗ no fix"); this.set("clock", "⚠ no GPS clock"); resolve() },
+        () => {
+          clearTimeout(safetyTimeout)
+          this.set("gps", "✗ no fix")
+          this.set("clock", "⚠ no GPS clock")
+          resolve()
+        },
         { enableHighAccuracy: true, timeout: 8000 }
       )
     })

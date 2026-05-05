@@ -1,0 +1,61 @@
+<% catches = Catch
+                .joins(:catch_placements)
+                .where(catch_placements: { tournament_id: @tournament.id })
+                .distinct
+                .includes(:user, :species, photo_attachment: :blob)
+                .order(captured_at_device: :desc) %>
+
+<% if catches.any? %>
+  <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+    <% catches.each do |c| %>
+      <div class="bg-slate-900 border border-slate-700 rounded-xl overflow-hidden hover:border-slate-500 transition-colors flex flex-col">
+        <% body = capture do %>
+          <div class="aspect-video bg-black relative">
+            <% if c.photo.attached? %>
+              <%= image_tag url_for(c.photo), class: "w-full h-full object-cover" %>
+            <% else %>
+              <div class="w-full h-full flex items-center justify-center text-slate-500 text-sm italic">No photo</div>
+            <% end %>
+            
+            <div class="absolute bottom-0 inset-x-0 p-3 bg-gradient-to-t from-black/80 to-transparent">
+              <div class="flex items-center justify-between">
+                <span class="text-xs font-bold text-white"><%= c.user.name %></span>
+                <span class="text-xs font-bold text-blue-400"><%= format_length_dual(c.length_inches) %></span>
+              </div>
+            </div>
+          </div>
+          
+          <div class="p-3 flex-1 flex flex-col justify-between gap-3">
+            <div class="flex items-center justify-between">
+              <span class="text-xs text-slate-400 capitalize"><%= c.species.name %></span>
+              <span class="text-[10px] text-slate-500"><%= c.captured_at_device.strftime("%b %d, %H:%M") %></span>
+            </div>
+            
+            <div class="flex justify-end">
+              <% if c.disqualified? %>
+                <span class="px-2 py-0.5 rounded bg-red-500/10 text-red-400 text-[10px] font-bold uppercase tracking-wider border border-red-500/20">Disqualified</span>
+              <% elsif c.flags.any? || c.latest_approver %>
+                <%= render "catches/flag_badges", catch_record: c %>
+              <% elsif c.needs_review? %>
+                <span class="px-2 py-0.5 rounded bg-amber-500/10 text-amber-400 text-[10px] font-bold uppercase tracking-wider border border-amber-500/20">Needs Review</span>
+              <% else %>
+                <span class="px-2 py-0.5 rounded bg-slate-800 text-slate-400 text-[10px] font-bold uppercase tracking-wider capitalize border border-slate-700"><%= c.status %></span>
+              <% end %>
+            </div>
+          </div>
+        <% end %>
+
+        <% if @tournament.friendly? %>
+          <%= link_to body, judges_tournament_catch_path(tournament_id: @tournament.id, id: c.id),
+                      class: "flex-1 flex flex-col group" %>
+        <% else %>
+          <%= body %>
+        <% end %>
+      </div>
+    <% end %>
+  </div>
+<% else %>
+  <div class="py-12 text-center bg-slate-900/50 rounded-xl border-2 border-dashed border-slate-700">
+    <p class="text-slate-500 italic">No catches have been logged for this tournament yet.</p>
+  </div>
+<% end %>
