@@ -24,7 +24,7 @@
                     data-lightbox-src="<%= url_for(c.photo) %>"
                     data-lightbox-alt="<%= "#{c.species.name} caught by #{c.user.name}" %>"
                     class="block w-full p-0 border-0 bg-transparent cursor-zoom-in">
-              <%= image_tag url_for(c.photo), class: "w-full h-40 object-cover rounded bg-black" %>
+              <%= thumb c.photo, class: "w-full h-40 object-cover rounded bg-black" %>
             </button>
           <% else %>
             <div class="w-full h-40 rounded bg-black flex items-center justify-center text-slate-500 text-sm">no photo</div>
