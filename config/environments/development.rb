@@ -46,6 +46,8 @@ Rails.application.configure do
 
   # Allow the public hostname through host authorization.
   config.hosts << app_host
+  # Same app also serves the laptop /admin UI under an admin subdomain.
+  config.hosts << "admin.#{app_host}" unless app_host == "localhost"
 
   # Use it for links generated in mailer templates AND for ActiveStorage redirect URLs.
   config.action_mailer.default_url_options = { host: app_host, protocol: app_protocol }
