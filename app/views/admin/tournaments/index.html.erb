@@ -1,0 +1,42 @@
+<div class="flex items-center justify-between mb-8">
+  <h1 class="text-3xl font-bold">Tournaments</h1>
+  <%= link_to "New tournament", new_admin_tournament_path,
+              class: "h-11 px-5 inline-flex items-center rounded-lg bg-blue-600 text-white font-medium hover:bg-blue-700 transition-colors" %>
+</div>
+
+<div class="bg-slate-800 rounded-xl border border-slate-700 overflow-hidden">
+  <div class="p-6 border-b border-slate-700">
+    <h2 class="text-lg font-semibold">Active tournaments</h2>
+  </div>
+  
+  <% if @active_tournaments.any? %>
+    <ul class="divide-y divide-slate-700">
+      <% @active_tournaments.each do |t| %>
+        <li class="p-6 hover:bg-slate-700/50 transition-colors flex items-center justify-between">
+          <div>
+            <%= link_to t.name, edit_admin_tournament_path(t), class: "text-xl font-medium text-blue-400 hover:text-blue-300" %>
+            <div class="flex items-center gap-3 mt-1 text-sm text-slate-400">
+              <span><%= t.starts_at.strftime("%B %d, %Y") %></span>
+              <% unless t.local %>
+                <span class="px-2 py-0.5 rounded-full bg-slate-700 text-xs font-medium">(away)</span>
+              <% end %>
+              <span>•</span>
+              <span><%= t.tournament_entries.count %> entries</span>
+            </div>
+          </div>
+          <div class="flex items-center gap-4">
+            <%= button_to "Delete", admin_tournament_path(t),
+                          method: :delete,
+                          data: { turbo_confirm: "Delete '#{t.name}'? This removes the tournament, its entries, and all placements. This cannot be undone." },
+                          class: "px-4 py-2 rounded-lg border border-red-500/50 text-red-400 hover:bg-red-500 hover:text-white transition-all text-sm font-medium" %>
+          </div>
+        </li>
+      <% end %>
+    </ul>
+  <% else %>
+    <div class="p-12 text-center">
+      <p class="text-slate-400 italic">No active tournaments found.</p>
+    </div>
+  <% end %>
+</div>
+

@@ -147,9 +147,18 @@ export default class extends Controller {
   async tryGeolocate() {
     if (!navigator.geolocation) return null
     return new Promise((resolve) => {
+      // Safety timeout: some browsers (notably desktop with no GPS) never fire
+      // success or error, leaving submit stuck on "Submitting…" forever.
+      const safetyTimeout = setTimeout(() => resolve(null), 10000)
       navigator.geolocation.getCurrentPosition(
-        (pos) => resolve({ coords: pos.coords, gpsTime: new Date(pos.timestamp).toISOString() }),
-        () => resolve(null),
+        (pos) => {
+          clearTimeout(safetyTimeout)
+          resolve({ coords: pos.coords, gpsTime: new Date(pos.timestamp).toISOString() })
+        },
+        () => {
+          clearTimeout(safetyTimeout)
+          resolve(null)
+        },
         { enableHighAccuracy: true, timeout: 8000, maximumAge: 0 }
       )
     })

@@ -1,0 +1,57 @@
+<div class="flex items-center justify-between mb-8">
+  <h1 class="text-3xl font-bold">Members</h1>
+  <%= link_to "Invite Member", new_admin_member_path,
+              class: "h-11 px-5 inline-flex items-center rounded-lg bg-blue-600 text-white font-medium hover:bg-blue-700 transition-colors" %>
+</div>
+
+<div class="bg-slate-800 rounded-xl border border-slate-700 overflow-hidden">
+  <table class="w-full text-left border-collapse">
+    <thead>
+      <tr class="bg-slate-700/50 border-b border-slate-700">
+        <th class="px-6 py-4 text-sm font-semibold text-slate-300">Name</th>
+        <th class="px-6 py-4 text-sm font-semibold text-slate-300">Email</th>
+        <th class="px-6 py-4 text-sm font-semibold text-slate-300">Role</th>
+        <th class="px-6 py-4 text-sm font-semibold text-slate-300 text-center">Tournaments</th>
+        <th class="px-6 py-4 text-sm font-semibold text-slate-300 text-right">Actions</th>
+      </tr>
+    </thead>
+    <tbody class="divide-y divide-slate-700">
+      <% @users.each do |u| %>
+        <% entries = u.tournament_entry_members.joins(:tournament_entry).count %>
+        <tr class="hover:bg-slate-700/30 transition-colors">
+          <td class="px-6 py-4">
+            <div class="font-medium text-slate-100 flex items-center gap-2">
+              <%= u.name %>
+              <% if u.deactivated? %>
+                <span class="px-2 py-0.5 rounded text-[10px] uppercase tracking-wider font-bold bg-red-500/20 text-red-400 border border-red-500/20">Deactivated</span>
+              <% end %>
+              <% if u == current_user %>
+                <span class="px-2 py-0.5 rounded text-[10px] uppercase tracking-wider font-bold bg-blue-500/20 text-blue-400 border border-blue-500/20">You</span>
+              <% end %>
+            </div>
+          </td>
+          <td class="px-6 py-4 text-sm text-slate-400"><%= u.email %></td>
+          <td class="px-6 py-4 text-sm text-slate-400 capitalize"><%= u.role %></td>
+          <td class="px-6 py-4 text-sm text-slate-400 text-center"><%= entries %></td>
+          <td class="px-6 py-4 text-right">
+            <div class="flex items-center justify-end gap-2">
+              <% if u != current_user %>
+                <% if u.deactivated? %>
+                  <%= button_to "Reactivate", reactivate_admin_member_path(u), method: :post,
+                                class: "px-3 py-1.5 rounded bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-medium transition-colors" %>
+                <% else %>
+                  <%= button_to "Issue Code", issue_code_admin_member_path(u), method: :post,
+                                data: { turbo_confirm: "Generate a one-time sign-in code for #{u.name}? Valid 10 minutes." },
+                                class: "px-3 py-1.5 rounded bg-slate-700 hover:bg-slate-600 text-white text-xs font-medium transition-colors" %>
+                  <%= button_to "Deactivate", admin_member_path(u), method: :delete,
+                                data: { turbo_confirm: "Deactivate #{u.name}? They'll be hidden from new entries but past results stay." },
+                                class: "px-3 py-1.5 rounded bg-red-600/20 hover:bg-red-600 text-red-400 hover:text-white border border-red-600/30 text-xs font-medium transition-colors" %>
+                <% end %>
+              <% end %>
+            </div>
+          </td>
+        </tr>
+      <% end %>
+    </tbody>
+  </table>
+</div>

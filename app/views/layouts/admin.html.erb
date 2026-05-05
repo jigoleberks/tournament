@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <title><%= content_for(:title) || "Admin Dashboard - " + ENV.fetch("APP_NAME", "Tournament") %></title>
+    <meta name="viewport" content="width=device-width,initial-scale=1">
+    <%= csrf_meta_tags %>
+    <%= csp_meta_tag %>
+
+    <%= stylesheet_link_tag "tailwind", "data-turbo-track": "reload" %>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="">
+    <%= javascript_importmap_tags %>
+  </head>
+
+  <body class="bg-slate-900 text-slate-100 min-h-screen">
+    <header class="bg-slate-800 border-b border-slate-700 sticky top-0 z-30">
+      <nav class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div class="flex justify-between h-16">
+          <div class="flex items-center gap-8">
+            <%= link_to root_path, class: "text-xl font-bold text-white flex items-center gap-2" do %>
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-6 h-6 text-blue-500">
+                <path d="M11.47 3.84a.75.75 0 011.06 0l8.69 8.69a.75.75 0 101.06-1.06l-8.69-8.69a2.25 2.25 0 00-3.18 0l-8.69 8.69a.75.75 0 101.06 1.06l8.69-8.69z" />
+                <path d="M12 5.43l7.5 7.5v6.32a2.25 2.25 0 01-2.25 2.25H15a.75.75 0 01-.75-.75v-4.5a.75.75 0 00-.75-.75h-3a.75.75 0 00-.75.75V21a.75.75 0 01-.75.75H6.75A2.25 2.25 0 014.5 19.5v-6.32l7.5-7.5z" />
+              </svg>
+              <span>Admin</span>
+            <% end %>
+
+            <div class="hidden md:flex items-center gap-4">
+              <%= link_to "Tournaments", admin_tournaments_path, 
+                          class: "px-3 py-2 rounded-md text-sm font-medium #{controller_name == 'tournaments' ? 'bg-slate-900 text-white' : 'text-slate-300 hover:bg-slate-700 hover:text-white'}" %>
+              <%= link_to "Members", admin_members_path, 
+                          class: "px-3 py-2 rounded-md text-sm font-medium #{controller_name == 'members' ? 'bg-slate-900 text-white' : 'text-slate-300 hover:bg-slate-700 hover:text-white'}" %>
+              <%= link_to "Templates", admin_tournament_templates_path, 
+                          class: "px-3 py-2 rounded-md text-sm font-medium #{controller_name == 'tournament_templates' ? 'bg-slate-900 text-white' : 'text-slate-300 hover:bg-slate-700 hover:text-white'}" %>
+              <%= link_to "Catch History", admin_catches_path, 
+                          class: "px-3 py-2 rounded-md text-sm font-medium #{controller_name == 'catches' ? 'bg-slate-900 text-white' : 'text-slate-300 hover:bg-slate-700 hover:text-white'}" %>
+            </div>
+          </div>
+          
+          <div class="flex items-center gap-4 text-sm text-slate-400">
+            <span><%= current_user.name %></span>
+            <%= button_to "Sign out", session_path, method: :delete, class: "text-slate-400 hover:text-white" %>
+          </div>
+        </div>
+      </nav>
+      
+      <%# Mobile Nav (simple scrollable list for now) %>
+      <nav class="md:hidden flex overflow-x-auto border-t border-slate-700 px-4 py-2 gap-2 scrollbar-hide">
+        <%= link_to "Tournaments", admin_tournaments_path, class: "whitespace-nowrap px-3 py-1 rounded-full text-xs font-medium #{controller_name == 'tournaments' ? 'bg-blue-600 text-white' : 'bg-slate-700 text-slate-300'}" %>
+        <%= link_to "Members", admin_members_path, class: "whitespace-nowrap px-3 py-1 rounded-full text-xs font-medium #{controller_name == 'members' ? 'bg-blue-600 text-white' : 'bg-slate-700 text-slate-300'}" %>
+        <%= link_to "Templates", admin_tournament_templates_path, class: "whitespace-nowrap px-3 py-1 rounded-full text-xs font-medium #{controller_name == 'tournament_templates' ? 'bg-blue-600 text-white' : 'bg-slate-700 text-slate-300'}" %>
+        <%= link_to "Catches", admin_catches_path, class: "whitespace-nowrap px-3 py-1 rounded-full text-xs font-medium #{controller_name == 'catches' ? 'bg-blue-600 text-white' : 'bg-slate-700 text-slate-300'}" %>
+      </nav>
+    </header>
+
+    <% flash.each do |type, message| %>
+      <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mt-4">
+        <% styles = case type.to_s
+                    when "notice" then "bg-emerald-500/20 border-emerald-500/40 text-emerald-200"
+                    when "alert"  then "bg-red-500/20 border-red-500/40 text-red-200"
+                    else               "bg-yellow-500/20 border-yellow-500/40 text-yellow-200"
+                    end %>
+        <p id="flash_<%= type %>" class="<%= styles %> border rounded-lg px-4 py-3"><%= message %></p>
+      </div>
+    <% end %>
+
+    <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <%= yield %>
+    </main>
+  </body>
+</html>

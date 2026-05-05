@@ -1,0 +1,23 @@
+<h1 class="text-2xl font-bold mb-6 text-white">Admin Dashboard</h1>
+
+<div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+  <%= link_to admin_tournaments_path, class: "block p-6 bg-slate-800 rounded-xl border border-slate-700 hover:border-slate-500 transition-colors" do %>
+    <h2 class="text-xl font-semibold text-white mb-2">Tournaments</h2>
+    <p class="text-slate-400 text-sm">Manage active and past tournaments, set up rules, and assign judges.</p>
+  <% end %>
+
+  <%= link_to admin_members_path, class: "block p-6 bg-slate-800 rounded-xl border border-slate-700 hover:border-slate-500 transition-colors" do %>
+    <h2 class="text-xl font-semibold text-white mb-2">Members</h2>
+    <p class="text-slate-400 text-sm">View club members, issue invitation codes, and manage roles.</p>
+  <% end %>
+
+  <%= link_to admin_tournament_templates_path, class: "block p-6 bg-slate-800 rounded-xl border border-slate-700 hover:border-slate-500 transition-colors" do %>
+    <h2 class="text-xl font-semibold text-white mb-2">Templates</h2>
+    <p class="text-slate-400 text-sm">Create and manage reusable scoring slots and rules for common tournament formats.</p>
+  <% end %>
+
+  <%= link_to admin_catches_path, class: "block p-6 bg-slate-800 rounded-xl border border-slate-700 hover:border-slate-500 transition-colors" do %>
+    <h2 class="text-xl font-semibold text-white mb-2">Catch History</h2>
+    <p class="text-slate-400 text-sm">Review all catches submitted across the club.</p>
+  <% end %>
+</div>

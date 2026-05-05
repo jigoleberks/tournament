@@ -1,0 +1,44 @@
+<div class="flex items-center justify-between mb-8">
+  <h1 class="text-3xl font-bold">Tournament Templates</h1>
+  <%= link_to "New Template", new_admin_tournament_template_path,
+              class: "h-11 px-5 inline-flex items-center rounded-lg bg-blue-600 text-white font-medium hover:bg-blue-700 transition-colors" %>
+</div>
+
+<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+  <% if @templates.any? %>
+    <% @templates.each do |t| %>
+      <div class="bg-slate-800 rounded-xl border border-slate-700 p-6 flex flex-col justify-between">
+        <div>
+          <%= link_to t.name, edit_admin_tournament_template_path(t),
+                      class: "text-xl font-semibold text-blue-400 hover:text-blue-300 block mb-2" %>
+          <% if t.scheduled? %>
+            <p class="text-sm text-slate-400 mb-4"><%= t.default_schedule_summary %></p>
+          <% end %>
+        </div>
+
+        <div class="flex flex-col gap-3 mt-4">
+          <% if t.scheduled? %>
+            <% starts, ends = t.next_occurrence_at %>
+            <%= button_to clone_admin_tournament_template_path(t),
+                          params: { starts_at: starts.iso8601, ends_at: ends.iso8601 },
+                          class: "w-full h-10 px-4 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium transition-colors" do %>
+              Schedule next (<%= l(starts, format: :short) %>)
+            <% end %>
+          <% else %>
+            <%= button_to "Clone now (4h)", clone_admin_tournament_template_path(t),
+                          params: { starts_at: Time.current, ends_at: 4.hours.from_now },
+                          class: "w-full h-10 px-4 rounded-lg bg-slate-700 hover:bg-slate-600 text-slate-100 text-sm font-medium transition-colors" %>
+          <% end %>
+          <%= button_to "Delete", admin_tournament_template_path(t),
+                        method: :delete,
+                        data: { turbo_confirm: "Delete template '#{t.name}'? This cannot be undone." },
+                        class: "w-full h-10 px-4 rounded-lg border border-red-500/50 text-red-400 hover:bg-red-500 hover:text-white transition-all text-sm font-medium" %>
+        </div>
+      </div>
+    <% end %>
+  <% else %>
+    <div class="col-span-full bg-slate-800/50 rounded-xl border border-dashed border-slate-700 p-12 text-center">
+      <p class="text-slate-400 italic text-lg">No templates yet. Create one to easily schedule recurring tournaments.</p>
+    </div>
+  <% end %>
+</div>
