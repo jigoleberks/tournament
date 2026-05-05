@@ -9,8 +9,10 @@ Rails.application.configure do
   # Do not eager load code on boot.
   config.eager_load = false
 
-  # Show full error reports.
-  config.consider_all_requests_local = true
+  # Show full error reports only on local dev. The live VM runs RAILS_ENV=development
+  # but is publicly reachable via Cloudflare tunnel — leaking a full Rails trace to a
+  # member who triggers a 500 is an info-disclosure risk.
+  config.consider_all_requests_local = ENV.fetch("APP_HOST", "localhost") == "localhost"
 
   # Enable server timing.
   config.server_timing = true
@@ -84,6 +86,12 @@ Rails.application.configure do
 
   # Highlight code that enqueued background job in logs.
   config.active_job.verbose_enqueue_logs = true
+
+  # Use Solid Queue for ActiveJob in development too — this VM runs RAILS_ENV=development
+  # in production, and the default :async adapter loses every queued job on restart
+  # (sign-in mailers, push notifications, scheduled tournament-start announces).
+  # Tests override this to :test in test_helper.
+  config.active_job.queue_adapter = :solid_queue
 
   # Raises error for missing translations.
   # config.i18n.raise_on_missing_translations = true

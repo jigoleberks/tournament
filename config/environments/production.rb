@@ -50,7 +50,10 @@ Rails.application.configure do
   config.cache_store = :solid_cache_store
 
   # Replace the default in-process and non-durable queuing backend for Active Job.
-  # config.active_job.queue_adapter = :resque
+  # Single-database setup: solid_queue tables live in the primary DB (see migration
+  # 20260504000000_create_solid_queue_tables.rb). The default Rails 8 install assumes
+  # a separate :queue database, which would require a multi-database config we don't have.
+  config.active_job.queue_adapter = :solid_queue
 
   # Ignore bad email addresses and do not raise email delivery errors.
   # Set this to true and configure the email server for immediate delivery to raise delivery errors.
