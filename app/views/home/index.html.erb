@@ -1,4 +1,9 @@
 <section data-controller="pending-catches" class="bg-slate-800 rounded-xl p-4 my-3">
+  <div data-pending-catches-target="failedSection" hidden class="mb-3 pb-3 border-b border-slate-700">
+    <h2 class="text-lg font-semibold mb-2 text-amber-400">Sync issues</h2>
+    <ul data-pending-catches-target="failedList" class="text-sm text-slate-300 space-y-1"></ul>
+    <p class="text-xs text-slate-400 mt-2">Tap Retry to try syncing again. If it keeps failing, talk to your organizer.</p>
+  </div>
   <h2 class="text-lg font-semibold mb-2">Pending sync</h2>
   <p data-pending-catches-target="empty" hidden class="text-slate-400 text-sm">None — you're all caught up.</p>
   <ul data-pending-catches-target="list" class="text-sm text-slate-300"></ul>

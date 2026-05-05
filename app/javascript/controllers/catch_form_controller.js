@@ -53,34 +53,54 @@ export default class extends Controller {
     const missing = this._missingFieldMessage()
     if (missing) { this.statusTarget.textContent = missing; return }
 
-    const position = await this.tryGeolocate()
-    const record = {
-      client_uuid: this.clientUuid,
-      species_id: this.speciesSelectTarget.value,
-      length_inches: this._toInches(this.lengthInputTarget.value),
-      captured_at_device: new Date().toISOString(),
-      captured_at_gps: position?.gpsTime ?? null,
-      latitude: position?.coords?.latitude ?? null,
-      longitude: position?.coords?.longitude ?? null,
-      gps_accuracy_m: position?.coords?.accuracy ?? null,
-      app_build: document.documentElement.dataset.appBuild,
-      note: this.noteInputTarget.value,
-      photo: this.photoBlob,
-      video: this.videoBlob,
-      video_failed: this.videoFailed
+    this._setSubmitting(true)
+    try {
+      const position = await this.tryGeolocate()
+      const record = {
+        client_uuid: this.clientUuid,
+        species_id: this.speciesSelectTarget.value,
+        length_inches: this._toInches(this.lengthInputTarget.value),
+        captured_at_device: new Date().toISOString(),
+        captured_at_gps: position?.gpsTime ?? null,
+        latitude: position?.coords?.latitude ?? null,
+        longitude: position?.coords?.longitude ?? null,
+        gps_accuracy_m: position?.coords?.accuracy ?? null,
+        app_build: document.documentElement.dataset.appBuild,
+        note: this.noteInputTarget.value,
+        photo: this.photoBlob,
+        video: this.videoBlob,
+        video_failed: this.videoFailed
+      }
+
+      await enqueueCatch(record)
+
+      if ("serviceWorker" in navigator && "SyncManager" in window) {
+        try {
+          const reg = await navigator.serviceWorker.ready
+          await reg.sync.register("catch-sync")
+        } catch (_) {}
+      }
+
+      window.dispatchEvent(new Event("bsfamilies:try-sync"))
+      window.location.href = "/"
+    } catch (err) {
+      this._setSubmitting(false)
+      this.statusTarget.textContent = "Couldn't save your catch — try again."
+      throw err
     }
+  }
 
-    await enqueueCatch(record)
-
-    if ("serviceWorker" in navigator && "SyncManager" in window) {
-      try {
-        const reg = await navigator.serviceWorker.ready
-        await reg.sync.register("catch-sync")
-      } catch (_) {}
+  _setSubmitting(flag) {
+    if (!this.hasSubmitButtonTarget) return
+    const btn = this.submitButtonTarget
+    if (flag) {
+      btn.disabled = true
+      if (btn.dataset.originalLabel == null) btn.dataset.originalLabel = btn.textContent
+      btn.textContent = "Submitting…"
+    } else {
+      btn.disabled = false
+      if (btn.dataset.originalLabel) btn.textContent = btn.dataset.originalLabel
     }
-
-    window.dispatchEvent(new Event("bsfamilies:try-sync"))
-    window.location.href = "/"
   }
 
   setUnit(event) {
