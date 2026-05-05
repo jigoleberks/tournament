@@ -123,8 +123,11 @@ class TournamentsControllerTest < ActionDispatch::IntegrationTest
     assert_match "22.5", response.body
     assert_no_match "28.0", response.body
 
-    # Banner is rendered
+    # Banner is rendered, AND lives inside the #leaderboard wrapper so a
+    # reveal-stream replace (which targets id="leaderboard") sweeps the banner
+    # away alongside the table.
     assert_match(/Blind leaderboard/i, response.body)
+    assert_select "#leaderboard #blind-leaderboard-banner"
   end
 
   test "blind+active show page: non-entered, non-organizer member sees only entry names, totals dashed" do
@@ -171,6 +174,7 @@ class TournamentsControllerTest < ActionDispatch::IntegrationTest
     get tournament_path(t)
     assert_response :success
     assert_match "31.25", response.body
+    assert_no_match "blind-leaderboard-banner", response.body
   end
 
   test "ended blind tournament show page: every viewer sees full leaderboard" do
@@ -189,6 +193,7 @@ class TournamentsControllerTest < ActionDispatch::IntegrationTest
     get tournament_path(t)
     assert_response :success
     assert_match "31.25", response.body
+    assert_no_match "blind-leaderboard-banner", response.body
   end
 
   test "blind+active show page: entered angler subscribes to entry stream and reveal" do

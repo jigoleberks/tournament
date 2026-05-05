@@ -26,7 +26,7 @@ module Placements
         locals: {
           leaderboard: leaderboard,
           tournament: tournament,
-          viewer_scope: Leaderboards::ViewerScope::Scope.new(visibility: :full, entry_id: nil)
+          viewer_scope: Leaderboards::ViewerScope.full
         }
       )
     end
@@ -52,7 +52,7 @@ module Placements
         locals: {
           leaderboard: leaderboard,
           tournament: tournament,
-          viewer_scope: Leaderboards::ViewerScope::Scope.new(visibility: :full, entry_id: nil)
+          viewer_scope: Leaderboards::ViewerScope.full
         }
       )
     end

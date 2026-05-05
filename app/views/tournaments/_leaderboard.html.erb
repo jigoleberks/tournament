@@ -3,13 +3,14 @@
 <% blind_active = tournament.present? && tournament.blind?(at: Time.current) %>
 <% can_open = tournament.present? && can_open_catches_in?(tournament) %>
 
+<div id="leaderboard">
 <% if blind_active && scope.visibility != :full %>
   <div id="blind-leaderboard-banner" class="bg-slate-800 rounded-xl p-3 mb-3 text-slate-200 text-sm">
     🔒 Blind leaderboard — full results revealed when the tournament ends at <%= tournament.ends_at.strftime("%b %d · %l:%M %p") %>.
   </div>
 <% end %>
 
-<table id="leaderboard" class="w-full text-base">
+<table class="w-full text-base">
   <thead>
     <tr class="text-left text-sm text-slate-300 border-b border-slate-700">
       <th class="px-3 py-2">#</th>
@@ -56,3 +57,4 @@
     <% end %>
   </tbody>
 </table>
+</div>
