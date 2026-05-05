@@ -46,3 +46,8 @@ export async function markPending(client_uuid) {
   const rec = await db.get("catches", client_uuid);
   if (rec) await db.put("catches", { ...rec, status: "pending", reason: null, failed_at: null });
 }
+
+export async function removeRecord(client_uuid) {
+  const db = await getDB();
+  await db.delete("catches", client_uuid);
+}
