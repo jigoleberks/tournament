@@ -75,6 +75,19 @@ class Catches::ComputeFlagsTest < ActiveSupport::TestCase
     assert_includes Catches::ComputeFlags.call(catch_record), "possible_duplicate"
   end
 
+  test "possible_duplicate NOT triggered by a former teammate (tournament already closed)" do
+    now = Time.current
+    former_teammate = create(:user, club: @club)
+    tournament = create(:tournament, club: @club, mode: :team,
+                                      starts_at: 2.days.ago, ends_at: 1.day.ago)
+    entry = create(:tournament_entry, tournament: tournament)
+    create(:tournament_entry_member, tournament_entry: entry, user: @user)
+    create(:tournament_entry_member, tournament_entry: entry, user: former_teammate)
+    create(:catch, user: former_teammate, species: @walleye, captured_at_device: now - 30.seconds)
+    catch_record = build(:catch, user: @user, species: @walleye, captured_at_device: now)
+    assert_not_includes Catches::ComputeFlags.call(catch_record), "possible_duplicate"
+  end
+
   test "out_of_province set when GPS present but outside Saskatchewan" do
     catch_record = build(:catch, user: @user, species: @walleye,
                                   latitude: 49.9, longitude: -97.1) # Winnipeg

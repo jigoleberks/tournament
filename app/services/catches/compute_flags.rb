@@ -23,17 +23,24 @@ module Catches
     def self.duplicate_neighbor?(catch_record)
       return false if catch_record.user_id.nil? || catch_record.captured_at_device.nil?
       window = (catch_record.captured_at_device - DUPLICATE_WINDOW)..(catch_record.captured_at_device + DUPLICATE_WINDOW)
-      scope = ::Catch.where(user_id: teammate_user_ids(catch_record.user_id), captured_at_device: window)
+      scope = ::Catch.where(user_id: teammate_user_ids(catch_record.user_id, at: catch_record.captured_at_device),
+                            captured_at_device: window)
       scope = scope.where.not(id: catch_record.id) if catch_record.id
       scope.exists?
     end
 
-    # User ids that share at least one tournament entry with `user_id` (always
-    # includes the user themselves). Used to flag fish-passing within a team:
-    # two members of the same entry both submitting catches within the dup
-    # window get flagged as possible_duplicate for judge review.
-    def self.teammate_user_ids(user_id)
-      shared_entry_ids = TournamentEntryMember.where(user_id: user_id).pluck(:tournament_entry_id)
+    # User ids that share at least one tournament entry with `user_id` in a
+    # tournament active at `at` (always includes the user themselves). Used to
+    # flag fish-passing within a team: two members of the same entry both
+    # submitting catches within the dup window get flagged as possible_duplicate
+    # for judge review. Teams reform every tournament — whoever's in the boat —
+    # so we scope to tournaments live at the catch's timestamp.
+    def self.teammate_user_ids(user_id, at:)
+      shared_entry_ids = TournamentEntryMember
+        .joins(tournament_entry: :tournament)
+        .where(user_id: user_id)
+        .where("tournaments.starts_at <= ? AND (tournaments.ends_at IS NULL OR tournaments.ends_at >= ?)", at, at)
+        .pluck(:tournament_entry_id)
       return [ user_id ] if shared_entry_ids.empty?
       TournamentEntryMember.where(tournament_entry_id: shared_entry_ids).pluck(:user_id).uniq
     end
