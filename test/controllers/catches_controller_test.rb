@@ -313,7 +313,11 @@ class CatchesControllerTest < ActionDispatch::IntegrationTest
 
   test "show: Approve button is hidden when catch is disqualified" do
     catch_record = create(:catch, user: @user, species: @walleye, length_inches: 18.5, status: :disqualified)
-    Catches::PlaceInSlots.call(catch: catch_record)
+    # Real-world flow: the catch was placed first, then a judge DQ'd it — the
+    # placement row stays with active: false. PlaceInSlots correctly refuses to
+    # place a DQ'd catch, so mirror that final state directly here.
+    create(:catch_placement, catch: catch_record, tournament: @tournament,
+           tournament_entry: @entry, species: @walleye, active: false)
     judge = create(:user, club: @club)
     create(:tournament_judge, tournament: @tournament, user: judge)
     sign_in_as(judge)

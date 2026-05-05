@@ -1,6 +1,7 @@
 class Api::CatchesController < Api::BaseController
   def create
-    existing = current_user.catches.find_by(client_uuid: params.dig(:catch, :client_uuid))
+    uuid = params.dig(:catch, :client_uuid)
+    existing = current_user.catches.find_by(client_uuid: uuid)
     if existing
       return render(json: serialize(existing), status: :ok)
     end
@@ -10,7 +11,17 @@ class Api::CatchesController < Api::BaseController
     catch_record.status = catch_record.flags.empty? ? :synced : :needs_review
     catch_record.synced_at = Time.current
 
-    if catch_record.save && catch_record.photo.attached?
+    begin
+      saved = catch_record.save
+    rescue ActiveRecord::RecordNotUnique
+      # Parallel retry from a flaky-LTE client raced past the find_by above.
+      # The unique index on client_uuid prevented the duplicate; return the winner.
+      existing = current_user.catches.find_by(client_uuid: uuid)
+      return render(json: serialize(existing), status: :ok) if existing
+      raise
+    end
+
+    if saved && catch_record.photo.attached?
       placements = Catches::PlaceInSlots.call(catch: catch_record)
       Catches::FlagDuplicates.call(catch: catch_record) if catch_record.flags.include?("possible_duplicate")
       FetchCatchConditionsJob.perform_later(catch_id: catch_record.id)

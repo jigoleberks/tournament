@@ -17,7 +17,10 @@ module Catches
       raise SelfApprovalError if @action == :approve && @judge.id == @catch.user_id
       raise DisqualifyNoteRequired if @action == :disqualify && @note.to_s.strip.empty?
 
+      affected_tournaments = []
+
       ActiveRecord::Base.transaction do
+        @catch.lock!  # serialize with PlaceInSlots on the same catch
         before = snapshot
         case @action
         when :approve, :dock_verify
@@ -25,6 +28,11 @@ module Catches
         when :flag
           @catch.update!(status: :needs_review)
         when :disqualify
+          # Lock affected entries in id order so concurrent PlaceInSlots /
+          # other judge actions don't deadlock with us.
+          entry_ids = @catch.catch_placements.active.pluck(:tournament_entry_id).uniq.sort
+          entry_ids.each { |id| TournamentEntry.lock.find(id) }
+
           freed = @catch.catch_placements.active.to_a
           @catch.catch_placements.active.update_all(active: false)
           @catch.update!(status: :disqualified)
@@ -37,6 +45,7 @@ module Catches
           @catch.update!(length_inches: @length_inches) if @length_inches
           if @slot_index && @entry_id
             entry = @tournament.tournament_entries.find(@entry_id)
+            entry.lock!
             # Deactivate whatever is currently in (entry, species, slot_index)
             entry.catch_placements
               .where(species: @catch.species, slot_index: @slot_index, active: true)
@@ -48,8 +57,8 @@ module Catches
           elsif @length_inches && prior_length && @length_inches.to_f < prior_length.to_f
             # Length shrank — re-evaluate every (entry, species) pair this catch
             # is currently placed in; a previously-unplaced larger catch should
-            # take its slot.
-            @catch.catch_placements.active.includes(:tournament, :tournament_entry).each do |p|
+            # take its slot. Sort by entry id for stable lock order.
+            @catch.catch_placements.active.includes(:tournament, :tournament_entry).order(:tournament_entry_id).each do |p|
               Catches::RebalanceSlots.call(tournament: p.tournament, entry: p.tournament_entry, species: @catch.species)
             end
           end
@@ -61,9 +70,13 @@ module Catches
           before_state: before, after_state: after
         )
 
-        @catch.catch_placements.map(&:tournament).uniq.each do |t|
-          Placements::BroadcastLeaderboard.call(tournament: t)
-        end
+        affected_tournaments = @catch.catch_placements.map(&:tournament).uniq
+      end
+
+      # Broadcast AFTER the transaction commits so other DB connections see the
+      # new state when they rebuild the leaderboard.
+      affected_tournaments.each do |t|
+        Placements::BroadcastLeaderboard.call(tournament: t)
       end
     end
 

@@ -24,6 +24,11 @@ export async function pendingCatches() {
   return db.getAllFromIndex("catches", "status", "pending");
 }
 
+export async function failedCatches() {
+  const db = await getDB();
+  return db.getAllFromIndex("catches", "status", "failed");
+}
+
 export async function markSynced(client_uuid) {
   const db = await getDB();
   const rec = await db.get("catches", client_uuid);
@@ -34,4 +39,10 @@ export async function markFailed(client_uuid, reason) {
   const db = await getDB();
   const rec = await db.get("catches", client_uuid);
   if (rec) await db.put("catches", { ...rec, status: "failed", reason, failed_at: Date.now() });
+}
+
+export async function markPending(client_uuid) {
+  const db = await getDB();
+  const rec = await db.get("catches", client_uuid);
+  if (rec) await db.put("catches", { ...rec, status: "pending", reason: null, failed_at: null });
 }

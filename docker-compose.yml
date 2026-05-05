@@ -7,7 +7,7 @@ services:
     ports: ["127.0.0.1:5432:5432"]
   web:
     build: { context: ., dockerfile: Dockerfile.dev }
-    command: sh -c "bin/rails tailwindcss:build && bin/rails server -b 0.0.0.0 -p 3000"
+    command: sh -c "rm -f tmp/pids/server.pid && bin/rails tailwindcss:build && bin/rails server -b 0.0.0.0 -p 3000"
     environment:
       # No database path here — let config/database.yml pick the name per env
       # so dev → tournament_development, test → tournament_test (separate DBs).
@@ -26,6 +26,7 @@ services:
       SEED_ORGANIZER_NAME: ${SEED_ORGANIZER_NAME:-Organizer}
       SEED_ORGANIZER_EMAIL: ${SEED_ORGANIZER_EMAIL:-organizer@example.com}
       SEED_DEMO_DATA: ${SEED_DEMO_DATA:-}
+      SOLID_QUEUE_IN_PUMA: "1"
     volumes: [".:/app"]
     ports: ["127.0.0.1:3000:3000"]
     depends_on: [db]
