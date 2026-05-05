@@ -13,20 +13,24 @@ module Catches
     end
 
     def call
-      candidate = find_candidate
-      return nil if candidate.nil?
-      existing = ::CatchPlacement.find_by(
-        catch_id: candidate.id, tournament_entry_id: @entry.id,
-        species_id: @species.id, slot_index: @slot_index
-      )
-      if existing
-        existing.update!(active: true)
-        existing
-      else
-        ::CatchPlacement.create!(
-          catch: candidate, tournament: @tournament, tournament_entry: @entry,
-          species: @species, slot_index: @slot_index, active: true
+      ActiveRecord::Base.transaction do
+        @entry.lock!  # serialize with PlaceInSlots / RebalanceSlots on the same entry
+
+        candidate = find_candidate
+        return nil if candidate.nil?
+        existing = ::CatchPlacement.find_by(
+          catch_id: candidate.id, tournament_entry_id: @entry.id,
+          species_id: @species.id, slot_index: @slot_index
         )
+        if existing
+          existing.update!(active: true)
+          existing
+        else
+          ::CatchPlacement.create!(
+            catch: candidate, tournament: @tournament, tournament_entry: @entry,
+            species: @species, slot_index: @slot_index, active: true
+          )
+        end
       end
     end
 
@@ -38,7 +42,7 @@ module Catches
       placed_ids = @entry.catch_placements
                           .where(species_id: @species.id, active: true)
                           .pluck(:catch_id)
-      excluded_ids = (placed_ids + [@placement.catch_id]).uniq
+      excluded_ids = (placed_ids + [ @placement.catch_id ]).uniq
       scope = ::Catch.where(user_id: member_ids,
                             species_id: @species.id,
                             captured_at_device: window)

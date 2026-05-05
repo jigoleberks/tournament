@@ -16,6 +16,8 @@ module Catches
       # a consistent state. Rails flattens to a savepoint when the caller
       # (e.g. ApplyJudgeAction) already has an outer transaction open.
       ActiveRecord::Base.transaction do
+        @entry.lock!  # serialize with PlaceInSlots / PromoteBackup on the same entry
+
         loop do
           smallest = smallest_active_placement
           break if smallest.nil?

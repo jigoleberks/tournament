@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_05_04_000000) do
+ActiveRecord::Schema[8.1].define(version: 2026_05_04_010000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -54,6 +54,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_05_04_000000) do
     t.index ["catch_id", "tournament_entry_id", "species_id", "slot_index"], name: "idx_placements_uniq", unique: true
     t.index ["catch_id"], name: "index_catch_placements_on_catch_id"
     t.index ["species_id"], name: "index_catch_placements_on_species_id"
+    t.index ["tournament_entry_id", "species_id", "slot_index"], name: "idx_active_placements_uniq_per_slot", unique: true, where: "(active = true)"
     t.index ["tournament_entry_id"], name: "index_catch_placements_on_tournament_entry_id"
     t.index ["tournament_id", "species_id", "slot_index", "active"], name: "idx_placements_leaderboard"
     t.index ["tournament_id"], name: "index_catch_placements_on_tournament_id"
