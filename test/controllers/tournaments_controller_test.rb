@@ -92,4 +92,155 @@ class TournamentsControllerTest < ActionDispatch::IntegrationTest
     assert_select "[data-test=approved-check]", count: 0
     assert_no_match "Approved by", response.body
   end
+
+  test "blind+active show page: entered angler sees own entry's fish, others blanked" do
+    species = create(:species, club: @club)
+    t = create(:tournament, club: @club, starts_at: 1.hour.ago, ends_at: 1.hour.from_now,
+               blind_leaderboard: true)
+    create(:scoring_slot, tournament: t, species: species, slot_count: 1)
+
+    my_entry = create(:tournament_entry, tournament: t, name: "My Entry")
+    create(:tournament_entry_member, tournament_entry: my_entry, user: @user)
+    my_catch = create(:catch, user: @user, species: species, length_inches: 22.5)
+    create(:catch_placement, catch: my_catch, tournament: t,
+                              tournament_entry: my_entry, species: species, slot_index: 0)
+
+    other_user = create(:user, club: @club, name: "Other Angler")
+    other_entry = create(:tournament_entry, tournament: t, name: "Other Entry")
+    create(:tournament_entry_member, tournament_entry: other_entry, user: other_user)
+    other_catch = create(:catch, user: other_user, species: species, length_inches: 28.0)
+    create(:catch_placement, catch: other_catch, tournament: t,
+                              tournament_entry: other_entry, species: species, slot_index: 0)
+
+    get tournament_path(t)
+    assert_response :success
+
+    # Both entry names are visible in the leaderboard
+    assert_match "My Entry", response.body
+    assert_match "Other Entry", response.body
+
+    # My length appears, but the other angler's length does not
+    assert_match "22.5", response.body
+    assert_no_match "28.0", response.body
+
+    # Banner is rendered, AND lives inside the #leaderboard wrapper so a
+    # reveal-stream replace (which targets id="leaderboard") sweeps the banner
+    # away alongside the table.
+    assert_match(/Blind leaderboard/i, response.body)
+    assert_select "#leaderboard #blind-leaderboard-banner"
+  end
+
+  test "blind+active show page: non-entered, non-organizer member sees only entry names, totals dashed" do
+    member = create(:user, club: @club, name: "Bystander", role: :member)
+    post session_path, params: { email: member.email }
+    get consume_session_path(token: SignInToken.last.token)
+
+    species = create(:species, club: @club)
+    t = create(:tournament, club: @club, starts_at: 1.hour.ago, ends_at: 1.hour.from_now,
+               blind_leaderboard: true)
+    create(:scoring_slot, tournament: t, species: species, slot_count: 1)
+
+    competitor = create(:user, club: @club, name: "Competitor")
+    entry = create(:tournament_entry, tournament: t, name: "Sole Entry")
+    create(:tournament_entry_member, tournament_entry: entry, user: competitor)
+    catch_record = create(:catch, user: competitor, species: species, length_inches: 31.25)
+    create(:catch_placement, catch: catch_record, tournament: t,
+                              tournament_entry: entry, species: species, slot_index: 0)
+
+    get tournament_path(t)
+    assert_response :success
+    assert_match "Sole Entry", response.body
+    assert_no_match "31.25", response.body
+  end
+
+  test "blind+active show page: judge sees full data" do
+    judge = create(:user, club: @club, name: "Judge", role: :member)
+    species = create(:species, club: @club)
+    t = create(:tournament, club: @club, starts_at: 1.hour.ago, ends_at: 1.hour.from_now,
+               blind_leaderboard: true)
+    create(:scoring_slot, tournament: t, species: species, slot_count: 1)
+    create(:tournament_judge, tournament: t, user: judge)
+
+    competitor = create(:user, club: @club, name: "Competitor")
+    entry = create(:tournament_entry, tournament: t, name: "Some Entry")
+    create(:tournament_entry_member, tournament_entry: entry, user: competitor)
+    catch_record = create(:catch, user: competitor, species: species, length_inches: 31.25)
+    create(:catch_placement, catch: catch_record, tournament: t,
+                              tournament_entry: entry, species: species, slot_index: 0)
+
+    post session_path, params: { email: judge.email }
+    get consume_session_path(token: SignInToken.last.token)
+
+    get tournament_path(t)
+    assert_response :success
+    assert_match "31.25", response.body
+    assert_no_match "blind-leaderboard-banner", response.body
+  end
+
+  test "ended blind tournament show page: every viewer sees full leaderboard" do
+    species = create(:species, club: @club)
+    t = create(:tournament, club: @club, starts_at: 2.hours.ago, ends_at: 1.hour.ago,
+               blind_leaderboard: true)
+    create(:scoring_slot, tournament: t, species: species, slot_count: 1)
+
+    competitor = create(:user, club: @club, name: "Competitor")
+    entry = create(:tournament_entry, tournament: t, name: "Winning Entry")
+    create(:tournament_entry_member, tournament_entry: entry, user: competitor)
+    catch_record = create(:catch, user: competitor, species: species, length_inches: 31.25)
+    create(:catch_placement, catch: catch_record, tournament: t,
+                              tournament_entry: entry, species: species, slot_index: 0)
+
+    get tournament_path(t)
+    assert_response :success
+    assert_match "31.25", response.body
+    assert_no_match "blind-leaderboard-banner", response.body
+  end
+
+  test "blind+active show page: entered angler subscribes to entry stream and reveal" do
+    species = create(:species, club: @club)
+    t = create(:tournament, club: @club, starts_at: 1.hour.ago, ends_at: 1.hour.from_now,
+               blind_leaderboard: true)
+    create(:scoring_slot, tournament: t, species: species, slot_count: 1)
+
+    entry = create(:tournament_entry, tournament: t, name: "My Entry")
+    create(:tournament_entry_member, tournament_entry: entry, user: @user)
+
+    get tournament_path(t)
+    assert_response :success
+    assert_match Turbo::StreamsChannel.signed_stream_name("tournament:#{t.id}:leaderboard:entry:#{entry.id}"), response.body
+    assert_match Turbo::StreamsChannel.signed_stream_name("tournament:#{t.id}:leaderboard:reveal"), response.body
+    assert_no_match Regexp.new(Regexp.escape(Turbo::StreamsChannel.signed_stream_name("tournament:#{t.id}:leaderboard:full"))), response.body
+  end
+
+  test "blind+active show page: non-entered member subscribes only to reveal" do
+    member = create(:user, club: @club, name: "Bystander", role: :member)
+    post session_path, params: { email: member.email }
+    get consume_session_path(token: SignInToken.last.token)
+
+    t = create(:tournament, club: @club, starts_at: 1.hour.ago, ends_at: 1.hour.from_now,
+               blind_leaderboard: true)
+
+    get tournament_path(t)
+    assert_response :success
+    assert_match Turbo::StreamsChannel.signed_stream_name("tournament:#{t.id}:leaderboard:reveal"), response.body
+    assert_no_match Regexp.new(Regexp.escape(Turbo::StreamsChannel.signed_stream_name("tournament:#{t.id}:leaderboard:full"))), response.body
+    # No entry-stream subscription. We match the un-signed-name prefix encoded into the signed token's payload.
+    # Since signed names don't surface plaintext, fall back to: any entry-stream signed name would change per entry id;
+    # easiest invariant — assert there's no signed turbo-cable-stream-source that decodes to an entry stream.
+    sources = response.body.scan(/signed-stream-name="([^"]+)"/).flatten
+    decoded_names = sources.map do |signed|
+      Turbo::StreamsChannel.send(:verifier).verified(signed) rescue nil
+    end.compact
+    assert decoded_names.none? { |n| n.start_with?("tournament:#{t.id}:leaderboard:entry:") },
+      "Expected no entry-stream subscription, got: #{decoded_names.inspect}"
+  end
+
+  test "non-blind tournament: every viewer subscribes to :full" do
+    t = create(:tournament, club: @club, starts_at: 1.hour.ago, ends_at: 1.hour.from_now,
+               blind_leaderboard: false)
+    get tournament_path(t)
+    assert_response :success
+    assert_match Turbo::StreamsChannel.signed_stream_name("tournament:#{t.id}:leaderboard:full"), response.body
+    assert_no_match Regexp.new(Regexp.escape(Turbo::StreamsChannel.signed_stream_name("tournament:#{t.id}:leaderboard:reveal"))), response.body
+  end
 end

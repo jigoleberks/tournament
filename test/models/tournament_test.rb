@@ -60,4 +60,75 @@ class TournamentTest < ActiveSupport::TestCase
     assert t.judged?
     assert_not t.friendly?
   end
+
+  test "blind? is false when blind_leaderboard is false" do
+    t = create(:tournament, club: @club, starts_at: 1.hour.ago, ends_at: 1.hour.from_now)
+    assert_not t.blind?
+  end
+
+  test "blind? is true when blind_leaderboard is true and tournament is active" do
+    t = create(:tournament, club: @club, starts_at: 1.hour.ago, ends_at: 1.hour.from_now,
+               blind_leaderboard: true)
+    assert t.blind?
+  end
+
+  test "blind? is false when blind_leaderboard is true but tournament has ended" do
+    t = create(:tournament, club: @club, starts_at: 2.hours.ago, ends_at: 1.hour.ago,
+               blind_leaderboard: true)
+    assert_not t.blind?
+  end
+
+  test "blind? is false when blind_leaderboard is true but tournament has not started" do
+    t = create(:tournament, club: @club, starts_at: 1.hour.from_now, ends_at: 5.hours.from_now,
+               blind_leaderboard: true)
+    assert_not t.blind?
+  end
+
+  test "blind? respects the at: argument" do
+    t = create(:tournament, club: @club, starts_at: 1.hour.ago, ends_at: 1.hour.from_now,
+               blind_leaderboard: true)
+    assert_not t.blind?(at: 2.hours.from_now)
+    assert t.blind?(at: 30.minutes.from_now)
+  end
+
+  test "blind_leaderboard requires ends_at" do
+    t = build(:tournament, club: @club, blind_leaderboard: true, ends_at: nil)
+    assert_not t.valid?
+    assert t.errors[:blind_leaderboard].any? { |e| e.include?("end time") }
+  end
+
+  test "blind_leaderboard rejected when kind is ongoing" do
+    t = build(:tournament, club: @club, blind_leaderboard: true,
+              kind: :ongoing, ends_at: 1.hour.from_now)
+    assert_not t.valid?
+    assert t.errors[:blind_leaderboard].any? { |e| e.include?("end time") }
+  end
+
+  test "blind_leaderboard valid when kind is event and ends_at present" do
+    t = build(:tournament, club: @club, blind_leaderboard: true,
+              kind: :event, starts_at: 1.hour.ago, ends_at: 1.hour.from_now)
+    assert t.valid?
+  end
+
+  test "blind_leaderboard cannot be changed after the tournament has started" do
+    t = create(:tournament, club: @club, starts_at: 1.hour.ago, ends_at: 1.hour.from_now,
+               blind_leaderboard: false)
+    t.blind_leaderboard = true
+    assert_not t.valid?
+    assert t.errors[:blind_leaderboard].any? { |e| e.include?("can't be changed") }
+  end
+
+  test "blind_leaderboard can be changed before the tournament starts" do
+    t = create(:tournament, club: @club, starts_at: 1.hour.from_now, ends_at: 5.hours.from_now,
+               blind_leaderboard: false)
+    t.blind_leaderboard = true
+    assert t.valid?
+  end
+
+  test "saving an unrelated attribute on a started tournament does not trigger the lock" do
+    t = create(:tournament, club: @club, starts_at: 1.hour.ago, ends_at: 1.hour.from_now,
+               blind_leaderboard: true)
+    t.name = "Renamed mid-event"
+    assert t.valid?
+  end
 end

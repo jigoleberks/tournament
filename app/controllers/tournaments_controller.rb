@@ -13,6 +13,7 @@ class TournamentsController < ApplicationController
   def show
     @tournament = current_user.club.tournaments.find(params[:id])
     @leaderboard = Leaderboards::Build.call(tournament: @tournament)
+    @viewer_scope = Leaderboards::ViewerScope.for(tournament: @tournament, user: current_user)
   end
 
   def archived

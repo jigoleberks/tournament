@@ -70,6 +70,26 @@
       <span class="text-slate-200">Awards season points</span>
     </label>
     <p class="text-xs text-slate-500 -mt-2">When on, this tournament contributes to the season points leaderboard (using its season tag). Top finishers earn points based on the angler count.</p>
+
+    <% blind_locked = @tournament.persisted? && @tournament.starts_at && @tournament.starts_at <= Time.current %>
+    <% if blind_locked %>
+      <%= f.hidden_field :blind_leaderboard, value: @tournament.blind_leaderboard ? "1" : "0" %>
+      <label class="flex items-center gap-3 mt-2 opacity-60">
+        <input type="checkbox" name="tournament[blind_leaderboard]" disabled <%= "checked" if @tournament.blind_leaderboard %> class="h-5 w-5">
+        <span class="text-slate-200">Blind leaderboard</span>
+      </label>
+    <% else %>
+      <label class="flex items-center gap-3 mt-2">
+        <%= f.check_box :blind_leaderboard, class: "h-5 w-5" %>
+        <span class="text-slate-200">Blind leaderboard</span>
+      </label>
+    <% end %>
+    <p class="text-xs text-slate-500 -mt-2">
+      While the tournament is running, only judges can see the full leaderboard.
+      Anglers see only their own team's catches; everyone else sees just the entry list.
+      The full leaderboard is revealed when the tournament ends.
+      <% if blind_locked %><br><strong>Locked once the tournament starts.</strong><% end %>
+    </p>
   </div>
 
   <div class="bg-slate-800 rounded-xl p-4 space-y-3">

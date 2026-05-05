@@ -49,5 +49,46 @@ module Placements
       lead = payloads.find { |p| p[:reason] == "took_the_lead" && p[:user] == @ann }
       assert lead, "expected a took_the_lead notification to Ann"
     end
+
+    test "suppresses bumped notification when the affected tournament is blind+active" do
+      @t.update_columns(blind_leaderboard: true)
+
+      first = create(:catch, user: @joe, species: @walleye, length_inches: 18)
+      Catches::PlaceInSlots.call(catch: first)
+
+      bigger = create(:catch, user: @ann, species: @walleye, length_inches: 22)
+      result = Catches::PlaceInSlots.call(catch: bigger)
+
+      payloads = DetectNotifications.call(result: result)
+      assert_empty payloads, "expected no notifications during a blind+active tournament"
+    end
+
+    test "does not suppress pushes for non-blind tournaments when user is also in a blind one" do
+      blind_t = create(:tournament, club: @club, starts_at: 1.hour.ago, ends_at: 1.hour.from_now,
+                       blind_leaderboard: true, mode: :solo)
+      create(:scoring_slot, tournament: blind_t, species: @walleye, slot_count: 1)
+      joe_blind = create(:tournament_entry, tournament: blind_t)
+      create(:tournament_entry_member, tournament_entry: joe_blind, user: @joe)
+      ann_blind = create(:tournament_entry, tournament: blind_t)
+      create(:tournament_entry_member, tournament_entry: ann_blind, user: @ann)
+
+      open_t = create(:tournament, club: @club, starts_at: 1.hour.ago, ends_at: 1.hour.from_now, mode: :solo)
+      create(:scoring_slot, tournament: open_t, species: @walleye, slot_count: 1)
+      joe_open = create(:tournament_entry, tournament: open_t)
+      create(:tournament_entry_member, tournament_entry: joe_open, user: @joe)
+      ann_open = create(:tournament_entry, tournament: open_t)
+      create(:tournament_entry_member, tournament_entry: ann_open, user: @ann)
+
+      first = create(:catch, user: @joe, species: @walleye, length_inches: 18)
+      Catches::PlaceInSlots.call(catch: first)
+
+      bigger = create(:catch, user: @ann, species: @walleye, length_inches: 22)
+      result = Catches::PlaceInSlots.call(catch: bigger)
+
+      payloads = DetectNotifications.call(result: result)
+      tournaments = payloads.map { |p| p[:tournament] }
+      assert_includes tournaments, open_t,    "expected payloads for the non-blind tournament"
+      assert_not_includes tournaments, blind_t, "expected no payloads for the blind tournament"
+    end
   end
 end

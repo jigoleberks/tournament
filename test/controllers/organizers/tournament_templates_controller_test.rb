@@ -33,6 +33,16 @@ class Organizers::TournamentTemplatesControllerTest < ActionDispatch::Integratio
     assert TournamentTemplate.last.awards_season_points?
   end
 
+  test "creates a template with blind_leaderboard set" do
+    assert_difference -> { TournamentTemplate.count }, 1 do
+      post organizers_tournament_templates_path, params: {
+        tournament_template: { name: "Blind Night Template", mode: "solo", blind_leaderboard: "1" }
+      }
+    end
+    assert_redirected_to organizers_tournament_templates_path
+    assert TournamentTemplate.last.blind_leaderboard?
+  end
+
   private
 
   def sign_in_as(user)

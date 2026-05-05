@@ -11,6 +11,8 @@ class Tournament < ApplicationRecord
   enum :mode, { solo: 0, team: 1 }, prefix: true
 
   validates :name, :kind, :mode, :starts_at, presence: true
+  validate :blind_leaderboard_requires_end_time
+  validate :blind_leaderboard_locked_after_start, on: :update
 
   scope :active_at, ->(time) {
     where("starts_at <= ?", time).where("ends_at IS NULL OR ends_at >= ?", time)
@@ -22,6 +24,10 @@ class Tournament < ApplicationRecord
 
   def ended?(at: Time.current)
     ends_at.present? && ends_at < at
+  end
+
+  def blind?(at: Time.current)
+    blind_leaderboard? && active?(at: at)
   end
 
   def friendly?
@@ -39,5 +45,18 @@ class Tournament < ApplicationRecord
     if saved_change_to_ends_at? && ends_at&.future?
       TournamentLifecycleAnnounceJob.set(wait_until: ends_at).perform_later(tournament_id: id, kind: "ended")
     end
+  end
+
+  def blind_leaderboard_requires_end_time
+    return unless blind_leaderboard?
+    if ends_at.blank? || ongoing?
+      errors.add(:blind_leaderboard, "requires an end time")
+    end
+  end
+
+  def blind_leaderboard_locked_after_start
+    return unless will_save_change_to_blind_leaderboard?
+    return if starts_at.blank? || starts_at > Time.current
+    errors.add(:blind_leaderboard, "can't be changed once the tournament has started")
   end
 end

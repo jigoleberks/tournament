@@ -86,6 +86,44 @@ class Organizers::TournamentsControllerTest < ActionDispatch::IntegrationTest
     assert @club.tournaments.last.awards_season_points?
   end
 
+  test "create accepts blind_leaderboard true" do
+    sign_in_as(@organizer)
+    species = create(:species, club: @club)
+    post organizers_tournaments_path, params: {
+      tournament: {
+        name: "Blind League Night",
+        kind: "event",
+        mode: "solo",
+        starts_at: 1.hour.from_now,
+        ends_at: 4.hours.from_now,
+        blind_leaderboard: "1",
+        scoring_slots_attributes: { "0" => { species_id: species.id, slot_count: 1 } }
+      }
+    }
+    assert_redirected_to organizers_tournaments_path
+    assert Tournament.last.blind_leaderboard?
+  end
+
+  test "edit form locks blind_leaderboard after starts_at has passed" do
+    sign_in_as(@organizer)
+    t = create(:tournament, club: @club, starts_at: 1.hour.ago, ends_at: 1.hour.from_now,
+               blind_leaderboard: true)
+    get edit_organizers_tournament_path(t)
+    assert_response :success
+    assert_select "input[type=checkbox][name='tournament[blind_leaderboard]'][disabled]"
+    assert_select "input[type=hidden][name='tournament[blind_leaderboard]'][value='1']"
+  end
+
+  test "update rejects toggling blind_leaderboard after starts_at" do
+    sign_in_as(@organizer)
+    t = create(:tournament, club: @club, starts_at: 1.hour.ago, ends_at: 1.hour.from_now,
+               blind_leaderboard: false)
+    patch organizers_tournament_path(t), params: { tournament: { blind_leaderboard: "1" } }
+    assert_response :unprocessable_entity
+    t.reload
+    assert_not t.blind_leaderboard?
+  end
+
   private
 
   def sign_in_as(user)
