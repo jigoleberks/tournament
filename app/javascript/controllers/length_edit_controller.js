@@ -13,15 +13,18 @@ export default class extends Controller {
     const oldUnit = this.inputTarget.dataset.lengthEditUnit
     if (oldUnit === newUnit) return
 
+    const stepSize = newUnit === "centimeters" ? 0.5 : 0.25
     const v = parseFloat(this.inputTarget.value)
     if (!Number.isNaN(v)) {
       const factor = oldUnit === "inches" && newUnit === "centimeters" ? 2.54
                    : oldUnit === "centimeters" && newUnit === "inches" ? 1 / 2.54
                    : 1
-      this.inputTarget.value = (v * factor).toFixed(2)
+      // Snap to the new unit's step grid so the form passes HTML5
+      // stepMismatch validation on submit (the form is local: true).
+      this.inputTarget.value = (Math.round(v * factor / stepSize) * stepSize).toFixed(2)
     }
 
     this.inputTarget.dataset.lengthEditUnit = newUnit
-    this.inputTarget.step = newUnit === "centimeters" ? "0.5" : "0.25"
+    this.inputTarget.step = String(stepSize)
   }
 }
