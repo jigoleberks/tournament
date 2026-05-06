@@ -7,8 +7,13 @@ Rails.application.routes.draw do
       post :code, action: :submit_code
     end
   end
-  constraints(host: "admin.jigoleberks.com") do
-    root to: redirect("/admin"), as: :admin_host_root
+  # When the admin subdomain is hit (admin.<APP_HOST>), land directly on
+  # /admin instead of the PWA home. Same app, just a host-driven shortcut.
+  app_host = ENV.fetch("APP_HOST", "localhost")
+  unless app_host == "localhost"
+    constraints(host: "admin.#{app_host}") do
+      root to: redirect("/admin"), as: :admin_host_root
+    end
   end
   root "home#index"
 
