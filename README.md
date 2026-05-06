@@ -10,6 +10,7 @@ A small, self-hosted Progressive Web App for running club-scale catch-photo-rele
 - **Live leaderboard** — Turbo Streams over Action Cable; updates every viewer when placement changes
 - **Judged or friendly tournaments** — judged events run through review/approve/DQ; friendly events skip judging and let placements settle from member submissions
 - **Organizer flow** — tournament CRUD, scoring slots per species, templates, season tags, entries (members can't self-sign-up; organizers control who's in), judge assignment, full catch history with photos
+- **Laptop admin UI** — `/admin` (or `admin.<your-domain>` via a second tunnel route) for managing tournaments, members, and judges and reviewing catch photos at full screen; same data as the PWA, different presentation
 - **Judge workflow** — needs-review queue, approve / flag / disqualify / dock-verify, manual override (length + slot), append-only `JudgeAction` audit log
 - **Web Push** — VAPID; bumped-from-slot, took-the-lead, judge-flagged, tournament started/ended; per-user mute / snooze / per-tournament mute
 - **Per-user units** — inches or centimeters; leaderboard shows both
@@ -103,6 +104,8 @@ APP_HOST=tournament.example.com
 
 The app reads it in `config/environments/development.rb` for host authorization, mailer URLs, and ActiveStorage redirects.
 
+**Optional: a dedicated admin subdomain.** The `/admin` laptop UI also responds on `admin.<APP_HOST>` if you add a second tunnel ingress rule pointing at the same `localhost:3000`. The bare-domain `/admin` path always works; the subdomain is just a convenience so the laptop URL bar reads cleanly. Rails' host allowlist already accepts `admin.<APP_HOST>` whenever `APP_HOST` is set, and the session cookie is scoped broadly so signing in on one host carries over to the other.
+
 ### 7. Bring up the stack
 
 ```bash
@@ -192,6 +195,12 @@ A `storage:cleanup_orphans` rake task removes files in `storage/` that no longer
 
 ```bash
 docker compose run --rm web bin/rails storage:cleanup_orphans
+```
+
+A `catches:warm_photo_variants` task pre-generates the resized thumbnail variants (200/400/1200 px) for every existing catch photo. Variants are also generated lazily on first request, so this is only useful as a one-shot after first enabling the variant code or after restoring a backup, to avoid users paying the per-photo first-load cost. Idempotent; already-generated variants are reused.
+
+```bash
+docker compose exec web bin/rails catches:warm_photo_variants
 ```
 
 To run it monthly via cron (replace `/path/to/tournament` with the absolute path to your checkout):
