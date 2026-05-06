@@ -1,5 +1,7 @@
 Rails.application.config.session_store :cookie_store,
-  key: "_tournament_session",
+  # v2 key invalidates pre-#44 host-only cookies that would otherwise shadow
+  # the new subdomain-scoped cookie and break sign-in for returning users.
+  key: "_tournament_session_v2",
   expire_after: 30.days,
   same_site: :lax,
   secure: Rails.env.production?,
