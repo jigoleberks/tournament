@@ -87,6 +87,14 @@
         </div>
 
         <% if @tournament.mode_team? && !locked %>
+          <%= form_with url: admin_tournament_tournament_entry_path(tournament_id: @tournament.id, id: entry.id),
+                        method: :patch, local: true, class: "mt-2 flex gap-2" do %>
+            <%= text_field_tag "tournament_entry[name]", entry.name, placeholder: "Boat name",
+                               class: "flex-1 h-8 px-2 rounded bg-slate-800 border border-slate-700 text-slate-100 text-xs" %>
+            <%= submit_tag "Rename",
+                           class: "h-8 px-2 rounded bg-slate-700 hover:bg-slate-600 text-slate-100 text-xs" %>
+          <% end %>
+
           <% candidates = current_user.club.users.active
                .where.not(id: entry.tournament_entry_members.select(:user_id))
                .order(:name) %>

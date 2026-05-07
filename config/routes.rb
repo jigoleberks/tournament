@@ -21,7 +21,7 @@ Rails.application.routes.draw do
 
   namespace :organizers do
     resources :tournaments do
-      resources :tournament_entries, only: [:create, :destroy] do
+      resources :tournament_entries, only: [:create, :update, :destroy] do
         resources :tournament_entry_members, only: [:create, :destroy]
       end
       resources :tournament_judges,  only: [:create, :destroy]
@@ -42,7 +42,7 @@ Rails.application.routes.draw do
   namespace :admin do
     root to: "dashboards#index"
     resources :tournaments do
-      resources :tournament_entries, only: [:create, :destroy] do
+      resources :tournament_entries, only: [:create, :update, :destroy] do
         resources :tournament_entry_members, only: [:create, :destroy]
       end
       resources :tournament_judges,  only: [:create, :destroy]

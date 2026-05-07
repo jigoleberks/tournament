@@ -36,7 +36,10 @@ class JudgeWorkflowTest < ApplicationSystemTestCase
     visit consume_session_path(token: token.token)
 
     visit tournament_path(@t)
-    assert_text "22"   # currently in the leaderboard
+    # Use the inch-mark suffix so "22" doesn't false-match the wall-clock minute
+    # in the rendered ends_at timestamp (e.g. "3:22 AM"). format_length_parts
+    # renders 22 inches as `22.0"`.
+    assert_text '22.0"'
 
     visit judges_tournament_catches_path(tournament_id: @t.id)
     click_link "Open"
@@ -44,6 +47,6 @@ class JudgeWorkflowTest < ApplicationSystemTestCase
     click_button "Disqualify"
 
     visit tournament_path(@t)
-    assert_no_text "22"
+    assert_no_text '22.0"'
   end
 end

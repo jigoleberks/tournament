@@ -42,6 +42,18 @@ class Organizers::TournamentEntriesController < Organizers::BaseController
     redirect_to edit_organizers_tournament_path(@tournament), alert: e.message
   end
 
+  def update
+    if @tournament.started?
+      redirect_to edit_organizers_tournament_path(@tournament), alert: "Tournament has started; entries are locked." and return
+    end
+    entry = @tournament.tournament_entries.find(params[:id])
+    if entry.update(name: params.dig(:tournament_entry, :name).to_s.strip.presence)
+      redirect_to edit_organizers_tournament_path(@tournament), notice: "Entry renamed."
+    else
+      redirect_to edit_organizers_tournament_path(@tournament), alert: entry.errors.full_messages.to_sentence
+    end
+  end
+
   def destroy
     if @tournament.started?
       redirect_to edit_organizers_tournament_path(@tournament), alert: "Tournament has started; entries are locked." and return
