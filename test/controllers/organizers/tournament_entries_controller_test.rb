@@ -77,6 +77,36 @@ class Organizers::TournamentEntriesControllerTest < ActionDispatch::IntegrationT
     assert_match(/started/i, flash[:alert])
   end
 
+  test "organizer renames a team entry before tournament starts" do
+    entry = create(:tournament_entry, tournament: @team, name: "Old Boat")
+    create(:tournament_entry_member, tournament_entry: entry, user: @member)
+
+    patch organizers_tournament_tournament_entry_path(tournament_id: @team.id, id: entry.id),
+          params: { tournament_entry: { name: "New Boat" } }
+
+    assert_redirected_to edit_organizers_tournament_path(@team)
+    assert_equal "New Boat", entry.reload.name
+  end
+
+  test "rename clears the name when blank submitted" do
+    entry = create(:tournament_entry, tournament: @team, name: "Was Named")
+    create(:tournament_entry_member, tournament_entry: entry, user: @member)
+
+    patch organizers_tournament_tournament_entry_path(tournament_id: @team.id, id: entry.id),
+          params: { tournament_entry: { name: "  " } }
+    assert_nil entry.reload.name
+  end
+
+  test "rename is locked once tournament has started" do
+    started = create(:tournament, club: @club, mode: :team, starts_at: 1.minute.ago, ends_at: 1.hour.from_now)
+    entry = create(:tournament_entry, tournament: started, name: "Locked")
+    create(:tournament_entry_member, tournament_entry: entry, user: @member)
+    patch organizers_tournament_tournament_entry_path(tournament_id: started.id, id: entry.id),
+          params: { tournament_entry: { name: "Try Rename" } }
+    assert_match(/started/i, flash[:alert])
+    assert_equal "Locked", entry.reload.name
+  end
+
   test "organizer destroys an entry" do
     entry = create(:tournament_entry, tournament: @solo)
     create(:tournament_entry_member, tournament_entry: entry, user: @member)
