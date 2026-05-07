@@ -1,6 +1,6 @@
 class User < ApplicationRecord
   has_many :club_memberships, dependent: :destroy
-  has_many :clubs_via_memberships, through: :club_memberships, source: :club
+  has_many :clubs, through: :club_memberships
   has_many :tournament_entry_members, dependent: :destroy
   has_many :tournament_entries, through: :tournament_entry_members
   has_many :tournament_judges, dependent: :destroy
