@@ -4,7 +4,7 @@ module Leaderboards
       entries = tournament.tournament_entries.includes(:users)
       placements_by_entry = CatchPlacement.active
         .where(tournament_id: tournament.id)
-        .includes(catch: [:species, { judge_actions: :judge_user }])
+        .includes(catch: [:species, :user, :logged_by_user, { judge_actions: :judge_user }])
         .group_by(&:tournament_entry_id)
 
       rows = entries.map do |entry|
@@ -15,6 +15,8 @@ module Leaderboards
               id: p.catch.id,
               length_inches: p.catch.length_inches,
               species_name: p.catch.species.name,
+              angler_name: p.catch.user.name,
+              logged_by_name: p.catch.logged_by_user&.name,
               approver_name: p.catch.latest_approver&.name
             }
           }

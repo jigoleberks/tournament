@@ -39,6 +39,9 @@
                   <% if f[:approver_name] %>
                     <span data-test="approved-check" class="text-green-400 ml-1" aria-label="approved">✓</span>
                   <% end %>
+                  <div class="text-slate-500">
+                    <%= f[:angler_name] %><%= " · logged by #{f[:logged_by_name]}" if f[:logged_by_name] %>
+                  </div>
                 </div>
               <% end %>
             </div>

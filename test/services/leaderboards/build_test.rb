@@ -27,6 +27,26 @@ module Leaderboards
       assert_equal [37, 22], result.map { |row| row[:total].to_i }
     end
 
+    test "fish exposes angler_name and logged_by_name (nil for self-logged catches)" do
+      @tournament.update!(mode: :team)
+      a = create(:user, club: @club, name: "A")
+      b = create(:user, club: @club, name: "B")
+      e = create(:tournament_entry, tournament: @tournament)
+      create(:tournament_entry_member, tournament_entry: e, user: a)
+      create(:tournament_entry_member, tournament_entry: e, user: b)
+
+      own = create(:catch, user: a, species: @walleye, length_inches: 22)
+      teammate_logged = create(:catch, user: b, species: @walleye, length_inches: 18, logged_by_user: a)
+      [own, teammate_logged].each { |c| Catches::PlaceInSlots.call(catch: c) }
+
+      row = Build.call(tournament: @tournament).first
+      by_id = row[:fish].index_by { |f| f[:id] }
+      assert_equal "A", by_id[own.id][:angler_name]
+      assert_nil by_id[own.id][:logged_by_name]
+      assert_equal "B", by_id[teammate_logged.id][:angler_name]
+      assert_equal "A", by_id[teammate_logged.id][:logged_by_name]
+    end
+
     test "fish exposes approver_name when last judge action is an approve" do
       a = create(:user, club: @club, name: "A")
       e = create(:tournament_entry, tournament: @tournament)
