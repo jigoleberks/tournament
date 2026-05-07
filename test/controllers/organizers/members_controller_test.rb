@@ -8,7 +8,9 @@ class Organizers::MembersControllerTest < ActionDispatch::IntegrationTest
   end
 
   test "creating a member sends an invitation email containing a magic link" do
-    assert_difference -> { User.count } => 1, -> { SignInToken.count } => 1 do
+    assert_difference -> { User.count } => 1,
+                      -> { SignInToken.count } => 1,
+                      -> { ClubMembership.count } => 1 do
       assert_emails 1 do
         post organizers_members_path, params: {
           user: { name: "New Guy", email: "new@example.com", role: "member" }
@@ -16,6 +18,25 @@ class Organizers::MembersControllerTest < ActionDispatch::IntegrationTest
       end
     end
     assert_match SignInToken.last.token, ActionMailer::Base.deliveries.last.body.encoded
+    new_user = User.find_by(email: "new@example.com")
+    membership = new_user.club_memberships.first
+    assert_equal @club, membership.club
+    assert membership.member?
+    assert_equal @club, SignInToken.last.club
+  end
+
+  test "creating an organizer-role member creates an organizer ClubMembership" do
+    post organizers_members_path, params: {
+      user: { name: "New Org", email: "neworg@example.com", role: "organizer" }
+    }
+    new_user = User.find_by(email: "neworg@example.com")
+    assert new_user.club_memberships.first.organizer?
+  end
+
+  test "issue_code stamps the club on the token" do
+    member = create(:user, club: @club, role: :member)
+    post issue_code_organizers_member_path(member)
+    assert_equal @club, SignInToken.where(user: member, kind: "code").last.club
   end
 
   test "destroy deactivates the member without removing the record" do

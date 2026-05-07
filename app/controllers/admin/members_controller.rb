@@ -9,8 +9,16 @@ class Admin::MembersController < Admin::BaseController
 
   def create
     @user = current_user.club.users.new(user_params)
-    if @user.save
-      token = SignInToken.issue!(user: @user, ttl: 7.days)
+    role_for_membership = user_params[:role].presence || "member"
+    saved = ActiveRecord::Base.transaction do
+      next false unless @user.save
+      ClubMembership.create!(user: @user, club: current_user.club, role: role_for_membership)
+      true
+    rescue ActiveRecord::RecordInvalid
+      false
+    end
+    if saved
+      token = SignInToken.issue!(user: @user, club: current_user.club, ttl: 7.days)
       InvitationMailer.welcome(token).deliver_later
       redirect_to admin_members_path, notice: "Invite sent."
     else
@@ -36,7 +44,7 @@ class Admin::MembersController < Admin::BaseController
 
   def issue_code
     member = current_user.club.users.active.find(params[:id])
-    token = SignInToken.issue_code!(user: member)
+    token = SignInToken.issue_code!(user: member, club: current_user.club)
     flash[:code] = token.token
     redirect_to code_admin_member_path(member), status: :see_other
   end

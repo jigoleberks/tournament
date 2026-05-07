@@ -2,19 +2,32 @@ require "securerandom"
 
 class SignInToken < ApplicationRecord
   belongs_to :user
+  belongs_to :club, optional: true
 
   CODE_TTL = 10.minutes
   CODE_MAX_ATTEMPTS = 5
 
   scope :open, -> { where(used_at: nil).where("expires_at > ?", Time.current) }
 
-  def self.issue!(user:, ttl: 30.minutes)
-    create!(user: user, token: SecureRandom.uuid, expires_at: ttl.from_now, kind: "link")
+  def self.issue!(user:, club: nil, ttl: 30.minutes)
+    create!(
+      user: user,
+      club: club || user.club_memberships.active.first&.club,
+      token: SecureRandom.uuid,
+      expires_at: ttl.from_now,
+      kind: "link"
+    )
   end
 
-  def self.issue_code!(user:)
+  def self.issue_code!(user:, club: nil)
     where(user: user, kind: "code").open.update_all(used_at: Time.current)
-    create!(user: user, token: generate_code, expires_at: CODE_TTL.from_now, kind: "code")
+    create!(
+      user: user,
+      club: club || user.club_memberships.active.first&.club,
+      token: generate_code,
+      expires_at: CODE_TTL.from_now,
+      kind: "code"
+    )
   end
 
   def self.consume!(token_string)
@@ -24,7 +37,7 @@ class SignInToken < ApplicationRecord
     return nil if record.user.deactivated?
 
     return nil unless claim(record)
-    record.user
+    record
   end
 
   def self.consume_code!(email:, code:)
@@ -38,7 +51,7 @@ class SignInToken < ApplicationRecord
     return nil unless record
 
     if ActiveSupport::SecurityUtils.secure_compare(record.token, code.to_s.strip)
-      return claim(record) ? record.user : nil
+      return claim(record) ? record : nil
     end
 
     record.increment!(:attempts)

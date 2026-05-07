@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_05_07_150000) do
+ActiveRecord::Schema[8.1].define(version: 2026_05_07_160000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -149,6 +149,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_05_07_150000) do
 
   create_table "sign_in_tokens", force: :cascade do |t|
     t.integer "attempts", default: 0, null: false
+    t.bigint "club_id"
     t.datetime "created_at", null: false
     t.datetime "expires_at", null: false
     t.string "kind", default: "link", null: false
@@ -156,6 +157,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_05_07_150000) do
     t.datetime "updated_at", null: false
     t.datetime "used_at"
     t.bigint "user_id", null: false
+    t.index ["club_id"], name: "index_sign_in_tokens_on_club_id"
     t.index ["token"], name: "index_sign_in_tokens_on_token", unique: true
     t.index ["user_id", "kind"], name: "index_sign_in_tokens_on_user_id_and_kind"
     t.index ["user_id"], name: "index_sign_in_tokens_on_user_id"
@@ -407,6 +409,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_05_07_150000) do
   add_foreign_key "push_subscriptions", "users"
   add_foreign_key "scoring_slots", "species"
   add_foreign_key "scoring_slots", "tournaments"
+  add_foreign_key "sign_in_tokens", "clubs"
   add_foreign_key "sign_in_tokens", "users"
   add_foreign_key "solid_queue_blocked_executions", "solid_queue_jobs", column: "job_id", on_delete: :cascade
   add_foreign_key "solid_queue_claimed_executions", "solid_queue_jobs", column: "job_id", on_delete: :cascade
