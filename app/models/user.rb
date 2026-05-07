@@ -27,11 +27,11 @@ class User < ApplicationRecord
 
   def organizer_in?(club)
     return false unless club
-    club_memberships.active.where(club_id: club.id, role: ClubMembership.roles[:organizer]).exists?
+    club_memberships.active.where(club: club, role: :organizer).exists?
   end
 
   def member_of?(club)
     return false unless club
-    club_memberships.active.where(club_id: club.id).exists?
+    club_memberships.active.where(club: club).exists?
   end
 end
