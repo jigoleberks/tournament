@@ -7,7 +7,7 @@ services:
     ports: ["127.0.0.1:5432:5432"]
   web:
     build: { context: ., dockerfile: Dockerfile.dev }
-    command: sh -c "rm -f tmp/pids/server.pid && bin/rails tailwindcss:build && bin/rails server -b 0.0.0.0 -p 3000"
+    command: sh -c "rm -f tmp/pids/server.pid && bin/rails db:migrate && bin/rails tailwindcss:build && bin/rails server -b 0.0.0.0 -p 3000"
     environment:
       # No database path here — let config/database.yml pick the name per env
       # so dev → tournament_development, test → tournament_test (separate DBs).
