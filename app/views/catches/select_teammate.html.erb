@@ -1,0 +1,21 @@
+<h1 class="text-2xl font-semibold mt-4 mb-2">Log for a teammate</h1>
+<p class="text-slate-400 text-sm mb-4">
+  Pick a teammate from <span class="text-slate-300"><%= @tournament.name %></span>.
+  The catch will be filed under their name with you noted as the logger.
+</p>
+
+<% if @teammates.any? %>
+  <ul class="space-y-2">
+    <% @teammates.each do |t| %>
+      <li>
+        <%= link_to t.name, new_catch_path(teammate_user_id: t.id),
+                    class: "block w-full h-14 px-4 rounded-lg bg-slate-800 active:bg-slate-700 text-slate-100 text-base font-medium leading-[3.5rem]" %>
+      </li>
+    <% end %>
+  </ul>
+<% else %>
+  <p class="text-slate-400 italic">No teammates on your entry.</p>
+<% end %>
+
+<%= link_to "Cancel", tournament_path(@tournament),
+            class: "block w-full h-12 px-4 mt-4 rounded-lg bg-slate-700 active:bg-slate-600 text-slate-100 text-center leading-[3rem]" %>

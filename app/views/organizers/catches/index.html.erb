@@ -31,6 +31,9 @@
           <% end %>
           <div class="text-xs text-slate-300 mt-2 leading-snug">
             <div class="font-medium text-slate-100"><%= c.user.name %></div>
+            <% if c.logged_by_user %>
+              <div class="text-slate-500 italic">logged by <%= c.logged_by_user.name %></div>
+            <% end %>
             <div><%= c.species.name %> · <%= format_length_dual(c.length_inches) %></div>
             <div class="text-slate-500"><%= c.captured_at_device.strftime("%b %d %Y · %l:%M:%S %p") %></div>
             <div class="mt-1">

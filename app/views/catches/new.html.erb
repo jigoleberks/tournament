@@ -1,8 +1,25 @@
 <h1 class="text-2xl font-semibold mt-4 mb-4">Log Catch</h1>
 
+<% if @teammate %>
+  <div class="bg-amber-900/30 border border-amber-700/40 rounded-lg p-3 mb-4 flex items-center justify-between gap-3">
+    <span class="text-sm text-amber-200">
+      Logging for <span class="font-semibold"><%= @teammate.name %></span>
+    </span>
+    <%= link_to "Cancel", new_catch_path,
+                class: "text-xs text-amber-200/80 underline" %>
+  </div>
+<% end %>
+
+<% if @catch&.errors&.[](:base)&.any? %>
+  <div class="bg-red-900/30 border border-red-700/40 rounded-lg p-3 mb-4 text-sm text-red-200">
+    <%= @catch.errors[:base].to_sentence %>
+  </div>
+<% end %>
+
 <div data-controller="catch-form photo-capture video-capture"
      data-catch-form-csrf-token-value="<%= form_authenticity_token %>"
      data-catch-form-caps-by-species-id-value="<%= @length_caps.to_json %>"
+     data-catch-form-teammate-user-id-value="<%= @teammate&.id %>"
      data-action="photo-capture:captured->catch-form#onPhotoCaptured
                   video-capture:captured->catch-form#onVideoCaptured
                   video-capture:failed->catch-form#onVideoFailed">

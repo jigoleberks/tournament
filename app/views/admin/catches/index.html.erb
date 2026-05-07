@@ -40,7 +40,11 @@
               <div class="font-bold text-slate-100 text-lg leading-tight"><%= c.user.name %></div>
               <div class="font-bold text-blue-400 whitespace-nowrap"><%= format_length_dual(c.length_inches) %></div>
             </div>
-            
+
+            <% if c.logged_by_user %>
+              <div class="text-xs text-slate-500 italic mb-2">logged by <%= c.logged_by_user.name %></div>
+            <% end %>
+
             <div class="text-sm text-slate-300 mb-4 capitalize">
               <%= c.species.name %>
               <span class="text-slate-600 px-1">•</span>

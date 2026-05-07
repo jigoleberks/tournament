@@ -132,6 +132,90 @@ class Api::CatchesControllerTest < ActionDispatch::IntegrationTest
     assert_response :unauthorized
   end
 
+  test "POST /api/catches with valid teammate files catch under teammate and stamps logger" do
+    @tournament.update!(mode: :team)
+    teammate = create(:user, club: @club, name: "Boatmate")
+    entry = TournamentEntry.joins(:tournament_entry_members).find_by(tournament_entry_members: { user_id: @user.id })
+    create(:tournament_entry_member, tournament_entry: entry, user: teammate)
+    photo = fixture_file_upload("sample_walleye.jpg", "image/jpeg")
+    now = Time.current
+
+    post "/api/catches", params: {
+      teammate_user_id: teammate.id,
+      catch: {
+        species_id: @walleye.id, length_inches: 18.5,
+        captured_at_device: now.iso8601, captured_at_gps: now.iso8601,
+        latitude: 49.41, longitude: -103.62,
+        client_uuid: "uuid-team", photo: photo
+      }
+    }, headers: { "Accept" => "application/json" }
+    assert_response :created
+    persisted = Catch.find_by(client_uuid: "uuid-team")
+    assert_equal teammate.id, persisted.user_id
+    assert_equal @user.id, persisted.logged_by_user_id
+  end
+
+  test "POST /api/catches rejects teammate from another club" do
+    other_club = create(:club)
+    foreigner = create(:user, club: other_club)
+    photo = fixture_file_upload("sample_walleye.jpg", "image/jpeg")
+
+    assert_no_difference -> { Catch.count } do
+      post "/api/catches", params: {
+        teammate_user_id: foreigner.id,
+        catch: {
+          species_id: @walleye.id, length_inches: 18.5,
+          captured_at_device: Time.current.iso8601,
+          client_uuid: "uuid-foreign", photo: photo
+        }
+      }, headers: { "Accept" => "application/json" }
+    end
+    assert_response :unprocessable_entity
+    assert_match "Teammate not found", response.body
+  end
+
+  test "POST /api/catches rejects teammate without a shared entry" do
+    other_user = create(:user, club: @club)
+    other_entry = create(:tournament_entry, tournament: @tournament)
+    create(:tournament_entry_member, tournament_entry: other_entry, user: other_user)
+    photo = fixture_file_upload("sample_walleye.jpg", "image/jpeg")
+
+    assert_no_difference -> { Catch.count } do
+      post "/api/catches", params: {
+        teammate_user_id: other_user.id,
+        catch: {
+          species_id: @walleye.id, length_inches: 18.5,
+          captured_at_device: Time.current.iso8601,
+          client_uuid: "uuid-no-share", photo: photo
+        }
+      }, headers: { "Accept" => "application/json" }
+    end
+    assert_response :unprocessable_entity
+    assert_match "aren't on the same entry", response.body
+  end
+
+  test "POST /api/catches is idempotent for retry of a teammate catch" do
+    @tournament.update!(mode: :team)
+    teammate = create(:user, club: @club)
+    entry = TournamentEntry.joins(:tournament_entry_members).find_by(tournament_entry_members: { user_id: @user.id })
+    create(:tournament_entry_member, tournament_entry: entry, user: teammate)
+
+    payload = lambda {
+      post "/api/catches", params: {
+        teammate_user_id: teammate.id,
+        catch: { species_id: @walleye.id, length_inches: 18.5,
+                 captured_at_device: Time.current.iso8601,
+                 client_uuid: "uuid-team-retry",
+                 photo: fixture_file_upload("sample_walleye.jpg", "image/jpeg") }
+      }, headers: { "Accept" => "application/json" }
+    }
+    payload.call
+    assert_no_difference "Catch.count" do
+      payload.call
+    end
+    assert_response :ok
+  end
+
   private
 
   def sign_in_as(user)

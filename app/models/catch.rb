@@ -2,6 +2,7 @@ class Catch < ApplicationRecord
   self.table_name = "catches"
   belongs_to :user
   belongs_to :species
+  belongs_to :logged_by_user, class_name: "User", optional: true
   has_one_attached :photo
   has_one_attached :video                 # not used in Phase 1; reserved for Phase 2
   has_many :catch_placements, dependent: :destroy

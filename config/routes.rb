@@ -60,7 +60,10 @@ Rails.application.routes.draw do
     collection { get :archived }
   end
   resources :catches, only: [:index, :new, :create, :show, :update] do
-    collection { get :map }
+    collection do
+      get :map
+      get :select_teammate
+    end
   end
 
   namespace :judges do

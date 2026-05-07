@@ -27,6 +27,7 @@ async function drain() {
         if (rec.note) fd.append("catch[note]", rec.note)
         if (rec.photo) fd.append("catch[photo]", rec.photo, "photo.jpg")
         if (rec.video) fd.append("catch[video]", rec.video, "video.webm")
+        if (rec.teammate_user_id) fd.append("teammate_user_id", rec.teammate_user_id)
 
         const resp = await fetch(ENDPOINT, {
           method: "POST",

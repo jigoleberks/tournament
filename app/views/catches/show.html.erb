@@ -30,6 +30,9 @@
 
   <dl class="text-slate-300 text-sm space-y-1">
     <div><dt class="inline text-slate-500">Angler:</dt> <dd class="inline text-slate-100"><%= @catch.user.name %></dd></div>
+    <% if @catch.logged_by_user %>
+      <div><dt class="inline text-slate-500">Logged by:</dt> <dd class="inline text-slate-100"><%= @catch.logged_by_user.name %></dd></div>
+    <% end %>
     <div><dt class="inline text-slate-500">Species:</dt> <dd class="inline"><%= @catch.species.name %></dd></div>
     <div><dt class="inline text-slate-500">Length:</dt> <dd class="inline"><%= format_length_dual(@catch.length_inches) %></dd></div>
     <div><dt class="inline text-slate-500">Captured:</dt> <dd class="inline"><%= @catch.captured_at_device.strftime("%b %d %Y · %l:%M:%S %p %Z") %></dd></div>

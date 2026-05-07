@@ -3,7 +3,7 @@ import { enqueueCatch } from "offline/db"
 
 export default class extends Controller {
   static targets = ["speciesSelect", "lengthInput", "lengthLabel", "noteInput", "submitButton", "status"]
-  static values = { csrfToken: String, capsBySpeciesId: Object }
+  static values = { csrfToken: String, capsBySpeciesId: Object, teammateUserId: String }
 
   connect() {
     this.photoBlob = null
@@ -69,7 +69,8 @@ export default class extends Controller {
         note: this.noteInputTarget.value,
         photo: this.photoBlob,
         video: this.videoBlob,
-        video_failed: this.videoFailed
+        video_failed: this.videoFailed,
+        teammate_user_id: this.teammateUserIdValue || null
       }
 
       await enqueueCatch(record)
