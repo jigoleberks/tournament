@@ -6,8 +6,9 @@ class Organizers::TournamentEntriesControllerTest < ActionDispatch::IntegrationT
     @organizer = create(:user, club: @club, role: :organizer)
     @member = create(:user, club: @club, name: "Joe", role: :member)
     @teammate = create(:user, club: @club, name: "Curtis", role: :member)
-    @solo = create(:tournament, club: @club, mode: :solo)
-    @team = create(:tournament, club: @club, mode: :team)
+    # Roster edits are only allowed before the tournament starts.
+    @solo = create(:tournament, club: @club, mode: :solo, starts_at: 1.hour.from_now, ends_at: 3.hours.from_now)
+    @team = create(:tournament, club: @club, mode: :team, starts_at: 1.hour.from_now, ends_at: 3.hours.from_now)
     sign_in_as(@organizer)
   end
 
@@ -57,13 +58,23 @@ class Organizers::TournamentEntriesControllerTest < ActionDispatch::IntegrationT
     assert_match(/unavailable/i, flash[:alert])
   end
 
-  test "entries are locked once tournament has ended" do
-    ended = create(:tournament, club: @club, mode: :solo, starts_at: 2.days.ago, ends_at: 1.hour.ago)
+  test "entries are locked once tournament has started" do
+    started = create(:tournament, club: @club, mode: :solo, starts_at: 1.minute.ago, ends_at: 1.hour.from_now)
     assert_no_difference "TournamentEntry.count" do
-      post organizers_tournament_tournament_entries_path(tournament_id: ended.id),
+      post organizers_tournament_tournament_entries_path(tournament_id: started.id),
            params: { tournament_entry: { member_user_ids: [@member.id] } }
     end
-    assert_match(/ended/i, flash[:alert])
+    assert_match(/started/i, flash[:alert])
+  end
+
+  test "destroy is locked once tournament has started" do
+    started = create(:tournament, club: @club, mode: :team, starts_at: 1.minute.ago, ends_at: 1.hour.from_now)
+    entry = create(:tournament_entry, tournament: started)
+    create(:tournament_entry_member, tournament_entry: entry, user: @member)
+    assert_no_difference "TournamentEntry.count" do
+      delete organizers_tournament_tournament_entry_path(tournament_id: started.id, id: entry.id)
+    end
+    assert_match(/started/i, flash[:alert])
   end
 
   test "organizer destroys an entry" do

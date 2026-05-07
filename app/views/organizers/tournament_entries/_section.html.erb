@@ -1,24 +1,68 @@
 <h3 class="text-lg font-semibold mt-6 mb-2">Entries (<%= @tournament.mode %>)</h3>
 
+<% locked = @tournament.started? %>
+
 <ul class="space-y-2">
-  <% @tournament.tournament_entries.includes(:users).order(:id).each do |entry| %>
-    <li class="bg-slate-800 rounded-lg px-3 py-2 flex items-center justify-between">
-      <div>
-        <% if entry.name.present? %><strong><%= entry.name %></strong>:<% end %>
-        <%= entry.users.map(&:name).join(", ") %>
+  <% @tournament.tournament_entries
+       .includes(tournament_entry_members: :user).order(:id).each do |entry| %>
+    <li class="bg-slate-800 rounded-lg p-3">
+      <div class="flex items-start justify-between gap-3">
+        <div class="flex-1">
+          <% if entry.name.present? %>
+            <div class="font-semibold text-slate-100"><%= entry.name %></div>
+          <% end %>
+          <% if @tournament.mode_team? %>
+            <ul class="mt-1 space-y-1">
+              <% entry.tournament_entry_members.each do |m| %>
+                <li class="flex items-center justify-between text-sm">
+                  <span class="text-slate-200"><%= m.user.name %></span>
+                  <% unless locked %>
+                    <%= button_to "Remove",
+                                  organizers_tournament_tournament_entry_tournament_entry_member_path(
+                                    tournament_id: @tournament.id, tournament_entry_id: entry.id, id: m.id),
+                                  method: :delete,
+                                  data: { turbo_confirm: "Remove #{m.user.name} from #{entry.name.presence || 'this team'}?" },
+                                  class: "h-8 px-2 text-xs rounded bg-slate-700 active:bg-slate-600 text-slate-100" %>
+                  <% end %>
+                </li>
+              <% end %>
+            </ul>
+          <% else %>
+            <div class="text-sm text-slate-200"><%= entry.users.map(&:name).join(", ") %></div>
+          <% end %>
+        </div>
+        <% unless locked %>
+          <%= button_to "Remove entry",
+                        organizers_tournament_tournament_entry_path(tournament_id: @tournament.id, id: entry.id),
+                        method: :delete,
+                        data: { turbo_confirm: "Remove this entry?" },
+                        class: "h-10 px-3 rounded bg-red-600 active:bg-red-700 text-white whitespace-nowrap" %>
+        <% end %>
       </div>
-      <%= button_to "Remove",
-                    organizers_tournament_tournament_entry_path(tournament_id: @tournament.id, id: entry.id),
-                    method: :delete,
-                    data: { turbo_confirm: "Remove this entry?" },
-                    class: "h-10 px-3 rounded bg-red-600 active:bg-red-700 text-white" %>
+
+      <% if @tournament.mode_team? && !locked %>
+        <% available = current_user.club.users.active
+             .where.not(id: entry.tournament_entry_members.select(:user_id))
+             .order(:name) %>
+        <% if available.any? && entry.tournament_entry_members.size < TournamentEntryMember::MAX_TEAM_MEMBERS %>
+          <%= form_with url: organizers_tournament_tournament_entry_tournament_entry_members_path(
+                          tournament_id: @tournament.id, tournament_entry_id: entry.id),
+                        local: true, class: "mt-3 flex gap-2" do %>
+            <%= select_tag :user_id,
+                           options_from_collection_for_select(available, :id, :name),
+                           class: "flex-1 h-10 px-2 rounded bg-slate-900 border border-slate-700 text-slate-100 text-sm" %>
+            <%= submit_tag "Add member",
+                           class: "h-10 px-3 rounded bg-blue-600 active:bg-blue-700 text-white text-sm" %>
+          <% end %>
+        <% end %>
+      <% end %>
     </li>
   <% end %>
 </ul>
 
-<% if @tournament.ended? %>
+<% if locked %>
   <p class="mt-4 bg-slate-800 rounded-lg p-3 text-slate-400 text-sm">
-    Tournament has ended — entries are locked.
+    Tournament has started — entries are locked.
   </p>
 <% else %>
 <% available = current_user.club.users.active.order(:name) %>

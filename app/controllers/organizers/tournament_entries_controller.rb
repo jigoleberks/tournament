@@ -2,8 +2,8 @@ class Organizers::TournamentEntriesController < Organizers::BaseController
   before_action :load_tournament
 
   def create
-    if @tournament.ended?
-      redirect_to edit_organizers_tournament_path(@tournament), alert: "Tournament has ended; entries are locked." and return
+    if @tournament.started?
+      redirect_to edit_organizers_tournament_path(@tournament), alert: "Tournament has started; entries are locked." and return
     end
 
     user_ids = Array(params.dig(:tournament_entry, :member_user_ids)).map(&:to_i).reject(&:zero?).uniq
@@ -43,6 +43,9 @@ class Organizers::TournamentEntriesController < Organizers::BaseController
   end
 
   def destroy
+    if @tournament.started?
+      redirect_to edit_organizers_tournament_path(@tournament), alert: "Tournament has started; entries are locked." and return
+    end
     entry = @tournament.tournament_entries.find(params[:id])
     entry.destroy
     redirect_to edit_organizers_tournament_path(@tournament), notice: "Entry removed."
