@@ -41,6 +41,7 @@ Rails.application.routes.draw do
 
   namespace :admin do
     root to: "dashboards#index"
+    resources :clubs, only: [ :index, :new, :create, :edit, :update ]
     resources :tournaments do
       resources :tournament_entries, only: [:create, :update, :destroy] do
         resources :tournament_entry_members, only: [:create, :destroy]
