@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_05_06_180000) do
+ActiveRecord::Schema[8.1].define(version: 2026_05_07_150000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -87,6 +87,19 @@ ActiveRecord::Schema[8.1].define(version: 2026_05_06_180000) do
     t.index ["logged_by_user_id"], name: "index_catches_on_logged_by_user_id"
     t.index ["species_id"], name: "index_catches_on_species_id"
     t.index ["user_id"], name: "index_catches_on_user_id"
+  end
+
+  create_table "club_memberships", force: :cascade do |t|
+    t.bigint "club_id", null: false
+    t.datetime "created_at", null: false
+    t.datetime "deactivated_at"
+    t.integer "role", default: 0, null: false
+    t.datetime "updated_at", null: false
+    t.bigint "user_id", null: false
+    t.index ["club_id"], name: "index_club_memberships_on_club_id"
+    t.index ["deactivated_at"], name: "index_club_memberships_on_deactivated_at"
+    t.index ["user_id", "club_id"], name: "index_club_memberships_on_user_id_and_club_id", unique: true
+    t.index ["user_id"], name: "index_club_memberships_on_user_id"
   end
 
   create_table "clubs", force: :cascade do |t|
@@ -364,6 +377,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_05_06_180000) do
   end
 
   create_table "users", force: :cascade do |t|
+    t.boolean "admin", default: false, null: false
     t.bigint "club_id", null: false
     t.datetime "created_at", null: false
     t.datetime "deactivated_at"
@@ -386,6 +400,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_05_06_180000) do
   add_foreign_key "catches", "species"
   add_foreign_key "catches", "users"
   add_foreign_key "catches", "users", column: "logged_by_user_id"
+  add_foreign_key "club_memberships", "clubs"
+  add_foreign_key "club_memberships", "users"
   add_foreign_key "judge_actions", "catches"
   add_foreign_key "judge_actions", "users", column: "judge_user_id"
   add_foreign_key "push_subscriptions", "users"

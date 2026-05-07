@@ -90,4 +90,10 @@ FactoryBot.define do
     sequence(:name) { |n| "Template #{n}" }
     mode { :solo }
   end
+
+  factory :club_membership do
+    association :user
+    association :club
+    role { :member }
+  end
 end
