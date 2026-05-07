@@ -5,9 +5,9 @@ class Admin::ClubsController < ApplicationController
   before_action :set_club, only: [ :edit, :update ]
 
   def index
-    @clubs = Club.left_joins(:users, :tournaments)
+    @clubs = Club.left_joins(:club_memberships, :tournaments)
                  .group("clubs.id")
-                 .select("clubs.*, COUNT(DISTINCT users.id) AS user_count, COUNT(DISTINCT tournaments.id) AS tournament_count")
+                 .select("clubs.*, COUNT(DISTINCT club_memberships.user_id) AS user_count, COUNT(DISTINCT tournaments.id) AS tournament_count")
                  .order(:name)
   end
 

@@ -3,9 +3,9 @@ class SeasonPointsController < ApplicationController
 
   def show
     @season_tag = params[:season].presence ||
-                  ::SeasonPoints::CurrentSeasonTag.call(club: current_user.club)
+                  ::SeasonPoints::CurrentSeasonTag.call(club: current_club)
     @standings = if @season_tag
-      ::SeasonPoints::Standings.call(club: current_user.club, season_tag: @season_tag)
+      ::SeasonPoints::Standings.call(club: current_club, season_tag: @season_tag)
     else
       []
     end
@@ -13,9 +13,9 @@ class SeasonPointsController < ApplicationController
 
   def tournaments
     @season_tag = params[:season].presence ||
-                  ::SeasonPoints::CurrentSeasonTag.call(club: current_user.club)
+                  ::SeasonPoints::CurrentSeasonTag.call(club: current_club)
     @tournaments = if @season_tag
-      ::SeasonPoints::Tournaments.call(club: current_user.club, season_tag: @season_tag)
+      ::SeasonPoints::Tournaments.call(club: current_club, season_tag: @season_tag)
     else
       []
     end

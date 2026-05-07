@@ -1,20 +1,20 @@
 class Admin::MembersController < Admin::BaseController
   def index
-    @users = current_user.club.users.order(:deactivated_at, :name)
+    @users = current_club.members.includes(:club_memberships).order(:deactivated_at, :name)
   end
 
   def new
-    @user = current_user.club.users.new
+    @user = User.new
   end
 
   def create
-    @user = current_user.club.users.new(user_params)
+    @user = User.new(user_params.except(:role))
     role_for_membership = user_params[:role].presence || "member"
     saved = false
     begin
       ActiveRecord::Base.transaction do
         @user.save!
-        ClubMembership.create!(user: @user, club: current_user.club, role: role_for_membership)
+        ClubMembership.create!(user: @user, club: current_club, role: role_for_membership)
       end
       saved = true
     rescue ActiveRecord::RecordInvalid
@@ -25,7 +25,7 @@ class Admin::MembersController < Admin::BaseController
       @user.errors.add(:base, "Couldn't send the invite. Please try again.") if @user.errors.empty?
     end
     if saved
-      token = SignInToken.issue!(user: @user, club: current_user.club, ttl: 7.days)
+      token = SignInToken.issue!(user: @user, club: current_club, ttl: 7.days)
       InvitationMailer.welcome(token).deliver_later
       redirect_to admin_members_path, notice: "Invite sent."
     else
@@ -34,7 +34,7 @@ class Admin::MembersController < Admin::BaseController
   end
 
   def destroy
-    user = current_user.club.users.find(params[:id])
+    user = current_club.members.find(params[:id])
     if user == current_user
       redirect_to admin_members_path, alert: "You can't deactivate yourself."
     else
@@ -44,20 +44,20 @@ class Admin::MembersController < Admin::BaseController
   end
 
   def reactivate
-    user = current_user.club.users.find(params[:id])
+    user = current_club.members.find(params[:id])
     user.update!(deactivated_at: nil)
     redirect_to admin_members_path, notice: "#{user.name} reactivated."
   end
 
   def issue_code
-    member = current_user.club.users.active.find(params[:id])
-    token = SignInToken.issue_code!(user: member, club: current_user.club)
+    member = current_club.members.active.find(params[:id])
+    token = SignInToken.issue_code!(user: member, club: current_club)
     flash[:code] = token.token
     redirect_to code_admin_member_path(member), status: :see_other
   end
 
   def code
-    @member = current_user.club.users.find(params[:id])
+    @member = current_club.members.find(params[:id])
     @code = flash[:code]
     redirect_to admin_members_path and return unless @code
   end

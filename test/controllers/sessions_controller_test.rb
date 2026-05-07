@@ -1,7 +1,8 @@
 require "test_helper"
 
 class SessionsControllerTest < ActionDispatch::IntegrationTest
-  setup { @user = create(:user, email: "joe@example.com") }
+  # Clubless user so each test stages memberships explicitly.
+  setup { @user = create(:user, email: "joe@example.com", club: nil) }
 
   test "POST /session creates a token and emails it" do
     assert_difference "SignInToken.count", 1 do

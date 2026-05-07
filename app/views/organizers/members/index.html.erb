@@ -8,7 +8,7 @@
     <li class="bg-slate-800 rounded-lg px-4 py-3 flex items-center justify-between gap-3">
       <div>
         <strong><%= u.name %></strong>
-        — <%= u.role %>
+        — <%= u.club_memberships.find { |m| m.club_id == current_club.id }&.role %>
         <% if u.deactivated? %>
           <span class="text-sm text-amber-400">— deactivated</span>
         <% end %>

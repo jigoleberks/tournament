@@ -18,7 +18,7 @@ class CatchesController < ApplicationController
     # viewers when any rendered catch carries the possible_duplicate flag.
     @catches = filter_and_sort(current_user.catches.includes(:species, :catch_placements, photo_attachment: :blob))
     @counts_by_date = counts_by_date(@month_start)
-    @available_species = current_user.club.species.order(:name)
+    @available_species = Species.order(:name)
   end
 
   def map
@@ -31,7 +31,7 @@ class CatchesController < ApplicationController
     @month_start = parse_date(params[:month]) || (@selected_start || Date.current).beginning_of_month
     @month_start = @month_start.beginning_of_month
     @species_filter_id = params[:species].presence&.to_i
-    @available_species = current_user.club.species.order(:name)
+    @available_species = Species.order(:name)
 
     scope = current_user.catches.includes(:species, photo_attachment: :blob)
     if @selected_start
@@ -52,15 +52,14 @@ class CatchesController < ApplicationController
   end
 
   def show
-    @catch = Catch.joins(:user)
-                  .where(users: { club_id: current_user.club_id })
+    @catch = Catch.where(user_id: current_club.members.select(:id))
                   .find(params[:id])
     head :forbidden and return unless authorized_to_view?(@catch)
     @action_tournament = resolve_action_tournament(@catch)
   end
 
   def select_teammate
-    @tournament = current_user.club.tournaments.find(params[:tournament_id])
+    @tournament = current_club.tournaments.find(params[:tournament_id])
     redirect_to(@tournament) and return unless @tournament.mode_team?
     @teammates = Tournaments::TeammatesFor.call(user: current_user, tournament: @tournament)
   end
@@ -71,7 +70,7 @@ class CatchesController < ApplicationController
     angler = @teammate || current_user
     @catch = angler.catches.build(captured_at_device: Time.current,
                                   client_uuid: SecureRandom.uuid)
-    @species = current_user.club.species.order(:name)
+    @species = Species.order(:name)
     @length_caps = @species.each_with_object({}) do |s, h|
       cap = Catch::MAX_LENGTH_BY_SPECIES[s.name.to_s.downcase]
       h[s.id] = cap if cap
@@ -88,7 +87,7 @@ class CatchesController < ApplicationController
     if teammate && !shares_entry_at?(teammate, @catch.captured_at_device)
       @catch.errors.add(:base, "You and this teammate aren't on the same entry in any active tournament.")
       @teammate = teammate
-      @species = current_user.club.species.order(:name)
+      @species = Species.order(:name)
       render :new, status: :unprocessable_entity
       return
     end
@@ -105,7 +104,7 @@ class CatchesController < ApplicationController
     else
       @catch.errors.add(:photo, "is required") unless @catch.photo.attached?
       @teammate = teammate
-      @species = current_user.club.species.order(:name)
+      @species = Species.order(:name)
       render :new, status: :unprocessable_entity
     end
   end
@@ -127,7 +126,7 @@ class CatchesController < ApplicationController
   def resolve_teammate_or_redirect
     id = params[:teammate_user_id].presence
     return nil unless id
-    teammate = current_user.club.users.find_by(id: id)
+    teammate = current_club.members.find_by(id: id)
     unless teammate
       redirect_to new_catch_path, alert: "Teammate not found."
       return nil
@@ -137,14 +136,14 @@ class CatchesController < ApplicationController
 
   def shares_entry_at?(teammate, at)
     Tournaments::SharedEntryAt.call(
-      user_a: current_user, user_b: teammate, club: current_user.club, at: at || Time.current
+      user_a: current_user, user_b: teammate, club: current_club, at: at || Time.current
     ).present?
   end
 
   def authorized_to_view?(catch_record)
     return true if catch_record.user_id == current_user.id
     return true if catch_record.logged_by_user_id == current_user.id
-    return true if current_user.organizer?
+    return true if current_user.organizer_in?(current_club)
     judge_tournament_ids = TournamentJudge.where(user: current_user).pluck(:tournament_id)
     catch_tournament_ids = catch_record.catch_placements.pluck(:tournament_id).uniq
     (judge_tournament_ids & catch_tournament_ids).any?
@@ -156,13 +155,13 @@ class CatchesController < ApplicationController
   def resolve_action_tournament(catch_record)
     candidate_ids = catch_record.catch_placements.pluck(:tournament_id).uniq
     return nil if candidate_ids.empty?
-    tournaments = current_user.club.tournaments.where(id: candidate_ids)
+    tournaments = current_club.tournaments.where(id: candidate_ids)
     preferred = tournaments.find_by(id: params[:t])
     [preferred, *tournaments].compact.find { |t| can_act_on?(t) }
   end
 
   def can_act_on?(tournament)
-    return true if tournament.friendly? && current_user.organizer?
+    return true if tournament.friendly? && current_user.organizer_in?(current_club)
     TournamentJudge.exists?(tournament: tournament, user: current_user)
   end
 

@@ -7,7 +7,7 @@ class Api::CatchesController < Api::BaseController
     end
 
     teammate_id = params[:teammate_user_id].presence
-    teammate = teammate_id ? current_user.club.users.find_by(id: teammate_id) : nil
+    teammate = teammate_id ? current_club.members.find_by(id: teammate_id) : nil
     if teammate_id && teammate.nil?
       return render json: { errors: ["Teammate not found"] }, status: :unprocessable_entity
     end
@@ -58,7 +58,7 @@ class Api::CatchesController < Api::BaseController
 
   def shares_entry_at?(teammate, at)
     Tournaments::SharedEntryAt.call(
-      user_a: current_user, user_b: teammate, club: current_user.club, at: at || Time.current
+      user_a: current_user, user_b: teammate, club: current_club, at: at || Time.current
     ).present?
   end
 

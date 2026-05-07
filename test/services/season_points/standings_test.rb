@@ -25,7 +25,7 @@ module SeasonPoints
     end
 
     def add_solo(tournament:, in_window:, name:, lengths:)
-      user = ::User.find_by(club: @club, name: name) ||
+      user = ::User.find_by(name: name) ||
              create(:user, club: @club, name: name)
       entry = create(:tournament_entry, tournament: tournament)
       create(:tournament_entry_member, tournament_entry: entry, user: user)

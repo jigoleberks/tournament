@@ -2,18 +2,18 @@ class Organizers::TournamentsController < Organizers::BaseController
   before_action :set_tournament, only: [:edit, :update, :destroy]
 
   def index
-    scope = current_user.club.tournaments.order(starts_at: :desc)
+    scope = current_club.tournaments.order(starts_at: :desc)
     now = Time.current
     @active_tournaments = scope.where("ends_at IS NULL OR ends_at >= ?", now)
   end
 
   def new
-    @tournament = current_user.club.tournaments.new
+    @tournament = current_club.tournaments.new
     3.times { @tournament.scoring_slots.build }
   end
 
   def create
-    @tournament = current_user.club.tournaments.new(tournament_params)
+    @tournament = current_club.tournaments.new(tournament_params)
     if @tournament.save
       redirect_to organizers_tournaments_path, notice: "Tournament created."
     else
@@ -41,7 +41,7 @@ class Organizers::TournamentsController < Organizers::BaseController
   private
 
   def set_tournament
-    @tournament = current_user.club.tournaments.find(params[:id])
+    @tournament = current_club.tournaments.find(params[:id])
   end
 
   def tournament_params

@@ -4,24 +4,13 @@ class UserTest < ActiveSupport::TestCase
   setup { @club = create(:club) }
 
   test "requires name and email" do
-    assert_not User.new(club: @club).valid?
+    assert_not User.new.valid?
   end
 
-  test "email must be unique within a club" do
-    create(:user, club: @club, email: "a@b.com")
-    duplicate = build(:user, club: @club, email: "a@b.com")
+  test "email must be globally unique" do
+    create(:user, email: "a@b.com")
+    duplicate = build(:user, email: "a@b.com")
     assert_not duplicate.valid?
-  end
-
-  test "default role is member" do
-    user = create(:user, club: @club)
-    assert user.member?
-  end
-
-  test "can be promoted to organizer" do
-    user = create(:user, club: @club)
-    user.update!(role: :organizer)
-    assert user.organizer?
   end
 
   test "length_unit must be inches or centimeters" do
@@ -43,26 +32,25 @@ class UserTest < ActiveSupport::TestCase
   end
 
   test "admin? defaults to false" do
-    u = create(:user, club: @club)
+    u = create(:user)
     assert_not u.admin?
   end
 
   test "admin? reflects the admin flag" do
-    u = create(:user, club: @club, admin: true)
+    u = create(:user, admin: true)
     assert u.admin?
   end
 
   test "organizer_in? is true only for the user's organizer membership" do
-    u = create(:user, club: @club)
     other_club = create(:club)
-    create(:club_membership, user: u, club: @club, role: :organizer)
+    u = create(:user, club: @club, role: :organizer)
     create(:club_membership, user: u, club: other_club, role: :member)
     assert u.organizer_in?(@club)
     assert_not u.organizer_in?(other_club)
   end
 
   test "organizer_in? ignores deactivated memberships" do
-    u = create(:user, club: @club)
+    u = create(:user)
     create(:club_membership, user: u, club: @club, role: :organizer, deactivated_at: Time.current)
     assert_not u.organizer_in?(@club)
   end
@@ -73,15 +61,14 @@ class UserTest < ActiveSupport::TestCase
   end
 
   test "member_of? is true for any active membership in the club" do
-    u = create(:user, club: @club)
     other_club = create(:club)
-    create(:club_membership, user: u, club: @club, role: :member)
+    u = create(:user, club: @club)
     assert u.member_of?(@club)
     assert_not u.member_of?(other_club)
   end
 
   test "member_of? ignores deactivated memberships" do
-    u = create(:user, club: @club)
+    u = create(:user)
     create(:club_membership, user: u, club: @club, role: :member, deactivated_at: Time.current)
     assert_not u.member_of?(@club)
   end

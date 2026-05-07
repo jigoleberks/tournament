@@ -31,7 +31,7 @@
             </div>
           </td>
           <td class="px-6 py-4 text-sm text-slate-400"><%= u.email %></td>
-          <td class="px-6 py-4 text-sm text-slate-400 capitalize"><%= u.role %></td>
+          <td class="px-6 py-4 text-sm text-slate-400 capitalize"><%= u.club_memberships.find { |m| m.club_id == current_club.id }&.role %></td>
           <td class="px-6 py-4 text-sm text-slate-400 text-center"><%= entries %></td>
           <td class="px-6 py-4 text-right">
             <div class="flex items-center justify-end gap-2">
