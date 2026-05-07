@@ -59,9 +59,18 @@ class CatchesController < ApplicationController
     @action_tournament = resolve_action_tournament(@catch)
   end
 
+  def select_teammate
+    @tournament = current_user.club.tournaments.find(params[:tournament_id])
+    redirect_to(@tournament) and return unless @tournament.mode_team?
+    @teammates = Tournaments::TeammatesFor.call(user: current_user, tournament: @tournament)
+  end
+
   def new
-    @catch = current_user.catches.build(captured_at_device: Time.current,
-                                         client_uuid: SecureRandom.uuid)
+    @teammate = resolve_teammate_or_redirect
+    return if performed?
+    angler = @teammate || current_user
+    @catch = angler.catches.build(captured_at_device: Time.current,
+                                  client_uuid: SecureRandom.uuid)
     @species = current_user.club.species.order(:name)
     @length_caps = @species.each_with_object({}) do |s, h|
       cap = Catch::MAX_LENGTH_BY_SPECIES[s.name.to_s.downcase]
@@ -70,7 +79,20 @@ class CatchesController < ApplicationController
   end
 
   def create
-    @catch = current_user.catches.build(catch_params)
+    teammate = resolve_teammate_or_redirect
+    return if performed?
+    angler = teammate || current_user
+    @catch = angler.catches.build(catch_params)
+    @catch.logged_by_user_id = current_user.id if teammate
+
+    if teammate && !shares_entry_at?(teammate, @catch.captured_at_device)
+      @catch.errors.add(:base, "You and this teammate aren't on the same entry in any active tournament.")
+      @teammate = teammate
+      @species = current_user.club.species.order(:name)
+      render :new, status: :unprocessable_entity
+      return
+    end
+
     @catch.flags = Catches::ComputeFlags.call(@catch)
     @catch.status = @catch.flags.empty? ? :synced : :needs_review
     @catch.synced_at = Time.current
@@ -79,9 +101,10 @@ class CatchesController < ApplicationController
       Catches::PlaceInSlots.call(catch: @catch)
       Catches::FlagDuplicates.call(catch: @catch) if @catch.flags.include?("possible_duplicate")
       FetchCatchConditionsJob.perform_later(catch_id: @catch.id)
-      redirect_to root_path, notice: "Catch logged"
+      redirect_to root_path, notice: teammate ? "Catch logged for #{teammate.name}" : "Catch logged"
     else
       @catch.errors.add(:photo, "is required") unless @catch.photo.attached?
+      @teammate = teammate
       @species = current_user.club.species.order(:name)
       render :new, status: :unprocessable_entity
     end
@@ -101,8 +124,26 @@ class CatchesController < ApplicationController
 
   private
 
+  def resolve_teammate_or_redirect
+    id = params[:teammate_user_id].presence
+    return nil unless id
+    teammate = current_user.club.users.find_by(id: id)
+    unless teammate
+      redirect_to new_catch_path, alert: "Teammate not found."
+      return nil
+    end
+    teammate
+  end
+
+  def shares_entry_at?(teammate, at)
+    Tournaments::SharedEntryAt.call(
+      user_a: current_user, user_b: teammate, club: current_user.club, at: at || Time.current
+    ).present?
+  end
+
   def authorized_to_view?(catch_record)
     return true if catch_record.user_id == current_user.id
+    return true if catch_record.logged_by_user_id == current_user.id
     return true if current_user.organizer?
     judge_tournament_ids = TournamentJudge.where(user: current_user).pluck(:tournament_id)
     catch_tournament_ids = catch_record.catch_placements.pluck(:tournament_id).uniq

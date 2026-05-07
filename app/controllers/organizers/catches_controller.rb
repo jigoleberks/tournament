@@ -8,7 +8,7 @@ class Organizers::CatchesController < Organizers::BaseController
     club_catches = club_catches.where(user_id: @selected_user_id) if @selected_user_id
 
     @catches = club_catches
-      .includes(:user, :species, :catch_placements, photo_attachment: :blob)
+      .includes(:user, :logged_by_user, :species, :catch_placements, photo_attachment: :blob)
       .order(captured_at_device: :desc)
   end
 end

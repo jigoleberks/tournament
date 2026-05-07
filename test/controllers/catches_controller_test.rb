@@ -571,6 +571,144 @@ class CatchesControllerTest < ActionDispatch::IntegrationTest
     assert_equal 1, assigns(:counts_by_date)[Date.new(2026, 5, 12)]
   end
 
+  # --- Teammate catch logging --------------------------------------------------
+  # @tournament defaults to solo (one angler per entry); these tests need team mode.
+
+  test "GET /catches/select_teammate lists same-entry teammates" do
+    @tournament.update!(mode: :team)
+    teammate = create(:user, club: @club, name: "Boatmate")
+    create(:tournament_entry_member, tournament_entry: @entry, user: teammate)
+    other = create(:user, club: @club, name: "Other Boat")
+    other_entry = create(:tournament_entry, tournament: @tournament)
+    create(:tournament_entry_member, tournament_entry: other_entry, user: other)
+
+    get select_teammate_catches_path(tournament_id: @tournament.id)
+    assert_response :success
+    assert_match "Boatmate", response.body
+    assert_no_match "Other Boat", response.body
+  end
+
+  test "GET /catches/select_teammate returns empty list when user has no entry" do
+    other_tournament = create(:tournament, club: @club, name: "Other", mode: :team)
+    get select_teammate_catches_path(tournament_id: other_tournament.id)
+    assert_response :success
+    assert_match "No teammates on your entry", response.body
+  end
+
+  test "GET /catches/select_teammate redirects for a solo tournament" do
+    get select_teammate_catches_path(tournament_id: @tournament.id)
+    assert_redirected_to tournament_path(@tournament)
+  end
+
+  test "tournament show hides 'Log for teammate' for solo tournaments" do
+    get tournament_path(@tournament)
+    assert_response :success
+    assert_match "Log Catch", response.body
+    assert_no_match "Log for teammate", response.body
+  end
+
+  test "tournament show shows 'Log for teammate' for team tournaments" do
+    @tournament.update!(mode: :team)
+    get tournament_path(@tournament)
+    assert_response :success
+    assert_match "Log for teammate", response.body
+  end
+
+  test "GET /catches/new with valid teammate_user_id assigns @teammate and shows banner" do
+    @tournament.update!(mode: :team)
+    teammate = create(:user, club: @club, name: "Boatmate")
+    create(:tournament_entry_member, tournament_entry: @entry, user: teammate)
+    get new_catch_path(teammate_user_id: teammate.id)
+    assert_response :success
+    assert_equal teammate, assigns(:teammate)
+    assert_match "Logging for", response.body
+    assert_match "Boatmate", response.body
+  end
+
+  test "GET /catches/new with foreign-club teammate redirects with alert" do
+    other_club = create(:club)
+    foreigner = create(:user, club: other_club)
+    get new_catch_path(teammate_user_id: foreigner.id)
+    assert_redirected_to new_catch_path
+    assert_equal "Teammate not found.", flash[:alert]
+  end
+
+  test "POST /catches with valid teammate files catch under teammate and stamps logger" do
+    @tournament.update!(mode: :team)
+    teammate = create(:user, club: @club, name: "Boatmate")
+    create(:tournament_entry_member, tournament_entry: @entry, user: teammate)
+    photo = fixture_file_upload("sample_walleye.jpg", "image/jpeg")
+    now = Time.current
+
+    post catches_path, params: {
+      teammate_user_id: teammate.id,
+      catch: {
+        species_id: @walleye.id,
+        length_inches: 18.5,
+        captured_at_device: now, captured_at_gps: now,
+        latitude: 49.41, longitude: -103.62,
+        client_uuid: "client-team-1", photo: photo
+      }
+    }
+    assert_redirected_to root_path
+    persisted = Catch.find_by(client_uuid: "client-team-1")
+    assert_equal teammate.id, persisted.user_id
+    assert_equal @user.id, persisted.logged_by_user_id
+  end
+
+  test "POST /catches with teammate from another entry rejects" do
+    other_user = create(:user, club: @club)
+    other_entry = create(:tournament_entry, tournament: @tournament)
+    create(:tournament_entry_member, tournament_entry: other_entry, user: other_user)
+    photo = fixture_file_upload("sample_walleye.jpg", "image/jpeg")
+    now = Time.current
+
+    assert_no_difference -> { Catch.count } do
+      post catches_path, params: {
+        teammate_user_id: other_user.id,
+        catch: {
+          species_id: @walleye.id, length_inches: 18.5,
+          captured_at_device: now, captured_at_gps: now,
+          latitude: 49.41, longitude: -103.62,
+          client_uuid: "client-team-bad", photo: photo
+        }
+      }
+    end
+    assert_response :unprocessable_entity
+    assert_match "on the same entry", response.body
+  end
+
+  test "POST /catches with teammate when no tournament is active rejects" do
+    @tournament.update!(mode: :team)
+    teammate = create(:user, club: @club)
+    create(:tournament_entry_member, tournament_entry: @entry, user: teammate)
+    @tournament.update!(starts_at: 3.days.ago, ends_at: 2.days.ago)
+    photo = fixture_file_upload("sample_walleye.jpg", "image/jpeg")
+
+    post catches_path, params: {
+      teammate_user_id: teammate.id,
+      catch: {
+        species_id: @walleye.id, length_inches: 18.5,
+        captured_at_device: Time.current, captured_at_gps: Time.current,
+        latitude: 49.41, longitude: -103.62,
+        client_uuid: "client-team-expired", photo: photo
+      }
+    }
+    assert_response :unprocessable_entity
+    assert_match "on the same entry", response.body
+  end
+
+  test "show: logger of a teammate's catch can view it" do
+    @tournament.update!(mode: :team)
+    teammate = create(:user, club: @club)
+    create(:tournament_entry_member, tournament_entry: @entry, user: teammate)
+    teammate_catch = create(:catch, user: teammate, species: @walleye,
+                                    length_inches: 18.5, logged_by_user_id: @user.id)
+    get catch_path(teammate_catch.id)
+    assert_response :success
+    assert_match "Logged by", response.body
+  end
+
   private
 
   def sign_in_as(user)
