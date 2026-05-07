@@ -24,7 +24,12 @@
   <div class="bg-slate-800 rounded-xl p-4 my-3">
     <h2 class="text-lg font-semibold mb-2">Your tournaments</h2>
     <% active_tournaments.each do |t| %>
-      <%= link_to t.name, t, class: "block py-3 px-2 rounded hover:bg-slate-700 text-slate-100 border-b border-slate-700 last:border-0" %>
+      <%= link_to t, class: "block py-3 px-2 rounded hover:bg-slate-700 text-slate-100 border-b border-slate-700 last:border-0" do %>
+        <span class="block"><%= t.name %></span>
+        <% if (window = tournament_window(t)) %>
+          <span class="block text-xs text-slate-400 mt-0.5"><%= window %></span>
+        <% end %>
+      <% end %>
     <% end %>
   </div>
 <% end %>
@@ -36,7 +41,12 @@
   <div class="bg-slate-800 rounded-xl p-4 my-3">
     <h2 class="text-lg font-semibold mb-2">Other tournaments in your club</h2>
     <% other_active.each do |t| %>
-      <%= link_to t.name, t, class: "block py-3 px-2 rounded hover:bg-slate-700 text-slate-100 border-b border-slate-700 last:border-0" %>
+      <%= link_to t, class: "block py-3 px-2 rounded hover:bg-slate-700 text-slate-100 border-b border-slate-700 last:border-0" do %>
+        <span class="block"><%= t.name %></span>
+        <% if (window = tournament_window(t)) %>
+          <span class="block text-xs text-slate-400 mt-0.5"><%= window %></span>
+        <% end %>
+      <% end %>
     <% end %>
   </div>
 <% end %>
@@ -45,7 +55,12 @@
   <div class="bg-slate-800 rounded-xl p-4 my-3">
     <h2 class="text-lg font-semibold mb-2">Completed tournaments</h2>
     <% recent_completed.each do |t| %>
-      <%= link_to t.name, t, class: "block py-3 px-2 rounded hover:bg-slate-700 text-slate-100 border-b border-slate-700 last:border-0 opacity-75" %>
+      <%= link_to t, class: "block py-3 px-2 rounded hover:bg-slate-700 text-slate-100 border-b border-slate-700 last:border-0 opacity-75" do %>
+        <span class="block"><%= t.name %></span>
+        <% if (window = tournament_window(t)) %>
+          <span class="block text-xs text-slate-400 mt-0.5"><%= window %></span>
+        <% end %>
+      <% end %>
     <% end %>
     <% if archived_completed.any? %>
       <%= link_to "View older completed tournaments", archived_tournaments_path,
