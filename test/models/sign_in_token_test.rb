@@ -1,7 +1,8 @@
 require "test_helper"
 
 class SignInTokenTest < ActiveSupport::TestCase
-  setup { @user = create(:user) }
+  # Clubless user so each test below can stage memberships explicitly.
+  setup { @user = create(:user, club: nil) }
 
   test "is created with a uuid token and 30-minute expiry" do
     token = SignInToken.issue!(user: @user)

@@ -3,7 +3,7 @@ class NotificationSettingsController < ApplicationController
   before_action :load_subs
 
   def show
-    @tournaments = current_user.club.tournaments.where("ends_at IS NULL OR ends_at >= ?", Time.current)
+    @tournaments = current_club.tournaments.where("ends_at IS NULL OR ends_at >= ?", Time.current)
   end
 
   def snooze

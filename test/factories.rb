@@ -5,14 +5,33 @@ FactoryBot.define do
   end
 
   factory :user do
-    association :club
     sequence(:name) { |n| "Angler #{n}" }
     sequence(:email) { |n| "angler#{n}@example.com" }
+
+    # Mirror prod state: every user should have at least one ClubMembership so
+    # current_club resolves on sign-in. Tests that need a clubless user can
+    # pass `club: nil` explicitly.
+    transient do
+      club { build(:club) }
+      role { :member }
+    end
+
+    after(:create) do |u, ev|
+      next unless ev.club
+      ev.club.save! if ev.club.new_record?
+      next if u.club_memberships.exists?(club_id: ev.club.id)
+      u.club_memberships.create!(club: ev.club, role: ev.role, deactivated_at: u.deactivated_at)
+    end
   end
 
   factory :species do
-    association :club
     sequence(:name) { |n| "Species #{n}" }
+
+    # Accept and ignore club: for backwards compat with tests written when
+    # species had a club_id. Species are global after the multi-club refactor.
+    transient do
+      club { nil }
+    end
   end
 
   factory :tournament do

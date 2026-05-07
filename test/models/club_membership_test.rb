@@ -3,7 +3,7 @@ require "test_helper"
 class ClubMembershipTest < ActiveSupport::TestCase
   setup do
     @club = create(:club)
-    @user = create(:user, club: @club)
+    @user = create(:user)
   end
 
   test "default role is member" do

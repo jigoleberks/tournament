@@ -6,12 +6,12 @@ class Judges::BaseController < ApplicationController
   private
 
   def load_tournament
-    @tournament = current_user.club.tournaments.find(params[:tournament_id])
+    @tournament = current_club.tournaments.find(params[:tournament_id])
   end
 
   def require_judge!
     return if TournamentJudge.exists?(tournament: @tournament, user: current_user)
-    return if @tournament.friendly? && current_user.organizer? && current_user.club_id == @tournament.club_id
+    return if @tournament.friendly? && current_user.organizer_in?(@tournament.club)
     head :forbidden
   end
 
@@ -19,9 +19,7 @@ class Judges::BaseController < ApplicationController
   # anything placed in @tournament, plus the club-wide needs_review queue.
   def judgeable_catches
     placed_ids = CatchPlacement.where(tournament_id: @tournament.id).select(:catch_id)
-    review_ids = Catch.joins(:user)
-                      .where(status: :needs_review, users: { club_id: @tournament.club_id })
-                      .select(:id)
+    review_ids = Catch.where(status: :needs_review, user_id: @tournament.club.members.select(:id)).select(:id)
     Catch.where(id: placed_ids).or(Catch.where(id: review_ids))
   end
 

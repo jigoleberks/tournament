@@ -9,7 +9,6 @@ module Tournaments
   class SharedEntryAt
     def self.call(user_a:, user_b:, club:, at: Time.current)
       return nil if user_a.id == user_b.id
-      return nil if user_a.club_id != club.id || user_b.club_id != club.id
 
       TournamentEntry
         .joins(:tournament)

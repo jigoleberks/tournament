@@ -2,16 +2,16 @@ class Organizers::TournamentTemplatesController < Organizers::BaseController
   before_action :load_template, only: [:edit, :update, :destroy, :clone]
 
   def index
-    @templates = current_user.club.tournament_templates.order(:name)
+    @templates = current_club.tournament_templates.order(:name)
   end
 
   def new
-    @template = current_user.club.tournament_templates.new
+    @template = current_club.tournament_templates.new
     3.times { @template.tournament_template_scoring_slots.build }
   end
 
   def create
-    @template = current_user.club.tournament_templates.new(template_params)
+    @template = current_club.tournament_templates.new(template_params)
     if @template.save
       redirect_to organizers_tournament_templates_path
     else
@@ -48,7 +48,7 @@ class Organizers::TournamentTemplatesController < Organizers::BaseController
   private
 
   def load_template
-    @template = current_user.club.tournament_templates.find(params[:id])
+    @template = current_club.tournament_templates.find(params[:id])
   end
 
   def template_params
