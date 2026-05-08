@@ -10,12 +10,15 @@ class Organizers::MembersController < Organizers::BaseController
   def create
     @user = current_user.club.users.new(user_params)
     role_for_membership = user_params[:role].presence || "member"
-    saved = ActiveRecord::Base.transaction do
-      next false unless @user.save
-      ClubMembership.create!(user: @user, club: current_user.club, role: role_for_membership)
-      true
+    saved = false
+    begin
+      ActiveRecord::Base.transaction do
+        @user.save!
+        ClubMembership.create!(user: @user, club: current_user.club, role: role_for_membership)
+      end
+      saved = true
     rescue ActiveRecord::RecordInvalid
-      false
+      # falls through with saved=false; AR rolled back the user INSERT.
     end
     if saved
       token = SignInToken.issue!(user: @user, club: current_user.club, ttl: 7.days)

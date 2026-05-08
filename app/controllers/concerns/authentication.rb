@@ -60,7 +60,7 @@ module Authentication
   end
 
   def pick_membership(user, preferred_club_id:)
-    memberships = user.club_memberships.active
+    memberships = user.club_memberships.active.order(:created_at)
     if preferred_club_id
       preferred = memberships.find_by(club_id: preferred_club_id)
       return preferred if preferred

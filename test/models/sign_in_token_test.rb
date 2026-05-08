@@ -142,4 +142,13 @@ class SignInTokenTest < ActiveSupport::TestCase
     code = SignInToken.issue_code!(user: @user, club: club_a)
     assert_equal club_a, code.club
   end
+
+  test "issue! fallback prefers the older membership when user is in multiple clubs" do
+    older = create(:club)
+    newer = create(:club)
+    create(:club_membership, user: @user, club: older, role: :member, created_at: 2.days.ago)
+    create(:club_membership, user: @user, club: newer, role: :member, created_at: 1.day.ago)
+    token = SignInToken.issue!(user: @user)
+    assert_equal older, token.club
+  end
 end

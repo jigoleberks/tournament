@@ -88,6 +88,28 @@ class Organizers::MembersControllerTest < ActionDispatch::IntegrationTest
     assert_not other_club_member.reload.deactivated?
   end
 
+  test "create rolls back the User INSERT when ClubMembership.create! raises" do
+    # Prove the rescue does not silently commit an orphan user. Override
+    # ClubMembership.create! to fail; both User and ClubMembership counts
+    # must be unchanged.
+    original = ClubMembership.method(:create!)
+    ClubMembership.define_singleton_method(:create!) do |*|
+      raise ActiveRecord::RecordInvalid.new(ClubMembership.new)
+    end
+    begin
+      assert_no_difference -> { User.count } do
+        assert_no_difference -> { ClubMembership.count } do
+          post organizers_members_path, params: {
+            user: { name: "Orphan", email: "orphan@example.com", role: "member" }
+          }
+        end
+      end
+      assert_response :unprocessable_entity
+    ensure
+      ClubMembership.define_singleton_method(:create!, original)
+    end
+  end
+
   private
 
   def sign_in_as(user)

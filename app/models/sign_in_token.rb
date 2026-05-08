@@ -12,7 +12,7 @@ class SignInToken < ApplicationRecord
   def self.issue!(user:, club: nil, ttl: 30.minutes)
     create!(
       user: user,
-      club: club || user.club_memberships.active.first&.club,
+      club: club || user.club_memberships.active.order(:created_at).first&.club,
       token: SecureRandom.uuid,
       expires_at: ttl.from_now,
       kind: "link"
@@ -23,7 +23,7 @@ class SignInToken < ApplicationRecord
     where(user: user, kind: "code").open.update_all(used_at: Time.current)
     create!(
       user: user,
-      club: club || user.club_memberships.active.first&.club,
+      club: club || user.club_memberships.active.order(:created_at).first&.club,
       token: generate_code,
       expires_at: CODE_TTL.from_now,
       kind: "code"
