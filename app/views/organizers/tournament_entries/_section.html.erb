@@ -1,7 +1,5 @@
 <h3 class="text-lg font-semibold mt-6 mb-2">Entries (<%= @tournament.mode %>)</h3>
 
-<% locked = @tournament.started? %>
-
 <ul class="space-y-2">
   <% @tournament.tournament_entries
        .includes(tournament_entry_members: :user).order(:id).each do |entry| %>
@@ -16,14 +14,12 @@
               <% entry.tournament_entry_members.each do |m| %>
                 <li class="flex items-center justify-between text-sm">
                   <span class="text-slate-200"><%= m.user.name %></span>
-                  <% unless locked %>
-                    <%= button_to "Remove",
-                                  organizers_tournament_tournament_entry_tournament_entry_member_path(
-                                    tournament_id: @tournament.id, tournament_entry_id: entry.id, id: m.id),
-                                  method: :delete,
-                                  data: { turbo_confirm: "Remove #{m.user.name} from #{entry.name.presence || 'this team'}?" },
-                                  class: "h-8 px-2 text-xs rounded bg-slate-700 active:bg-slate-600 text-slate-100" %>
-                  <% end %>
+                  <%= button_to "Remove",
+                                organizers_tournament_tournament_entry_tournament_entry_member_path(
+                                  tournament_id: @tournament.id, tournament_entry_id: entry.id, id: m.id),
+                                method: :delete,
+                                data: { turbo_confirm: "Remove #{m.user.name} from #{entry.name.presence || 'this team'}?" },
+                                class: "h-8 px-2 text-xs rounded bg-slate-700 active:bg-slate-600 text-slate-100" %>
                 </li>
               <% end %>
             </ul>
@@ -31,16 +27,14 @@
             <div class="text-sm text-slate-200"><%= entry.users.map(&:name).join(", ") %></div>
           <% end %>
         </div>
-        <% unless locked %>
-          <%= button_to "Remove entry",
-                        organizers_tournament_tournament_entry_path(tournament_id: @tournament.id, id: entry.id),
-                        method: :delete,
-                        data: { turbo_confirm: "Remove this entry?" },
-                        class: "h-10 px-3 rounded bg-red-600 active:bg-red-700 text-white whitespace-nowrap" %>
-        <% end %>
+        <%= button_to "Remove entry",
+                      organizers_tournament_tournament_entry_path(tournament_id: @tournament.id, id: entry.id),
+                      method: :delete,
+                      data: { turbo_confirm: "Remove this entry?" },
+                      class: "h-10 px-3 rounded bg-red-600 active:bg-red-700 text-white whitespace-nowrap" %>
       </div>
 
-      <% if @tournament.mode_team? && !locked %>
+      <% if @tournament.mode_team? %>
         <%= form_with url: organizers_tournament_tournament_entry_path(tournament_id: @tournament.id, id: entry.id),
                       method: :patch, local: true, class: "mt-3 flex gap-2" do %>
           <%= text_field_tag "tournament_entry[name]", entry.name, placeholder: "Boat name",
@@ -68,11 +62,6 @@
   <% end %>
 </ul>
 
-<% if locked %>
-  <p class="mt-4 bg-slate-800 rounded-lg p-3 text-slate-400 text-sm">
-    Tournament has started — entries are locked.
-  </p>
-<% else %>
 <% available = current_club.members.active.order(:name) %>
 
 <%= form_with url: organizers_tournament_tournament_entries_path(tournament_id: @tournament.id), local: true,
@@ -111,5 +100,4 @@
   <% end %>
   <%= submit_tag(@tournament.mode_team? ? "Add entry" : "Add entries",
                  class: "h-12 px-4 rounded-lg bg-blue-600 active:bg-blue-700 text-white") %>
-<% end %>
 <% end %>

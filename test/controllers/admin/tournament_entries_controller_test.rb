@@ -38,24 +38,37 @@ class Admin::TournamentEntriesControllerTest < ActionDispatch::IntegrationTest
     assert_equal "New", entry.reload.name
   end
 
-  test "rename is locked once tournament has started" do
+  test "organizer renames an entry after tournament starts" do
     started = create(:tournament, club: @club, mode: :team, starts_at: 1.minute.ago, ends_at: 1.hour.from_now)
-    entry = create(:tournament_entry, tournament: started, name: "Locked")
+    entry = create(:tournament_entry, tournament: started, name: "Old")
     create(:tournament_entry_member, tournament_entry: entry, user: @member)
     patch admin_tournament_tournament_entry_path(tournament_id: started.id, id: entry.id),
-          params: { tournament_entry: { name: "Try" } }
-    assert_match(/started/i, flash[:alert])
-    assert_equal "Locked", entry.reload.name
+          params: { tournament_entry: { name: "New" } }
+    assert_redirected_to edit_admin_tournament_path(started)
+    assert_equal "New", entry.reload.name
   end
 
-  test "destroy is locked once tournament has started" do
-    started = create(:tournament, club: @club, mode: :team, starts_at: 1.minute.ago, ends_at: 1.hour.from_now)
-    entry = create(:tournament_entry, tournament: started)
+  test "destroying an entry mid-tournament cascades placements and broadcasts the leaderboard" do
+    walleye = create(:species, club: @club)
+    started = create(:tournament, club: @club, mode: :team, starts_at: 30.minutes.ago, ends_at: 30.minutes.from_now)
+    create(:scoring_slot, tournament: started, species: walleye, slot_count: 2)
+    entry = create(:tournament_entry, tournament: started, name: "Doomed")
     create(:tournament_entry_member, tournament_entry: entry, user: @member)
-    assert_no_difference "TournamentEntry.count" do
-      delete admin_tournament_tournament_entry_path(tournament_id: started.id, id: entry.id)
+    fish = create(:catch, user: @member, species: walleye, length_inches: 18, captured_at_device: 5.minutes.ago)
+    Catches::PlaceInSlots.call(catch: fish)
+
+    original = Placements::BroadcastLeaderboard.method(:call)
+    broadcast_calls = []
+    Placements::BroadcastLeaderboard.define_singleton_method(:call) { |tournament:| broadcast_calls << tournament.id }
+    begin
+      assert_difference "TournamentEntry.count", -1 do
+        delete admin_tournament_tournament_entry_path(tournament_id: started.id, id: entry.id)
+      end
+    ensure
+      Placements::BroadcastLeaderboard.define_singleton_method(:call, original)
     end
-    assert_match(/started/i, flash[:alert])
+    assert_equal [started.id], broadcast_calls
+    assert_equal 0, CatchPlacement.where(catch_id: fish.id).count
   end
 
   private

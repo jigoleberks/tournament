@@ -6,7 +6,7 @@ class Organizers::TournamentEntriesControllerTest < ActionDispatch::IntegrationT
     @organizer = create(:user, club: @club, role: :organizer)
     @member = create(:user, club: @club, name: "Joe", role: :member)
     @teammate = create(:user, club: @club, name: "Curtis", role: :member)
-    # Roster edits are only allowed before the tournament starts.
+    # Roster edits are now permitted at any time; tests cover both pre-start and mid-tournament.
     @solo = create(:tournament, club: @club, mode: :solo, starts_at: 1.hour.from_now, ends_at: 3.hours.from_now)
     @team = create(:tournament, club: @club, mode: :team, starts_at: 1.hour.from_now, ends_at: 3.hours.from_now)
     sign_in_as(@organizer)
@@ -58,23 +58,37 @@ class Organizers::TournamentEntriesControllerTest < ActionDispatch::IntegrationT
     assert_match(/unavailable/i, flash[:alert])
   end
 
-  test "entries are locked once tournament has started" do
+  test "organizer adds a solo entry after tournament starts" do
     started = create(:tournament, club: @club, mode: :solo, starts_at: 1.minute.ago, ends_at: 1.hour.from_now)
-    assert_no_difference "TournamentEntry.count" do
+    assert_difference "TournamentEntry.count", 1 do
       post organizers_tournament_tournament_entries_path(tournament_id: started.id),
            params: { tournament_entry: { member_user_ids: [@member.id] } }
     end
-    assert_match(/started/i, flash[:alert])
+    assert_redirected_to edit_organizers_tournament_path(started)
   end
 
-  test "destroy is locked once tournament has started" do
-    started = create(:tournament, club: @club, mode: :team, starts_at: 1.minute.ago, ends_at: 1.hour.from_now)
-    entry = create(:tournament_entry, tournament: started)
+  test "destroying an entry mid-tournament cascades placements and broadcasts the leaderboard" do
+    walleye = create(:species, club: @club)
+    started = create(:tournament, club: @club, mode: :team, starts_at: 30.minutes.ago, ends_at: 30.minutes.from_now)
+    create(:scoring_slot, tournament: started, species: walleye, slot_count: 2)
+    entry = create(:tournament_entry, tournament: started, name: "Doomed")
     create(:tournament_entry_member, tournament_entry: entry, user: @member)
-    assert_no_difference "TournamentEntry.count" do
-      delete organizers_tournament_tournament_entry_path(tournament_id: started.id, id: entry.id)
+    fish = create(:catch, user: @member, species: walleye, length_inches: 18, captured_at_device: 5.minutes.ago)
+    Catches::PlaceInSlots.call(catch: fish)
+    assert_equal 1, fish.reload.catch_placements.where(active: true).count
+
+    original = Placements::BroadcastLeaderboard.method(:call)
+    broadcast_calls = []
+    Placements::BroadcastLeaderboard.define_singleton_method(:call) { |tournament:| broadcast_calls << tournament.id }
+    begin
+      assert_difference "TournamentEntry.count", -1 do
+        delete organizers_tournament_tournament_entry_path(tournament_id: started.id, id: entry.id)
+      end
+    ensure
+      Placements::BroadcastLeaderboard.define_singleton_method(:call, original)
     end
-    assert_match(/started/i, flash[:alert])
+    assert_equal [started.id], broadcast_calls
+    assert_equal 0, CatchPlacement.where(catch_id: fish.id).count, "placements should cascade-destroy with the entry"
   end
 
   test "organizer renames a team entry before tournament starts" do
@@ -97,14 +111,14 @@ class Organizers::TournamentEntriesControllerTest < ActionDispatch::IntegrationT
     assert_nil entry.reload.name
   end
 
-  test "rename is locked once tournament has started" do
+  test "organizer renames an entry after tournament starts" do
     started = create(:tournament, club: @club, mode: :team, starts_at: 1.minute.ago, ends_at: 1.hour.from_now)
-    entry = create(:tournament_entry, tournament: started, name: "Locked")
+    entry = create(:tournament_entry, tournament: started, name: "Old")
     create(:tournament_entry_member, tournament_entry: entry, user: @member)
     patch organizers_tournament_tournament_entry_path(tournament_id: started.id, id: entry.id),
-          params: { tournament_entry: { name: "Try Rename" } }
-    assert_match(/started/i, flash[:alert])
-    assert_equal "Locked", entry.reload.name
+          params: { tournament_entry: { name: "New" } }
+    assert_redirected_to edit_organizers_tournament_path(started)
+    assert_equal "New", entry.reload.name
   end
 
   test "organizer destroys an entry" do

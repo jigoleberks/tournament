@@ -2,7 +2,7 @@ class Admin::TournamentEntryMembersController < Admin::BaseController
   before_action :load_tournament_and_entry
 
   def create
-    return locked unless editable?
+    return reject_solo unless @tournament.mode_team?
     user = current_club.members.active.find_by(id: params[:user_id])
     unless user
       redirect_to edit_admin_tournament_path(@tournament), alert: "Member not found." and return
@@ -14,10 +14,10 @@ class Admin::TournamentEntryMembersController < Admin::BaseController
   end
 
   def destroy
-    return locked unless editable?
+    return reject_solo unless @tournament.mode_team?
     member = @entry.tournament_entry_members.find(params[:id])
     name = member.user&.name || "Member"
-    member.destroy
+    Catches::DropMemberFromEntry.call(entry: @entry, user: member.user)
     redirect_to edit_admin_tournament_path(@tournament), notice: "Removed #{name}."
   end
 
@@ -28,12 +28,8 @@ class Admin::TournamentEntryMembersController < Admin::BaseController
     @entry = @tournament.tournament_entries.find(params[:tournament_entry_id])
   end
 
-  def editable?
-    @tournament.mode_team? && !@tournament.started?
-  end
-
-  def locked
+  def reject_solo
     redirect_to edit_admin_tournament_path(@tournament),
-                alert: "Roster is locked once the tournament starts."
+                alert: "Roster edits are only available in team mode."
   end
 end
