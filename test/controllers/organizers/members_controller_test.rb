@@ -105,6 +105,9 @@ class Organizers::MembersControllerTest < ActionDispatch::IntegrationTest
         end
       end
       assert_response :unprocessable_entity
+      # The form would otherwise render blank if ClubMembership raised after
+      # User.save! — generic base error makes sure something is shown.
+      assert_includes response.body, "Couldn&#39;t send the invite"
     ensure
       ClubMembership.define_singleton_method(:create!, original)
     end

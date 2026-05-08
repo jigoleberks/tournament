@@ -18,7 +18,11 @@ class Organizers::MembersController < Organizers::BaseController
       end
       saved = true
     rescue ActiveRecord::RecordInvalid
-      # falls through with saved=false; AR rolled back the user INSERT.
+      # AR rolled back the user INSERT. If User#save! is what failed, @user.errors
+      # is populated and the form will show them. If it was ClubMembership.create!
+      # (e.g. a future model validation we haven't anticipated here), @user.errors
+      # is empty — surface a generic message so the form isn't silent.
+      @user.errors.add(:base, "Couldn't send the invite. Please try again.") if @user.errors.empty?
     end
     if saved
       token = SignInToken.issue!(user: @user, club: current_user.club, ttl: 7.days)
