@@ -77,15 +77,10 @@ class Organizers::TournamentEntriesControllerTest < ActionDispatch::IntegrationT
     Catches::PlaceInSlots.call(catch: fish)
     assert_equal 1, fish.reload.catch_placements.where(active: true).count
 
-    original = Placements::BroadcastLeaderboard.method(:call)
-    broadcast_calls = []
-    Placements::BroadcastLeaderboard.define_singleton_method(:call) { |tournament:| broadcast_calls << tournament.id }
-    begin
+    broadcast_calls = with_broadcast_spy do
       assert_difference "TournamentEntry.count", -1 do
         delete organizers_tournament_tournament_entry_path(tournament_id: started.id, id: entry.id)
       end
-    ensure
-      Placements::BroadcastLeaderboard.define_singleton_method(:call, original)
     end
     assert_equal [started.id], broadcast_calls
     assert_equal 0, CatchPlacement.where(catch_id: fish.id).count, "placements should cascade-destroy with the entry"

@@ -67,13 +67,8 @@ module Catches
       slot1 = create(:catch, user: @removed, species: @walleye, length_inches: 22, captured_at_device: 30.minutes.ago)
       Catches::PlaceInSlots.call(catch: slot1)
 
-      original = Placements::BroadcastLeaderboard.method(:call)
-      calls = []
-      Placements::BroadcastLeaderboard.define_singleton_method(:call) { |tournament:| calls << tournament.id }
-      begin
+      calls = with_broadcast_spy do
         Catches::DropMemberFromEntry.call(entry: @entry, user: @removed)
-      ensure
-        Placements::BroadcastLeaderboard.define_singleton_method(:call, original)
       end
       assert_equal [@t.id], calls
     end

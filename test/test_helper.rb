@@ -18,6 +18,21 @@ require "factory_bot_rails"
 
 class ActiveSupport::TestCase
   include FactoryBot::Syntax::Methods
+
+  # Captures every Placements::BroadcastLeaderboard.call(tournament:) inside the
+  # block and yields the array of tournament ids broadcast to. Restores the
+  # original implementation in `ensure` so failures don't leak the stub.
+  def with_broadcast_spy
+    calls = []
+    original = Placements::BroadcastLeaderboard.method(:call)
+    Placements::BroadcastLeaderboard.define_singleton_method(:call) { |tournament:| calls << tournament.id }
+    begin
+      yield calls
+    ensure
+      Placements::BroadcastLeaderboard.define_singleton_method(:call, original)
+    end
+    calls
+  end
 end
 
 class ActionDispatch::SystemTestCase

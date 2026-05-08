@@ -57,15 +57,10 @@ class Admin::TournamentEntriesControllerTest < ActionDispatch::IntegrationTest
     fish = create(:catch, user: @member, species: walleye, length_inches: 18, captured_at_device: 5.minutes.ago)
     Catches::PlaceInSlots.call(catch: fish)
 
-    original = Placements::BroadcastLeaderboard.method(:call)
-    broadcast_calls = []
-    Placements::BroadcastLeaderboard.define_singleton_method(:call) { |tournament:| broadcast_calls << tournament.id }
-    begin
+    broadcast_calls = with_broadcast_spy do
       assert_difference "TournamentEntry.count", -1 do
         delete admin_tournament_tournament_entry_path(tournament_id: started.id, id: entry.id)
       end
-    ensure
-      Placements::BroadcastLeaderboard.define_singleton_method(:call, original)
     end
     assert_equal [started.id], broadcast_calls
     assert_equal 0, CatchPlacement.where(catch_id: fish.id).count

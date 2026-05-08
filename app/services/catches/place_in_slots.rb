@@ -35,6 +35,11 @@ module Catches
 
           entry.lock!  # serialize with PromoteBackup, RebalanceSlots, other PlaceInSlots
 
+          # Tournaments::ActiveForUser ran before the entry row lock was held, so a
+          # concurrent DropMemberFromEntry could have removed the user from this entry
+          # between resolution and lock acquisition. Re-verify membership now.
+          next unless entry.tournament_entry_members.exists?(user_id: @catch.user_id)
+
           active_placements = entry.catch_placements
             .where(species_id: @catch.species_id, active: true)
             .includes(:catch).order(:slot_index).to_a

@@ -68,7 +68,7 @@ class Admin::TournamentEntryMembersControllerTest < ActionDispatch::IntegrationT
       post admin_tournament_tournament_entry_tournament_entry_members_path(
         tournament_id: solo.id, tournament_entry_id: solo_entry.id), params: { user_id: @b.id }
     end
-    assert_match(/team mode/i, flash[:alert])
+    assert_match(/Solo entries can't have additional members/i, flash[:alert])
   end
 
   private
