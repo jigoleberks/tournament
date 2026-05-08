@@ -122,13 +122,21 @@
     <% end %>
 
     <%= form_with url: judges_tournament_catch_manual_override_path(tournament_id: @action_tournament.id, catch_id: @catch.id),
-                  local: true, class: "space-y-2", data: { controller: "length-edit" } do |f| %>
+                  local: true, class: "space-y-3", data: { controller: "length-edit" } do |f| %>
       <%
         unit = current_user.length_unit
         prefill = unit == "centimeters" ? (@catch.length_inches.to_f * LengthHelper::CM_PER_INCH).round(1) : @catch.length_inches
         step    = unit == "centimeters" ? 0.5 : 0.25
+        species_options = Species.order(:name).pluck(:name, :id)
       %>
-      <label for="length" class="block text-xs text-slate-400">Edit length</label>
+      <h3 class="text-sm font-semibold text-slate-300">Edit species &amp; length</h3>
+
+      <label for="species_id" class="block text-xs text-slate-400">Species</label>
+      <%= select_tag :species_id,
+                     options_for_select(species_options, @catch.species_id),
+                     class: "w-full h-12 px-3 rounded-lg bg-slate-900 border border-slate-700 text-base text-slate-100" %>
+
+      <label for="length" class="block text-xs text-slate-400">Length</label>
       <%= number_field_tag :length, prefill, step: step, min: 0,
                            data: { "length-edit-target": "input", "length-edit-unit": unit },
                            class: "w-full h-12 px-3 rounded-lg bg-slate-900 border border-slate-700 text-base text-slate-100" %>

@@ -1,0 +1,18 @@
+<%= turbo_frame_tag "catch_photo_modal" do %>
+  <div class="fixed inset-0 z-50 bg-black/85 flex flex-col p-4 overflow-auto"
+       data-controller="photo-modal">
+    <button type="button"
+            data-action="photo-modal#close"
+            aria-label="Close"
+            class="self-end h-12 w-12 rounded-full bg-slate-800/80 text-white text-2xl leading-none">×</button>
+    <%= image_tag url_for(@catch.photo.variant(resize_to_limit: [1200, 1200])),
+                  loading: "lazy",
+                  class: "max-w-full max-h-[70vh] object-contain mx-auto rounded-lg bg-black" %>
+    <dl class="text-slate-200 text-sm mt-4 space-y-1 text-center">
+      <div><span class="text-slate-400">Species:</span> <%= @catch.species.name %></div>
+      <div><span class="text-slate-400">Length:</span> <%= format_length_dual(@catch.length_inches) %></div>
+      <div><span class="text-slate-400">Angler:</span> <%= @catch.user.name %></div>
+      <div><span class="text-slate-400">Captured:</span> <%= @catch.captured_at_device.strftime("%b %d %Y · %l:%M %p") %></div>
+    </dl>
+  </div>
+<% end %>

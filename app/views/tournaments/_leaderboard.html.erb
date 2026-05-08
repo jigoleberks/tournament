@@ -1,7 +1,7 @@
 <% scope = local_assigns[:viewer_scope] || Leaderboards::ViewerScope.full %>
 <% tournament = local_assigns[:tournament] %>
 <% blind_active = tournament.present? && tournament.blind?(at: Time.current) %>
-<% can_open = tournament.present? && can_open_catches_in?(tournament) %>
+<% rows = Leaderboards::PresentationOrder.call(rows: leaderboard, viewer_scope: scope) %>
 
 <div id="leaderboard">
 <% if blind_active && scope.visibility != :full %>
@@ -19,7 +19,7 @@
     </tr>
   </thead>
   <tbody>
-    <% leaderboard.each_with_index do |row, i| %>
+    <% rows.each_with_index do |row, i| %>
       <% row_visible = scope.visibility == :full || (scope.visibility == :own_entry_only && row[:entry].id == scope.entry_id) %>
       <tr class="border-t border-slate-700 align-top">
         <td class="px-3 py-3"><%= scope.visibility == :full ? i + 1 : "—" %></td>
@@ -30,8 +30,10 @@
               <% row[:fish].each do |f| %>
                 <div>
                   <% label = "#{f[:species_name]} · #{format_length_dual(f[:length_inches])}" %>
-                  <% if can_open %>
-                    <%= link_to label, catch_path(f[:id], t: tournament.id),
+                  <% url, frame = catch_link_target(tournament: tournament, catch_id: f[:id]) %>
+                  <% if url %>
+                    <%= link_to label, url,
+                                data: ({ turbo_frame: frame } if frame),
                                 class: "text-blue-300 underline-offset-2 hover:underline" %>
                   <% else %>
                     <span><%= label %></span>

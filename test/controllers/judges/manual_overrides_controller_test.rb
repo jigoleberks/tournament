@@ -5,7 +5,9 @@ class Judges::ManualOverridesControllerTest < ActionDispatch::IntegrationTest
     @club = create(:club)
     @t = create(:tournament, club: @club, starts_at: 1.hour.ago, ends_at: 1.hour.from_now)
     @walleye = create(:species, club: @club)
+    @pike = create(:species, club: @club)
     create(:scoring_slot, tournament: @t, species: @walleye, slot_count: 1)
+    create(:scoring_slot, tournament: @t, species: @pike, slot_count: 1)
     @judge = create(:user, club: @club)
     create(:tournament_judge, tournament: @t, user: @judge)
     angler = create(:user, club: @club)
@@ -47,6 +49,15 @@ class Judges::ManualOverridesControllerTest < ActionDispatch::IntegrationTest
          params: { length_inches: "40", note: "drive-by" }
     assert_response :not_found
     assert_equal 21, foreign_catch.reload.length_inches.to_f
+  end
+
+  test "POST with species_id changes the catch's species" do
+    post judges_tournament_catch_manual_override_path(tournament_id: @t.id, catch_id: @catch.id),
+         params: { species_id: @pike.id, note: "misidentified" }
+
+    @catch.reload
+    assert_equal @pike.id, @catch.species_id
+    assert_equal @pike.id, @catch.catch_placements.active.first.species_id
   end
 
   test "POST override with entry from another tournament is not found" do

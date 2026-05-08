@@ -1,11 +1,12 @@
 module Catches
   class PlaceInSlots
-    def self.call(catch:)
-      new(catch: catch).call
+    def self.call(catch:, broadcast: true)
+      new(catch: catch, broadcast: broadcast).call
     end
 
-    def initialize(catch:)
+    def initialize(catch:, broadcast: true)
       @catch = catch
+      @broadcast = broadcast
     end
 
     def call
@@ -60,21 +61,29 @@ module Catches
         end
       end
 
-      # Broadcasts and job enqueues happen AFTER the transaction commits so other
+      # Broadcasts and job enqueues happen AFTER our transaction commits so other
       # DB connections (and Solid Queue workers) see the new state when they
       # rebuild the leaderboard or process push notifications.
-      affected_tournaments.each { |t| Placements::BroadcastLeaderboard.call(tournament: t) }
-
+      #
+      # When `broadcast: false`, the caller is running us inside its own outer
+      # transaction (which would still be open here, so a broadcast now would
+      # leak pre-commit state to other DB connections) and will issue its own
+      # broadcast after its outer transaction commits. We skip both the leaderboard
+      # rebroadcast and the notification dispatch in that case.
       result = { created: created, bumped: bumped, affected_tournaments: affected_tournaments.to_a }
 
-      Placements::DetectNotifications.call(result: result).each do |n|
-        DeliverPushNotificationJob.perform_later(
-          user_id: n[:user].id,
-          title: n[:title],
-          body: n[:body],
-          url: n[:url],
-          tournament_id: n[:tournament].id
-        )
+      if @broadcast
+        affected_tournaments.each { |t| Placements::BroadcastLeaderboard.call(tournament: t) }
+
+        Placements::DetectNotifications.call(result: result).each do |n|
+          DeliverPushNotificationJob.perform_later(
+            user_id: n[:user].id,
+            title: n[:title],
+            body: n[:body],
+            url: n[:url],
+            tournament_id: n[:tournament].id
+          )
+        end
       end
 
       result

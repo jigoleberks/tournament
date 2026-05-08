@@ -4,7 +4,11 @@
     unit = current_user.length_unit
     prefill = unit == "centimeters" ? (@catch.length_inches.to_f * LengthHelper::CM_PER_INCH).round(1) : @catch.length_inches
     step    = unit == "centimeters" ? 0.5 : 0.25
+    species_options = Species.order(:name).pluck(:name, :id)
   %>
+  <%= label_tag :species_id, "Species" %>
+  <%= select_tag :species_id, options_for_select(species_options, @catch.species_id) %>
+
   <%= label_tag :length, "Override length" %>
   <%= number_field_tag :length, prefill, step: step %>
   <% User::LENGTH_UNITS.each do |u| %>

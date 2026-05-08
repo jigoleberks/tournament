@@ -21,9 +21,29 @@ module CatchesHelper
 
   # Cheap form for the leaderboard partial: any organizer, or a judge of
   # the given tournament. (Doesn't load the catch's placements.)
+  # Memoized per-tournament — called once per fish row in the leaderboard,
+  # so without the cache a member viewer would do one TournamentJudge.exists?
+  # query per row, plus one per Turbo Stream rebroadcast.
   def can_open_catches_in?(tournament)
     return false if current_user.nil? || tournament.nil?
-    current_user.organizer_in?(current_club) || TournamentJudge.exists?(tournament: tournament, user: current_user)
+    return true if current_user.organizer_in?(current_club)
+    @_can_open_tournaments ||= {}
+    @_can_open_tournaments.fetch(tournament.id) do
+      @_can_open_tournaments[tournament.id] =
+        TournamentJudge.exists?(tournament: tournament, user: current_user)
+    end
+  end
+
+  # Returns [url, turbo_frame] for the leaderboard fish-row link.
+  # - Organizer/judge of the tournament: full catch detail page (no frame, full navigation).
+  # - Member, non-blind tournament (or blind tournament that has ended): photo modal via
+  #   tournament_catch_path, framed.
+  # - Member, blind tournament during its active window: [nil, nil] — caller renders plain
+  #   text instead of a link, so the active blind-leaderboard guarantee is preserved.
+  def catch_link_target(tournament:, catch_id:)
+    return [catch_path(catch_id, t: tournament.id), nil] if can_open_catches_in?(tournament)
+    return [nil, nil] if tournament.blind?(at: Time.current)
+    [tournament_catch_path(tournament, catch_id), "catch_photo_modal"]
   end
 
   # Staff-eyes-only check used to gate review-oriented UI (e.g. the

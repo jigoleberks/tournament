@@ -9,6 +9,7 @@ class Judges::ManualOverridesController < Judges::BaseController
       tournament: @tournament, catch: @catch, judge: current_user, action: :manual_override,
       note: params[:note],
       length_inches: resolved_length_inches,
+      species_id: params[:species_id].presence&.to_i,
       slot_index: params[:slot_index].presence&.to_i,
       entry_id: params[:entry_id].presence&.to_i
     )

@@ -65,6 +65,9 @@ Rails.application.routes.draw do
 
   resources :tournaments, only: [:index, :show] do
     collection { get :archived }
+    scope module: :tournaments do
+      resources :catches, only: [:show]
+    end
   end
   resources :catches, only: [:index, :new, :create, :show, :update] do
     collection do
