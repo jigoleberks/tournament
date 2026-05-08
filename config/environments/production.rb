@@ -60,8 +60,10 @@ Rails.application.configure do
   # config.action_mailer.raise_delivery_errors = false
 
   # APP_HOST is the public hostname (set in .env). Mailer + ActiveStorage URLs
-  # use it for links pointing back at the app.
-  app_host = ENV.fetch("APP_HOST", "localhost")
+  # use it for links pointing back at the app. No fallback in production —
+  # missing APP_HOST should fail loud at boot rather than silently emit
+  # https://localhost magic-link URLs.
+  app_host = ENV.fetch("APP_HOST")
   config.action_mailer.default_url_options = { host: app_host, protocol: "https" }
   Rails.application.routes.default_url_options = { host: app_host, protocol: "https" }
 
@@ -87,7 +89,7 @@ Rails.application.configure do
   # DNS rebinding / Host header protection. Same APP_HOST + admin subdomain
   # pattern as development.rb.
   config.hosts << app_host
-  config.hosts << "admin.#{app_host}" unless app_host == "localhost"
+  config.hosts << "admin.#{app_host}"
   # Health check is hit by infra without a matching Host header.
   config.host_authorization = { exclude: ->(request) { request.path == "/up" } }
 end
