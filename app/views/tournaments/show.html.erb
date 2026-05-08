@@ -59,3 +59,4 @@
   <%= turbo_stream_from "tournament:#{@tournament.id}:leaderboard:reveal" %>
 <% end %>
 <%= render "leaderboard", leaderboard: @leaderboard, tournament: @tournament, viewer_scope: @viewer_scope %>
+<%= turbo_frame_tag "catch_photo_modal" %>

@@ -16,6 +16,7 @@ jobs:
       RAILS_ENV: test
     steps:
       - uses: actions/checkout@v6
+      - run: sudo apt-get update && sudo apt-get install --no-install-recommends -y libvips42
       - uses: ruby/setup-ruby@v1
         with: { bundler-cache: true }
       - run: bin/rails db:test:prepare
