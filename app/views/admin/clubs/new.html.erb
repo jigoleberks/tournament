@@ -1,0 +1,17 @@
+<div class="flex items-center justify-between mb-8">
+  <h1 class="text-3xl font-bold">New Club</h1>
+  <%= link_to "Back to Clubs", admin_clubs_path, class: "text-slate-400 hover:text-white transition-colors" %>
+</div>
+
+<div class="max-w-xl">
+  <div class="bg-slate-800 rounded-xl border border-slate-700 overflow-hidden shadow-xl">
+    <div class="p-6 border-b border-slate-700 bg-slate-700/30">
+      <h2 class="text-lg font-semibold">Create Club</h2>
+      <p class="text-sm text-slate-400 mt-1">A blank slate. Add the first organizer manually after.</p>
+    </div>
+
+    <div class="p-6">
+      <%= render "form", club: @club, form_url: admin_clubs_path, submit_label: "Create Club" %>
+    </div>
+  </div>
+</div>
