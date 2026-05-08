@@ -41,4 +41,48 @@ class UserTest < ActiveSupport::TestCase
     u = create(:user)
     assert_equal "inches", u.length_unit
   end
+
+  test "admin? defaults to false" do
+    u = create(:user, club: @club)
+    assert_not u.admin?
+  end
+
+  test "admin? reflects the admin flag" do
+    u = create(:user, club: @club, admin: true)
+    assert u.admin?
+  end
+
+  test "organizer_in? is true only for the user's organizer membership" do
+    u = create(:user, club: @club)
+    other_club = create(:club)
+    create(:club_membership, user: u, club: @club, role: :organizer)
+    create(:club_membership, user: u, club: other_club, role: :member)
+    assert u.organizer_in?(@club)
+    assert_not u.organizer_in?(other_club)
+  end
+
+  test "organizer_in? ignores deactivated memberships" do
+    u = create(:user, club: @club)
+    create(:club_membership, user: u, club: @club, role: :organizer, deactivated_at: Time.current)
+    assert_not u.organizer_in?(@club)
+  end
+
+  test "organizer_in? returns false for nil club" do
+    u = create(:user, club: @club)
+    assert_not u.organizer_in?(nil)
+  end
+
+  test "member_of? is true for any active membership in the club" do
+    u = create(:user, club: @club)
+    other_club = create(:club)
+    create(:club_membership, user: u, club: @club, role: :member)
+    assert u.member_of?(@club)
+    assert_not u.member_of?(other_club)
+  end
+
+  test "member_of? ignores deactivated memberships" do
+    u = create(:user, club: @club)
+    create(:club_membership, user: u, club: @club, role: :member, deactivated_at: Time.current)
+    assert_not u.member_of?(@club)
+  end
 end

@@ -1,5 +1,7 @@
 class User < ApplicationRecord
   belongs_to :club
+  has_many :club_memberships, dependent: :destroy
+  has_many :clubs_via_memberships, through: :club_memberships, source: :club
   has_many :tournament_entry_members, dependent: :destroy
   has_many :tournament_entries, through: :tournament_entry_members
   has_many :tournament_judges, dependent: :destroy
@@ -21,5 +23,15 @@ class User < ApplicationRecord
 
   def metric?
     length_unit == "centimeters"
+  end
+
+  def organizer_in?(club)
+    return false unless club
+    club_memberships.active.where(club: club, role: :organizer).exists?
+  end
+
+  def member_of?(club)
+    return false unless club
+    club_memberships.active.where(club: club).exists?
   end
 end
