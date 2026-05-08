@@ -1,0 +1,52 @@
+<div class="flex items-center justify-between mb-8">
+  <h1 class="text-3xl font-bold">Invite member to <%= @club.name %></h1>
+  <%= link_to "Back to Clubs", admin_clubs_path, class: "text-slate-400 hover:text-white transition-colors" %>
+</div>
+
+<div class="max-w-xl">
+  <div class="bg-slate-800 rounded-xl border border-slate-700 overflow-hidden shadow-xl">
+    <div class="p-6 border-b border-slate-700 bg-slate-700/30">
+      <h2 class="text-lg font-semibold">New Invitation</h2>
+      <p class="text-sm text-slate-400 mt-1">A magic link will be emailed to this address.</p>
+    </div>
+
+    <div class="p-6">
+      <%= form_with model: @user, url: admin_club_members_path(@club), scope: :user, local: true,
+                    class: "space-y-6" do |f| %>
+        <% if @user.errors.any? %>
+          <div class="bg-red-900/40 border border-red-800 rounded-lg p-4">
+            <ul class="text-red-400 text-sm list-disc list-inside">
+              <% @user.errors.full_messages.each do |m| %><li><%= m %></li><% end %>
+            </ul>
+          </div>
+        <% end %>
+
+        <div class="space-y-4">
+          <div>
+            <%= f.label :name, class: "block text-sm font-semibold text-slate-300 mb-1.5" %>
+            <%= f.text_field :name, placeholder: "e.g. John Doe",
+                             class: "w-full h-11 px-4 rounded-lg bg-slate-900 border border-slate-700 text-slate-100 focus:ring-2 focus:ring-blue-500 outline-none transition-all" %>
+          </div>
+
+          <div>
+            <%= f.label :email, class: "block text-sm font-semibold text-slate-300 mb-1.5" %>
+            <%= f.email_field :email, placeholder: "john@example.com",
+                              class: "w-full h-11 px-4 rounded-lg bg-slate-900 border border-slate-700 text-slate-100 focus:ring-2 focus:ring-blue-500 outline-none transition-all" %>
+          </div>
+
+          <div>
+            <%= f.label :role, class: "block text-sm font-semibold text-slate-300 mb-1.5" %>
+            <%= f.select :role, ClubMembership.roles.keys.map { |r| [r.capitalize, r] },
+                         {},
+                         class: "w-full h-11 px-3 rounded-lg bg-slate-900 border border-slate-700 text-slate-100 focus:ring-2 focus:ring-blue-500 outline-none transition-all" %>
+          </div>
+        </div>
+
+        <div class="pt-4">
+          <%= f.submit "Send Invitation",
+                       class: "w-full h-12 px-6 text-base font-bold rounded-lg bg-blue-600 hover:bg-blue-700 text-white shadow-lg shadow-blue-900/20 transition-all cursor-pointer" %>
+        </div>
+      <% end %>
+    </div>
+  </div>
+</div>

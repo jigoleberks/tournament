@@ -1,0 +1,93 @@
+require "test_helper"
+
+class Admin::Clubs::MembersControllerTest < ActionDispatch::IntegrationTest
+  setup do
+    @admin_home_club = create(:club, name: "BS Phishing Family")
+    @target_club = create(:club, name: "Northtown Anglers")
+    @admin = create(:user, club: @admin_home_club, admin: true)
+    @organizer = create(:user, club: @admin_home_club, role: :organizer)
+    @member = create(:user, club: @admin_home_club, role: :member)
+  end
+
+  test "signed-out cannot access" do
+    get new_admin_club_member_path(@target_club)
+    assert_redirected_to new_session_path
+  end
+
+  test "member is forbidden" do
+    sign_in_as(@member)
+    get new_admin_club_member_path(@target_club)
+    assert_response :forbidden
+  end
+
+  test "organizer without admin flag is forbidden" do
+    sign_in_as(@organizer)
+    get new_admin_club_member_path(@target_club)
+    assert_response :forbidden
+  end
+
+  test "admin sees the form" do
+    sign_in_as(@admin)
+    get new_admin_club_member_path(@target_club)
+    assert_response :success
+    assert_includes response.body, "Northtown Anglers"
+  end
+
+  test "admin invites a member into a different club" do
+    sign_in_as(@admin)
+    assert_difference -> { User.count } => 1,
+                      -> { ClubMembership.count } => 1,
+                      -> { SignInToken.count } => 1 do
+      assert_emails 1 do
+        post admin_club_members_path(@target_club), params: {
+          user: { name: "First Org", email: "first@northtown.example", role: "organizer" }
+        }
+      end
+    end
+    assert_redirected_to admin_clubs_path
+    new_user = User.find_by(email: "first@northtown.example")
+    membership = new_user.club_memberships.first
+    assert_equal @target_club, membership.club
+    assert membership.organizer?
+    # Token's club is the target club, not the admin's home club.
+    assert_equal @target_club, SignInToken.last.club
+  end
+
+  test "admin can invite as plain member too" do
+    sign_in_as(@admin)
+    post admin_club_members_path(@target_club), params: {
+      user: { name: "Plain Member", email: "plain@northtown.example", role: "member" }
+    }
+    new_user = User.find_by(email: "plain@northtown.example")
+    assert new_user.club_memberships.first.member?
+  end
+
+  test "blank email re-renders new with 422 and no rows created" do
+    sign_in_as(@admin)
+    assert_no_difference -> { User.count } do
+      assert_no_difference -> { ClubMembership.count } do
+        post admin_club_members_path(@target_club), params: {
+          user: { name: "Bad", email: "", role: "member" }
+        }
+      end
+    end
+    assert_response :unprocessable_entity
+  end
+
+  test "non-admin POST is forbidden" do
+    sign_in_as(@organizer)
+    assert_no_difference -> { User.count } do
+      post admin_club_members_path(@target_club), params: {
+        user: { name: "Sneak", email: "sneak@example.com", role: "organizer" }
+      }
+    end
+    assert_response :forbidden
+  end
+
+  private
+
+  def sign_in_as(user)
+    token = SignInToken.issue!(user: user)
+    get consume_session_path(token: token.token)
+  end
+end
