@@ -22,7 +22,7 @@
 
   <div>
     <%= f.label :role, class: "block text-sm font-medium text-slate-300 mb-1" %>
-    <%= f.select :role, User.roles.keys,
+    <%= f.select :role, ClubMembership.roles.keys,
                  {},
                  class: "w-full h-12 px-3 rounded-lg bg-slate-900 border border-slate-700" %>
   </div>

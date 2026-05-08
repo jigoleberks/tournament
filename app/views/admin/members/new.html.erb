@@ -36,7 +36,7 @@
 
           <div>
             <%= f.label :role, class: "block text-sm font-semibold text-slate-300 mb-1.5" %>
-            <%= f.select :role, User.roles.keys.map { |r| [r.capitalize, r] },
+            <%= f.select :role, ClubMembership.roles.keys.map { |r| [r.capitalize, r] },
                          {},
                          class: "w-full h-11 px-3 rounded-lg bg-slate-900 border border-slate-700 text-slate-100 focus:ring-2 focus:ring-blue-500 outline-none transition-all" %>
           </div>
