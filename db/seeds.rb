@@ -11,25 +11,21 @@ org_name  = ENV.fetch("SEED_ORGANIZER_NAME", "Organizer")
 org_email = ENV.fetch("SEED_ORGANIZER_EMAIL", "organizer@example.com")
 
 club = Club.find_or_create_by!(name: club_name)
-%w[Walleye Perch Pike Other].each { |n| Species.find_or_create_by!(club: club, name: n) }
+%w[Walleye Perch Pike Other].each { |n| Species.find_or_create_by!(name: n) }
 
-User.find_or_create_by!(club: club, email: org_email) do |u|
-  u.name = org_name
-  u.role = :organizer
-end
+organizer = User.find_or_create_by!(email: org_email) { |u| u.name = org_name }
+ClubMembership.find_or_create_by!(user: organizer, club: club) { |m| m.role = :organizer }
 
 # Demo members and sample tournaments are only created when SEED_DEMO_DATA=true.
 # Without this guard, db:seed silently re-creates them in real clubs on every run.
 if ENV["SEED_DEMO_DATA"] == "true"
   %w[member1 member2 member3].each_with_index do |handle, i|
-    User.find_or_create_by!(club: club, email: "#{handle}@example.com") do |u|
-      u.name = "Member #{i + 1}"
-      u.role = :member
-    end
+    user = User.find_or_create_by!(email: "#{handle}@example.com") { |u| u.name = "Member #{i + 1}" }
+    ClubMembership.find_or_create_by!(user: user, club: club) { |m| m.role = :member }
   end
 
-  walleye = Species.find_by!(club: club, name: "Walleye")
-  perch   = Species.find_by!(club: club, name: "Perch")
+  walleye = Species.find_by!(name: "Walleye")
+  perch   = Species.find_by!(name: "Perch")
 
   Tournament.find_or_create_by!(club: club, name: "Sample Event Tournament") do |t|
     t.kind = :event

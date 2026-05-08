@@ -11,6 +11,15 @@ class User < ApplicationRecord
   validates :name, :email, presence: true
   validates :email, uniqueness: { case_sensitive: false }
 
+  # Normalize before validation so the case-insensitive uniqueness check and
+  # the case-sensitive PG btree unique index agree. Without this, a race
+  # between "Joe@x.com" and "joe@x.com" can pass validation independently and
+  # both commit, leaving two rows the model thought were duplicates.
+  before_validation :normalize_email
+  def normalize_email
+    self.email = email.to_s.strip.downcase if email.present?
+  end
+
   scope :active, -> { where(deactivated_at: nil) }
 
   def deactivated?
