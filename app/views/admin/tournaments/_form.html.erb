@@ -109,7 +109,7 @@
           <div class="grid grid-cols-1 gap-3">
             <div>
               <%= sf.label :species_id, "Species", class: "block text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1" %>
-              <%= sf.collection_select :species_id, current_user.club.species.order(:name), :id, :name,
+              <%= sf.collection_select :species_id, Species.order(:name), :id, :name,
                                        { include_blank: "—" },
                                        class: "w-full h-10 px-3 rounded bg-slate-800 border border-slate-700 text-sm text-slate-100" %>
             </div>

@@ -1,6 +1,6 @@
 class Organizers::CatchesController < Organizers::BaseController
   def index
-    club_catches = Catch.joins(:user).where(users: { club_id: current_user.club_id })
+    club_catches = Catch.where(user_id: current_club.members.select(:id))
 
     @members = User.where(id: club_catches.select(:user_id)).order(:name)
     @selected_user_id = params[:user_id].presence

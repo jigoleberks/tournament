@@ -3,7 +3,7 @@ class Organizers::TournamentEntryMembersController < Organizers::BaseController
 
   def create
     return locked unless editable?
-    user = current_user.club.users.active.find_by(id: params[:user_id])
+    user = current_club.members.active.find_by(id: params[:user_id])
     unless user
       redirect_to edit_organizers_tournament_path(@tournament), alert: "Member not found." and return
     end
@@ -24,7 +24,7 @@ class Organizers::TournamentEntryMembersController < Organizers::BaseController
   private
 
   def load_tournament_and_entry
-    @tournament = current_user.club.tournaments.find(params[:tournament_id])
+    @tournament = current_club.tournaments.find(params[:tournament_id])
     @entry = @tournament.tournament_entries.find(params[:tournament_entry_id])
   end
 

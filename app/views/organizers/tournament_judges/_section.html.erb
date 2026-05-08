@@ -18,7 +18,7 @@
   <p class="text-slate-400 italic mb-3">No judges yet.</p>
 <% end %>
 
-<% available = current_user.club.users.active.where.not(id: @tournament.judge_users.pluck(:id)).order(:name) %>
+<% available = current_club.members.active.where.not(id: @tournament.judge_users.pluck(:id)).order(:name) %>
 <% if available.any? %>
   <%= form_with url: organizers_tournament_tournament_judges_path(tournament_id: @tournament.id),
                 local: true,

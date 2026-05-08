@@ -13,7 +13,7 @@ module CatchesHelper
   def can_view_catch?(catch_record)
     return false if current_user.nil?
     return true  if catch_record.user_id == current_user.id
-    return true  if current_user.organizer?
+    return true  if current_user.organizer_in?(current_club)
     judge_tournament_ids = TournamentJudge.where(user: current_user).pluck(:tournament_id)
     catch_tournament_ids = catch_record.catch_placements.pluck(:tournament_id).uniq
     (judge_tournament_ids & catch_tournament_ids).any?
@@ -23,14 +23,14 @@ module CatchesHelper
   # the given tournament. (Doesn't load the catch's placements.)
   def can_open_catches_in?(tournament)
     return false if current_user.nil? || tournament.nil?
-    current_user.organizer? || TournamentJudge.exists?(tournament: tournament, user: current_user)
+    current_user.organizer_in?(current_club) || TournamentJudge.exists?(tournament: tournament, user: current_user)
   end
 
   # Staff-eyes-only check used to gate review-oriented UI (e.g. the
   # possible-duplicate flag). Catch owners do NOT qualify here.
   def can_review_catch?(catch_record)
     return false if current_user.nil?
-    return true  if current_user.organizer?
+    return true  if current_user.organizer_in?(current_club)
     # Helper instances are per-request, so this ivar memo is request-scoped —
     # the TournamentJudge lookup runs once per request, not once per catch.
     judge_ids = (@_judge_tournament_ids ||= TournamentJudge.where(user: current_user).pluck(:tournament_id))

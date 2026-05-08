@@ -2,7 +2,7 @@ class Admin::TournamentJudgesController < Admin::BaseController
   before_action :load_tournament
 
   def create
-    user = current_user.club.users.active.find(params.dig(:tournament_judge, :user_id))
+    user = current_club.members.active.find(params.dig(:tournament_judge, :user_id))
     @tournament.tournament_judges.find_or_create_by(user: user)
     redirect_to edit_admin_tournament_path(@tournament), notice: "Judge added."
   rescue ActiveRecord::RecordNotFound
@@ -18,6 +18,6 @@ class Admin::TournamentJudgesController < Admin::BaseController
   private
 
   def load_tournament
-    @tournament = current_user.club.tournaments.find(params[:tournament_id])
+    @tournament = current_club.tournaments.find(params[:tournament_id])
   end
 end

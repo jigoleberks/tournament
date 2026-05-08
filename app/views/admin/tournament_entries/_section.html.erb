@@ -5,7 +5,7 @@
     Tournament has started — entries are locked.
   </div>
 <% else %>
-  <% available = current_user.club.users.active.order(:name) %>
+  <% available = current_club.members.active.order(:name) %>
   <%= form_with url: admin_tournament_tournament_entries_path(tournament_id: @tournament.id), local: true,
                 class: "mb-8 space-y-4" do |f| %>
 
@@ -95,7 +95,7 @@
                            class: "h-8 px-2 rounded bg-slate-700 hover:bg-slate-600 text-slate-100 text-xs" %>
           <% end %>
 
-          <% candidates = current_user.club.users.active
+          <% candidates = current_club.members.active
                .where.not(id: entry.tournament_entry_members.select(:user_id))
                .order(:name) %>
           <% if candidates.any? && entry.tournament_entry_members.size < TournamentEntryMember::MAX_TEAM_MEMBERS %>

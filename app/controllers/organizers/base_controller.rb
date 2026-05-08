@@ -5,6 +5,6 @@ class Organizers::BaseController < ApplicationController
   private
 
   def require_organizer!
-    head :forbidden unless current_user&.organizer?
+    head :forbidden unless current_user&.organizer_in?(current_club)
   end
 end

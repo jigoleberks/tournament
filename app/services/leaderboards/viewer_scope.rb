@@ -19,7 +19,7 @@ module Leaderboards
 
       return Scope.new(visibility: :own_entry_only, entry_id: entry_id) if entry_id
 
-      return full if user.organizer?
+      return full if user.organizer_in?(tournament.club)
 
       Scope.new(visibility: :entries_only, entry_id: nil)
     end

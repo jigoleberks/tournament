@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_05_07_160000) do
+ActiveRecord::Schema[8.1].define(version: 2026_05_07_180000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -296,12 +296,10 @@ ActiveRecord::Schema[8.1].define(version: 2026_05_07_160000) do
   end
 
   create_table "species", force: :cascade do |t|
-    t.bigint "club_id", null: false
     t.datetime "created_at", null: false
     t.string "name", null: false
     t.datetime "updated_at", null: false
-    t.index ["club_id", "name"], name: "index_species_on_club_id_and_name", unique: true
-    t.index ["club_id"], name: "index_species_on_club_id"
+    t.index "lower((name)::text)", name: "index_species_on_lower_name", unique: true
   end
 
   create_table "tournament_entries", force: :cascade do |t|
@@ -380,17 +378,14 @@ ActiveRecord::Schema[8.1].define(version: 2026_05_07_160000) do
 
   create_table "users", force: :cascade do |t|
     t.boolean "admin", default: false, null: false
-    t.bigint "club_id", null: false
     t.datetime "created_at", null: false
     t.datetime "deactivated_at"
     t.string "email", null: false
     t.string "length_unit", default: "inches", null: false
     t.string "name", null: false
-    t.integer "role", default: 0, null: false
     t.datetime "updated_at", null: false
-    t.index ["club_id", "email"], name: "index_users_on_club_id_and_email", unique: true
-    t.index ["club_id"], name: "index_users_on_club_id"
     t.index ["deactivated_at"], name: "index_users_on_deactivated_at"
+    t.index ["email"], name: "index_users_on_email", unique: true
   end
 
   add_foreign_key "active_storage_attachments", "active_storage_blobs", column: "blob_id"
@@ -417,7 +412,6 @@ ActiveRecord::Schema[8.1].define(version: 2026_05_07_160000) do
   add_foreign_key "solid_queue_ready_executions", "solid_queue_jobs", column: "job_id", on_delete: :cascade
   add_foreign_key "solid_queue_recurring_executions", "solid_queue_jobs", column: "job_id", on_delete: :cascade
   add_foreign_key "solid_queue_scheduled_executions", "solid_queue_jobs", column: "job_id", on_delete: :cascade
-  add_foreign_key "species", "clubs"
   add_foreign_key "tournament_entries", "tournaments"
   add_foreign_key "tournament_entry_members", "tournament_entries"
   add_foreign_key "tournament_entry_members", "users"
@@ -427,5 +421,4 @@ ActiveRecord::Schema[8.1].define(version: 2026_05_07_160000) do
   add_foreign_key "tournament_template_scoring_slots", "tournament_templates"
   add_foreign_key "tournament_templates", "clubs"
   add_foreign_key "tournaments", "clubs"
-  add_foreign_key "users", "clubs"
 end

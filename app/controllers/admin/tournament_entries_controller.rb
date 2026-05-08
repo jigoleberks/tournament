@@ -8,7 +8,7 @@ class Admin::TournamentEntriesController < Admin::BaseController
 
     user_ids = Array(params.dig(:tournament_entry, :member_user_ids)).map(&:to_i).reject(&:zero?).uniq
     name = params.dig(:tournament_entry, :name)
-    valid_ids = current_user.club.users.active.where(id: user_ids).pluck(:id)
+    valid_ids = current_club.members.active.where(id: user_ids).pluck(:id)
     if valid_ids.size != user_ids.size
       redirect_to edit_admin_tournament_path(@tournament), alert: "One or more selected members are unavailable." and return
     end
@@ -66,6 +66,6 @@ class Admin::TournamentEntriesController < Admin::BaseController
   private
 
   def load_tournament
-    @tournament = current_user.club.tournaments.find(params[:tournament_id])
+    @tournament = current_club.tournaments.find(params[:tournament_id])
   end
 end

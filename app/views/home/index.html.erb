@@ -34,7 +34,7 @@
   </div>
 <% end %>
 
-<% other_tournaments = current_user.club.tournaments.where.not(id: active_tournaments.map(&:id)).order(starts_at: :desc) %>
+<% other_tournaments = current_club.tournaments.where.not(id: active_tournaments.map(&:id)).order(starts_at: :desc) %>
 <% other_active, other_completed = other_tournaments.partition { |t| !t.ended? } %>
 <% recent_completed, archived_completed = other_completed.partition { |t| t.ends_at >= 24.hours.ago } %>
 <% if other_active.any? %>
@@ -70,8 +70,8 @@
 <% end %>
 
 <%
-  current_tag = SeasonPoints::CurrentSeasonTag.call(club: current_user.club)
-  current_standings = current_tag ? SeasonPoints::Standings.call(club: current_user.club, season_tag: current_tag) : []
+  current_tag = SeasonPoints::CurrentSeasonTag.call(club: current_club)
+  current_standings = current_tag ? SeasonPoints::Standings.call(club: current_club, season_tag: current_tag) : []
 %>
 <% if current_tag %>
   <%= render "home/season_points_top", season_tag: current_tag, standings: current_standings %>
@@ -89,7 +89,7 @@
   <%= link_to "Pre-trip check", pre_trip_path, class: "block w-full h-12 px-4 rounded-lg bg-slate-700 active:bg-slate-600 text-slate-100 text-center leading-[3rem]" %>
 </div>
 
-<% if current_user.organizer? %>
+<% if current_user.organizer_in?(current_club) %>
   <div class="my-3">
     <%= link_to "Organizer", organizers_tournaments_path,
                 class: "block w-full h-12 px-4 rounded-lg bg-amber-600 active:bg-amber-700 text-white text-center leading-[3rem] font-semibold" %>
