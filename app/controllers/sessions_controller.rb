@@ -24,11 +24,11 @@ class SessionsController < ApplicationController
   end
 
   def consume
-    user = SignInToken.consume!(params[:token])
-    if user
-      sign_in!(user)
-      login_log "link_success", email: user.email, ip: request.remote_ip
-      redirect_to root_path, notice: "Welcome, #{user.name}"
+    record = SignInToken.consume!(params[:token])
+    if record
+      sign_in!(record.user, club: record.club)
+      login_log "link_success", email: record.user.email, ip: request.remote_ip
+      redirect_to root_path, notice: "Welcome, #{record.user.name}"
     else
       login_log "link_invalid", ip: request.remote_ip
       redirect_to new_session_path, alert: "That sign-in link is invalid or expired."
@@ -41,11 +41,11 @@ class SessionsController < ApplicationController
 
   def submit_code
     email = params[:email].to_s.downcase.strip
-    user = SignInToken.consume_code!(email: email, code: params[:code])
-    if user
-      sign_in!(user)
-      login_log "code_success", email: user.email, ip: request.remote_ip
-      redirect_to root_path, notice: "Welcome, #{user.name}"
+    record = SignInToken.consume_code!(email: email, code: params[:code])
+    if record
+      sign_in!(record.user, club: record.club)
+      login_log "code_success", email: record.user.email, ip: request.remote_ip
+      redirect_to root_path, notice: "Welcome, #{record.user.name}"
     else
       login_log "code_failed", email: email, ip: request.remote_ip
       flash.now[:alert] = "That email and code don't match, or the code has expired."

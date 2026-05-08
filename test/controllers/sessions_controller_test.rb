@@ -76,4 +76,45 @@ class SessionsControllerTest < ActionDispatch::IntegrationTest
     assert rotated_id.present?
     assert_not_equal fixed_id, rotated_id
   end
+
+  test "consume sets session[:current_club_id] from the token's club" do
+    club_a = create(:club)
+    create(:club_membership, user: @user, club: club_a, role: :member)
+    token = SignInToken.issue!(user: @user, club: club_a)
+    get consume_session_path(token: token.token)
+    assert_equal club_a.id, session[:current_club_id]
+  end
+
+  test "consume falls back to user's first active membership when token has no club" do
+    club_a = create(:club)
+    create(:club_membership, user: @user, club: club_a, role: :member)
+    token = SignInToken.issue!(user: @user)
+    token.update!(club_id: nil)
+    get consume_session_path(token: token.token)
+    assert_equal club_a.id, session[:current_club_id]
+  end
+
+  test "consume leaves current_club_id nil when user has no memberships" do
+    token = SignInToken.issue!(user: @user)
+    get consume_session_path(token: token.token)
+    assert_equal @user.id, session[:user_id]
+    assert_nil session[:current_club_id]
+  end
+
+  test "consume does not honor a token's club if user has no membership in it" do
+    other_club = create(:club)
+    own_club = create(:club)
+    create(:club_membership, user: @user, club: own_club, role: :member)
+    token = SignInToken.issue!(user: @user, club: other_club)
+    get consume_session_path(token: token.token)
+    assert_equal own_club.id, session[:current_club_id]
+  end
+
+  test "submit_code sets session[:current_club_id] from the code's club" do
+    club_a = create(:club)
+    create(:club_membership, user: @user, club: club_a, role: :member)
+    code = SignInToken.issue_code!(user: @user, club: club_a)
+    post code_session_path, params: { email: @user.email, code: code.token }
+    assert_equal club_a.id, session[:current_club_id]
+  end
 end

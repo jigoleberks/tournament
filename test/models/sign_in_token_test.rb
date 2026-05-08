@@ -10,10 +10,11 @@ class SignInTokenTest < ActiveSupport::TestCase
     assert_nil token.used_at
   end
 
-  test "consume! marks the token used and returns the user" do
+  test "consume! marks the token used and returns the record" do
     token = SignInToken.issue!(user: @user)
-    user = SignInToken.consume!(token.token)
-    assert_equal @user, user
+    record = SignInToken.consume!(token.token)
+    assert_equal token, record
+    assert_equal @user, record.user
     assert_not_nil token.reload.used_at
   end
 
@@ -53,7 +54,9 @@ class SignInTokenTest < ActiveSupport::TestCase
 
   test "consume_code! signs in when email and code match" do
     code = SignInToken.issue_code!(user: @user)
-    assert_equal @user, SignInToken.consume_code!(email: @user.email, code: code.token)
+    record = SignInToken.consume_code!(email: @user.email, code: code.token)
+    assert_equal code, record
+    assert_equal @user, record.user
     assert_not_nil code.reload.used_at
   end
 
@@ -106,5 +109,46 @@ class SignInTokenTest < ActiveSupport::TestCase
     code = SignInToken.issue_code!(user: @user)
     assert SignInToken.send(:claim, code), "first claim should win"
     assert_not SignInToken.send(:claim, code), "second claim should miss"
+  end
+
+  test "issue! stores explicit club" do
+    club_a = create(:club)
+    create(:club_membership, user: @user, club: club_a, role: :member)
+    token = SignInToken.issue!(user: @user, club: club_a)
+    assert_equal club_a, token.club
+  end
+
+  test "issue! falls back to user's first active membership when club not given" do
+    club_a = create(:club)
+    create(:club_membership, user: @user, club: club_a, role: :member)
+    token = SignInToken.issue!(user: @user)
+    assert_equal club_a, token.club
+  end
+
+  test "issue! sets nil club when user has no memberships" do
+    token = SignInToken.issue!(user: @user)
+    assert_nil token.club
+  end
+
+  test "issue! ignores deactivated memberships in fallback" do
+    club_a = create(:club)
+    create(:club_membership, user: @user, club: club_a, deactivated_at: Time.current)
+    token = SignInToken.issue!(user: @user)
+    assert_nil token.club
+  end
+
+  test "issue_code! stores explicit club" do
+    club_a = create(:club)
+    code = SignInToken.issue_code!(user: @user, club: club_a)
+    assert_equal club_a, code.club
+  end
+
+  test "issue! fallback prefers the older membership when user is in multiple clubs" do
+    older = create(:club)
+    newer = create(:club)
+    create(:club_membership, user: @user, club: older, role: :member, created_at: 2.days.ago)
+    create(:club_membership, user: @user, club: newer, role: :member, created_at: 1.day.ago)
+    token = SignInToken.issue!(user: @user)
+    assert_equal older, token.club
   end
 end
