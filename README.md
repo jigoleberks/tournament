@@ -10,7 +10,7 @@ A small, self-hosted Progressive Web App for running club-scale catch-photo-rele
 - **Live leaderboard** — Turbo Streams over Action Cable; updates every viewer when placement changes
 - **Judged or friendly tournaments** — judged events run through review/approve/DQ; friendly events skip judging and let placements settle from member submissions
 - **Organizer flow** — tournament CRUD, scoring slots per species, templates, season tags, entries (members can't self-sign-up; organizers control who's in), judge assignment, full catch history with photos
-- **Laptop admin UI** — `/admin` (or `admin.<your-domain>` via a second tunnel route) for managing tournaments, members, and judges and reviewing catch photos at full screen; same data as the PWA, different presentation
+- **Laptop admin UI** — `/admin` (or `admin.<your-domain>` via a second tunnel route) for managing tournaments, members, and judges and reviewing catch photos at full screen; same data as the PWA, different presentation. Users with the cross-club `admin` flag also get `/admin/clubs` for creating new clubs and inviting their first organizer.
 - **Judge workflow** — needs-review queue, approve / flag / disqualify / dock-verify, manual override (length + slot), append-only `JudgeAction` audit log
 - **Web Push** — VAPID; bumped-from-slot, took-the-lead, judge-flagged, tournament started/ended; per-user mute / snooze / per-tournament mute
 - **Per-user units** — inches or centimeters; leaderboard shows both
@@ -134,7 +134,10 @@ docker compose run --rm web bin/rails db:seed
 Visit the app and submit your real email through the sign-in form. If your email matches a seeded user *and* you've configured Resend, the magic link arrives in your inbox. Otherwise, either add yourself first:
 
 ```bash
-docker compose exec web bin/rails runner 'User.create!(club: Club.first, name: "Your Name", email: "you@example.com", role: :organizer)'
+docker compose exec web bin/rails runner '
+  user = User.create!(name: "Your Name", email: "you@example.com")
+  ClubMembership.create!(user: user, club: Club.first, role: :organizer)
+'
 ```
 
 …or skip mail entirely and grab a token from the console (see step 5).
@@ -219,6 +222,13 @@ Install with `crontab -e` as the user that runs docker — typically not root. `
 - **Member self-sign-up is disabled by design.** Organizers add members to tournaments via the tournament edit page.
 - **Catch detail privacy** — the `/catches/:id` photo+meta page is gated to organizers and judges of the relevant tournament. Members see lengths on the leaderboard but not the underlying photos.
 - **Completed tournaments** appear on the home page for 24h after `ends_at`, then move to `/tournaments/archived`, reachable from the "View older completed tournaments" button on the home page.
+- **Multi-club support.** A single deployment can host multiple clubs. Each club has its own users, tournaments, templates, and leaderboards; species are shared globally. To add a second club, an `admin`-flagged user creates it from `/admin/clubs` and invites the new club's first organizer from the same screen — the magic link drops them into their own club's view. To bootstrap the first admin on a fresh deploy, run once in the prod console:
+
+  ```ruby
+  User.find_by(email: "you@example.com").update!(admin: true)
+  ```
+
+  Subsequent admins can be promoted the same way; there's no UI for it, by design (admin = "approved to use this server's hardware", not a per-club role).
 
 ## License
 
