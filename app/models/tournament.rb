@@ -22,6 +22,7 @@ class Tournament < ApplicationRecord
   validate :hidden_length_target_locked_once_set
   validate :hidden_length_target_in_range
   validate :biggest_vs_smallest_requires_one_scoring_slot
+  validate :biggest_vs_smallest_requires_event_kind_with_end_time
 
   scope :active_at, ->(time) {
     where("starts_at <= ?", time).where("ends_at IS NULL OR ends_at >= ?", time)
@@ -91,6 +92,12 @@ class Tournament < ApplicationRecord
     remaining = scoring_slots.reject(&:marked_for_destruction?)
     return if remaining.size == 1
     errors.add(:scoring_slots, "Biggest vs Smallest tournaments must have exactly one species configured")
+  end
+
+  def biggest_vs_smallest_requires_event_kind_with_end_time
+    return unless format_biggest_vs_smallest?
+    return if event? && ends_at.present?
+    errors.add(:format, "Biggest vs Smallest tournaments must be event kind with an end time")
   end
 
   def hidden_length_target_locked_once_set

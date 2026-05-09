@@ -337,4 +337,30 @@ class TournamentTest < ActiveSupport::TestCase
     t.scoring_slots.build(species: walleye, slot_count: 1)
     assert t.valid?, t.errors.full_messages.inspect
   end
+
+  test "biggest_vs_smallest tournament requires kind=event" do
+    walleye = create(:species, club: @club)
+    t = build(:tournament, club: @club, format: :biggest_vs_smallest, mode: :solo,
+              kind: :ongoing, ends_at: 2.hours.from_now)
+    t.scoring_slots.build(species: walleye, slot_count: 1)
+    assert_not t.valid?
+    assert_includes t.errors[:format], "Biggest vs Smallest tournaments must be event kind with an end time"
+  end
+
+  test "biggest_vs_smallest tournament requires ends_at" do
+    walleye = create(:species, club: @club)
+    t = build(:tournament, club: @club, format: :biggest_vs_smallest, mode: :solo,
+              kind: :event, ends_at: nil)
+    t.scoring_slots.build(species: walleye, slot_count: 1)
+    assert_not t.valid?
+    assert_includes t.errors[:format], "Biggest vs Smallest tournaments must be event kind with an end time"
+  end
+
+  test "biggest_vs_smallest tournament accepts team mode" do
+    walleye = create(:species, club: @club)
+    t = build(:tournament, club: @club, format: :biggest_vs_smallest, mode: :team,
+              kind: :event, ends_at: 2.hours.from_now)
+    t.scoring_slots.build(species: walleye, slot_count: 1)
+    assert t.valid?, t.errors.full_messages.inspect
+  end
 end
