@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_05_09_162252) do
+ActiveRecord::Schema[8.1].define(version: 2026_05_09_164537) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -350,6 +350,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_05_09_162252) do
     t.time "default_end_time"
     t.time "default_start_time"
     t.integer "default_weekday"
+    t.integer "format", default: 0, null: false
     t.integer "mode", default: 0, null: false
     t.string "name", null: false
     t.datetime "updated_at", null: false
