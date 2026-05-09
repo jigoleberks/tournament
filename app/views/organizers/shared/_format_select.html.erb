@@ -1,9 +1,10 @@
 <%# Local: f (form builder), record (Tournament or TournamentTemplate) %>
 <% locked = record.respond_to?(:starts_at) && record.persisted? && record.starts_at && record.starts_at <= Time.current %>
-<% labels = { "standard" => "Standard", "big_fish_season" => "Big Fish Season" } %>
+<% labels = { "standard" => "Standard", "big_fish_season" => "Big Fish Season", "hidden_length" => "Hidden Length" } %>
 <% descriptions = {
   "standard" => "Per-species scoring slots. Each member or team logs their top fish per species; the leaderboard ranks by total length.",
-  "big_fish_season" => "Ranks members by their single biggest fish (tiebroken by next-biggest). Solo only, one species."
+  "big_fish_season" => "Ranks members by their single biggest fish (tiebroken by next-biggest). Solo only, one species.",
+  "hidden_length" => "Random target length (12–22\") is rolled when the tournament ends. Closest catch wins. Solo or team, one species. Requires an end time."
 } %>
 <% current_format = record.format.presence || "standard" %>
 <div>
@@ -20,7 +21,8 @@
   <p class="text-xs text-slate-500 mt-1"
      data-tournament-format-target="formatDescription"
      data-standard-text="<%= descriptions["standard"] %>"
-     data-big-fish-season-text="<%= descriptions["big_fish_season"] %>">
+     data-big-fish-season-text="<%= descriptions["big_fish_season"] %>"
+     data-hidden-length-text="<%= descriptions["hidden_length"] %>">
     <%= descriptions[current_format] %>
   </p>
   <% if locked %>
