@@ -1,0 +1,18 @@
+<%# Local: f (form builder), record (Tournament or TournamentTemplate) %>
+<% locked = record.respond_to?(:starts_at) && record.persisted? && record.starts_at && record.starts_at <= Time.current %>
+<div data-tournament-format-target="container">
+  <%= f.label :format, "Format", class: "block text-sm font-medium text-slate-300 mb-1" %>
+  <% labels = { "standard" => "Standard", "big_fish_season" => "Big Fish Season" } %>
+  <%= f.select :format,
+               record.class.formats.keys.map { |k| [labels[k], k] },
+               {},
+               class: "w-full h-12 px-3 rounded-lg bg-slate-900 border border-slate-700 text-base",
+               data: { tournament_format_target: "format", action: "change->tournament-format#sync" },
+               disabled: locked %>
+  <% if locked %>
+    <%= f.hidden_field :format %>
+    <p class="text-xs text-slate-500 mt-1"><strong>Locked once the tournament starts.</strong></p>
+  <% else %>
+    <p class="text-xs text-slate-500 mt-1">Big Fish Season ranks members by their single biggest fish (tiebroken by next-biggest). Forces solo mode and one species.</p>
+  <% end %>
+</div>
