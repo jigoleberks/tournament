@@ -51,22 +51,24 @@
           <% per_catch = tournament&.format_big_fish_season? || (tournament&.format_hidden_length? && tournament.hidden_length_target.nil?) %>
           <% if tournament&.format_biggest_vs_smallest? %>
             <div class="font-medium"><%= row[:entry].display_name %></div>
-            <% if row[:fish].size >= 2 %>
-              <% biggest, smallest = row[:fish].first, row[:fish].last %>
-              <% url_b, frame_b = catch_link_target(tournament: tournament, catch_id: biggest[:id]) %>
-              <% url_s, frame_s = catch_link_target(tournament: tournament, catch_id: smallest[:id]) %>
-              <div class="text-xs text-slate-400 mt-1">
-                Biggest: <%= link_to format_length_dual(biggest[:length_inches]), url_b, class: "text-emerald-300 hover:underline", data: frame_b ? { turbo_frame: frame_b } : {} %>
-                ·
-                Smallest: <%= link_to format_length_dual(smallest[:length_inches]), url_s, class: "text-emerald-300 hover:underline", data: frame_s ? { turbo_frame: frame_s } : {} %>
-              </div>
-            <% elsif row[:fish].size == 1 %>
-              <% f = row[:fish].first %>
-              <% url, frame = catch_link_target(tournament: tournament, catch_id: f[:id]) %>
-              <div class="text-xs text-slate-400 mt-1">
-                <%= link_to format_length_dual(f[:length_inches]), url, class: "text-emerald-300 hover:underline", data: frame ? { turbo_frame: frame } : {} %>
-                — need 1 more catch
-              </div>
+            <% if row_visible %>
+              <% if row[:fish].size >= 2 %>
+                <% biggest, smallest = row[:fish].first, row[:fish].last %>
+                <% url_b, frame_b = catch_link_target(tournament: tournament, catch_id: biggest[:id]) %>
+                <% url_s, frame_s = catch_link_target(tournament: tournament, catch_id: smallest[:id]) %>
+                <div class="text-xs text-slate-400 mt-1">
+                  Biggest: <%= link_to format_length_dual(biggest[:length_inches]), url_b, class: "text-blue-300 underline-offset-2 hover:underline", data: frame_b ? { turbo_frame: frame_b } : {} %>
+                  ·
+                  Smallest: <%= link_to format_length_dual(smallest[:length_inches]), url_s, class: "text-blue-300 underline-offset-2 hover:underline", data: frame_s ? { turbo_frame: frame_s } : {} %>
+                </div>
+              <% elsif row[:fish].size == 1 %>
+                <% f = row[:fish].first %>
+                <% url, frame = catch_link_target(tournament: tournament, catch_id: f[:id]) %>
+                <div class="text-xs text-slate-400 mt-1">
+                  <%= link_to format_length_dual(f[:length_inches]), url, class: "text-blue-300 underline-offset-2 hover:underline", data: frame ? { turbo_frame: frame } : {} %>
+                  — need 1 more catch
+                </div>
+              <% end %>
             <% end %>
           <% elsif per_catch && row[:fish].first %>
             <% f = row[:fish].first %>
