@@ -1,6 +1,8 @@
 require "application_system_test_case"
 
 class HiddenLengthTournamentTest < ApplicationSystemTestCase
+  include LengthHelper
+
   setup do
     @club = Club.first || create(:club)
     @organizer = create(:user, club: @club, role: :organizer)
@@ -54,7 +56,10 @@ class HiddenLengthTournamentTest < ApplicationSystemTestCase
 
     visit tournament_path(t)
     assert_text "Target was"
-    assert_text "#{target.to_f.round(2)}\""
+    # Pin to the helper output so a typography change in format_length_dual
+    # (e.g., curly quotes, separator) is caught by this test rather than
+    # silently flipping the substring match.
+    assert_text format_length_dual(target)
 
     # Post-reveal: one row per entry (2 anglers).
     rows = all("#leaderboard tbody tr")
