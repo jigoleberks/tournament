@@ -131,4 +131,11 @@ class TournamentTest < ActiveSupport::TestCase
     t.name = "Renamed mid-event"
     assert t.valid?
   end
+
+  test "default format is standard" do
+    t = create(:tournament, club: @club)
+    assert_equal "standard", t.format
+    assert t.standard?
+    assert_not t.big_fish_season?
+  end
 end
