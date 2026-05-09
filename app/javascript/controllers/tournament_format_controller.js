@@ -10,7 +10,7 @@ import { Controller } from "@hotwired/stimulus"
 // standard: restore the default UI.
 export default class extends Controller {
   static targets = [
-    "format",
+    "format", "formatDescription",
     "mode", "modeNote",
     "slotsHeading", "slotsHelp", "slotRow", "slotCountLabel"
   ]
@@ -28,6 +28,9 @@ export default class extends Controller {
   }
 
   _applyBigFishSeason() {
+    if (this.hasFormatDescriptionTarget) {
+      this.formatDescriptionTarget.textContent = this.formatDescriptionTarget.dataset.bigFishSeasonText
+    }
     if (this.hasModeTarget) {
       this.modeTarget.value = "solo"
       this.modeTarget.classList.add("opacity-60", "pointer-events-none")
@@ -55,6 +58,9 @@ export default class extends Controller {
   }
 
   _applyStandard() {
+    if (this.hasFormatDescriptionTarget) {
+      this.formatDescriptionTarget.textContent = this.formatDescriptionTarget.dataset.standardText
+    }
     if (this.hasModeTarget) {
       this.modeTarget.classList.remove("opacity-60", "pointer-events-none")
     }
