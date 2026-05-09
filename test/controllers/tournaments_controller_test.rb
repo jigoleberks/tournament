@@ -243,4 +243,73 @@ class TournamentsControllerTest < ActionDispatch::IntegrationTest
     assert_match Turbo::StreamsChannel.signed_stream_name("tournament:#{t.id}:leaderboard:full"), response.body
     assert_no_match Regexp.new(Regexp.escape(Turbo::StreamsChannel.signed_stream_name("tournament:#{t.id}:leaderboard:reveal"))), response.body
   end
+
+  test "show: ended solo tournament with entries renders angler count footer in Scoring section" do
+    species = create(:species, club: @club)
+    t = create(:tournament, club: @club, mode: :solo,
+               starts_at: 2.hours.ago, ends_at: 1.hour.ago)
+    create(:scoring_slot, tournament: t, species: species, slot_count: 1)
+
+    3.times do
+      angler = create(:user, club: @club)
+      entry  = create(:tournament_entry, tournament: t)
+      create(:tournament_entry_member, tournament_entry: entry, user: angler)
+    end
+
+    get tournament_path(t)
+    assert_response :success
+    assert_match "3 anglers", response.body
+    assert_no_match "team", response.body
+  end
+
+  test "show: ended team tournament renders 'N anglers across M teams' footer" do
+    species = create(:species, club: @club)
+    t = create(:tournament, club: @club, mode: :team,
+               starts_at: 2.hours.ago, ends_at: 1.hour.ago)
+    create(:scoring_slot, tournament: t, species: species, slot_count: 1)
+
+    # Two teams: one with 3 anglers, one with 2 anglers — 5 anglers across 2 teams.
+    team1 = create(:tournament_entry, tournament: t)
+    3.times do
+      create(:tournament_entry_member, tournament_entry: team1, user: create(:user, club: @club))
+    end
+    team2 = create(:tournament_entry, tournament: t)
+    2.times do
+      create(:tournament_entry_member, tournament_entry: team2, user: create(:user, club: @club))
+    end
+
+    get tournament_path(t)
+    assert_response :success
+    assert_match "5 anglers across 2 teams", response.body
+  end
+
+  test "show: active tournament does not render the participation footer" do
+    species = create(:species, club: @club)
+    t = create(:tournament, club: @club, mode: :solo,
+               starts_at: 1.hour.ago, ends_at: 1.hour.from_now)
+    create(:scoring_slot, tournament: t, species: species, slot_count: 1)
+
+    3.times do
+      angler = create(:user, club: @club)
+      entry  = create(:tournament_entry, tournament: t)
+      create(:tournament_entry_member, tournament_entry: entry, user: angler)
+    end
+
+    get tournament_path(t)
+    assert_response :success
+    assert_no_match "anglers", response.body
+  end
+
+  test "show: ended tournament with zero entries does not render participation footer" do
+    species = create(:species, club: @club)
+    t = create(:tournament, club: @club, mode: :solo,
+               starts_at: 2.hours.ago, ends_at: 1.hour.ago)
+    create(:scoring_slot, tournament: t, species: species, slot_count: 1)
+    # Intentionally no tournament_entry records.
+
+    get tournament_path(t)
+    assert_response :success
+    assert_no_match "0 anglers", response.body
+    assert_no_match "anglers", response.body
+  end
 end

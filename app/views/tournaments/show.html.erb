@@ -46,6 +46,15 @@
         </li>
       <% end %>
     </ul>
+    <% if @entry_count.to_i.positive? %>
+      <div class="text-sm text-slate-400 border-t border-slate-700 mt-2 pt-2">
+        <% if @tournament.mode_team? %>
+          <%= pluralize(@angler_count, "angler") %> across <%= pluralize(@entry_count, "team") %>
+        <% else %>
+          <%= pluralize(@angler_count, "angler") %>
+        <% end %>
+      </div>
+    <% end %>
   </section>
 <% end %>
 

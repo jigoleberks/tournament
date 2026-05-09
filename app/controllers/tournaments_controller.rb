@@ -14,6 +14,12 @@ class TournamentsController < ApplicationController
     @tournament = current_club.tournaments.find(params[:id])
     @leaderboard = Leaderboards::Build.call(tournament: @tournament)
     @viewer_scope = Leaderboards::ViewerScope.for(tournament: @tournament, user: current_user)
+    if @tournament.ended?
+      @entry_count  = @tournament.tournament_entries.count
+      @angler_count = TournamentEntryMember
+                        .where(tournament_entry_id: @tournament.tournament_entries.select(:id))
+                        .count
+    end
   end
 
   def archived
