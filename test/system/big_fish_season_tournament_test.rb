@@ -71,7 +71,7 @@ class BigFishSeasonTournamentTest < ApplicationSystemTestCase
 
     assert_current_path organizers_tournaments_path
     tournament.reload
-    assert tournament.big_fish_season?
+    assert tournament.format_big_fish_season?
     assert_equal 1, tournament.scoring_slots.count
     assert_equal walleye.id, tournament.scoring_slots.first.species_id
   end

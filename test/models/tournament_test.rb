@@ -135,8 +135,8 @@ class TournamentTest < ActiveSupport::TestCase
   test "default format is standard" do
     t = create(:tournament, club: @club)
     assert_equal "standard", t.format
-    assert t.standard?
-    assert_not t.big_fish_season?
+    assert t.format_standard?
+    assert_not t.format_big_fish_season?
   end
 
   test "big_fish_season tournament requires solo mode" do

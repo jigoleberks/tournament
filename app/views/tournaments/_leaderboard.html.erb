@@ -15,7 +15,7 @@
     <tr class="text-left text-sm text-slate-300 border-b border-slate-700">
       <th class="px-3 py-2">#</th>
       <th class="px-3 py-2">Entry</th>
-      <th class="px-3 py-2"><%= tournament&.big_fish_season? ? "Length" : "Total" %></th>
+      <th class="px-3 py-2"><%= tournament&.format_big_fish_season? ? "Length" : "Total" %></th>
     </tr>
   </thead>
   <tbody>
@@ -24,7 +24,7 @@
       <tr class="border-t border-slate-700 align-top">
         <td class="px-3 py-3"><%= scope.visibility == :full ? i + 1 : "—" %></td>
         <td class="px-3 py-3">
-          <% if tournament&.big_fish_season? && row[:fish].first %>
+          <% if tournament&.format_big_fish_season? && row[:fish].first %>
             <% f = row[:fish].first %>
             <% url, frame = catch_link_target(tournament: tournament, catch_id: f[:id]) %>
             <div class="font-medium">
@@ -71,7 +71,7 @@
         </td>
         <td class="px-3 py-3 font-mono">
           <% if row_visible %>
-            <% scoring_value = tournament&.big_fish_season? ? (row[:fish].first&.dig(:length_inches)) : row[:total] %>
+            <% scoring_value = row[:total] %>
             <% if scoring_value.nil? || scoring_value.zero? %>
               <div>—</div>
             <% else %>

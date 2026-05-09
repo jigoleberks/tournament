@@ -80,7 +80,7 @@ module TournamentTemplates
       )
 
       assert_equal "big_fish_season", tournament.format
-      assert tournament.big_fish_season?
+      assert tournament.format_big_fish_season?
     end
 
     test "default standard format clones onto the new tournament" do

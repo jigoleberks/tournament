@@ -2,7 +2,7 @@ module Leaderboards
   class Build
     def self.call(tournament:)
       rows = build_rows(tournament)
-      ranker_for(tournament.format).call(rows, tournament: tournament)
+      ranker_for(tournament.format).call(rows)
     end
 
     def self.ranker_for(format)

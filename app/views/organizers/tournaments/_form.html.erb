@@ -18,7 +18,7 @@
                        class: "w-full h-12 px-3 rounded-lg bg-slate-900 border border-slate-700 text-base" %>
     </div>
 
-    <%= render "organizers/format_select", f: f, record: @tournament %>
+    <%= render "organizers/shared/format_select", f: f, record: @tournament %>
 
     <div>
       <%= f.label :kind, class: "block text-sm font-medium text-slate-300 mb-1" %>

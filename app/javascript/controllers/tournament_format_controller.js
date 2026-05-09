@@ -19,6 +19,7 @@ export default class extends Controller {
   ]
 
   connect() {
+    if (this.hasModeTarget) this._priorMode = this.modeTarget.value
     this.sync()
   }
 

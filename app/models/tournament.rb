@@ -9,7 +9,7 @@ class Tournament < ApplicationRecord
   has_many :judge_users, through: :tournament_judges, source: :user
   enum :kind, { event: 0, ongoing: 1 }
   enum :mode, { solo: 0, team: 1 }, prefix: true
-  enum :format, { standard: 0, big_fish_season: 1 }
+  enum :format, { standard: 0, big_fish_season: 1 }, prefix: true
 
   validates :name, :kind, :mode, :starts_at, presence: true
   validate :blind_leaderboard_requires_end_time
@@ -56,13 +56,13 @@ class Tournament < ApplicationRecord
   end
 
   def big_fish_season_requires_solo
-    return unless big_fish_season?
+    return unless format_big_fish_season?
     return if mode_solo?
     errors.add(:format, "Big Fish Season tournaments must be solo")
   end
 
   def big_fish_season_requires_one_scoring_slot
-    return unless big_fish_season?
+    return unless format_big_fish_season?
     remaining = scoring_slots.reject(&:marked_for_destruction?)
     return if remaining.size == 1
     errors.add(:scoring_slots, "Big Fish Season tournaments must have exactly one species configured")
