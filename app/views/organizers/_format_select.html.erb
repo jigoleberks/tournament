@@ -1,6 +1,6 @@
 <%# Local: f (form builder), record (Tournament or TournamentTemplate) %>
 <% locked = record.respond_to?(:starts_at) && record.persisted? && record.starts_at && record.starts_at <= Time.current %>
-<div data-tournament-format-target="container">
+<div>
   <%= f.label :format, "Format", class: "block text-sm font-medium text-slate-300 mb-1" %>
   <% labels = { "standard" => "Standard", "big_fish_season" => "Big Fish Season" } %>
   <%= f.select :format,
