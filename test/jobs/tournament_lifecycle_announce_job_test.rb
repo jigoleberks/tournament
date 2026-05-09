@@ -118,6 +118,42 @@ class TournamentLifecycleAnnounceJobTest < ActiveJob::TestCase
     assert_nil @t.lifecycle_ended_announced_at
   end
 
+  test "ended hidden_length retries successfully if RollHiddenLengthTarget raises on first attempt" do
+    walleye = create(:species, club: @club)
+    @t.scoring_slots.create!(species: walleye, slot_count: 1)
+    @t.update!(format: :hidden_length, mode: :solo, kind: :event)
+    @t.update_columns(ends_at: 1.minute.ago)
+
+    # First attempt: simulate a transient failure inside the roll service.
+    raised_once = false
+    Tournaments::RollHiddenLengthTarget.singleton_class.alias_method(:call_orig, :call)
+    Tournaments::RollHiddenLengthTarget.define_singleton_method(:call) do |tournament:|
+      raise "boom" unless raised_once
+      call_orig(tournament: tournament)
+    end
+
+    assert_raises(RuntimeError) do
+      TournamentLifecycleAnnounceJob.perform_now(tournament_id: @t.id, kind: "ended")
+    end
+    @t.reload
+    assert_nil @t.lifecycle_ended_announced_at, "stamp must NOT be set when roll fails"
+
+    # Second attempt: roll succeeds; the prior failure should not have poisoned the retry.
+    raised_once = true
+    with_perform_later_capture do |enqueued|
+      TournamentLifecycleAnnounceJob.perform_now(tournament_id: @t.id, kind: "ended")
+      assert_equal 1, enqueued.size
+      assert_match "Target was", enqueued.first[:body]
+    end
+
+    @t.reload
+    assert_not_nil @t.hidden_length_target
+    assert_not_nil @t.lifecycle_ended_announced_at, "stamp must be set after success"
+  ensure
+    Tournaments::RollHiddenLengthTarget.singleton_class.send(:alias_method, :call, :call_orig)
+    Tournaments::RollHiddenLengthTarget.singleton_class.send(:remove_method, :call_orig)
+  end
+
   private
 
   def with_perform_later_capture
