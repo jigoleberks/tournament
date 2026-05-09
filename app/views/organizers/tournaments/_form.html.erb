@@ -26,7 +26,7 @@
                    class: "w-full h-12 px-3 rounded-lg bg-slate-900 border border-slate-700 text-base" %>
     </div>
 
-    <div data-tournament-format-target="modeContainer">
+    <div>
       <%= f.label :mode, class: "block text-sm font-medium text-slate-300 mb-1" %>
       <%= f.select :mode, Tournament.modes.keys, {},
                    class: "w-full h-12 px-3 rounded-lg bg-slate-900 border border-slate-700 text-base",
@@ -99,7 +99,7 @@
     </p>
   </div>
 
-  <div class="bg-slate-800 rounded-xl p-4 space-y-3" data-tournament-format-target="slotsSection">
+  <div class="bg-slate-800 rounded-xl p-4 space-y-3">
     <h3 class="text-lg font-semibold" data-tournament-format-target="slotsHeading">Scoring slots</h3>
     <p class="text-sm text-slate-400" data-tournament-format-target="slotsHelp">Pick a species and how many of that fish counts. Blank rows are ignored.</p>
 
