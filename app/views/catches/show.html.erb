@@ -102,13 +102,17 @@
 <% if @action_tournament %>
   <div class="bg-slate-800 rounded-xl p-4 mt-3 space-y-3">
     <h2 class="text-sm font-semibold text-slate-300">Actions</h2>
-    <% if @catch.needs_review? || @catch.disputed? %>
-      <%= button_to "Approve",
-                    judges_tournament_catch_review_path(tournament_id: @action_tournament.id, catch_id: @catch.id),
-                    method: :post,
-                    params: { action_kind: "approve" },
-                    form: { data: { turbo_confirm: "Approve this catch? It will count for scoring." } },
-                    class: "block w-full h-12 px-4 rounded-lg bg-emerald-600 active:bg-emerald-700 text-white font-semibold" %>
+    <% unless @catch.disqualified? %>
+      <% if current_user.id == @catch.user_id %>
+        <p class="text-xs text-slate-500">You can't approve your own catch.</p>
+      <% elsif @catch.latest_approver.nil? %>
+        <%= button_to "Approve",
+                      judges_tournament_catch_review_path(tournament_id: @action_tournament.id, catch_id: @catch.id),
+                      method: :post,
+                      params: { action_kind: "approve" },
+                      form: { data: { turbo_confirm: "Approve this catch? It will count for scoring." } },
+                      class: "block w-full h-12 px-4 rounded-lg bg-emerald-600 active:bg-emerald-700 text-white font-semibold" %>
+      <% end %>
     <% end %>
     <%= form_with url: judges_tournament_catch_review_path(tournament_id: @action_tournament.id, catch_id: @catch.id),
                   local: true, class: "space-y-2",
