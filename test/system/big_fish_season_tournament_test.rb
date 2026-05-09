@@ -26,6 +26,11 @@ class BigFishSeasonTournamentTest < ApplicationSystemTestCase
     Catches::PlaceInSlots.call(catch: create(:catch, user: galen, species: walleye, length_inches: 18))
     Catches::PlaceInSlots.call(catch: create(:catch, user: galen_pc, species: walleye, length_inches: 22))
 
+    # Sanity: PlaceInSlots silently no-ops when captured_at_device falls outside
+    # the tournament window. Fail loudly here so a future factory/window change
+    # surfaces directly instead of as a confusing row-count mismatch below.
+    assert_equal 4, tournament.catch_placements.active.count
+
     sign_in_as(galen)
     visit tournament_path(tournament)
 
