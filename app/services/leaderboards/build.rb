@@ -1,6 +1,19 @@
 module Leaderboards
   class Build
     def self.call(tournament:)
+      rows = build_rows(tournament)
+      ranker_for(tournament.format).call(rows, tournament: tournament)
+    end
+
+    def self.ranker_for(format)
+      case format
+      when "standard"        then Leaderboards::Rankers::Standard
+      when "big_fish_season" then Leaderboards::Rankers::BigFishSeason
+      else                        Leaderboards::Rankers::Standard
+      end
+    end
+
+    def self.build_rows(tournament)
       entries = tournament.tournament_entries.includes(:users)
       placements_by_entry = CatchPlacement.active
         .where(tournament_id: tournament.id)
@@ -9,7 +22,7 @@ module Leaderboards
 
       total_capacity = tournament.scoring_slots.sum(:slot_count)
 
-      rows = entries.map do |entry|
+      entries.map do |entry|
         placements = placements_by_entry[entry.id] || []
         fish = placements
           .map { |p|
@@ -34,25 +47,8 @@ module Leaderboards
           complete: total_capacity > 0 && placements.size >= total_capacity
         }
       end
-      rank(rows)
     end
 
-    # Cascade tiebreaker: complete tier first → total desc → largest single fish desc →
-    # 2nd largest desc → ... → earliest captured_at_device asc → entry.id asc.
-    def self.rank(rows)
-      max_fish = rows.map { |r| r[:fish].size }.max || 0
-      far_future = ::Time.zone.at(0) + 100.years
-      rows.sort_by do |r|
-        fish_desc = r[:fish].map { |f| f[:length_inches] }.sort.reverse
-        fish_padded = fish_desc + [0] * (max_fish - fish_desc.size)
-        [
-          r[:complete] ? 0 : 1,
-          -r[:total],
-          *fish_padded.map { |l| -l },
-          r[:earliest_catch_at] || far_future,
-          r[:entry].id
-        ]
-      end
-    end
+    private_class_method :ranker_for, :build_rows
   end
 end
