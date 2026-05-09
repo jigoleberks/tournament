@@ -9,6 +9,7 @@ module Leaderboards
       case format
       when "standard"        then Leaderboards::Rankers::Standard
       when "big_fish_season" then Leaderboards::Rankers::BigFishSeason
+      when "hidden_length"   then Leaderboards::Rankers::HiddenLength
       else                        Leaderboards::Rankers::Standard
       end
     end
