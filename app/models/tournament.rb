@@ -92,6 +92,7 @@ class Tournament < ApplicationRecord
   end
 
   def hidden_length_target_in_range
+    return unless format_hidden_length?
     return if hidden_length_target.blank?
     target = hidden_length_target.to_d
     in_bounds = target >= "12.00".to_d && target <= "22.00".to_d
