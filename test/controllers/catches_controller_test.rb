@@ -314,6 +314,17 @@ class CatchesControllerTest < ActionDispatch::IntegrationTest
     end
   end
 
+  test "show: organizer sees Approve button when catch is disputed" do
+    catch_record = create(:catch, user: @user, species: @walleye, length_inches: 18.5, status: :disputed)
+    Catches::PlaceInSlots.call(catch: catch_record)
+    organizer = create(:user, club: @club, role: :organizer)
+    sign_in_as(organizer)
+
+    get catch_path(catch_record.id, t: @tournament.id)
+    assert_response :success
+    assert_select "input[name=?][value=?]", "action_kind", "approve"
+  end
+
   test "show: shows 'Approved by X' instead of Approve button when catch already has an approver" do
     approver = create(:user, club: @club, role: :organizer, name: "Pat Approver")
     catch_record = create(:catch, user: @user, species: @walleye, length_inches: 18.5, status: :synced)
