@@ -13,6 +13,13 @@ class TournamentLifecycleAnnounceJob < ApplicationJob
       Tournaments::RollHiddenLengthTarget.call(tournament: tournament)
     end
 
+    # Stamp here — after the (idempotent) HL roll commits, but before the push
+    # enqueue loop and BroadcastReveal — so a transient failure in either of
+    # those does not cause a retry to re-push the body or re-broadcast reveal.
+    if kind == "ended"
+      tournament.update_columns(lifecycle_ended_announced_at: Time.current)
+    end
+
     body = if kind == "ended" && tournament.format_hidden_length?
       target = tournament.reload.hidden_length_target
       "Target was #{format("%.2f", target)}\" — see final standings."
@@ -35,10 +42,6 @@ class TournamentLifecycleAnnounceJob < ApplicationJob
 
     if kind == "ended" && tournament.blind_leaderboard?
       Leaderboards::BroadcastReveal.call(tournament: tournament)
-    end
-
-    if kind == "ended"
-      tournament.update_columns(lifecycle_ended_announced_at: Time.current)
     end
   end
 end
