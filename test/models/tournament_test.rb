@@ -300,4 +300,13 @@ class TournamentTest < ActiveSupport::TestCase
       assert t.valid?, "expected #{good} to be accepted: #{t.errors.full_messages.inspect}"
     end
   end
+
+  test "format enum includes biggest_vs_smallest" do
+    walleye = create(:species, club: @club)
+    t = build(:tournament, club: @club, format: :biggest_vs_smallest, mode: :solo,
+              kind: :event, ends_at: 2.hours.from_now)
+    t.scoring_slots.build(species: walleye, slot_count: 1)
+    assert t.valid?, t.errors.full_messages.inspect
+    assert t.format_biggest_vs_smallest?
+  end
 end
