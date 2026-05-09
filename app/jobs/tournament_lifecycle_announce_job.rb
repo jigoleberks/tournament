@@ -10,7 +10,14 @@ class TournamentLifecycleAnnounceJob < ApplicationJob
       tournament.update_columns(lifecycle_ended_announced_at: Time.current)
     end
 
-    body = if kind == "ended" && tournament.blind_leaderboard?
+    if kind == "ended" && tournament.format_hidden_length?
+      Tournaments::RollHiddenLengthTarget.call(tournament: tournament)
+    end
+
+    body = if kind == "ended" && tournament.format_hidden_length?
+      target = tournament.reload.hidden_length_target
+      "Target was #{format("%.2f", target)}\" — see final standings."
+    elsif kind == "ended" && tournament.blind_leaderboard?
       "Results are in, GO CHECK YOUR STANDINGS"
     elsif kind == "ended"
       "#{tournament.name} has ended."

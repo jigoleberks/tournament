@@ -84,6 +84,40 @@ class TournamentLifecycleAnnounceJobTest < ActiveJob::TestCase
     assert_nil @t.lifecycle_ended_announced_at
   end
 
+  test "ended on a hidden_length tournament rolls the target and pushes the reveal body" do
+    walleye = create(:species, club: @club)
+    @t.scoring_slots.create!(species: walleye, slot_count: 1)
+    @t.update!(format: :hidden_length, mode: :solo, kind: :event)
+    @t.update_columns(ends_at: 1.minute.ago)
+
+    with_perform_later_capture do |enqueued|
+      TournamentLifecycleAnnounceJob.perform_now(tournament_id: @t.id, kind: "ended")
+      @t.reload
+      assert_not_nil @t.hidden_length_target
+      assert_equal 1, enqueued.size
+      assert_match "Target was", enqueued.first[:body]
+      assert_match @t.hidden_length_target.to_s, enqueued.first[:body]
+    end
+
+    assert_not_nil @t.lifecycle_ended_announced_at
+  end
+
+  test "ended on a hidden_length tournament with future ends_at does not roll" do
+    walleye = create(:species, club: @club)
+    @t.scoring_slots.create!(species: walleye, slot_count: 1)
+    @t.update!(format: :hidden_length, mode: :solo, kind: :event)
+    @t.update_columns(ends_at: 1.hour.from_now)
+
+    with_perform_later_capture do |enqueued|
+      TournamentLifecycleAnnounceJob.perform_now(tournament_id: @t.id, kind: "ended")
+      assert_empty enqueued
+    end
+
+    @t.reload
+    assert_nil @t.hidden_length_target
+    assert_nil @t.lifecycle_ended_announced_at
+  end
+
   private
 
   def with_perform_later_capture
