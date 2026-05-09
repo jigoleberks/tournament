@@ -9,6 +9,118 @@ module Leaderboards
       create(:scoring_slot, tournament: @tournament, species: @walleye, slot_count: 2)
     end
 
+    test "ranks complete entries above incomplete entries even when incomplete has more length" do
+      pike = create(:species)
+      t = create(:tournament, club: @club, starts_at: 1.hour.ago, ends_at: 1.hour.from_now)
+      create(:scoring_slot, tournament: t, species: @walleye, slot_count: 1)
+      create(:scoring_slot, tournament: t, species: pike, slot_count: 1)
+
+      a = create(:user, club: @club, name: "A")
+      b = create(:user, club: @club, name: "B")
+      ea = create(:tournament_entry, tournament: t)
+      eb = create(:tournament_entry, tournament: t)
+      create(:tournament_entry_member, tournament_entry: ea, user: a)
+      create(:tournament_entry_member, tournament_entry: eb, user: b)
+
+      # A: 15 walleye + 15 pike = 30 total, complete (2/2 slots)
+      Catches::PlaceInSlots.call(catch: create(:catch, user: a, species: @walleye, length_inches: 15))
+      Catches::PlaceInSlots.call(catch: create(:catch, user: a, species: pike, length_inches: 15))
+      # B: 50 walleye, no pike, 50 total but incomplete (1/2 slots)
+      Catches::PlaceInSlots.call(catch: create(:catch, user: b, species: @walleye, length_inches: 50))
+
+      result = Build.call(tournament: t)
+      assert_equal ["A", "B"], result.map { |row| row[:entry].users.first.name }
+    end
+
+    test "two complete entries rank by total length cascade" do
+      pike = create(:species)
+      t = create(:tournament, club: @club, starts_at: 1.hour.ago, ends_at: 1.hour.from_now)
+      create(:scoring_slot, tournament: t, species: @walleye, slot_count: 1)
+      create(:scoring_slot, tournament: t, species: pike, slot_count: 1)
+
+      a = create(:user, club: @club, name: "A")
+      b = create(:user, club: @club, name: "B")
+      ea = create(:tournament_entry, tournament: t)
+      eb = create(:tournament_entry, tournament: t)
+      create(:tournament_entry_member, tournament_entry: ea, user: a)
+      create(:tournament_entry_member, tournament_entry: eb, user: b)
+
+      # Both complete; B has more total length.
+      Catches::PlaceInSlots.call(catch: create(:catch, user: a, species: @walleye, length_inches: 20))
+      Catches::PlaceInSlots.call(catch: create(:catch, user: a, species: pike, length_inches: 15))
+      Catches::PlaceInSlots.call(catch: create(:catch, user: b, species: @walleye, length_inches: 25))
+      Catches::PlaceInSlots.call(catch: create(:catch, user: b, species: pike, length_inches: 15))
+
+      result = Build.call(tournament: t)
+      assert_equal ["B", "A"], result.map { |row| row[:entry].users.first.name }
+    end
+
+    test "two incomplete entries rank by total length cascade" do
+      pike = create(:species)
+      t = create(:tournament, club: @club, starts_at: 1.hour.ago, ends_at: 1.hour.from_now)
+      create(:scoring_slot, tournament: t, species: @walleye, slot_count: 1)
+      create(:scoring_slot, tournament: t, species: pike, slot_count: 1)
+
+      a = create(:user, club: @club, name: "A")
+      b = create(:user, club: @club, name: "B")
+      ea = create(:tournament_entry, tournament: t)
+      eb = create(:tournament_entry, tournament: t)
+      create(:tournament_entry_member, tournament_entry: ea, user: a)
+      create(:tournament_entry_member, tournament_entry: eb, user: b)
+
+      # Both incomplete (only walleye, no pike); B has more length.
+      Catches::PlaceInSlots.call(catch: create(:catch, user: a, species: @walleye, length_inches: 20))
+      Catches::PlaceInSlots.call(catch: create(:catch, user: b, species: @walleye, length_inches: 25))
+
+      result = Build.call(tournament: t)
+      assert_equal ["B", "A"], result.map { |row| row[:entry].users.first.name }
+    end
+
+    test "DQ that drops an entry below capacity demotes it below complete entries" do
+      pike = create(:species)
+      t = create(:tournament, club: @club, starts_at: 1.hour.ago, ends_at: 1.hour.from_now)
+      create(:scoring_slot, tournament: t, species: @walleye, slot_count: 1)
+      create(:scoring_slot, tournament: t, species: pike, slot_count: 1)
+
+      a = create(:user, club: @club, name: "A")
+      b = create(:user, club: @club, name: "B")
+      ea = create(:tournament_entry, tournament: t)
+      eb = create(:tournament_entry, tournament: t)
+      create(:tournament_entry_member, tournament_entry: ea, user: a)
+      create(:tournament_entry_member, tournament_entry: eb, user: b)
+
+      # Both complete initially. B has more length, so would beat A on length cascade alone.
+      Catches::PlaceInSlots.call(catch: create(:catch, user: a, species: @walleye, length_inches: 20))
+      Catches::PlaceInSlots.call(catch: create(:catch, user: a, species: pike, length_inches: 15))
+      b_walleye = create(:catch, user: b, species: @walleye, length_inches: 25)
+      b_pike    = create(:catch, user: b, species: pike,    length_inches: 20)
+      Catches::PlaceInSlots.call(catch: b_walleye)
+      Catches::PlaceInSlots.call(catch: b_pike)
+
+      # Simulate a DQ on B's pike: deactivate the placement.
+      CatchPlacement.find_by!(catch: b_pike, active: true).update!(active: false)
+
+      result = Build.call(tournament: t)
+      assert_equal ["A", "B"], result.map { |row| row[:entry].users.first.name }
+    end
+
+    test "zero-slot tournament: Build.call returns both entries with entry.id tiebreaker" do
+      t = create(:tournament, club: @club, starts_at: 1.hour.ago, ends_at: 1.hour.from_now)
+      # Intentionally no scoring_slot for t.
+
+      a = create(:user, club: @club, name: "A")
+      b = create(:user, club: @club, name: "B")
+      ea = create(:tournament_entry, tournament: t)
+      eb = create(:tournament_entry, tournament: t)
+      create(:tournament_entry_member, tournament_entry: ea, user: a)
+      create(:tournament_entry_member, tournament_entry: eb, user: b)
+
+      # Smoke test: a tournament without scoring slots should not raise.
+      # No placements possible → all entries reach the final entry.id tiebreaker.
+      result = Build.call(tournament: t)
+      assert_equal [ea.id, eb.id], result.map { |row| row[:entry].id }
+    end
+
     test "ranks entries by sum of active placement lengths, desc" do
       a = create(:user, club: @club, name: "A")
       b = create(:user, club: @club, name: "B")

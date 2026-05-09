@@ -7,6 +7,8 @@ module Leaderboards
         .includes(catch: [:species, :user, :logged_by_user, { judge_actions: :judge_user }])
         .group_by(&:tournament_entry_id)
 
+      total_capacity = tournament.scoring_slots.sum(:slot_count)
+
       rows = entries.map do |entry|
         placements = placements_by_entry[entry.id] || []
         fish = placements
@@ -28,14 +30,15 @@ module Leaderboards
           total: total,
           fish: fish,
           fish_lengths: fish.map { |f| f[:length_inches] },
-          earliest_catch_at: earliest
+          earliest_catch_at: earliest,
+          complete: total_capacity > 0 && placements.size >= total_capacity
         }
       end
       rank(rows)
     end
 
-    # Cascade tiebreaker: total desc → largest single fish desc → 2nd largest desc → ...
-    # → earliest captured_at_device asc → entry.id asc.
+    # Cascade tiebreaker: complete tier first → total desc → largest single fish desc →
+    # 2nd largest desc → ... → earliest captured_at_device asc → entry.id asc.
     def self.rank(rows)
       max_fish = rows.map { |r| r[:fish].size }.max || 0
       far_future = ::Time.zone.at(0) + 100.years
@@ -43,6 +46,7 @@ module Leaderboards
         fish_desc = r[:fish].map { |f| f[:length_inches] }.sort.reverse
         fish_padded = fish_desc + [0] * (max_fish - fish_desc.size)
         [
+          r[:complete] ? 0 : 1,
           -r[:total],
           *fish_padded.map { |l| -l },
           r[:earliest_catch_at] || far_future,
