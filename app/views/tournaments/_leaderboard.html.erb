@@ -11,13 +11,17 @@
 <% end %>
 
 <% if tournament&.format_hidden_length? %>
-  <% if tournament.hidden_length_target.nil? %>
-    <div id="hidden-length-banner" class="bg-slate-800 rounded-xl p-3 mb-3 text-slate-200 text-sm">
-      🎯 Target rolls when the tournament ends at <%= tournament.ends_at.strftime("%b %d · %l:%M %p") %>. Closest catch wins.
-    </div>
-  <% else %>
+  <% if tournament.hidden_length_target.present? %>
     <div id="hidden-length-banner" class="bg-amber-900 rounded-xl p-3 mb-3 text-amber-100 text-sm">
       🎯 Target was <%= format_length_dual(tournament.hidden_length_target) %> — closest catch wins.
+    </div>
+  <% elsif tournament.ends_at && tournament.ends_at <= Time.current %>
+    <div id="hidden-length-banner" class="bg-slate-800 rounded-xl p-3 mb-3 text-slate-200 text-sm">
+      🎯 Tournament ended — rolling target now. Closest catch wins.
+    </div>
+  <% else %>
+    <div id="hidden-length-banner" class="bg-slate-800 rounded-xl p-3 mb-3 text-slate-200 text-sm">
+      🎯 Target rolls when the tournament ends at <%= tournament.ends_at.strftime("%b %d · %l:%M %p") %>. Closest catch wins.
     </div>
   <% end %>
 <% end %>
