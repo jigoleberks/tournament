@@ -238,5 +238,46 @@ module Leaderboards
       result = Build.call(tournament: @tournament)
       assert_in_delta early.captured_at_device, result.first[:earliest_catch_at], 1.second
     end
+
+    test "dispatches to Rankers::Standard for standard tournaments" do
+      t = create(:tournament, club: @club, format: :standard, starts_at: 1.hour.ago, ends_at: 1.hour.from_now)
+
+      called = []
+      original_standard = Leaderboards::Rankers::Standard.method(:call)
+      original_bfs      = Leaderboards::Rankers::BigFishSeason.method(:call)
+      Leaderboards::Rankers::Standard.define_singleton_method(:call) { |rows, **| called << :standard; rows }
+      Leaderboards::Rankers::BigFishSeason.define_singleton_method(:call) { |rows, **| called << :big_fish_season; rows }
+      begin
+        Build.call(tournament: t)
+      ensure
+        Leaderboards::Rankers::Standard.define_singleton_method(:call, original_standard)
+        Leaderboards::Rankers::BigFishSeason.define_singleton_method(:call, original_bfs)
+      end
+
+      assert_equal [:standard], called
+    end
+
+    test "dispatches to Rankers::BigFishSeason for big_fish_season tournaments" do
+      walleye = create(:species)
+      t = build(:tournament, club: @club, format: :big_fish_season, mode: :solo,
+                starts_at: 1.hour.ago, ends_at: 1.hour.from_now)
+      t.save!(validate: false)
+      create(:scoring_slot, tournament: t, species: walleye, slot_count: 3)
+      t.reload
+
+      called = []
+      original_standard = Leaderboards::Rankers::Standard.method(:call)
+      original_bfs      = Leaderboards::Rankers::BigFishSeason.method(:call)
+      Leaderboards::Rankers::Standard.define_singleton_method(:call) { |rows, **| called << :standard; rows }
+      Leaderboards::Rankers::BigFishSeason.define_singleton_method(:call) { |rows, **| called << :big_fish_season; rows }
+      begin
+        Build.call(tournament: t)
+      ensure
+        Leaderboards::Rankers::Standard.define_singleton_method(:call, original_standard)
+        Leaderboards::Rankers::BigFishSeason.define_singleton_method(:call, original_bfs)
+      end
+
+      assert_equal [:big_fish_season], called
+    end
   end
 end
