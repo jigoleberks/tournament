@@ -84,14 +84,16 @@ class TournamentLifecycleAnnounceJobTest < ActiveJob::TestCase
     assert_nil @t.lifecycle_ended_announced_at
   end
 
-  test "ended on a hidden_length tournament rolls the target and pushes the reveal body" do
+  test "ended on a hidden_length tournament rolls the target, broadcasts the leaderboard, and pushes the reveal body" do
     walleye = create(:species, club: @club)
     @t.scoring_slots.create!(species: walleye, slot_count: 1)
     @t.update!(format: :hidden_length, mode: :solo, kind: :event)
     @t.update_columns(ends_at: 1.minute.ago)
 
     with_perform_later_capture do |enqueued|
-      TournamentLifecycleAnnounceJob.perform_now(tournament_id: @t.id, kind: "ended")
+      assert_broadcasts("tournament:#{@t.id}:leaderboard:full", 1) do
+        TournamentLifecycleAnnounceJob.perform_now(tournament_id: @t.id, kind: "ended")
+      end
       @t.reload
       assert_not_nil @t.hidden_length_target
       assert_equal 1, enqueued.size
@@ -116,6 +118,47 @@ class TournamentLifecycleAnnounceJobTest < ActiveJob::TestCase
     @t.reload
     assert_nil @t.hidden_length_target
     assert_nil @t.lifecycle_ended_announced_at
+  end
+
+  test "ended hidden_length retries the broadcast if BroadcastLeaderboard fails after the roll commits" do
+    walleye = create(:species, club: @club)
+    @t.scoring_slots.create!(species: walleye, slot_count: 1)
+    @t.update!(format: :hidden_length, mode: :solo, kind: :event)
+    @t.update_columns(ends_at: 1.minute.ago)
+
+    # Roll succeeds (target row commits) but the broadcast raises. The stamp must
+    # NOT be set, so the retry can re-broadcast.
+    raised_once = false
+    Placements::BroadcastLeaderboard.singleton_class.alias_method(:call_orig, :call)
+    Placements::BroadcastLeaderboard.define_singleton_method(:call) do |tournament:|
+      if raised_once
+        call_orig(tournament: tournament)
+      else
+        raised_once = true
+        raise "broadcast boom"
+      end
+    end
+
+    assert_raises(RuntimeError) do
+      TournamentLifecycleAnnounceJob.perform_now(tournament_id: @t.id, kind: "ended")
+    end
+    @t.reload
+    assert_not_nil @t.hidden_length_target, "target should be committed even if broadcast failed"
+    assert_nil @t.lifecycle_ended_announced_at, "stamp must NOT be set when broadcast fails"
+
+    # Retry: broadcast should fire this time, push should enqueue, stamp should land.
+    with_perform_later_capture do |enqueued|
+      assert_broadcasts("tournament:#{@t.id}:leaderboard:full", 1) do
+        TournamentLifecycleAnnounceJob.perform_now(tournament_id: @t.id, kind: "ended")
+      end
+      assert_equal 1, enqueued.size
+      assert_match "Target was", enqueued.first[:body]
+    end
+
+    assert_not_nil @t.reload.lifecycle_ended_announced_at
+  ensure
+    Placements::BroadcastLeaderboard.singleton_class.send(:alias_method, :call, :call_orig)
+    Placements::BroadcastLeaderboard.singleton_class.send(:remove_method, :call_orig)
   end
 
   test "ended hidden_length retries successfully if RollHiddenLengthTarget raises on first attempt" do

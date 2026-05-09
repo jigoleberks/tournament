@@ -2,8 +2,6 @@ require "test_helper"
 
 module Tournaments
   class RollHiddenLengthTargetTest < ActiveSupport::TestCase
-    include ActionCable::TestHelper
-
     setup do
       @club = create(:club)
       @walleye = create(:species, club: @club)
@@ -35,18 +33,5 @@ module Tournaments
       assert_equal first, @t.reload.hidden_length_target
     end
 
-    test "broadcasts the leaderboard after rolling" do
-      assert_broadcasts("tournament:#{@t.id}:leaderboard:full", 1) do
-        RollHiddenLengthTarget.call(tournament: @t)
-      end
-    end
-
-    test "second call does not broadcast" do
-      RollHiddenLengthTarget.call(tournament: @t)
-
-      assert_broadcasts("tournament:#{@t.id}:leaderboard:full", 0) do
-        RollHiddenLengthTarget.call(tournament: @t)
-      end
-    end
   end
 end
