@@ -103,5 +103,30 @@ module Catches
       entries = result[:created].map(&:tournament_entry).sort_by(&:id)
       assert_equal [@entry, boat].sort_by(&:id), entries
     end
+
+  test "hidden_length: every catch creates a placement, no bumping" do
+    club = create(:club)
+    walleye = create(:species, club: club)
+    user = create(:user, club: club)
+    t = build(:tournament, club: club, format: :hidden_length, mode: :solo,
+              kind: :event, starts_at: 1.hour.ago, ends_at: 1.hour.from_now)
+    t.scoring_slots.build(species: walleye, slot_count: 1)
+    t.save!
+    entry = create(:tournament_entry, tournament: t)
+    create(:tournament_entry_member, tournament_entry: entry, user: user)
+
+    # Three catches; each must produce a placement, even though slot_count is 1.
+    [22, 16, 14].each do |len|
+      Catches::PlaceInSlots.call(
+        catch: create(:catch, user: user, species: walleye, length_inches: len,
+                      captured_at_device: 30.minutes.ago)
+      )
+    end
+
+    placements = CatchPlacement.where(tournament: t, active: true).order(:slot_index)
+    assert_equal 3, placements.count, "expected all three catches to be placed (no bumping)"
+    # Slot indices ascend with creation order
+    assert_equal [0, 1, 2], placements.map(&:slot_index)
+  end
   end
 end
