@@ -56,6 +56,40 @@ module Catches
               species: @catch.species, slot_index: next_index, active: true
             )
             affected_tournaments << tournament
+          elsif tournament.format_biggest_vs_smallest?
+            # Biggest vs Smallest: keep at most 2 placements per (entry, species) — the
+            # current biggest and current smallest. A new catch only matters if it's
+            # MORE extreme than one of them. The previously-extreme placement is now
+            # in the middle and gets dropped; the new catch reuses its slot_index.
+            if active_placements.size < 2
+              next_index = (0..1).find { |i| active_placements.none? { |p| p.slot_index == i } }
+              created << CatchPlacement.create!(
+                catch: @catch, tournament: tournament, tournament_entry: entry,
+                species: @catch.species, slot_index: next_index, active: true
+              )
+              affected_tournaments << tournament
+            else
+              sorted = active_placements.sort_by { |p| p.catch.length_inches }
+              min_p, max_p = sorted.first, sorted.last
+              if @catch.length_inches > max_p.catch.length_inches
+                max_p.update!(active: false)
+                bumped << max_p
+                created << CatchPlacement.create!(
+                  catch: @catch, tournament: tournament, tournament_entry: entry,
+                  species: @catch.species, slot_index: max_p.slot_index, active: true
+                )
+                affected_tournaments << tournament
+              elsif @catch.length_inches < min_p.catch.length_inches
+                min_p.update!(active: false)
+                bumped << min_p
+                created << CatchPlacement.create!(
+                  catch: @catch, tournament: tournament, tournament_entry: entry,
+                  species: @catch.species, slot_index: min_p.slot_index, active: true
+                )
+                affected_tournaments << tournament
+              end
+              # else: catch length is in [min, max] — no placement, no bump.
+            end
           elsif active_placements.size < slot.slot_count
             next_index = (0...slot.slot_count).find { |i| active_placements.none? { |p| p.slot_index == i } }
             created << CatchPlacement.create!(

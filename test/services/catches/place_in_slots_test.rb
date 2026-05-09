@@ -166,5 +166,167 @@ module Catches
     assert_equal [0, 2, 3], active_indexes,
                  "expected new placement to land at max(active)+1, never reusing an occupied index"
   end
+
+  test "biggest_vs_smallest: first catch creates one placement at slot_index 0" do
+    club = create(:club)
+    walleye = create(:species, club: club)
+    user = create(:user, club: club)
+    t = build(:tournament, club: club, format: :biggest_vs_smallest, mode: :solo,
+              kind: :event, starts_at: 1.hour.ago, ends_at: 1.hour.from_now)
+    t.scoring_slots.build(species: walleye, slot_count: 1)
+    t.save!
+    entry = create(:tournament_entry, tournament: t)
+    create(:tournament_entry_member, tournament_entry: entry, user: user)
+
+    Catches::PlaceInSlots.call(
+      catch: create(:catch, user: user, species: walleye, length_inches: 18,
+                    captured_at_device: 30.minutes.ago)
+    )
+
+    placements = CatchPlacement.where(tournament: t, active: true).order(:slot_index)
+    assert_equal 1, placements.count
+    assert_equal 0, placements.first.slot_index
+  end
+
+  test "biggest_vs_smallest: second catch fills the unused slot index, both are kept" do
+    club = create(:club)
+    walleye = create(:species, club: club)
+    user = create(:user, club: club)
+    t = build(:tournament, club: club, format: :biggest_vs_smallest, mode: :solo,
+              kind: :event, starts_at: 1.hour.ago, ends_at: 1.hour.from_now)
+    t.scoring_slots.build(species: walleye, slot_count: 1)
+    t.save!
+    entry = create(:tournament_entry, tournament: t)
+    create(:tournament_entry_member, tournament_entry: entry, user: user)
+
+    [18, 12].each do |len|
+      Catches::PlaceInSlots.call(
+        catch: create(:catch, user: user, species: walleye, length_inches: len,
+                      captured_at_device: 30.minutes.ago)
+      )
+    end
+
+    placements = CatchPlacement.where(tournament: t, active: true).order(:slot_index)
+    assert_equal 2, placements.count
+    assert_equal [0, 1], placements.map(&:slot_index)
+  end
+
+  test "biggest_vs_smallest: a catch bigger than current biggest bumps the old biggest, smallest unchanged" do
+    club = create(:club)
+    walleye = create(:species, club: club)
+    user = create(:user, club: club)
+    t = build(:tournament, club: club, format: :biggest_vs_smallest, mode: :solo,
+              kind: :event, starts_at: 1.hour.ago, ends_at: 1.hour.from_now)
+    t.scoring_slots.build(species: walleye, slot_count: 1)
+    t.save!
+    entry = create(:tournament_entry, tournament: t)
+    create(:tournament_entry_member, tournament_entry: entry, user: user)
+
+    [18, 12].each do |len|
+      Catches::PlaceInSlots.call(
+        catch: create(:catch, user: user, species: walleye, length_inches: len,
+                      captured_at_device: 30.minutes.ago)
+      )
+    end
+
+    Catches::PlaceInSlots.call(
+      catch: create(:catch, user: user, species: walleye, length_inches: 22,
+                    captured_at_device: 25.minutes.ago)
+    )
+
+    active = CatchPlacement.where(tournament: t, active: true).includes(:catch).to_a
+    active_lens = active.map { |p| p.catch.length_inches }.sort
+    assert_equal [12, 22], active_lens, "expected smallest unchanged, biggest replaced"
+    assert_equal 2, active.count
+  end
+
+  test "biggest_vs_smallest: a catch smaller than current smallest bumps the old smallest, biggest unchanged" do
+    club = create(:club)
+    walleye = create(:species, club: club)
+    user = create(:user, club: club)
+    t = build(:tournament, club: club, format: :biggest_vs_smallest, mode: :solo,
+              kind: :event, starts_at: 1.hour.ago, ends_at: 1.hour.from_now)
+    t.scoring_slots.build(species: walleye, slot_count: 1)
+    t.save!
+    entry = create(:tournament_entry, tournament: t)
+    create(:tournament_entry_member, tournament_entry: entry, user: user)
+
+    [18, 12].each do |len|
+      Catches::PlaceInSlots.call(
+        catch: create(:catch, user: user, species: walleye, length_inches: len,
+                      captured_at_device: 30.minutes.ago)
+      )
+    end
+
+    Catches::PlaceInSlots.call(
+      catch: create(:catch, user: user, species: walleye, length_inches: 8,
+                    captured_at_device: 25.minutes.ago)
+    )
+
+    active = CatchPlacement.where(tournament: t, active: true).includes(:catch).to_a
+    active_lens = active.map { |p| p.catch.length_inches }.sort
+    assert_equal [8, 18], active_lens, "expected biggest unchanged, smallest replaced"
+  end
+
+  test "biggest_vs_smallest: a catch in the middle is dropped — no new placement, no bump" do
+    club = create(:club)
+    walleye = create(:species, club: club)
+    user = create(:user, club: club)
+    t = build(:tournament, club: club, format: :biggest_vs_smallest, mode: :solo,
+              kind: :event, starts_at: 1.hour.ago, ends_at: 1.hour.from_now)
+    t.scoring_slots.build(species: walleye, slot_count: 1)
+    t.save!
+    entry = create(:tournament_entry, tournament: t)
+    create(:tournament_entry_member, tournament_entry: entry, user: user)
+
+    [22, 10].each do |len|
+      Catches::PlaceInSlots.call(
+        catch: create(:catch, user: user, species: walleye, length_inches: len,
+                      captured_at_device: 30.minutes.ago)
+      )
+    end
+
+    Catches::PlaceInSlots.call(
+      catch: create(:catch, user: user, species: walleye, length_inches: 16,
+                    captured_at_device: 25.minutes.ago)
+    )
+
+    active = CatchPlacement.where(tournament: t, active: true).includes(:catch).to_a
+    active_lens = active.map { |p| p.catch.length_inches }.sort
+    assert_equal [10, 22], active_lens, "expected the middle catch to be ignored"
+  end
+
+  test "biggest_vs_smallest: new catch after a placement is deactivated fills the freed slot index without colliding" do
+    club = create(:club)
+    walleye = create(:species, club: club)
+    user = create(:user, club: club)
+    t = build(:tournament, club: club, format: :biggest_vs_smallest, mode: :solo,
+              kind: :event, starts_at: 1.hour.ago, ends_at: 1.hour.from_now)
+    t.scoring_slots.build(species: walleye, slot_count: 1)
+    t.save!
+    entry = create(:tournament_entry, tournament: t)
+    create(:tournament_entry_member, tournament_entry: entry, user: user)
+
+    [22, 10].each do |len|
+      Catches::PlaceInSlots.call(
+        catch: create(:catch, user: user, species: walleye, length_inches: len,
+                      captured_at_device: 30.minutes.ago)
+      )
+    end
+
+    smaller = CatchPlacement.find_by!(tournament: t, slot_index: 1, active: true)
+    smaller.update!(active: false)
+
+    assert_nothing_raised do
+      Catches::PlaceInSlots.call(
+        catch: create(:catch, user: user, species: walleye, length_inches: 14,
+                      captured_at_device: 25.minutes.ago)
+      )
+    end
+
+    active_indexes = CatchPlacement.where(tournament: t, active: true).order(:slot_index).pluck(:slot_index)
+    assert_equal [0, 1], active_indexes,
+                 "expected new placement to land at the freed slot_index without colliding"
+  end
   end
 end
