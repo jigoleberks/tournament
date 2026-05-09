@@ -14,6 +14,7 @@ class Tournament < ApplicationRecord
   validates :name, :kind, :mode, :starts_at, presence: true
   validate :blind_leaderboard_requires_end_time
   validate :blind_leaderboard_locked_after_start, on: :update
+  validate :big_fish_season_requires_solo
 
   scope :active_at, ->(time) {
     where("starts_at <= ?", time).where("ends_at IS NULL OR ends_at >= ?", time)
@@ -50,6 +51,12 @@ class Tournament < ApplicationRecord
     if saved_change_to_ends_at? && ends_at&.future?
       TournamentLifecycleAnnounceJob.set(wait_until: ends_at).perform_later(tournament_id: id, kind: "ended")
     end
+  end
+
+  def big_fish_season_requires_solo
+    return unless big_fish_season?
+    return if mode_solo?
+    errors.add(:format, "Big Fish Season tournaments must be solo")
   end
 
   def blind_leaderboard_requires_end_time

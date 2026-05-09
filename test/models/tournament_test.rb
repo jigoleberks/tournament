@@ -138,4 +138,20 @@ class TournamentTest < ActiveSupport::TestCase
     assert t.standard?
     assert_not t.big_fish_season?
   end
+
+  test "big_fish_season tournament requires solo mode" do
+    t = build(:tournament, club: @club, format: :big_fish_season, mode: :team)
+    assert_not t.valid?
+    assert_includes t.errors[:format], "Big Fish Season tournaments must be solo"
+  end
+
+  test "big_fish_season tournament accepts solo mode" do
+    t = build(:tournament, club: @club, format: :big_fish_season, mode: :solo)
+    assert t.valid?, t.errors.full_messages.to_sentence
+  end
+
+  test "standard tournament accepts team mode" do
+    t = build(:tournament, club: @club, format: :standard, mode: :team)
+    assert t.valid?, t.errors.full_messages.to_sentence
+  end
 end
