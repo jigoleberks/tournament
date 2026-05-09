@@ -32,6 +32,7 @@ export default class extends Controller {
       this.formatDescriptionTarget.textContent = this.formatDescriptionTarget.dataset.bigFishSeasonText
     }
     if (this.hasModeTarget) {
+      if (this.modeTarget.value !== "solo") this._priorMode = this.modeTarget.value
       this.modeTarget.value = "solo"
       this.modeTarget.classList.add("opacity-60", "pointer-events-none")
     }
@@ -63,6 +64,10 @@ export default class extends Controller {
     }
     if (this.hasModeTarget) {
       this.modeTarget.classList.remove("opacity-60", "pointer-events-none")
+      if (this._priorMode) {
+        this.modeTarget.value = this._priorMode
+        this._priorMode = null
+      }
     }
     if (this.hasModeNoteTarget) this.modeNoteTarget.classList.add("hidden")
 
