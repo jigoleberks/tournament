@@ -1,8 +1,13 @@
 module Leaderboards
   class Build
     def self.call(tournament:)
-      rows = build_rows(tournament)
-      ranker_for(tournament.format).call(rows, tournament: tournament)
+      rows   = build_rows(tournament)
+      ranker = ranker_for(tournament.format)
+      if ranker == Leaderboards::Rankers::HiddenLength
+        ranker.call(rows, tournament: tournament)
+      else
+        ranker.call(rows)
+      end
     end
 
     def self.ranker_for(format)
