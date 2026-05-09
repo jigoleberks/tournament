@@ -3,7 +3,8 @@
   <%= render "organizers/tournament_judges/section" %>
 <% end %>
 
-<%= form_with model: [:organizers, @tournament], local: true, class: "space-y-4" do |f| %>
+<%= form_with model: [:organizers, @tournament], local: true, class: "space-y-4",
+              data: { controller: "tournament-format" } do |f| %>
   <% if @tournament.errors.any? %>
     <ul class="text-red-300 text-sm bg-red-900/40 border border-red-800 rounded-lg p-3 space-y-1">
       <% @tournament.errors.full_messages.each do |m| %><li><%= m %></li><% end %>
@@ -17,6 +18,8 @@
                        class: "w-full h-12 px-3 rounded-lg bg-slate-900 border border-slate-700 text-base" %>
     </div>
 
+    <%= render "organizers/shared/format_select", f: f, record: @tournament %>
+
     <div>
       <%= f.label :kind, class: "block text-sm font-medium text-slate-300 mb-1" %>
       <%= f.select :kind, Tournament.kinds.keys, {},
@@ -26,7 +29,11 @@
     <div>
       <%= f.label :mode, class: "block text-sm font-medium text-slate-300 mb-1" %>
       <%= f.select :mode, Tournament.modes.keys, {},
-                   class: "w-full h-12 px-3 rounded-lg bg-slate-900 border border-slate-700 text-base" %>
+                   class: "w-full h-12 px-3 rounded-lg bg-slate-900 border border-slate-700 text-base",
+                   data: { tournament_format_target: "mode" } %>
+      <p class="text-xs text-slate-500 mt-1 hidden" data-tournament-format-target="modeNote">
+        Big Fish Season is solo-only.
+      </p>
     </div>
 
     <div>
@@ -93,17 +100,18 @@
   </div>
 
   <div class="bg-slate-800 rounded-xl p-4 space-y-3">
-    <h3 class="text-lg font-semibold">Scoring slots</h3>
-    <p class="text-sm text-slate-400">Pick a species and how many of that fish counts. Blank rows are ignored.</p>
+    <h3 class="text-lg font-semibold" data-tournament-format-target="slotsHeading">Scoring slots</h3>
+    <p class="text-sm text-slate-400" data-tournament-format-target="slotsHelp">Pick a species and how many of that fish counts. Blank rows are ignored.</p>
 
     <%= f.fields_for :scoring_slots do |sf| %>
-      <div class="bg-slate-900 rounded-lg p-3 space-y-2 border border-slate-700">
+      <div class="bg-slate-900 rounded-lg p-3 space-y-2 border border-slate-700"
+           data-tournament-format-target="slotRow">
         <label class="block text-sm text-slate-400">Species</label>
         <%= sf.collection_select :species_id, Species.order(:name), :id, :name,
                                  { include_blank: "—" },
                                  class: "w-full h-12 px-3 rounded-lg bg-slate-900 border border-slate-700 text-base" %>
 
-        <label class="block text-sm text-slate-400 mt-2">Slots</label>
+        <label class="block text-sm text-slate-400 mt-2" data-tournament-format-target="slotCountLabel">Slots</label>
         <%= sf.number_field :slot_count, min: 1, value: sf.object.slot_count || 1,
                             class: "w-full h-12 px-3 rounded-lg bg-slate-900 border border-slate-700 text-base" %>
 

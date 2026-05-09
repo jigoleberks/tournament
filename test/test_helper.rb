@@ -33,6 +33,16 @@ class ActiveSupport::TestCase
     end
     calls
   end
+
+  # Replaces self-method `name` on `klass` with `replacement` (a callable) for
+  # the duration of the block. Restores the original even if the block raises.
+  def with_class_method_stub(klass, name, replacement)
+    original = klass.method(name)
+    klass.define_singleton_method(name, replacement)
+    yield
+  ensure
+    klass.define_singleton_method(name, original)
+  end
 end
 
 class ActionDispatch::SystemTestCase

@@ -53,7 +53,7 @@ class Organizers::TournamentTemplatesController < Organizers::BaseController
 
   def template_params
     params.require(:tournament_template).permit(
-      :name, :mode, :default_duration_days,
+      :name, :mode, :format, :default_duration_days,
       :default_weekday, :default_start_time, :default_end_time,
       :awards_season_points, :blind_leaderboard,
       tournament_template_scoring_slots_attributes: [:id, :species_id, :slot_count, :_destroy]

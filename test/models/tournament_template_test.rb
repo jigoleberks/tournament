@@ -58,4 +58,47 @@ class TournamentTemplateTest < ActiveSupport::TestCase
       assert_equal Time.zone.local(2026, 5, 6, 19, 0), starts
     end
   end
+
+  test "default format is standard" do
+    t = create(:tournament_template, club: @club)
+    assert_equal "standard", t.format
+  end
+
+  test "big_fish_season template requires solo mode" do
+    t = build(:tournament_template, club: @club, format: :big_fish_season, mode: :team)
+    assert_not t.valid?
+    assert_includes t.errors[:format], "Big Fish Season tournaments must be solo"
+  end
+
+  test "big_fish_season template accepts solo mode with one scoring slot" do
+    species = create(:species)
+    t = build(:tournament_template, club: @club, format: :big_fish_season, mode: :solo)
+    t.tournament_template_scoring_slots.build(species: species, slot_count: 3)
+    assert t.valid?, t.errors.full_messages.to_sentence
+  end
+
+  test "standard template accepts team mode" do
+    t = build(:tournament_template, club: @club, format: :standard, mode: :team)
+    assert t.valid?, t.errors.full_messages.to_sentence
+  end
+
+  test "big_fish_season template errors when no scoring slot is configured" do
+    t = build(:tournament_template, club: @club, format: :big_fish_season, mode: :solo)
+    assert_not t.valid?
+    assert_includes t.errors[:tournament_template_scoring_slots],
+                    "Big Fish Season tournaments must have exactly one species configured"
+  end
+
+  test "big_fish_season template errors when more than one scoring slot is configured" do
+    species_a = create(:species)
+    species_b = create(:species)
+    t = build(:tournament_template, club: @club, format: :big_fish_season, mode: :solo)
+    t.save!(validate: false)
+    t.tournament_template_scoring_slots.create!(species: species_a, slot_count: 1)
+    t.tournament_template_scoring_slots.create!(species: species_b, slot_count: 1)
+    t.reload
+    assert_not t.valid?
+    assert_includes t.errors[:tournament_template_scoring_slots],
+                    "Big Fish Season tournaments must have exactly one species configured"
+  end
 end

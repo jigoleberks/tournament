@@ -46,7 +46,7 @@ class Organizers::TournamentsController < Organizers::BaseController
 
   def tournament_params
     params.require(:tournament).permit(
-      :name, :kind, :mode, :starts_at, :ends_at, :season_tag, :requires_release_video, :judged, :local,
+      :name, :kind, :mode, :format, :starts_at, :ends_at, :season_tag, :requires_release_video, :judged, :local,
       :awards_season_points, :blind_leaderboard,
       scoring_slots_attributes: [:id, :species_id, :slot_count, :_destroy]
     )

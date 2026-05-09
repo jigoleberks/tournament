@@ -15,7 +15,7 @@
     <tr class="text-left text-sm text-slate-300 border-b border-slate-700">
       <th class="px-3 py-2">#</th>
       <th class="px-3 py-2">Entry</th>
-      <th class="px-3 py-2">Total</th>
+      <th class="px-3 py-2"><%= tournament&.format_big_fish_season? ? "Length" : "Total" %></th>
     </tr>
   </thead>
   <tbody>
@@ -24,36 +24,61 @@
       <tr class="border-t border-slate-700 align-top">
         <td class="px-3 py-3"><%= scope.visibility == :full ? i + 1 : "—" %></td>
         <td class="px-3 py-3">
-          <div class="font-medium"><%= row[:entry].display_name %></div>
-          <% if row_visible && row[:fish].present? %>
-            <div class="text-xs text-slate-400 mt-1 space-y-2">
-              <% row[:fish].each do |f| %>
-                <div>
-                  <% label = "#{f[:species_name]} · #{format_length_dual(f[:length_inches])}" %>
-                  <% url, frame = catch_link_target(tournament: tournament, catch_id: f[:id]) %>
-                  <% if url %>
-                    <%= link_to label, url,
-                                data: ({ turbo_frame: frame } if frame),
-                                class: "text-blue-300 underline-offset-2 hover:underline" %>
-                  <% else %>
-                    <span><%= label %></span>
-                  <% end %>
-                  <% if f[:approver_name] %>
-                    <span data-test="approved-check" class="text-green-400 ml-1" aria-label="approved">✓</span>
-                  <% end %>
-                  <div class="text-slate-500">
-                    <%= f[:angler_name] %><%= " · logged by #{f[:logged_by_name]}" if f[:logged_by_name] %>
-                  </div>
-                </div>
+          <% if tournament&.format_big_fish_season? && row[:fish].first %>
+            <% f = row[:fish].first %>
+            <% url, frame = catch_link_target(tournament: tournament, catch_id: f[:id]) %>
+            <div class="font-medium">
+              <% if url && row_visible %>
+                <%= link_to row[:entry].display_name, url,
+                            data: ({ turbo_frame: frame } if frame),
+                            class: "text-blue-300 underline-offset-2 hover:underline" %>
+              <% else %>
+                <%= row[:entry].display_name %>
+              <% end %>
+              <% if row_visible && f[:approver_name] %>
+                <span data-test="approved-check" class="text-green-400 ml-1" aria-label="approved">✓</span>
               <% end %>
             </div>
+            <% if row_visible && f[:logged_by_name] %>
+              <div class="text-xs text-slate-500 mt-1">logged by <%= f[:logged_by_name] %></div>
+            <% end %>
+          <% else %>
+            <div class="font-medium"><%= row[:entry].display_name %></div>
+            <% if row_visible && row[:fish].present? %>
+              <div class="text-xs text-slate-400 mt-1 space-y-2">
+                <% row[:fish].each do |f| %>
+                  <div>
+                    <% label = "#{f[:species_name]} · #{format_length_dual(f[:length_inches])}" %>
+                    <% url, frame = catch_link_target(tournament: tournament, catch_id: f[:id]) %>
+                    <% if url %>
+                      <%= link_to label, url,
+                                  data: ({ turbo_frame: frame } if frame),
+                                  class: "text-blue-300 underline-offset-2 hover:underline" %>
+                    <% else %>
+                      <span><%= label %></span>
+                    <% end %>
+                    <% if f[:approver_name] %>
+                      <span data-test="approved-check" class="text-green-400 ml-1" aria-label="approved">✓</span>
+                    <% end %>
+                    <div class="text-slate-500">
+                      <%= f[:angler_name] %><%= " · logged by #{f[:logged_by_name]}" if f[:logged_by_name] %>
+                    </div>
+                  </div>
+                <% end %>
+              </div>
+            <% end %>
           <% end %>
         </td>
         <td class="px-3 py-3 font-mono">
           <% if row_visible %>
-            <% inches_total, cm_total = format_length_parts(row[:total]) %>
-            <div><%= inches_total %></div>
-            <div><%= cm_total %></div>
+            <% scoring_value = row[:total] %>
+            <% if scoring_value.nil? || scoring_value.zero? %>
+              <div>—</div>
+            <% else %>
+              <% inches_part, cm_part = format_length_parts(scoring_value) %>
+              <div><%= inches_part %></div>
+              <div><%= cm_part %></div>
+            <% end %>
           <% else %>
             <div>—</div>
           <% end %>

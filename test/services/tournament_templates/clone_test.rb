@@ -67,5 +67,33 @@ module TournamentTemplates
 
       assert_not tournament.blind_leaderboard?
     end
+
+    test "clones template format onto the new tournament" do
+      template = build(:tournament_template, club: @club, format: :big_fish_season)
+      template.tournament_template_scoring_slots.build(species: @walleye, slot_count: 3)
+      template.save!
+
+      tournament = TournamentTemplates::Clone.call(
+        template: template,
+        starts_at: 1.day.from_now,
+        ends_at: 2.days.from_now
+      )
+
+      assert_equal "big_fish_season", tournament.format
+      assert tournament.format_big_fish_season?
+    end
+
+    test "default standard format clones onto the new tournament" do
+      template = create(:tournament_template, club: @club)
+      template.tournament_template_scoring_slots.create!(species: @walleye, slot_count: 1)
+
+      tournament = TournamentTemplates::Clone.call(
+        template: template,
+        starts_at: 1.day.from_now,
+        ends_at: 2.days.from_now
+      )
+
+      assert_equal "standard", tournament.format
+    end
   end
 end

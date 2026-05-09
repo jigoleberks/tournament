@@ -124,6 +124,86 @@ class Organizers::TournamentsControllerTest < ActionDispatch::IntegrationTest
     assert_not t.blind_leaderboard?
   end
 
+  test "create accepts format: big_fish_season with a single scoring slot" do
+    sign_in_as(@organizer)
+    walleye = create(:species, club: @club, name: "Walleye")
+    assert_difference -> { Tournament.count }, 1 do
+      post organizers_tournaments_path, params: {
+        tournament: {
+          name: "Big Walleye Season",
+          kind: "ongoing",
+          mode: "solo",
+          format: "big_fish_season",
+          starts_at: 1.day.from_now,
+          ends_at: 30.days.from_now,
+          scoring_slots_attributes: { "0" => { species_id: walleye.id, slot_count: 3 } }
+        }
+      }
+    end
+    assert_redirected_to organizers_tournaments_path
+    assert Tournament.last.format_big_fish_season?
+  end
+
+  test "create rejects big_fish_season + team mode" do
+    sign_in_as(@organizer)
+    walleye = create(:species, club: @club)
+    assert_no_difference -> { Tournament.count } do
+      post organizers_tournaments_path, params: {
+        tournament: {
+          name: "Bad Combo",
+          kind: "event",
+          mode: "team",
+          format: "big_fish_season",
+          starts_at: 1.day.from_now,
+          ends_at: 1.day.from_now + 4.hours,
+          scoring_slots_attributes: { "0" => { species_id: walleye.id, slot_count: 1 } }
+        }
+      }
+    end
+    assert_response :unprocessable_entity
+    assert_match "must be solo", response.body
+  end
+
+  test "create rejects big_fish_season with multiple scoring slots" do
+    sign_in_as(@organizer)
+    walleye = create(:species, club: @club)
+    pike = create(:species, club: @club)
+    assert_no_difference -> { Tournament.count } do
+      post organizers_tournaments_path, params: {
+        tournament: {
+          name: "Two Species",
+          kind: "event",
+          mode: "solo",
+          format: "big_fish_season",
+          starts_at: 1.day.from_now,
+          ends_at: 1.day.from_now + 4.hours,
+          scoring_slots_attributes: {
+            "0" => { species_id: walleye.id, slot_count: 1 },
+            "1" => { species_id: pike.id, slot_count: 1 }
+          }
+        }
+      }
+    end
+    assert_response :unprocessable_entity
+    assert_match "exactly one species configured", response.body
+  end
+
+  test "update rejects format change after the tournament has started" do
+    sign_in_as(@organizer)
+    species = create(:species, club: @club)
+    tournament = create(:tournament, club: @club, format: :standard, mode: :solo,
+                        starts_at: 1.hour.ago, ends_at: 1.hour.from_now)
+    create(:scoring_slot, tournament: tournament, species: species, slot_count: 1)
+
+    patch organizers_tournament_path(tournament), params: {
+      tournament: { format: "big_fish_season" }
+    }
+
+    assert_response :unprocessable_entity
+    assert_match "once the tournament has started", response.body
+    assert tournament.reload.format_standard?
+  end
+
   private
 
   def sign_in_as(user)
