@@ -10,12 +10,24 @@
   </div>
 <% end %>
 
+<% if tournament&.format_hidden_length? %>
+  <% if tournament.hidden_length_target.nil? %>
+    <div id="hidden-length-banner" class="bg-slate-800 rounded-xl p-3 mb-3 text-slate-200 text-sm">
+      🎯 Target rolls when the tournament ends at <%= tournament.ends_at.strftime("%b %d · %l:%M %p") %>. Closest catch wins.
+    </div>
+  <% else %>
+    <div id="hidden-length-banner" class="bg-amber-900 rounded-xl p-3 mb-3 text-amber-100 text-sm">
+      🎯 Target was <%= format_length_dual(tournament.hidden_length_target) %> — closest catch wins.
+    </div>
+  <% end %>
+<% end %>
+
 <table class="w-full text-base">
   <thead>
     <tr class="text-left text-sm text-slate-300 border-b border-slate-700">
       <th class="px-3 py-2">#</th>
       <th class="px-3 py-2">Entry</th>
-      <th class="px-3 py-2"><%= tournament&.format_big_fish_season? ? "Length" : "Total" %></th>
+      <th class="px-3 py-2"><%= (tournament&.format_big_fish_season? || tournament&.format_hidden_length?) ? "Length" : "Total" %></th>
     </tr>
   </thead>
   <tbody>
@@ -24,7 +36,8 @@
       <tr class="border-t border-slate-700 align-top">
         <td class="px-3 py-3"><%= scope.visibility == :full ? i + 1 : "—" %></td>
         <td class="px-3 py-3">
-          <% if tournament&.format_big_fish_season? && row[:fish].first %>
+          <% per_catch = tournament&.format_big_fish_season? || (tournament&.format_hidden_length? && tournament.hidden_length_target.nil?) %>
+          <% if per_catch && row[:fish].first %>
             <% f = row[:fish].first %>
             <% url, frame = catch_link_target(tournament: tournament, catch_id: f[:id]) %>
             <div class="font-medium">
@@ -78,6 +91,11 @@
               <% inches_part, cm_part = format_length_parts(scoring_value) %>
               <div><%= inches_part %></div>
               <div><%= cm_part %></div>
+              <% if tournament&.format_hidden_length? && tournament.hidden_length_target.present? %>
+                <div class="text-xs text-slate-400">
+                  <%= format("%.2f", (scoring_value.to_d - tournament.hidden_length_target.to_d).abs) %>" off
+                </div>
+              <% end %>
             <% end %>
           <% else %>
             <div>—</div>
