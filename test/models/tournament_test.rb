@@ -146,12 +146,43 @@ class TournamentTest < ActiveSupport::TestCase
   end
 
   test "big_fish_season tournament accepts solo mode" do
+    species = create(:species)
     t = build(:tournament, club: @club, format: :big_fish_season, mode: :solo)
+    t.scoring_slots.build(species: species, slot_count: 1)
     assert t.valid?, t.errors.full_messages.to_sentence
   end
 
   test "standard tournament accepts team mode" do
     t = build(:tournament, club: @club, format: :standard, mode: :team)
+    assert t.valid?, t.errors.full_messages.to_sentence
+  end
+
+  test "big_fish_season tournament errors when no scoring slot is configured" do
+    t = build(:tournament, club: @club, format: :big_fish_season, mode: :solo)
+    t.save!(validate: false)
+    # No scoring_slot created.
+    t.valid?
+    assert_includes t.errors[:scoring_slots], "Big Fish Season tournaments must have exactly one species configured"
+  end
+
+  test "big_fish_season tournament errors when more than one scoring slot is configured" do
+    species_a = create(:species)
+    species_b = create(:species)
+    t = build(:tournament, club: @club, format: :big_fish_season, mode: :solo)
+    t.save!(validate: false)
+    create(:scoring_slot, tournament: t, species: species_a, slot_count: 1)
+    create(:scoring_slot, tournament: t, species: species_b, slot_count: 1)
+    t.reload
+    t.valid?
+    assert_includes t.errors[:scoring_slots], "Big Fish Season tournaments must have exactly one species configured"
+  end
+
+  test "big_fish_season tournament accepts exactly one scoring slot" do
+    species = create(:species)
+    t = build(:tournament, club: @club, format: :big_fish_season, mode: :solo)
+    t.save!(validate: false)
+    create(:scoring_slot, tournament: t, species: species, slot_count: 3)
+    t.reload
     assert t.valid?, t.errors.full_messages.to_sentence
   end
 end

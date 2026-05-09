@@ -15,6 +15,7 @@ class Tournament < ApplicationRecord
   validate :blind_leaderboard_requires_end_time
   validate :blind_leaderboard_locked_after_start, on: :update
   validate :big_fish_season_requires_solo
+  validate :big_fish_season_requires_one_scoring_slot
 
   scope :active_at, ->(time) {
     where("starts_at <= ?", time).where("ends_at IS NULL OR ends_at >= ?", time)
@@ -57,6 +58,13 @@ class Tournament < ApplicationRecord
     return unless big_fish_season?
     return if mode_solo?
     errors.add(:format, "Big Fish Season tournaments must be solo")
+  end
+
+  def big_fish_season_requires_one_scoring_slot
+    return unless big_fish_season?
+    remaining = scoring_slots.reject(&:marked_for_destruction?)
+    return if remaining.size == 1
+    errors.add(:scoring_slots, "Big Fish Season tournaments must have exactly one species configured")
   end
 
   def blind_leaderboard_requires_end_time
