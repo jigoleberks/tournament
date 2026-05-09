@@ -15,7 +15,7 @@
     <tr class="text-left text-sm text-slate-300 border-b border-slate-700">
       <th class="px-3 py-2">#</th>
       <th class="px-3 py-2">Entry</th>
-      <th class="px-3 py-2">Total</th>
+      <th class="px-3 py-2"><%= tournament&.big_fish_season? ? "Biggest" : "Total" %></th>
     </tr>
   </thead>
   <tbody>
@@ -51,9 +51,14 @@
         </td>
         <td class="px-3 py-3 font-mono">
           <% if row_visible %>
-            <% inches_total, cm_total = format_length_parts(row[:total]) %>
-            <div><%= inches_total %></div>
-            <div><%= cm_total %></div>
+            <% scoring_value = tournament&.big_fish_season? ? (row[:fish].first&.dig(:length_inches)) : row[:total] %>
+            <% if scoring_value.nil? || scoring_value.zero? %>
+              <div>—</div>
+            <% else %>
+              <% inches_part, cm_part = format_length_parts(scoring_value) %>
+              <div><%= inches_part %></div>
+              <div><%= cm_part %></div>
+            <% end %>
           <% else %>
             <div>—</div>
           <% end %>
