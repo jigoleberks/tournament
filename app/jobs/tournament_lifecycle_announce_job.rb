@@ -7,10 +7,26 @@ class TournamentLifecycleAnnounceJob < ApplicationJob
     if kind == "ended"
       return if tournament.lifecycle_ended_announced_at.present?
       return if tournament.ends_at && tournament.ends_at > Time.current
+    end
+
+    if kind == "ended" && tournament.format_hidden_length?
+      Tournaments::RollHiddenLengthTarget.call(tournament: tournament)
+      # Broadcast lives here, not in the service: if it raises, the stamp below
+      # never runs, so the next retry re-broadcasts (the roll itself short-circuits).
+      Placements::BroadcastLeaderboard.call(tournament: tournament)
+    end
+
+    # Stamp here — after the (idempotent) HL roll commits and its broadcast
+    # succeeds, but before the push enqueue loop and BroadcastReveal — so a
+    # transient failure in either of those does not cause a retry to re-push
+    # the body or re-broadcast reveal.
+    if kind == "ended"
       tournament.update_columns(lifecycle_ended_announced_at: Time.current)
     end
 
-    body = if kind == "ended" && tournament.blind_leaderboard?
+    body = if kind == "ended" && tournament.format_hidden_length?
+      "Target was #{format("%.2f", tournament.hidden_length_target)}\" — see final standings."
+    elsif kind == "ended" && tournament.blind_leaderboard?
       "Results are in, GO CHECK YOUR STANDINGS"
     elsif kind == "ended"
       "#{tournament.name} has ended."

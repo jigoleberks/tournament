@@ -3,7 +3,8 @@ module Leaderboards
     class Standard
       # Cascade tiebreaker: complete tier first → total desc → largest single fish desc →
       # 2nd largest desc → ... → earliest captured_at_device asc → entry.id asc.
-      def self.call(rows)
+      def self.call(rows, tournament: nil)
+        _ = tournament  # accepted for ranker uniformity; Standard does not use it
         max_fish = rows.map { |r| r[:fish].size }.max || 0
         far_future = ::Time.zone.at(0) + 100.years
         rows.sort_by do |r|

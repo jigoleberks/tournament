@@ -44,7 +44,19 @@ module Catches
             .where(species_id: @catch.species_id, active: true)
             .includes(:catch).order(:slot_index).to_a
 
-          if active_placements.size < slot.slot_count
+          if tournament.format_hidden_length?
+            # Hidden Length: every catch is kept; the closest-to-target catch
+            # per entry is selected at reveal time. No bumping, slot_count irrelevant.
+            # Use max(active slot_index)+1 (not size) so a deactivated middle
+            # placement (e.g. judge DQ) doesn't make the next index collide with
+            # an existing active row under idx_active_placements_uniq_per_slot.
+            next_index = active_placements.empty? ? 0 : active_placements.map(&:slot_index).max + 1
+            created << CatchPlacement.create!(
+              catch: @catch, tournament: tournament, tournament_entry: entry,
+              species: @catch.species, slot_index: next_index, active: true
+            )
+            affected_tournaments << tournament
+          elsif active_placements.size < slot.slot_count
             next_index = (0...slot.slot_count).find { |i| active_placements.none? { |p| p.slot_index == i } }
             created << CatchPlacement.create!(
               catch: @catch, tournament: tournament, tournament_entry: entry,

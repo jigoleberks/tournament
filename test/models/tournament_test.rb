@@ -206,4 +206,98 @@ class TournamentTest < ActiveSupport::TestCase
     t.format = :big_fish_season
     assert t.valid?, t.errors.full_messages.to_sentence
   end
+
+  test "format enum includes hidden_length" do
+    t = build(:tournament, club: @club, format: :hidden_length, mode: :solo,
+              kind: :event, ends_at: 2.hours.from_now)
+    walleye = create(:species, club: @club)
+    t.scoring_slots.build(species: walleye, slot_count: 1)
+    assert t.valid?, t.errors.full_messages.inspect
+    assert t.format_hidden_length?
+  end
+
+  test "hidden_length tournament errors when no scoring slot is configured" do
+    t = build(:tournament, club: @club, format: :hidden_length, mode: :solo,
+              kind: :event, ends_at: 2.hours.from_now)
+    assert_not t.valid?
+    assert_includes t.errors[:scoring_slots],
+                    "Hidden Length tournaments must have exactly one species configured"
+  end
+
+  test "hidden_length tournament errors with more than one scoring slot" do
+    walleye = create(:species, club: @club)
+    pike    = create(:species, club: @club)
+    t = build(:tournament, club: @club, format: :hidden_length, mode: :solo,
+              kind: :event, ends_at: 2.hours.from_now)
+    t.scoring_slots.build(species: walleye, slot_count: 1)
+    t.scoring_slots.build(species: pike, slot_count: 1)
+    assert_not t.valid?
+    assert_includes t.errors[:scoring_slots],
+                    "Hidden Length tournaments must have exactly one species configured"
+  end
+
+  test "hidden_length tournament accepts exactly one scoring slot" do
+    walleye = create(:species, club: @club)
+    t = build(:tournament, club: @club, format: :hidden_length, mode: :solo,
+              kind: :event, ends_at: 2.hours.from_now)
+    t.scoring_slots.build(species: walleye, slot_count: 1)
+    assert t.valid?, t.errors.full_messages.inspect
+  end
+
+  test "hidden_length tournament accepts team mode" do
+    walleye = create(:species, club: @club)
+    t = build(:tournament, club: @club, format: :hidden_length, mode: :team,
+              kind: :event, ends_at: 2.hours.from_now)
+    t.scoring_slots.build(species: walleye, slot_count: 1)
+    assert t.valid?, t.errors.full_messages.inspect
+  end
+
+  test "hidden_length tournament requires kind=event" do
+    walleye = create(:species, club: @club)
+    t = build(:tournament, club: @club, format: :hidden_length, mode: :solo,
+              kind: :ongoing, ends_at: 2.hours.from_now)
+    t.scoring_slots.build(species: walleye, slot_count: 1)
+    assert_not t.valid?
+    assert_includes t.errors[:format], "Hidden Length tournaments must be event kind with an end time"
+  end
+
+  test "hidden_length tournament requires ends_at" do
+    walleye = create(:species, club: @club)
+    t = build(:tournament, club: @club, format: :hidden_length, mode: :solo,
+              kind: :event, ends_at: nil)
+    t.scoring_slots.build(species: walleye, slot_count: 1)
+    assert_not t.valid?
+    assert_includes t.errors[:format], "Hidden Length tournaments must be event kind with an end time"
+  end
+
+  test "hidden_length_target is locked once set" do
+    walleye = create(:species, club: @club)
+    t = build(:tournament, club: @club, format: :hidden_length, mode: :solo,
+              kind: :event, ends_at: 2.hours.from_now, hidden_length_target: 17.25)
+    t.scoring_slots.build(species: walleye, slot_count: 1)
+    t.save!
+    t.hidden_length_target = 18.00
+    assert_not t.valid?
+    assert_includes t.errors[:hidden_length_target], "can't be changed once set"
+  end
+
+  test "hidden_length_target must be a quarter-inch step in [12.00, 22.00]" do
+    walleye = create(:species, club: @club)
+    base_attrs = { club: @club, format: :hidden_length, mode: :solo,
+                   kind: :event, ends_at: 2.hours.from_now }
+
+    [11.75, 22.25, 17.10].each do |bad|
+      t = build(:tournament, **base_attrs, hidden_length_target: bad)
+      t.scoring_slots.build(species: walleye, slot_count: 1)
+      assert_not t.valid?, "expected #{bad} to be rejected"
+      assert_includes t.errors[:hidden_length_target],
+                      "must be a quarter-inch step between 12.00 and 22.00"
+    end
+
+    [12.00, 12.25, 17.50, 22.00].each do |good|
+      t = build(:tournament, **base_attrs, hidden_length_target: good)
+      t.scoring_slots.build(species: walleye, slot_count: 1)
+      assert t.valid?, "expected #{good} to be accepted: #{t.errors.full_messages.inspect}"
+    end
+  end
 end

@@ -90,5 +90,52 @@ module Placements
       assert_includes tournaments, open_t,    "expected payloads for the non-blind tournament"
       assert_not_includes tournaments, blind_t, "expected no payloads for the blind tournament"
     end
+
+    test "skips lead-change notifications for Hidden Length tournaments while target is unrevealed" do
+      club = create(:club)
+      walleye = create(:species, club: club)
+      user = create(:user, club: club)
+      t = build(:tournament, club: club, format: :hidden_length, mode: :solo,
+                kind: :event, starts_at: 1.hour.ago, ends_at: 1.hour.from_now)
+      t.scoring_slots.build(species: walleye, slot_count: 1)
+      t.save!
+      entry = create(:tournament_entry, tournament: t)
+      create(:tournament_entry_member, tournament_entry: entry, user: user)
+
+      caught = create(:catch, user: user, species: walleye, length_inches: 22,
+                      captured_at_device: 30.minutes.ago)
+      placement = CatchPlacement.create!(catch: caught, tournament: t,
+                                         tournament_entry: entry, species: walleye,
+                                         slot_index: 0, active: true)
+
+      result = { created: [placement], bumped: [], affected_tournaments: [t] }
+      payloads = DetectNotifications.call(result: result)
+      assert_empty payloads.select { |p| p[:reason] == "took_the_lead" },
+                   "Hidden Length pre-reveal should not push 'took the lead'"
+    end
+
+    test "still emits lead-change notifications after Hidden Length target is rolled" do
+      club = create(:club)
+      walleye = create(:species, club: club)
+      user = create(:user, club: club)
+      t = build(:tournament, club: club, format: :hidden_length, mode: :solo,
+                kind: :event, starts_at: 2.hours.ago, ends_at: 1.minute.ago)
+      t.scoring_slots.build(species: walleye, slot_count: 1)
+      t.save!
+      t.update!(hidden_length_target: BigDecimal("17.00"))
+      entry = create(:tournament_entry, tournament: t)
+      create(:tournament_entry_member, tournament_entry: entry, user: user)
+
+      caught = create(:catch, user: user, species: walleye, length_inches: 17,
+                      captured_at_device: 30.minutes.ago)
+      placement = CatchPlacement.create!(catch: caught, tournament: t,
+                                         tournament_entry: entry, species: walleye,
+                                         slot_index: 0, active: true)
+
+      result = { created: [placement], bumped: [], affected_tournaments: [t] }
+      payloads = DetectNotifications.call(result: result)
+      assert payloads.any? { |p| p[:reason] == "took_the_lead" && p[:user] == user },
+             "post-reveal lead changes should still notify"
+    end
   end
 end

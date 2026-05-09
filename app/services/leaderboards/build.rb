@@ -2,13 +2,14 @@ module Leaderboards
   class Build
     def self.call(tournament:)
       rows = build_rows(tournament)
-      ranker_for(tournament.format).call(rows)
+      ranker_for(tournament.format).call(rows, tournament: tournament)
     end
 
     def self.ranker_for(format)
       case format
       when "standard"        then Leaderboards::Rankers::Standard
       when "big_fish_season" then Leaderboards::Rankers::BigFishSeason
+      when "hidden_length"   then Leaderboards::Rankers::HiddenLength
       else                        Leaderboards::Rankers::Standard
       end
     end

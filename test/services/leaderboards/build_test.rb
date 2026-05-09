@@ -243,8 +243,8 @@ module Leaderboards
       t = create(:tournament, club: @club, format: :standard, starts_at: 1.hour.ago, ends_at: 1.hour.from_now)
 
       called = []
-      with_class_method_stub(Leaderboards::Rankers::Standard,      :call, ->(rows) { called << :standard;        rows }) do
-        with_class_method_stub(Leaderboards::Rankers::BigFishSeason, :call, ->(rows) { called << :big_fish_season; rows }) do
+      with_class_method_stub(Leaderboards::Rankers::Standard,      :call, ->(rows, tournament: nil) { called << :standard;        rows }) do
+        with_class_method_stub(Leaderboards::Rankers::BigFishSeason, :call, ->(rows, tournament: nil) { called << :big_fish_season; rows }) do
           Build.call(tournament: t)
         end
       end
@@ -261,13 +261,33 @@ module Leaderboards
       t.reload
 
       called = []
-      with_class_method_stub(Leaderboards::Rankers::Standard,      :call, ->(rows) { called << :standard;        rows }) do
-        with_class_method_stub(Leaderboards::Rankers::BigFishSeason, :call, ->(rows) { called << :big_fish_season; rows }) do
+      with_class_method_stub(Leaderboards::Rankers::Standard,      :call, ->(rows, tournament: nil) { called << :standard;        rows }) do
+        with_class_method_stub(Leaderboards::Rankers::BigFishSeason, :call, ->(rows, tournament: nil) { called << :big_fish_season; rows }) do
           Build.call(tournament: t)
         end
       end
 
       assert_equal [:big_fish_season], called
+    end
+
+    test "dispatches to Rankers::HiddenLength for hidden_length tournaments" do
+      walleye = create(:species)
+      t = build(:tournament, club: @club, format: :hidden_length, mode: :solo,
+                kind: :event, starts_at: 1.hour.ago, ends_at: 1.hour.from_now)
+      t.save!(validate: false)
+      create(:scoring_slot, tournament: t, species: walleye, slot_count: 1)
+      t.reload
+
+      called = []
+      with_class_method_stub(Leaderboards::Rankers::Standard,      :call, ->(rows, tournament: nil) { called << :standard;        rows }) do
+        with_class_method_stub(Leaderboards::Rankers::BigFishSeason, :call, ->(rows, tournament: nil) { called << :big_fish_season; rows }) do
+          with_class_method_stub(Leaderboards::Rankers::HiddenLength, :call, ->(rows, tournament: nil) { called << :hidden_length;  rows }) do
+            Build.call(tournament: t)
+          end
+        end
+      end
+
+      assert_equal [:hidden_length], called
     end
   end
 end

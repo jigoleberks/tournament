@@ -103,5 +103,68 @@ module Catches
       entries = result[:created].map(&:tournament_entry).sort_by(&:id)
       assert_equal [@entry, boat].sort_by(&:id), entries
     end
+
+  test "hidden_length: every catch creates a placement, no bumping" do
+    club = create(:club)
+    walleye = create(:species, club: club)
+    user = create(:user, club: club)
+    t = build(:tournament, club: club, format: :hidden_length, mode: :solo,
+              kind: :event, starts_at: 1.hour.ago, ends_at: 1.hour.from_now)
+    t.scoring_slots.build(species: walleye, slot_count: 1)
+    t.save!
+    entry = create(:tournament_entry, tournament: t)
+    create(:tournament_entry_member, tournament_entry: entry, user: user)
+
+    # Three catches; each must produce a placement, even though slot_count is 1.
+    [22, 16, 14].each do |len|
+      Catches::PlaceInSlots.call(
+        catch: create(:catch, user: user, species: walleye, length_inches: len,
+                      captured_at_device: 30.minutes.ago)
+      )
+    end
+
+    placements = CatchPlacement.where(tournament: t, active: true).order(:slot_index)
+    assert_equal 3, placements.count, "expected all three catches to be placed (no bumping)"
+    # Slot indices ascend with creation order
+    assert_equal [0, 1, 2], placements.map(&:slot_index)
+  end
+
+  test "hidden_length: new catch after a placement is deactivated does not collide on slot_index" do
+    club = create(:club)
+    walleye = create(:species, club: club)
+    user = create(:user, club: club)
+    t = build(:tournament, club: club, format: :hidden_length, mode: :solo,
+              kind: :event, starts_at: 1.hour.ago, ends_at: 1.hour.from_now)
+    t.scoring_slots.build(species: walleye, slot_count: 1)
+    t.save!
+    entry = create(:tournament_entry, tournament: t)
+    create(:tournament_entry_member, tournament_entry: entry, user: user)
+
+    [22, 16, 14].each do |len|
+      Catches::PlaceInSlots.call(
+        catch: create(:catch, user: user, species: walleye, length_inches: len,
+                      captured_at_device: 30.minutes.ago)
+      )
+    end
+
+    # Simulate a judge DQ on the middle placement: deactivate slot_index = 1.
+    # The unique partial index on (entry, species, slot_index WHERE active=true)
+    # leaves indexes 0 and 2 active.
+    middle = CatchPlacement.find_by!(tournament: t, slot_index: 1, active: true)
+    middle.update!(active: false)
+
+    # A new catch must place without colliding with the existing active row at
+    # slot_index = 2.
+    assert_nothing_raised do
+      Catches::PlaceInSlots.call(
+        catch: create(:catch, user: user, species: walleye, length_inches: 18,
+                      captured_at_device: 25.minutes.ago)
+      )
+    end
+
+    active_indexes = CatchPlacement.where(tournament: t, active: true).order(:slot_index).pluck(:slot_index)
+    assert_equal [0, 2, 3], active_indexes,
+                 "expected new placement to land at max(active)+1, never reusing an occupied index"
+  end
   end
 end

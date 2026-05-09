@@ -45,6 +45,10 @@ module Placements
 
     def lead_changes
       @result[:affected_tournaments].flat_map do |t|
+        # Hidden Length pre-reveal: leaderboard is sorted by length, but length
+        # isn't the winning metric, so a "took the lead" push would mislead.
+        next [] if t.format_hidden_length? && t.hidden_length_target.nil?
+
         leader_entry = Leaderboards::Build.call(tournament: t).first&.dig(:entry)
         next [] unless leader_entry
 
