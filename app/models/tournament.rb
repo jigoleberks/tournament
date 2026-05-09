@@ -86,6 +86,7 @@ class Tournament < ApplicationRecord
   end
 
   def hidden_length_target_locked_once_set
+    # "Locked" means once non-nil, the value can't be changed *or* cleared back to nil.
     return unless will_save_change_to_hidden_length_target?
     return if hidden_length_target_was.nil?
     errors.add(:hidden_length_target, "can't be changed once set")
