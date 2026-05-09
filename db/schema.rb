@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_05_07_180000) do
+ActiveRecord::Schema[8.1].define(version: 2026_05_09_014534) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -82,6 +82,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_05_07_180000) do
     t.decimal "temperature_c", precision: 5, scale: 2
     t.datetime "updated_at", null: false
     t.bigint "user_id", null: false
+    t.decimal "wind_direction_deg", precision: 5, scale: 1
     t.decimal "wind_speed_kph", precision: 5, scale: 1
     t.index ["client_uuid"], name: "index_catches_on_client_uuid", unique: true
     t.index ["logged_by_user_id"], name: "index_catches_on_logged_by_user_id"

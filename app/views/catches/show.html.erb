@@ -74,10 +74,15 @@
         <div><dt class="inline text-slate-500">Temp:</dt> <dd class="inline"><%= format_temperature_dual(@catch.temperature_c) %></dd></div>
       <% end %>
       <% if @catch.barometric_pressure_hpa.present? %>
-        <div><dt class="inline text-slate-500">Pressure:</dt> <dd class="inline"><%= @catch.barometric_pressure_hpa.to_f.round(1) %> hPa</dd></div>
+        <div><dt class="inline text-slate-500">Pressure:</dt> <dd class="inline"><%= (@catch.barometric_pressure_hpa.to_f / 10).round(1) %> kPa</dd></div>
       <% end %>
       <% if @catch.wind_speed_kph.present? %>
-        <div><dt class="inline text-slate-500">Wind:</dt> <dd class="inline"><%= format_wind_dual(@catch.wind_speed_kph) %></dd></div>
+        <%
+          wind_text = format_wind_dual(@catch.wind_speed_kph)
+          compass   = format_wind_compass(@catch.wind_direction_deg)
+          wind_text = "#{wind_text} #{compass}" if compass
+        %>
+        <div><dt class="inline text-slate-500">Wind:</dt> <dd class="inline"><%= wind_text %></dd></div>
       <% end %>
       <% if @catch.moon_phase.present? %>
         <div><dt class="inline text-slate-500">Moon:</dt> <dd class="inline"><%= @catch.moon_phase %></dd></div>

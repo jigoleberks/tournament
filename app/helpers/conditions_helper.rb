@@ -12,4 +12,10 @@ module ConditionsHelper
     mph = k / 1.60934
     "#{k.round(1)} km/h / #{mph.round(1)} mph"
   end
+
+  def format_wind_compass(deg)
+    return nil if deg.nil?
+    bins = %w[N NE E SE S SW W NW]
+    bins[((deg.to_f + 22.5) / 45).floor % 8]
+  end
 end

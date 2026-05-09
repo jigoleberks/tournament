@@ -11,6 +11,19 @@ namespace :catches do
     puts "Done."
   end
 
+  desc "Backfill wind direction for catches that have GPS but no direction stored"
+  task backfill_wind_direction: :environment do
+    scope = Catch.where(wind_direction_deg: nil)
+               .where.not(latitude: nil, longitude: nil)
+    total = scope.count
+    puts "Refetching wind direction for #{total} catches…"
+    scope.ids.each_with_index do |id, i|
+      FetchCatchConditionsJob.perform_now(catch_id: id)
+      puts "  #{i + 1}/#{total} done"
+    end
+    puts "Done."
+  end
+
   desc "Backfill flags for catches whose flag column is empty"
   task backfill_flags: :environment do
     scope = Catch.where("array_length(flags, 1) IS NULL")
