@@ -69,8 +69,9 @@ module TournamentTemplates
     end
 
     test "clones template format onto the new tournament" do
-      template = create(:tournament_template, club: @club, format: :big_fish_season)
-      template.tournament_template_scoring_slots.create!(species: @walleye, slot_count: 3)
+      template = build(:tournament_template, club: @club, format: :big_fish_season)
+      template.tournament_template_scoring_slots.build(species: @walleye, slot_count: 3)
+      template.save!
 
       tournament = TournamentTemplates::Clone.call(
         template: template,
