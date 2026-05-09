@@ -36,7 +36,7 @@ class FetchCatchConditionsJob < ApplicationJob
     uri.query = URI.encode_www_form(
       latitude:   catch_record.latitude.to_f,
       longitude:  catch_record.longitude.to_f,
-      hourly:     "temperature_2m,surface_pressure,wind_speed_10m",
+      hourly:     "temperature_2m,surface_pressure,wind_speed_10m,wind_direction_10m",
       start_date: date_str,
       end_date:   date_str,
       timezone:   "UTC"
@@ -61,7 +61,8 @@ class FetchCatchConditionsJob < ApplicationJob
     {
       temperature_c:           hourly["temperature_2m"][idx],
       barometric_pressure_hpa: hourly["surface_pressure"][idx],
-      wind_speed_kph:          hourly["wind_speed_10m"][idx]
+      wind_speed_kph:          hourly["wind_speed_10m"][idx],
+      wind_direction_deg:      hourly["wind_direction_10m"][idx]
     }
   end
 

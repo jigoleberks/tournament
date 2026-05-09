@@ -749,6 +749,48 @@ class CatchesControllerTest < ActionDispatch::IntegrationTest
     assert_match "Logged by", response.body
   end
 
+  test "show: conditions panel renders pressure in kPa, not hPa" do
+    catch_record = create(:catch,
+      user: @user, species: @walleye, length_inches: 18.5,
+      barometric_pressure_hpa: 1013.25,
+      moon_phase: "Full Moon"
+    )
+
+    get catch_path(catch_record.id)
+    assert_response :success
+    assert_match "101.3 kPa", response.body
+    refute_match "hPa", response.body
+  end
+
+  test "show: conditions panel renders compass label after wind speed" do
+    catch_record = create(:catch,
+      user: @user, species: @walleye, length_inches: 18.5,
+      wind_speed_kph: 12.0,
+      wind_direction_deg: 315.0,           # NW
+      moon_phase: "Full Moon"
+    )
+
+    get catch_path(catch_record.id)
+    assert_response :success
+    assert_match "12.0 km/h", response.body
+    assert_match "NW", response.body
+  end
+
+  test "show: conditions panel omits compass label when wind_direction_deg is nil (legacy catch)" do
+    catch_record = create(:catch,
+      user: @user, species: @walleye, length_inches: 18.5,
+      wind_speed_kph: 12.0,
+      wind_direction_deg: nil,
+      moon_phase: "Full Moon"
+    )
+
+    get catch_path(catch_record.id)
+    assert_response :success
+    assert_match "12.0 km/h", response.body
+    # No compass label between speed and the next field — assert wind line ends cleanly.
+    assert_no_match(/12\.0 km\/h \/ [\d\.]+ mph (?:N|NE|E|SE|S|SW|W|NW)/, response.body)
+  end
+
   private
 
   def sign_in_as(user)
