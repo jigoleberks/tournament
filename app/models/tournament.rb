@@ -17,6 +17,10 @@ class Tournament < ApplicationRecord
   validate :format_locked_after_start, on: :update
   validate :big_fish_season_requires_solo
   validate :big_fish_season_requires_one_scoring_slot
+  validate :hidden_length_requires_one_scoring_slot
+  validate :hidden_length_requires_event_kind_with_end_time
+  validate :hidden_length_target_locked_once_set
+  validate :hidden_length_target_in_range
 
   scope :active_at, ->(time) {
     where("starts_at <= ?", time).where("ends_at IS NULL OR ends_at >= ?", time)
@@ -66,6 +70,34 @@ class Tournament < ApplicationRecord
     remaining = scoring_slots.reject(&:marked_for_destruction?)
     return if remaining.size == 1
     errors.add(:scoring_slots, "Big Fish Season tournaments must have exactly one species configured")
+  end
+
+  def hidden_length_requires_one_scoring_slot
+    return unless format_hidden_length?
+    remaining = scoring_slots.reject(&:marked_for_destruction?)
+    return if remaining.size == 1
+    errors.add(:scoring_slots, "Hidden Length tournaments must have exactly one species configured")
+  end
+
+  def hidden_length_requires_event_kind_with_end_time
+    return unless format_hidden_length?
+    return if event? && ends_at.present?
+    errors.add(:format, "Hidden Length tournaments must be event kind with an end time")
+  end
+
+  def hidden_length_target_locked_once_set
+    return unless will_save_change_to_hidden_length_target?
+    return if hidden_length_target_was.nil?
+    errors.add(:hidden_length_target, "can't be changed once set")
+  end
+
+  def hidden_length_target_in_range
+    return if hidden_length_target.blank?
+    target = hidden_length_target.to_d
+    in_bounds = target >= "12.00".to_d && target <= "22.00".to_d
+    on_quarter = (target * 4) == (target * 4).truncate
+    return if in_bounds && on_quarter
+    errors.add(:hidden_length_target, "must be a quarter-inch step between 12.00 and 22.00")
   end
 
   def blind_leaderboard_requires_end_time
