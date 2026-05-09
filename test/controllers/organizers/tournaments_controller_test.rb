@@ -204,7 +204,7 @@ class Organizers::TournamentsControllerTest < ActionDispatch::IntegrationTest
     assert tournament.reload.format_standard?
   end
 
-  test "create accepts format: hidden_length" do
+  test "create accepts format: hidden_length and drops hidden_length_target from params" do
     sign_in_as(@organizer)
     walleye = create(:species, club: @club, name: "Walleye HL")
 
@@ -217,11 +217,15 @@ class Organizers::TournamentsControllerTest < ActionDispatch::IntegrationTest
           format: "hidden_length",
           starts_at: 1.day.from_now,
           ends_at: 1.day.from_now + 4.hours,
+          hidden_length_target: "17.25",
           scoring_slots_attributes: { "0" => { species_id: walleye.id, slot_count: 1 } }
         }
       }
     end
-    assert Tournament.order(:id).last.format_hidden_length?
+    created = Tournament.order(:id).last
+    assert created.format_hidden_length?
+    assert_nil created.hidden_length_target,
+               "expected strong params to drop hidden_length_target on create"
   end
 
   test "update silently ignores hidden_length_target submitted via params" do
