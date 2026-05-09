@@ -185,4 +185,25 @@ class TournamentTest < ActiveSupport::TestCase
     t.reload
     assert t.valid?, t.errors.full_messages.to_sentence
   end
+
+  test "format cannot be changed after the tournament has started" do
+    species = create(:species)
+    t = create(:tournament, club: @club, format: :standard, mode: :solo,
+               starts_at: 1.hour.ago, ends_at: 1.hour.from_now)
+    create(:scoring_slot, tournament: t, species: species, slot_count: 1)
+
+    t.format = :big_fish_season
+    assert_not t.valid?
+    assert_includes t.errors[:format], "can't be changed once the tournament has started"
+  end
+
+  test "format can be changed before the tournament starts" do
+    species = create(:species)
+    t = create(:tournament, club: @club, format: :standard, mode: :solo,
+               starts_at: 1.hour.from_now, ends_at: 4.hours.from_now)
+    create(:scoring_slot, tournament: t, species: species, slot_count: 1)
+
+    t.format = :big_fish_season
+    assert t.valid?, t.errors.full_messages.to_sentence
+  end
 end
