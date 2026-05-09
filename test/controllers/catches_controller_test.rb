@@ -299,16 +299,56 @@ class CatchesControllerTest < ActionDispatch::IntegrationTest
     end
   end
 
-  test "show: Approve button is hidden when catch is synced" do
+  test "show: organizer sees Approve button when catch is synced" do
     catch_record = create(:catch, user: @user, species: @walleye, length_inches: 18.5, status: :synced)
     Catches::PlaceInSlots.call(catch: catch_record)
-    judge = create(:user, club: @club)
-    create(:tournament_judge, tournament: @tournament, user: judge)
-    sign_in_as(judge)
+    organizer = create(:user, club: @club, role: :organizer)
+    sign_in_as(organizer)
+
+    get catch_path(catch_record.id, t: @tournament.id)
+    assert_response :success
+    assert_select "form[action=?]",
+      judges_tournament_catch_review_path(tournament_id: @tournament.id, catch_id: catch_record.id) do
+      assert_select "input[name=?][value=?]", "action_kind", "approve"
+      assert_select "button", text: "Approve"
+    end
+  end
+
+  test "show: organizer sees Approve button when catch is disputed" do
+    catch_record = create(:catch, user: @user, species: @walleye, length_inches: 18.5, status: :disputed)
+    Catches::PlaceInSlots.call(catch: catch_record)
+    organizer = create(:user, club: @club, role: :organizer)
+    sign_in_as(organizer)
+
+    get catch_path(catch_record.id, t: @tournament.id)
+    assert_response :success
+    assert_select "input[name=?][value=?]", "action_kind", "approve"
+  end
+
+  test "show: shows 'Approved by X' instead of Approve button when catch already has an approver" do
+    approver = create(:user, club: @club, role: :organizer, name: "Pat Approver")
+    catch_record = create(:catch, user: @user, species: @walleye, length_inches: 18.5, status: :synced)
+    Catches::PlaceInSlots.call(catch: catch_record)
+    create(:judge_action, judge_user: approver, catch: catch_record, action: :approve)
+
+    viewer = create(:user, club: @club, role: :organizer)
+    sign_in_as(viewer)
 
     get catch_path(catch_record.id, t: @tournament.id)
     assert_response :success
     assert_select "input[name=?][value=?]", "action_kind", "approve", count: 0
+    assert_match "Approved by Pat Approver", response.body
+  end
+
+  test "show: owner who is an organizer sees 'can't approve own catch' instead of Approve button" do
+    @user.club_memberships.find_by(club: @club).update!(role: :organizer)
+    catch_record = create(:catch, user: @user, species: @walleye, length_inches: 18.5, status: :synced)
+    Catches::PlaceInSlots.call(catch: catch_record)
+
+    get catch_path(catch_record.id, t: @tournament.id)
+    assert_response :success
+    assert_select "input[name=?][value=?]", "action_kind", "approve", count: 0
+    assert_match "You can't approve your own catch", response.body
   end
 
   test "show: Approve button is hidden when catch is disqualified" do
