@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_05_09_014534) do
+ActiveRecord::Schema[8.1].define(version: 2026_05_09_162252) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -362,6 +362,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_05_09_014534) do
     t.bigint "club_id", null: false
     t.datetime "created_at", null: false
     t.datetime "ends_at"
+    t.integer "format", default: 0, null: false
     t.boolean "judged", default: false, null: false
     t.integer "kind", default: 0, null: false
     t.datetime "lifecycle_ended_announced_at"
