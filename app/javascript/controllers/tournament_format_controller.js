@@ -28,6 +28,8 @@ export default class extends Controller {
       this._applyBigFishSeason()
     } else if (this.formatTarget.value === "hidden_length") {
       this._applyHiddenLength()
+    } else if (this.formatTarget.value === "biggest_vs_smallest") {
+      this._applyBiggestVsSmallest()
     } else {
       this._applyStandard()
     }
@@ -77,6 +79,36 @@ export default class extends Controller {
     if (this.hasSlotsHeadingTarget) this.slotsHeadingTarget.textContent = "Species configuration"
     if (this.hasSlotsHelpTarget) {
       this.slotsHelpTarget.textContent = "Pick the one species this tournament covers. The slot count is ignored — every catch is kept until the target is rolled at the end."
+    }
+    if (this.hasSlotCountLabelTarget) {
+      this.slotCountLabelTargets.forEach((el) => { el.textContent = "Slots (ignored)" })
+    }
+
+    if (this.hasSlotRowTarget) {
+      this.slotRowTargets.forEach((el, i) => {
+        el.classList.toggle("hidden", i > 0)
+        if (i > 0) this._suppressRow(el)
+      })
+    }
+  }
+
+  _applyBiggestVsSmallest() {
+    if (this.hasFormatDescriptionTarget) {
+      this.formatDescriptionTarget.textContent = this.formatDescriptionTarget.dataset.biggestVsSmallestText
+    }
+    if (this.hasModeTarget) {
+      // Biggest vs Smallest allows both solo and team — no lock, no forced value.
+      this.modeTarget.classList.remove("opacity-60", "pointer-events-none")
+      if (this._priorMode) {
+        this.modeTarget.value = this._priorMode
+        this._priorMode = null
+      }
+    }
+    if (this.hasModeNoteTarget) this.modeNoteTarget.classList.add("hidden")
+
+    if (this.hasSlotsHeadingTarget) this.slotsHeadingTarget.textContent = "Species configuration"
+    if (this.hasSlotsHelpTarget) {
+      this.slotsHelpTarget.textContent = "Pick the one species this tournament covers. The slot count is ignored — every entry keeps their biggest and smallest fish."
     }
     if (this.hasSlotCountLabelTarget) {
       this.slotCountLabelTargets.forEach((el) => { el.textContent = "Slots (ignored)" })
