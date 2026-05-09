@@ -243,15 +243,10 @@ module Leaderboards
       t = create(:tournament, club: @club, format: :standard, starts_at: 1.hour.ago, ends_at: 1.hour.from_now)
 
       called = []
-      original_standard = Leaderboards::Rankers::Standard.method(:call)
-      original_bfs      = Leaderboards::Rankers::BigFishSeason.method(:call)
-      Leaderboards::Rankers::Standard.define_singleton_method(:call) { |rows, **| called << :standard; rows }
-      Leaderboards::Rankers::BigFishSeason.define_singleton_method(:call) { |rows, **| called << :big_fish_season; rows }
-      begin
-        Build.call(tournament: t)
-      ensure
-        Leaderboards::Rankers::Standard.define_singleton_method(:call, original_standard)
-        Leaderboards::Rankers::BigFishSeason.define_singleton_method(:call, original_bfs)
+      with_class_method_stub(Leaderboards::Rankers::Standard,      :call, ->(rows, **) { called << :standard;        rows }) do
+        with_class_method_stub(Leaderboards::Rankers::BigFishSeason, :call, ->(rows, **) { called << :big_fish_season; rows }) do
+          Build.call(tournament: t)
+        end
       end
 
       assert_equal [:standard], called
@@ -266,15 +261,10 @@ module Leaderboards
       t.reload
 
       called = []
-      original_standard = Leaderboards::Rankers::Standard.method(:call)
-      original_bfs      = Leaderboards::Rankers::BigFishSeason.method(:call)
-      Leaderboards::Rankers::Standard.define_singleton_method(:call) { |rows, **| called << :standard; rows }
-      Leaderboards::Rankers::BigFishSeason.define_singleton_method(:call) { |rows, **| called << :big_fish_season; rows }
-      begin
-        Build.call(tournament: t)
-      ensure
-        Leaderboards::Rankers::Standard.define_singleton_method(:call, original_standard)
-        Leaderboards::Rankers::BigFishSeason.define_singleton_method(:call, original_bfs)
+      with_class_method_stub(Leaderboards::Rankers::Standard,      :call, ->(rows, **) { called << :standard;        rows }) do
+        with_class_method_stub(Leaderboards::Rankers::BigFishSeason, :call, ->(rows, **) { called << :big_fish_season; rows }) do
+          Build.call(tournament: t)
+        end
       end
 
       assert_equal [:big_fish_season], called

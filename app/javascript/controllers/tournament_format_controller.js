@@ -5,9 +5,12 @@ import { Controller } from "@hotwired/stimulus"
 // big_fish_season:
 //   - mode select: forced to "solo" and visually locked (no actual `disabled` attr,
 //     so the value still submits)
-//   - scoring slots: hide all but the first row; relabel section + slot count label
+//   - scoring slots: hide all but the first row. Persisted extras are marked for
+//     destruction so accepts_nested_attributes_for removes them on save; new
+//     extras have their species cleared so reject_if drops them.
 //
-// standard: restore the default UI.
+// standard: restore the default UI, including unchecking only the destroy
+// checkboxes we marked ourselves (so user-driven removals are preserved).
 export default class extends Controller {
   static targets = [
     "format", "formatDescription",
@@ -49,11 +52,7 @@ export default class extends Controller {
     if (this.hasSlotRowTarget) {
       this.slotRowTargets.forEach((el, i) => {
         el.classList.toggle("hidden", i > 0)
-        // Clear species selection on hidden rows so they get rejected by accepts_nested_attributes_for.
-        if (i > 0) {
-          const speciesSelect = el.querySelector('select[name$="[species_id]"]')
-          if (speciesSelect) speciesSelect.value = ""
-        }
+        if (i > 0) this._suppressRow(el)
       })
     }
   }
@@ -80,7 +79,28 @@ export default class extends Controller {
     }
 
     if (this.hasSlotRowTarget) {
-      this.slotRowTargets.forEach((el) => el.classList.remove("hidden"))
+      this.slotRowTargets.forEach((el) => {
+        el.classList.remove("hidden")
+        this._unsuppressRow(el)
+      })
+    }
+  }
+
+  _suppressRow(el) {
+    const destroy = el.querySelector('input[type="checkbox"][name$="[_destroy]"]')
+    if (destroy && !destroy.checked) {
+      destroy.checked = true
+      el.dataset.tournamentFormatMarkedDestroy = "true"
+    }
+    const speciesSelect = el.querySelector('select[name$="[species_id]"]')
+    if (speciesSelect) speciesSelect.value = ""
+  }
+
+  _unsuppressRow(el) {
+    if (el.dataset.tournamentFormatMarkedDestroy === "true") {
+      const destroy = el.querySelector('input[type="checkbox"][name$="[_destroy]"]')
+      if (destroy) destroy.checked = false
+      delete el.dataset.tournamentFormatMarkedDestroy
     }
   }
 }

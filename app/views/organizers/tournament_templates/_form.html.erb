@@ -81,8 +81,7 @@
 
     <%= f.fields_for :tournament_template_scoring_slots do |sf| %>
       <div class="bg-slate-900 rounded-lg p-3 space-y-2 border border-slate-700"
-           data-tournament-format-target="slotRow"
-           data-slot-row-index="<%= sf.index %>">
+           data-tournament-format-target="slotRow">
         <label class="block text-sm text-slate-400">Species</label>
         <%= sf.collection_select :species_id, Species.order(:name), :id, :name,
                                  { include_blank: "—" },

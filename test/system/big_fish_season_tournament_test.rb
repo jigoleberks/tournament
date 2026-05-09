@@ -51,6 +51,31 @@ class BigFishSeasonTournamentTest < ApplicationSystemTestCase
     assert_includes rows[3], "18.0\""
   end
 
+  test "switching a draft tournament to Big Fish Season removes extra persisted slots" do
+    club = create(:club)
+    organizer = create(:user, club: club, role: :organizer, name: "Org")
+    walleye = create(:species, club: club, name: "Walleye")
+    pike    = create(:species, club: club, name: "Pike")
+
+    tournament = create(:tournament, club: club, name: "Two Species Draft",
+                                     mode: :solo, format: :standard,
+                                     starts_at: 1.day.from_now, ends_at: 2.days.from_now)
+    create(:scoring_slot, tournament: tournament, species: walleye, slot_count: 2)
+    create(:scoring_slot, tournament: tournament, species: pike,    slot_count: 1)
+
+    sign_in_as(organizer)
+    visit edit_organizers_tournament_path(tournament)
+
+    select "Big Fish Season", from: "Format"
+    click_button "Update Tournament"
+
+    assert_current_path organizers_tournaments_path
+    tournament.reload
+    assert tournament.big_fish_season?
+    assert_equal 1, tournament.scoring_slots.count
+    assert_equal walleye.id, tournament.scoring_slots.first.species_id
+  end
+
   private
 
   def sign_in_as(user)
