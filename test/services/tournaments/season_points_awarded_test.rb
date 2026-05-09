@@ -52,39 +52,40 @@ module Tournaments
       assert_equal({}, SeasonPointsAwarded.call(tournament: tournament))
     end
 
-    test "awards [3,2,1] for 3 anglers in solo mode" do
+    test "awards [3,2,1] placement plus 0.5 attendance bonus for 3 anglers in solo mode" do
       tournament, anglers = build_finished_solo(3, { 0 => [20], 1 => [15], 2 => [10] })
       result = SeasonPointsAwarded.call(tournament: tournament)
-      assert_equal({ anglers[0].id => 3, anglers[1].id => 2, anglers[2].id => 1 }, result)
+      assert_equal({ anglers[0].id => 3.5, anglers[1].id => 2.5, anglers[2].id => 1.5 }, result)
     end
 
-    test "awards [6,4,2] for 10 anglers" do
+    test "awards [6,4,2] placement plus 0.5 attendance bonus for 10 anglers" do
       lengths = (0...10).each_with_object({}) { |i, h| h[i] = [20 - i] }
       tournament, anglers = build_finished_solo(10, lengths)
       result = SeasonPointsAwarded.call(tournament: tournament)
-      assert_equal 6, result[anglers[0].id]
-      assert_equal 4, result[anglers[1].id]
-      assert_equal 2, result[anglers[2].id]
-      (3..9).each { |i| assert_nil result[anglers[i].id] }
+      assert_equal 6.5, result[anglers[0].id]
+      assert_equal 4.5, result[anglers[1].id]
+      assert_equal 2.5, result[anglers[2].id]
+      (3..9).each { |i| assert_equal 0.5, result[anglers[i].id] }
     end
 
-    test "awards [9,6,3] for 20 anglers" do
+    test "awards [9,6,3] placement plus 0.5 attendance bonus for 20 anglers" do
       lengths = (0...20).each_with_object({}) { |i, h| h[i] = [25 - i] }
       tournament, anglers = build_finished_solo(20, lengths)
       result = SeasonPointsAwarded.call(tournament: tournament)
-      assert_equal 9, result[anglers[0].id]
-      assert_equal 6, result[anglers[1].id]
-      assert_equal 3, result[anglers[2].id]
+      assert_equal 9.5, result[anglers[0].id]
+      assert_equal 6.5, result[anglers[1].id]
+      assert_equal 3.5, result[anglers[2].id]
+      (3..19).each { |i| assert_equal 0.5, result[anglers[i].id] }
     end
 
-    test "awards 1st and 2nd only when fewer than 3 entries have catches" do
+    test "skunked entrants still get the 0.5 attendance bonus when only 1st and 2nd have catches" do
       tournament, anglers = build_finished_solo(5, { 0 => [20], 1 => [15] })  # angler 2,3,4 skunked
       result = SeasonPointsAwarded.call(tournament: tournament)
-      assert_equal 3, result[anglers[0].id]
-      assert_equal 2, result[anglers[1].id]
-      assert_nil result[anglers[2].id]
-      assert_nil result[anglers[3].id]
-      assert_nil result[anglers[4].id]
+      assert_equal 3.5, result[anglers[0].id]
+      assert_equal 2.5, result[anglers[1].id]
+      assert_equal 0.5, result[anglers[2].id]
+      assert_equal 0.5, result[anglers[3].id]
+      assert_equal 0.5, result[anglers[4].id]
     end
 
     test "team mode: every member of a placing entry gets the points" do
@@ -118,9 +119,9 @@ module Tournaments
 
       # 8 anglers total → [3,2,1] scale
       result = SeasonPointsAwarded.call(tournament: tournament)
-      team1_users.each { |u| assert_equal 3, result[u.id], "team1 member #{u.id} should get 3" }
-      team2_users.each { |u| assert_equal 2, result[u.id], "team2 member #{u.id} should get 2" }
-      team3_users.each { |u| assert_equal 1, result[u.id], "team3 member #{u.id} should get 1" }
+      team1_users.each { |u| assert_equal 3.5, result[u.id], "team1 member #{u.id} should get 3.5" }
+      team2_users.each { |u| assert_equal 2.5, result[u.id], "team2 member #{u.id} should get 2.5" }
+      team3_users.each { |u| assert_equal 1.5, result[u.id], "team3 member #{u.id} should get 1.5" }
     end
   end
 end

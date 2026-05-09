@@ -53,12 +53,12 @@ module SeasonPoints
 
       result = Standings.call(club: @club, season_tag: "Wednesday 2026")
       points_by_name = result.to_h { |r| [r[:user].name, r[:points]] }
-      assert_equal 6, points_by_name["Alpha"]    # 3 + 3
-      assert_equal 4, points_by_name["Bravo"]    # 2 + 2
-      assert_equal 2, points_by_name["Charlie"]  # 1 + 1
+      assert_equal 7.0, points_by_name["Alpha"]    # (3 + 0.5) * 2
+      assert_equal 5.0, points_by_name["Bravo"]    # (2 + 0.5) * 2
+      assert_equal 3.0, points_by_name["Charlie"]  # (1 + 0.5) * 2
     end
 
-    test "excludes users with 0 points" do
+    test "skunked but entered anglers show up with the 0.5 attendance bonus only" do
       t, w = build_finished(season_tag: "Wednesday 2026")
       add_solo(tournament: t, in_window: w, name: "Alpha",   lengths: [25])
       add_solo(tournament: t, in_window: w, name: "Bravo",   lengths: [20])
@@ -66,8 +66,9 @@ module SeasonPoints
       add_solo(tournament: t, in_window: w, name: "Skunked", lengths: [])
 
       result = Standings.call(club: @club, season_tag: "Wednesday 2026")
-      names = result.map { |r| r[:user].name }
-      refute_includes names, "Skunked"
+      skunked = result.find { |r| r[:user].name == "Skunked" }
+      assert_not_nil skunked, "Skunked angler should appear in standings via attendance bonus"
+      assert_equal 0.5, skunked[:points]
     end
 
     test "excludes in-progress tournaments" do
@@ -107,12 +108,16 @@ module SeasonPoints
 
       result = Standings.call(club: @club, season_tag: "Wednesday 2026")
 
-      # Alpha (3) and Bravo (3) tied — Alpha first by alphabetical
-      # Charlie (2+2=4) is highest overall
-      # Delta (1+1=2) lowest
+      # With the 0.5 attendance bonus per-tournament:
+      #   Alpha   in t2 only     → 3 + 0.5         = 3.5
+      #   Bravo   in t1 only     → 3 + 0.5         = 3.5
+      #   Charlie in both        → 2 + 2 + 0.5*2   = 5.0
+      #   Delta   in both        → 1 + 1 + 0.5*2   = 3.0
+      # Alpha and Bravo tied at 3.5 — Alpha first by alphabetical
+      # Charlie still highest overall, Delta lowest
       assert_equal "Charlie", result.first[:user].name
-      tied_at_3 = result.select { |r| r[:points] == 3 }.map { |r| r[:user].name }
-      assert_equal ["Alpha", "Bravo"], tied_at_3
+      tied_at_3_5 = result.select { |r| r[:points] == 3.5 }.map { |r| r[:user].name }
+      assert_equal ["Alpha", "Bravo"], tied_at_3_5
     end
 
     test "row includes per-tournament breakdown" do
@@ -125,7 +130,7 @@ module SeasonPoints
       alpha = result.find { |r| r[:user].name == "Alpha" }
       assert_equal 1, alpha[:breakdown].size
       assert_equal t.id, alpha[:breakdown].first[:tournament_id]
-      assert_equal 3,    alpha[:breakdown].first[:points]
+      assert_equal 3.5,  alpha[:breakdown].first[:points]
     end
   end
 end

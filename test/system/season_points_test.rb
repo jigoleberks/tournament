@@ -47,17 +47,19 @@ class SeasonPointsTest < ApplicationSystemTestCase
     assert_text(/Wednesday 2026.*standings/i)
     within("section", text: /Wednesday 2026.*standings/i) do
       assert_text "1. Angler 1"
-      assert_text "6 pts"
+      assert_text "6.5 pts"
       assert_text "2. Angler 2"
-      assert_text "4 pts"
+      assert_text "4.5 pts"
       assert_text "3. Angler 3"
-      assert_text "2 pts"
-      # 4th-onward have 0 points and are excluded by Standings
-      assert_no_text "4. Angler"
+      assert_text "2.5 pts"
+      # 4th and 5th appear with the 0.5 attendance bonus (the partial caps at 5)
+      assert_text "0.5 pts"
+      # 6th onward (Angler 5-9) are not shown by the top-5 partial
+      assert_no_text "6. Angler"
     end
   end
 
-  test "view full standings page shows all placers with point totals" do
+  test "view full standings page shows all entered anglers including 0.5 attendance bonus" do
     names_with_lengths = (1..10).map { |i| ["Angler #{i}", [25 - i]] }.to_h
     build_finished_solo_tournament(season_tag: "Wednesday 2026", names_with_lengths: names_with_lengths)
 
@@ -65,11 +67,16 @@ class SeasonPointsTest < ApplicationSystemTestCase
     visit season_points_path
 
     assert_text(/Wednesday 2026.*standings/i)
+    # Top 3 receive placement points plus the 0.5 attendance bonus
     assert_text "Angler 1"
+    assert_text "6.5"
     assert_text "Angler 2"
+    assert_text "4.5"
     assert_text "Angler 3"
-    # 4th and beyond have 0 points → excluded
-    assert_no_text "Angler 4"
+    assert_text "2.5"
+    # 4th and beyond now appear in standings with the bonus only
+    assert_text "Angler 4"
+    assert_text "0.5"
     assert_link "Past league nights →"
   end
 
