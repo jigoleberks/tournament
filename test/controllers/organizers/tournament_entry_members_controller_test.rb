@@ -43,26 +43,40 @@ class Organizers::TournamentEntryMembersControllerTest < ActionDispatch::Integra
     assert_match(/Removed Galen/, flash[:notice])
   end
 
-  test "add is locked once tournament has started" do
+  test "organizer adds a member to a team entry after tournament starts" do
     @team.update!(starts_at: 1.minute.ago, ends_at: 1.hour.from_now)
-    assert_no_difference "TournamentEntryMember.count" do
+    assert_difference "TournamentEntryMember.count", 1 do
       post organizers_tournament_tournament_entry_tournament_entry_members_path(
         tournament_id: @team.id, tournament_entry_id: @entry.id), params: { user_id: @b.id }
     end
-    assert_match(/locked/i, flash[:alert])
+    assert_redirected_to edit_organizers_tournament_path(@team)
+    assert_match(/Added Galen/, flash[:notice])
   end
 
-  test "remove is locked once tournament has started" do
-    member = TournamentEntryMember.find_by(tournament_entry_id: @entry.id, user_id: @a.id)
+  test "organizer removes a member from a team entry after tournament starts and rescores leaderboard" do
+    create(:tournament_entry_member, tournament_entry: @entry, user: @b)
     @team.update!(starts_at: 1.minute.ago, ends_at: 1.hour.from_now)
-    assert_no_difference "TournamentEntryMember.count" do
-      delete organizers_tournament_tournament_entry_tournament_entry_member_path(
-        tournament_id: @team.id, tournament_entry_id: @entry.id, id: member.id)
+    member = TournamentEntryMember.find_by(tournament_entry_id: @entry.id, user_id: @b.id)
+
+    drop_calls = []
+    original = ::Catches::DropMemberFromEntry.method(:call)
+    ::Catches::DropMemberFromEntry.define_singleton_method(:call) do |entry:, user:|
+      drop_calls << [entry.id, user.id]
+      entry.tournament_entry_members.find_by(user_id: user.id)&.destroy
     end
-    assert_match(/locked/i, flash[:alert])
+    begin
+      assert_difference "TournamentEntryMember.count", -1 do
+        delete organizers_tournament_tournament_entry_tournament_entry_member_path(
+          tournament_id: @team.id, tournament_entry_id: @entry.id, id: member.id)
+      end
+    ensure
+      ::Catches::DropMemberFromEntry.define_singleton_method(:call, original)
+    end
+    assert_equal [[@entry.id, @b.id]], drop_calls
+    assert_match(/Removed Galen/, flash[:notice])
   end
 
-  test "add is locked on solo tournaments" do
+  test "add is rejected on solo tournaments" do
     solo = create(:tournament, club: @club, mode: :solo,
                                starts_at: 1.hour.from_now, ends_at: 3.hours.from_now)
     solo_entry = create(:tournament_entry, tournament: solo)
@@ -71,7 +85,7 @@ class Organizers::TournamentEntryMembersControllerTest < ActionDispatch::Integra
       post organizers_tournament_tournament_entry_tournament_entry_members_path(
         tournament_id: solo.id, tournament_entry_id: solo_entry.id), params: { user_id: @b.id }
     end
-    assert_match(/locked/i, flash[:alert])
+    assert_match(/Solo entries can't have additional members/i, flash[:alert])
   end
 
   test "add rejects user from another club" do

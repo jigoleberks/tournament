@@ -40,13 +40,13 @@ class Admin::TournamentEntryMembersControllerTest < ActionDispatch::IntegrationT
     assert_redirected_to edit_admin_tournament_path(@team)
   end
 
-  test "add is locked once tournament has started" do
+  test "organizer adds a member to a team entry after tournament starts" do
     @team.update!(starts_at: 1.minute.ago, ends_at: 1.hour.from_now)
-    assert_no_difference "TournamentEntryMember.count" do
+    assert_difference "TournamentEntryMember.count", 1 do
       post admin_tournament_tournament_entry_tournament_entry_members_path(
         tournament_id: @team.id, tournament_entry_id: @entry.id), params: { user_id: @b.id }
     end
-    assert_match(/locked/i, flash[:alert])
+    assert_redirected_to edit_admin_tournament_path(@team)
   end
 
   test "add rejects user from another club" do
@@ -59,7 +59,7 @@ class Admin::TournamentEntryMembersControllerTest < ActionDispatch::IntegrationT
     assert_match(/not found/i, flash[:alert])
   end
 
-  test "add is locked on solo tournaments" do
+  test "add is rejected on solo tournaments" do
     solo = create(:tournament, club: @club, mode: :solo,
                                starts_at: 1.hour.from_now, ends_at: 3.hours.from_now)
     solo_entry = create(:tournament_entry, tournament: solo)
@@ -68,7 +68,7 @@ class Admin::TournamentEntryMembersControllerTest < ActionDispatch::IntegrationT
       post admin_tournament_tournament_entry_tournament_entry_members_path(
         tournament_id: solo.id, tournament_entry_id: solo_entry.id), params: { user_id: @b.id }
     end
-    assert_match(/locked/i, flash[:alert])
+    assert_match(/Solo entries can't have additional members/i, flash[:alert])
   end
 
   private

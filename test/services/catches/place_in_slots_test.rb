@@ -67,6 +67,26 @@ module Catches
       assert small.catch_placements.empty?
     end
 
+    test "skips placement when membership is dropped between tournament resolution and entry lock" do
+      catch_record = create(:catch, user: @user, species: @walleye, length_inches: 20)
+
+      original = ::Tournaments::ActiveForUser.method(:with_entries)
+      ::Tournaments::ActiveForUser.define_singleton_method(:with_entries) do |user:, at: Time.current|
+        rows = original.call(user: user, at: at)
+        # Simulate the user being dropped between this query and PlaceInSlots's entry.lock!
+        user.tournament_entry_members.destroy_all
+        rows
+      end
+      begin
+        result = PlaceInSlots.call(catch: catch_record)
+      ensure
+        ::Tournaments::ActiveForUser.define_singleton_method(:with_entries, original)
+      end
+
+      assert_empty result[:created]
+      assert_equal 0, catch_record.catch_placements.count
+    end
+
     test "credits multiple active tournaments — boat entry and individual entry" do
       # Boat tournament (team mode)
       boat_tournament = create(:tournament, club: @club, mode: :team,

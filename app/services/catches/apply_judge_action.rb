@@ -52,10 +52,19 @@ module Catches
           @catch.update!(length_inches: @length_inches) if @length_inches
 
           if @species_id && @species_id != prior_species
-            # Lock affected entries in id order so concurrent PlaceInSlots / other
-            # judge actions don't deadlock with us. Mirrors the disqualify path.
-            entry_ids = @catch.catch_placements.active.pluck(:tournament_entry_id).uniq.sort
-            entry_ids.each { |id| TournamentEntry.lock.find(id) }
+            # Lock the union of (entries currently holding placements for this
+            # catch) and (entries the inner PlaceInSlots will iterate at
+            # @catch.captured_at_device), in id-asc order. Locking only the
+            # first set would let PlaceInSlots later acquire an intermediate
+            # entry id while a concurrent PlaceInSlots in another transaction
+            # holds it and waits for one of ours — a deadlock.
+            current_entry_ids = @catch.catch_placements.active.pluck(:tournament_entry_id)
+            reachable_entry_ids = ::Tournaments::ActiveForUser
+              .with_entries(user: @catch.user, at: @catch.captured_at_device)
+              .map { |row| row[:entry].id }
+            (current_entry_ids + reachable_entry_ids).uniq.sort.each do |id|
+              TournamentEntry.lock.find(id)
+            end
 
             freed = @catch.catch_placements.active.to_a
             @catch.catch_placements.active.update_all(active: false)
