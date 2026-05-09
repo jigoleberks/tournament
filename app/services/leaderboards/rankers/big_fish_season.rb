@@ -4,7 +4,8 @@ module Leaderboards
       # Big Fish Season shows one row per catch (not per entry). Multiple catches
       # by the same angler each get their own row. Sort by length desc, then by
       # earliest captured_at_device, then entry.id, then catch.id for stability.
-      def self.call(entry_rows)
+      def self.call(entry_rows, tournament: nil)
+        _ = tournament  # accepted for ranker uniformity; BigFishSeason does not use it
         far_future = ::Time.zone.at(0) + 100.years
         per_catch_rows = entry_rows.flat_map do |row|
           row[:fish].map do |f|
