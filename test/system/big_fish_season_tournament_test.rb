@@ -1,12 +1,12 @@
 require "application_system_test_case"
 
 class BigFishSeasonTournamentTest < ApplicationSystemTestCase
-  test "leaderboard ranks members by single biggest walleye, with Biggest column header" do
+  test "leaderboard shows one row per catch sorted by length, with Length column header" do
     club = create(:club)
     walleye = create(:species, club: club, name: "Walleye")
 
-    one_big   = create(:user, club: club, name: "One Big")
-    grinder   = create(:user, club: club, name: "Grinder")
+    galen     = create(:user, club: club, name: "Galen Patterson")
+    galen_pc  = create(:user, club: club, name: "Galen PC")
 
     tournament = build(:tournament, club: club, name: "Big Walleye Season",
                                     mode: :solo, format: :big_fish_season,
@@ -15,36 +15,40 @@ class BigFishSeasonTournamentTest < ApplicationSystemTestCase
     create(:scoring_slot, tournament: tournament, species: walleye, slot_count: 3)
     tournament.reload
 
-    e1 = create(:tournament_entry, tournament: tournament, name: "One Big")
-    create(:tournament_entry_member, tournament_entry: e1, user: one_big)
-    e2 = create(:tournament_entry, tournament: tournament, name: "Grinder")
-    create(:tournament_entry_member, tournament_entry: e2, user: grinder)
+    e1 = create(:tournament_entry, tournament: tournament, name: "Galen Patterson")
+    create(:tournament_entry_member, tournament_entry: e1, user: galen)
+    e2 = create(:tournament_entry, tournament: tournament, name: "Galen PC")
+    create(:tournament_entry_member, tournament_entry: e2, user: galen_pc)
 
-    # One Big has a single 30" walleye.
-    Catches::PlaceInSlots.call(catch: create(:catch, user: one_big, species: walleye, length_inches: 30))
+    # Galen Patterson: 25", 21", 18". Galen PC: 22".
+    Catches::PlaceInSlots.call(catch: create(:catch, user: galen, species: walleye, length_inches: 25))
+    Catches::PlaceInSlots.call(catch: create(:catch, user: galen, species: walleye, length_inches: 21))
+    Catches::PlaceInSlots.call(catch: create(:catch, user: galen, species: walleye, length_inches: 18))
+    Catches::PlaceInSlots.call(catch: create(:catch, user: galen_pc, species: walleye, length_inches: 22))
 
-    # Grinder has three 25" walleye — bigger total but smaller maximum.
-    [25, 25, 25].each do |len|
-      Catches::PlaceInSlots.call(catch: create(:catch, user: grinder, species: walleye, length_inches: len))
-    end
-
-    sign_in_as(one_big)
+    sign_in_as(galen)
     visit tournament_path(tournament)
 
-    # Header reads "Biggest", not "Total"
-    assert_selector "th", text: "Biggest"
+    # Header reads "Length", not "Biggest" or "Total"
+    assert_selector "th", text: "Length"
+    assert_no_selector "th", text: "Biggest"
     assert_no_selector "th", text: "Total"
 
-    # Row order: One Big leads (30") above Grinder (max 25" despite three fish).
+    # Four rows, one per catch, ordered by length desc:
+    #   1. Galen Patterson — 25
+    #   2. Galen PC        — 22
+    #   3. Galen Patterson — 21
+    #   4. Galen Patterson — 18
     rows = page.all("#leaderboard tbody tr").map(&:text)
-    assert_equal 2, rows.size
-    assert_match(/One Big/, rows[0], "single 30\" walleye should outrank three 25\" walleye")
-    assert_match(/Grinder/, rows[1])
-
-    # Leader's scoring cell shows their biggest (30") not the sum (30 vs 75).
-    leader_row = page.find("#leaderboard tbody tr:first-of-type")
-    assert_match(/30/, leader_row.text)
-    assert_no_match(/75/, leader_row.text)
+    assert_equal 4, rows.size
+    assert_includes rows[0], "Galen Patterson"
+    assert_includes rows[0], "25.0\""
+    assert_includes rows[1], "Galen PC"
+    assert_includes rows[1], "22.0\""
+    assert_includes rows[2], "Galen Patterson"
+    assert_includes rows[2], "21.0\""
+    assert_includes rows[3], "Galen Patterson"
+    assert_includes rows[3], "18.0\""
   end
 
   private

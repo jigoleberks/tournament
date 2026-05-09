@@ -29,6 +29,7 @@ module Leaderboards
             {
               id: p.catch.id,
               length_inches: p.catch.length_inches,
+              captured_at_device: p.catch.captured_at_device,
               species_name: p.catch.species.name,
               angler_name: p.catch.user.name,
               logged_by_name: p.catch.logged_by_user&.name,

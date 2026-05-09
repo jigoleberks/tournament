@@ -1,19 +1,29 @@
 module Leaderboards
   module Rankers
     class BigFishSeason
-      # Rank by single biggest fish, tiebreaking through 2nd biggest, 3rd biggest,
-      # then earliest captured_at_device, then entry.id. No `complete?` or `total` term:
-      # one 30" walleye outranks three 25" walleye regardless of slot fill.
-      def self.call(rows, tournament:)
-        max_fish = rows.map { |r| r[:fish].size }.max || 0
+      # Big Fish Season shows one row per catch (not per entry). Multiple catches
+      # by the same angler each get their own row. Sort by length desc, then by
+      # earliest captured_at_device, then entry.id, then catch.id for stability.
+      def self.call(entry_rows, tournament:)
         far_future = ::Time.zone.at(0) + 100.years
-        rows.sort_by do |r|
-          fish_desc = r[:fish].map { |f| f[:length_inches] }.sort.reverse
-          fish_padded = fish_desc + [0] * (max_fish - fish_desc.size)
+        per_catch_rows = entry_rows.flat_map do |row|
+          row[:fish].map do |f|
+            {
+              entry: row[:entry],
+              total: f[:length_inches],
+              fish: [f],
+              fish_lengths: [f[:length_inches]],
+              earliest_catch_at: f[:captured_at_device],
+              complete: false
+            }
+          end
+        end
+        per_catch_rows.sort_by do |r|
           [
-            *fish_padded.map { |l| -l },
+            -r[:total],
             r[:earliest_catch_at] || far_future,
-            r[:entry].id
+            r[:entry].id,
+            r[:fish].first[:id]
           ]
         end
       end
