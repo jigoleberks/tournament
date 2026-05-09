@@ -12,10 +12,11 @@ module Leaderboards
 
     def self.ranker_for(format)
       case format
-      when "standard"        then Leaderboards::Rankers::Standard
-      when "big_fish_season" then Leaderboards::Rankers::BigFishSeason
-      when "hidden_length"   then Leaderboards::Rankers::HiddenLength
-      else                        Leaderboards::Rankers::Standard
+      when "standard"            then Leaderboards::Rankers::Standard
+      when "big_fish_season"     then Leaderboards::Rankers::BigFishSeason
+      when "hidden_length"       then Leaderboards::Rankers::HiddenLength
+      when "biggest_vs_smallest" then Leaderboards::Rankers::BiggestVsSmallest
+      else                            Leaderboards::Rankers::Standard
       end
     end
 

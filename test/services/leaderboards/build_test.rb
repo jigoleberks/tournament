@@ -289,5 +289,27 @@ module Leaderboards
 
       assert_equal [:hidden_length], called
     end
+
+    test "dispatches to Rankers::BiggestVsSmallest for biggest_vs_smallest tournaments" do
+      walleye = create(:species)
+      t = build(:tournament, club: @club, format: :biggest_vs_smallest, mode: :solo,
+                kind: :event, starts_at: 1.hour.ago, ends_at: 1.hour.from_now)
+      t.save!(validate: false)
+      create(:scoring_slot, tournament: t, species: walleye, slot_count: 1)
+      t.reload
+
+      called = []
+      with_class_method_stub(Leaderboards::Rankers::Standard,         :call, ->(rows) { called << :standard;          rows }) do
+        with_class_method_stub(Leaderboards::Rankers::BigFishSeason,  :call, ->(rows) { called << :big_fish_season;   rows }) do
+          with_class_method_stub(Leaderboards::Rankers::HiddenLength, :call, ->(rows, tournament: nil) { called << :hidden_length;   rows }) do
+            with_class_method_stub(Leaderboards::Rankers::BiggestVsSmallest, :call, ->(rows) { called << :biggest_vs_smallest; rows }) do
+              Build.call(tournament: t)
+            end
+          end
+        end
+      end
+
+      assert_equal [:biggest_vs_smallest], called
+    end
   end
 end
