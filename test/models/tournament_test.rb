@@ -206,4 +206,13 @@ class TournamentTest < ActiveSupport::TestCase
     t.format = :big_fish_season
     assert t.valid?, t.errors.full_messages.to_sentence
   end
+
+  test "format enum includes hidden_length" do
+    t = build(:tournament, club: @club, format: :hidden_length, mode: :solo,
+              kind: :event, ends_at: 2.hours.from_now)
+    walleye = create(:species, club: @club)
+    t.scoring_slots.build(species: walleye, slot_count: 1)
+    assert t.valid?, t.errors.full_messages.inspect
+    assert t.format_hidden_length?
+  end
 end

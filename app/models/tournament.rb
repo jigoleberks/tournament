@@ -9,7 +9,7 @@ class Tournament < ApplicationRecord
   has_many :judge_users, through: :tournament_judges, source: :user
   enum :kind, { event: 0, ongoing: 1 }
   enum :mode, { solo: 0, team: 1 }, prefix: true
-  enum :format, { standard: 0, big_fish_season: 1 }, prefix: true
+  enum :format, { standard: 0, big_fish_season: 1, hidden_length: 2 }, prefix: true
 
   validates :name, :kind, :mode, :starts_at, presence: true
   validate :blind_leaderboard_requires_end_time
