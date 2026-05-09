@@ -309,4 +309,32 @@ class TournamentTest < ActiveSupport::TestCase
     assert t.valid?, t.errors.full_messages.inspect
     assert t.format_biggest_vs_smallest?
   end
+
+  test "biggest_vs_smallest tournament errors when no scoring slot is configured" do
+    t = build(:tournament, club: @club, format: :biggest_vs_smallest, mode: :solo,
+              kind: :event, ends_at: 2.hours.from_now)
+    assert_not t.valid?
+    assert_includes t.errors[:scoring_slots],
+                    "Biggest vs Smallest tournaments must have exactly one species configured"
+  end
+
+  test "biggest_vs_smallest tournament errors with more than one scoring slot" do
+    walleye = create(:species, club: @club)
+    pike    = create(:species, club: @club)
+    t = build(:tournament, club: @club, format: :biggest_vs_smallest, mode: :solo,
+              kind: :event, ends_at: 2.hours.from_now)
+    t.scoring_slots.build(species: walleye, slot_count: 1)
+    t.scoring_slots.build(species: pike, slot_count: 1)
+    assert_not t.valid?
+    assert_includes t.errors[:scoring_slots],
+                    "Biggest vs Smallest tournaments must have exactly one species configured"
+  end
+
+  test "biggest_vs_smallest tournament accepts exactly one scoring slot" do
+    walleye = create(:species, club: @club)
+    t = build(:tournament, club: @club, format: :biggest_vs_smallest, mode: :solo,
+              kind: :event, ends_at: 2.hours.from_now)
+    t.scoring_slots.build(species: walleye, slot_count: 1)
+    assert t.valid?, t.errors.full_messages.inspect
+  end
 end
