@@ -45,4 +45,24 @@ class ApplicationHelperTest < ActionView::TestCase
     output = tournament_window(tournament(starts_at: starts))
     assert_not_includes output, "  ", "should not contain double spaces"
   end
+
+  test "format_season_points renders 0 as plain integer" do
+    assert_equal "0", format_season_points(0)
+  end
+
+  test "format_season_points trims .0 from whole-number floats" do
+    assert_equal "6", format_season_points(6.0)
+  end
+
+  test "format_season_points keeps integer values plain" do
+    assert_equal "3", format_season_points(3)
+  end
+
+  test "format_season_points renders halves with one decimal" do
+    assert_equal "3.5", format_season_points(3.5)
+  end
+
+  test "format_season_points renders bare half" do
+    assert_equal "0.5", format_season_points(0.5)
+  end
 end

@@ -13,6 +13,11 @@ module ApplicationHelper
     end
   end
 
+  def format_season_points(n)
+    formatted = format("%.1f", n)
+    formatted.end_with?(".0") ? formatted.chomp(".0") : formatted
+  end
+
   private
 
   def format_tournament_moment(time)
