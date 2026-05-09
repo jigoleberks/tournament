@@ -101,4 +101,37 @@ class TournamentTemplateTest < ActiveSupport::TestCase
     assert_includes t.errors[:tournament_template_scoring_slots],
                     "Big Fish Season tournaments must have exactly one species configured"
   end
+
+  test "format enum includes hidden_length" do
+    walleye = create(:species, club: @club)
+    tpl = build(:tournament_template, club: @club, format: :hidden_length, mode: :solo)
+    tpl.tournament_template_scoring_slots.build(species: walleye, slot_count: 1)
+    assert tpl.valid?, tpl.errors.full_messages.inspect
+    assert tpl.format_hidden_length?
+  end
+
+  test "hidden_length template errors when no scoring slot is configured" do
+    tpl = build(:tournament_template, club: @club, format: :hidden_length, mode: :solo)
+    assert_not tpl.valid?
+    assert_includes tpl.errors[:tournament_template_scoring_slots],
+                    "Hidden Length tournaments must have exactly one species configured"
+  end
+
+  test "hidden_length template errors with more than one scoring slot" do
+    walleye = create(:species, club: @club)
+    pike    = create(:species, club: @club)
+    tpl = build(:tournament_template, club: @club, format: :hidden_length, mode: :solo)
+    tpl.tournament_template_scoring_slots.build(species: walleye, slot_count: 1)
+    tpl.tournament_template_scoring_slots.build(species: pike, slot_count: 1)
+    assert_not tpl.valid?
+    assert_includes tpl.errors[:tournament_template_scoring_slots],
+                    "Hidden Length tournaments must have exactly one species configured"
+  end
+
+  test "hidden_length template accepts team mode" do
+    walleye = create(:species, club: @club)
+    tpl = build(:tournament_template, club: @club, format: :hidden_length, mode: :team)
+    tpl.tournament_template_scoring_slots.build(species: walleye, slot_count: 1)
+    assert tpl.valid?, tpl.errors.full_messages.inspect
+  end
 end
