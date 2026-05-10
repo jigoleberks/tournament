@@ -1,2 +1,2 @@
 @import "tailwindcss";
-@import "../stylesheets/actiontext.css";
+@import "../stylesheets/actiontext.css" layer(base);
