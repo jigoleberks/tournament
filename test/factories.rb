@@ -120,6 +120,6 @@ FactoryBot.define do
     association :club
     association :edited_by_user, factory: :user
     season { :open_water }
-    body { "# Rules\n\n- Be excellent to each other." }
+    body { "<h1>Rules</h1><div>Be excellent to each other.</div>" }
   end
 end

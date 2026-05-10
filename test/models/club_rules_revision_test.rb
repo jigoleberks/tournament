@@ -48,4 +48,11 @@ class ClubRulesRevisionTest < ActiveSupport::TestCase
 
     assert_nil ClubRulesRevision.latest_for(club: @club, season: :ice)
   end
+
+  test "body is an Action Text rich-text association" do
+    rev = create(:club_rules_revision, club: @club, edited_by_user: @user,
+                                       body: "<h1>Hello</h1>")
+    assert_kind_of ActionText::RichText, rev.body
+    assert_includes rev.body.to_s, "<h1>Hello</h1>"
+  end
 end
