@@ -438,3 +438,6 @@ trix-editor .attachment__metadata {
   padding: 0 !important;
   max-width: 100% !important;
 }
+
+/* Hide the file-attach toolbar group; rules are text-only. */
+trix-toolbar .trix-button-group--file-tools { display: none; }
