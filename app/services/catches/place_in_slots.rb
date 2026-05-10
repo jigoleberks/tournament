@@ -122,7 +122,7 @@ module Catches
       # leak pre-commit state to other DB connections) and will issue its own
       # broadcast after its outer transaction commits. We skip both the leaderboard
       # rebroadcast and the notification dispatch in that case.
-      result = { created: created, bumped: bumped, affected_tournaments: affected_tournaments.to_a }
+      result = { created: created, bumped: bumped, affected_tournaments: affected_tournaments.to_a, submitter: @catch.user }
 
       if @broadcast
         affected_tournaments.each { |t| Placements::BroadcastLeaderboard.call(tournament: t) }
