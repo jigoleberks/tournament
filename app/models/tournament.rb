@@ -9,7 +9,7 @@ class Tournament < ApplicationRecord
   has_many :judge_users, through: :tournament_judges, source: :user
   enum :kind, { event: 0, ongoing: 1 }
   enum :mode, { solo: 0, team: 1 }, prefix: true
-  enum :format, { standard: 0, big_fish_season: 1, hidden_length: 2, biggest_vs_smallest: 3 }, prefix: true
+  enum :format, { standard: 0, big_fish_season: 1, hidden_length: 2, biggest_vs_smallest: 3, fish_train: 4 }, prefix: true
 
   validates :name, :kind, :mode, :starts_at, presence: true
   validate :blind_leaderboard_requires_end_time
@@ -23,6 +23,10 @@ class Tournament < ApplicationRecord
   validate :hidden_length_target_in_range
   validate :biggest_vs_smallest_requires_one_scoring_slot
   validate :biggest_vs_smallest_requires_event_kind_with_end_time
+  validate :fish_train_requires_event_kind_with_end_time
+  validate :fish_train_pool_size_between_1_and_3
+  validate :fish_train_train_cars_length_between_3_and_6
+  validate :fish_train_train_cars_species_in_pool
 
   scope :active_at, ->(time) {
     where("starts_at <= ?", time).where("ends_at IS NULL OR ends_at >= ?", time)
@@ -134,5 +138,36 @@ class Tournament < ApplicationRecord
     return unless will_save_change_to_format?
     return if starts_at.blank? || starts_at > Time.current
     errors.add(:format, "can't be changed once the tournament has started")
+  end
+
+  def fish_train_requires_event_kind_with_end_time
+    return unless format_fish_train?
+    return if event? && ends_at.present?
+    errors.add(:format, "Fish Train tournaments must be event kind with an end time")
+  end
+
+  def fish_train_pool_size_between_1_and_3
+    return unless format_fish_train?
+    remaining = scoring_slots.reject(&:marked_for_destruction?)
+    distinct_count = remaining.map(&:species_id).uniq.size
+    return if distinct_count.between?(1, 3)
+    errors.add(:scoring_slots, "Fish Train tournaments must have between 1 and 3 species in the pool")
+  end
+
+  def fish_train_train_cars_length_between_3_and_6
+    return unless format_fish_train?
+    size = (train_cars || []).size
+    return if size.between?(3, 6)
+    errors.add(:train_cars, "Fish Train must have between 3 and 6 cars")
+  end
+
+  def fish_train_train_cars_species_in_pool
+    return unless format_fish_train?
+    remaining = scoring_slots.reject(&:marked_for_destruction?)
+    pool_species_ids = remaining.map(&:species_id).compact.uniq
+    cars = train_cars || []
+    return if cars.empty?
+    return if cars.all? { |sp_id| pool_species_ids.include?(sp_id) }
+    errors.add(:train_cars, "Fish Train cars must reference species in the pool")
   end
 end

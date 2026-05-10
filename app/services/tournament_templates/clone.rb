@@ -10,6 +10,7 @@ module TournamentTemplates
           kind: :event,
           mode: template.mode,
           format: template.format,
+          train_cars: template.train_cars,
           starts_at: starts_at,
           ends_at: ends_at,
           season_tag: season_tag,

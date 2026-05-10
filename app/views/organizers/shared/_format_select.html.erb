@@ -1,11 +1,12 @@
 <%# Local: f (form builder), record (Tournament or TournamentTemplate) %>
 <% locked = record.respond_to?(:starts_at) && record.persisted? && record.starts_at && record.starts_at <= Time.current %>
-<% labels = { "standard" => "Standard", "big_fish_season" => "Big Fish Season", "hidden_length" => "Hidden Length", "biggest_vs_smallest" => "Biggest vs Smallest" } %>
+<% labels = { "standard" => "Standard", "big_fish_season" => "Big Fish Season", "hidden_length" => "Hidden Length", "biggest_vs_smallest" => "Biggest vs Smallest", "fish_train" => "Fish Train" } %>
 <% descriptions = {
   "standard" => "Per-species scoring slots. Each member or team logs their top fish per species; the leaderboard ranks by total length.",
   "big_fish_season" => "Ranks members by their single biggest fish (tiebroken by next-biggest). Solo only, one species.",
   "hidden_length" => "Random target length (12–22\") is rolled when the tournament ends. Closest catch wins. Solo or team, one species. Requires an end time.",
-  "biggest_vs_smallest" => "Score is your biggest catch's length minus your smallest catch's length. Largest spread wins. Solo or team, one species, requires an end time. Need at least 2 catches to qualify."
+  "biggest_vs_smallest" => "Score is your biggest catch's length minus your smallest catch's length. Largest spread wins. Solo or team, one species, requires an end time. Need at least 2 catches to qualify.",
+  "fish_train" => "Catch a configured train of species in order. Each new car locks the previous one. Score is the sum of car lengths. Solo or team, 1–3 species pool, 3–6 ordered cars, requires an end time."
 } %>
 <% current_format = record.format.presence || "standard" %>
 <div>
@@ -24,7 +25,8 @@
      data-standard-text="<%= descriptions["standard"] %>"
      data-big-fish-season-text="<%= descriptions["big_fish_season"] %>"
      data-hidden-length-text="<%= descriptions["hidden_length"] %>"
-     data-biggest-vs-smallest-text="<%= descriptions["biggest_vs_smallest"] %>">
+     data-biggest-vs-smallest-text="<%= descriptions["biggest_vs_smallest"] %>"
+     data-fish-train-text="<%= descriptions["fish_train"] %>">
     <%= descriptions[current_format] %>
   </p>
   <% if locked %>

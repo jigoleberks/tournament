@@ -4,7 +4,7 @@ class TournamentTemplate < ApplicationRecord
   accepts_nested_attributes_for :tournament_template_scoring_slots, allow_destroy: true,
                                 reject_if: ->(attrs) { attrs["species_id"].blank? }
   enum :mode, { solo: 0, team: 1 }, prefix: true
-  enum :format, { standard: 0, big_fish_season: 1, hidden_length: 2, biggest_vs_smallest: 3 }, prefix: true
+  enum :format, { standard: 0, big_fish_season: 1, hidden_length: 2, biggest_vs_smallest: 3, fish_train: 4 }, prefix: true
   validates :name, presence: true
   validates :default_weekday, inclusion: { in: 0..6 }, allow_nil: true
   validate :default_schedule_all_or_nothing
@@ -13,6 +13,9 @@ class TournamentTemplate < ApplicationRecord
   validate :big_fish_season_requires_one_scoring_slot
   validate :hidden_length_requires_one_scoring_slot
   validate :biggest_vs_smallest_requires_one_scoring_slot
+  validate :fish_train_pool_size_between_1_and_3
+  validate :fish_train_train_cars_length_between_3_and_6
+  validate :fish_train_train_cars_species_in_pool
 
   def scheduled?
     default_weekday.present? && default_start_time.present? && default_end_time.present?
@@ -35,6 +38,32 @@ class TournamentTemplate < ApplicationRecord
   end
 
   private
+
+  def fish_train_pool_size_between_1_and_3
+    return unless format_fish_train?
+    remaining = tournament_template_scoring_slots.reject(&:marked_for_destruction?)
+    distinct_count = remaining.map(&:species_id).uniq.size
+    return if distinct_count.between?(1, 3)
+    errors.add(:tournament_template_scoring_slots,
+               "Fish Train tournaments must have between 1 and 3 species in the pool")
+  end
+
+  def fish_train_train_cars_length_between_3_and_6
+    return unless format_fish_train?
+    size = (train_cars || []).size
+    return if size.between?(3, 6)
+    errors.add(:train_cars, "Fish Train must have between 3 and 6 cars")
+  end
+
+  def fish_train_train_cars_species_in_pool
+    return unless format_fish_train?
+    remaining = tournament_template_scoring_slots.reject(&:marked_for_destruction?)
+    pool_species_ids = remaining.map(&:species_id).compact.uniq
+    cars = train_cars || []
+    return if cars.empty?
+    return if cars.all? { |sp_id| pool_species_ids.include?(sp_id) }
+    errors.add(:train_cars, "Fish Train cars must reference species in the pool")
+  end
 
   def combine(date, time)
     Time.zone.local(date.year, date.month, date.day, time.hour, time.min, time.sec)

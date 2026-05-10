@@ -36,18 +36,29 @@
   <section class="bg-slate-800 rounded-xl p-4 mb-4">
     <h2 class="text-sm uppercase tracking-wide text-slate-400 mb-2">Scoring</h2>
     <ul class="text-slate-100 space-y-1">
-      <% slots.each do |slot| %>
+      <% if @tournament.format_fish_train? %>
         <li>
-          <% if @tournament.format_biggest_vs_smallest? %>
-            Biggest minus smallest <%= slot.species.name.downcase %>
-          <% elsif @tournament.format_hidden_length? %>
-            Hidden length 12"-22" <%= slot.species.name.downcase %>
-          <% elsif slot.slot_count == 1 %>
-            Largest <%= slot.species.name.downcase %>
-          <% else %>
-            Top <%= slot.slot_count %> <%= slot.species.name.downcase.pluralize %>
+          Train:
+          <% @tournament.train_cars.each_with_index do |sp_id, idx| %>
+            <% sp = @tournament.scoring_slots.find { |s| s.species_id == sp_id }&.species %>
+            <%= sp&.name || "?" %><% if idx < @tournament.train_cars.size - 1 %> → <% end %>
           <% end %>
+          (<%= @tournament.train_cars.size %> cars)
         </li>
+      <% else %>
+        <% slots.each do |slot| %>
+          <li>
+            <% if @tournament.format_biggest_vs_smallest? %>
+              Biggest minus smallest <%= slot.species.name.downcase %>
+            <% elsif @tournament.format_hidden_length? %>
+              Hidden length 12"-22" <%= slot.species.name.downcase %>
+            <% elsif slot.slot_count == 1 %>
+              Largest <%= slot.species.name.downcase %>
+            <% else %>
+              Top <%= slot.slot_count %> <%= slot.species.name.downcase.pluralize %>
+            <% end %>
+          </li>
+        <% end %>
       <% end %>
     </ul>
     <% if @entry_count.to_i.positive? %>

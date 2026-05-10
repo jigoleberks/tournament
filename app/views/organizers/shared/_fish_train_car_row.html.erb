@@ -1,0 +1,22 @@
+<%# Local: f (form builder), club, species_id (Integer or nil) %>
+<div data-fish-train-builder-target="car"
+     class="flex items-center gap-2 mb-2 p-2 rounded-lg bg-slate-900 border border-slate-700">
+  <select name="<%= f.object_name %>[train_cars][]"
+          class="flex-1 h-10 px-3 rounded bg-slate-950 border border-slate-700 text-sm">
+    <% Species.order(:name).each do |sp| %>
+      <option value="<%= sp.id %>" <%= 'selected' if sp.id == species_id %>><%= sp.name %></option>
+    <% end %>
+  </select>
+  <button type="button"
+          data-action="fish-train-builder#moveUp"
+          class="h-10 w-10 rounded bg-slate-700 hover:bg-slate-600 disabled:opacity-40"
+          aria-label="Move car up">↑</button>
+  <button type="button"
+          data-action="fish-train-builder#moveDown"
+          class="h-10 w-10 rounded bg-slate-700 hover:bg-slate-600 disabled:opacity-40"
+          aria-label="Move car down">↓</button>
+  <button type="button"
+          data-action="fish-train-builder#remove"
+          class="h-10 w-10 rounded bg-rose-900 hover:bg-rose-800 disabled:opacity-40"
+          aria-label="Remove car">×</button>
+</div>

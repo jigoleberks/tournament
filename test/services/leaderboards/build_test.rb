@@ -311,5 +311,22 @@ module Leaderboards
 
       assert_equal [:biggest_vs_smallest], called
     end
+
+    test "dispatches to Rankers::FishTrain for fish_train tournaments" do
+      walleye = create(:species)
+      t = build(:tournament, club: @club, format: :fish_train, mode: :solo,
+                kind: :event, starts_at: 1.hour.ago, ends_at: 1.hour.from_now,
+                train_cars: [walleye.id, walleye.id, walleye.id])
+      t.save!(validate: false)
+      create(:scoring_slot, tournament: t, species: walleye, slot_count: 1)
+      t.reload
+
+      called = []
+      with_class_method_stub(Leaderboards::Rankers::FishTrain, :call, ->(rows) { called << :fish_train; rows }) do
+        Build.call(tournament: t)
+      end
+
+      assert_equal [:fish_train], called
+    end
   end
 end

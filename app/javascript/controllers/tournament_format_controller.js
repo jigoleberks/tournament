@@ -15,7 +15,8 @@ export default class extends Controller {
   static targets = [
     "format", "formatDescription",
     "mode", "modeNote",
-    "slotsHeading", "slotsHelp", "slotRow", "slotCountLabel"
+    "slotsHeading", "slotsHelp", "slotRow", "slotCountLabel",
+    "trainBuilder"
   ]
 
   connect() {
@@ -30,6 +31,8 @@ export default class extends Controller {
       this._applyHiddenLength()
     } else if (this.formatTarget.value === "biggest_vs_smallest") {
       this._applyBiggestVsSmallest()
+    } else if (this.formatTarget.value === "fish_train") {
+      this._applyFishTrain()
     } else {
       this._applyStandard()
     }
@@ -60,6 +63,8 @@ export default class extends Controller {
         if (i > 0) this._suppressRow(el)
       })
     }
+
+    if (this.hasTrainBuilderTarget) this.trainBuilderTarget.classList.add("hidden")
   }
 
   _applyHiddenLength() {
@@ -89,6 +94,44 @@ export default class extends Controller {
         el.classList.toggle("hidden", i > 0)
         if (i > 0) this._suppressRow(el)
       })
+    }
+
+    if (this.hasTrainBuilderTarget) this.trainBuilderTarget.classList.add("hidden")
+  }
+
+  _applyFishTrain() {
+    if (this.hasFormatDescriptionTarget) {
+      this.formatDescriptionTarget.textContent = this.formatDescriptionTarget.dataset.fishTrainText
+    }
+    if (this.hasModeTarget) {
+      // Fish Train allows solo or team — unlock and restore prior selection.
+      this.modeTarget.classList.remove("opacity-60", "pointer-events-none")
+      if (this._priorMode) {
+        this.modeTarget.value = this._priorMode
+        this._priorMode = null
+      }
+    }
+    if (this.hasModeNoteTarget) this.modeNoteTarget.classList.add("hidden")
+
+    if (this.hasSlotsHeadingTarget) this.slotsHeadingTarget.textContent = "Species pool"
+    if (this.hasSlotsHelpTarget) {
+      this.slotsHelpTarget.textContent = "Pick 1–3 species for the train pool. Slot counts are ignored — each car holds one fish."
+    }
+    if (this.hasSlotCountLabelTarget) {
+      this.slotCountLabelTargets.forEach((el) => { el.textContent = "Slots (ignored)" })
+    }
+
+    // Cap pool to 3 species rows; hide rows beyond the 3rd.
+    if (this.hasSlotRowTarget) {
+      this.slotRowTargets.forEach((el, i) => {
+        el.classList.toggle("hidden", i > 2)
+        if (i > 2) this._suppressRow(el)
+      })
+    }
+
+    // Reveal the train builder fieldset (added in Task 11).
+    if (this.hasTrainBuilderTarget) {
+      this.trainBuilderTarget.classList.remove("hidden")
     }
   }
 
@@ -120,6 +163,8 @@ export default class extends Controller {
         if (i > 0) this._suppressRow(el)
       })
     }
+
+    if (this.hasTrainBuilderTarget) this.trainBuilderTarget.classList.add("hidden")
   }
 
   _applyStandard() {
@@ -149,6 +194,8 @@ export default class extends Controller {
         this._unsuppressRow(el)
       })
     }
+
+    if (this.hasTrainBuilderTarget) this.trainBuilderTarget.classList.add("hidden")
   }
 
   _suppressRow(el) {
