@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_05_10_052559) do
+ActiveRecord::Schema[8.1].define(version: 2026_05_10_052623) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -101,6 +101,18 @@ ActiveRecord::Schema[8.1].define(version: 2026_05_10_052559) do
     t.index ["deactivated_at"], name: "index_club_memberships_on_deactivated_at"
     t.index ["user_id", "club_id"], name: "index_club_memberships_on_user_id_and_club_id", unique: true
     t.index ["user_id"], name: "index_club_memberships_on_user_id"
+  end
+
+  create_table "club_rules_revisions", force: :cascade do |t|
+    t.text "body", null: false
+    t.bigint "club_id", null: false
+    t.datetime "created_at", null: false
+    t.bigint "edited_by_user_id", null: false
+    t.integer "season", null: false
+    t.datetime "updated_at", null: false
+    t.index ["club_id", "season", "created_at"], name: "idx_club_rules_revisions_lookup", order: { created_at: :desc }
+    t.index ["club_id"], name: "index_club_rules_revisions_on_club_id"
+    t.index ["edited_by_user_id"], name: "index_club_rules_revisions_on_edited_by_user_id"
   end
 
   create_table "clubs", force: :cascade do |t|
@@ -404,6 +416,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_05_10_052559) do
   add_foreign_key "catches", "users", column: "logged_by_user_id"
   add_foreign_key "club_memberships", "clubs"
   add_foreign_key "club_memberships", "users"
+  add_foreign_key "club_rules_revisions", "clubs"
+  add_foreign_key "club_rules_revisions", "users", column: "edited_by_user_id"
   add_foreign_key "judge_actions", "catches"
   add_foreign_key "judge_actions", "users", column: "judge_user_id"
   add_foreign_key "push_subscriptions", "users"
