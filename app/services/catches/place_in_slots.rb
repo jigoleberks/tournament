@@ -19,7 +19,7 @@ module Catches
       # placements at the same slot_index, corrupting the leaderboard.
       ActiveRecord::Base.transaction do
         @catch.lock!  # serialize with ApplyJudgeAction on the same catch
-        return { created: [], bumped: [], affected_tournaments: [] } if @catch.disqualified?
+        return { created: [], bumped: [], affected_tournaments: [], submitter: @catch.user } if @catch.disqualified?
 
         rows = Tournaments::ActiveForUser
           .with_entries(user: @catch.user, at: @catch.captured_at_device)
