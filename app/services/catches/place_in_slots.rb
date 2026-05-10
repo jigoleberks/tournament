@@ -87,8 +87,9 @@ module Catches
                   species: @catch.species, slot_index: min_p.slot_index, active: true
                 )
                 affected_tournaments << tournament
+              else
+                # Catch length is in [min, max] — no placement, no bump.
               end
-              # else: catch length is in [min, max] — no placement, no bump.
             end
           elsif active_placements.size < slot.slot_count
             next_index = (0...slot.slot_count).find { |i| active_placements.none? { |p| p.slot_index == i } }
