@@ -42,6 +42,64 @@ class Admin::RulesControllerTest < ActionDispatch::IntegrationTest
     assert @club.reload.active_rules_season_open_water?
   end
 
+  test "new requires organizer role" do
+    sign_in_as(@member)
+    get new_admin_rule_path(season: "open_water")
+    assert_response :forbidden
+  end
+
+  test "new renders the form for the requested season" do
+    sign_in_as(@organizer)
+    get new_admin_rule_path(season: "ice")
+    assert_response :success
+    assert_match "Ice rules", response.body
+  end
+
+  test "create appends a new revision with the submitter as editor" do
+    sign_in_as(@organizer)
+    assert_difference "ClubRulesRevision.count", 1 do
+      post admin_rules_path, params: {
+        club_rules_revision: { season: "open_water", body: "# Hello" }
+      }
+    end
+    rev = ClubRulesRevision.order(:id).last
+    assert_equal @organizer, rev.edited_by_user
+    assert_equal @club, rev.club
+    assert rev.season_open_water?
+    assert_equal "# Hello", rev.body
+    assert_redirected_to admin_rules_path
+  end
+
+  test "create with another club's club_id param still scopes to current_club" do
+    other_club = create(:club)
+    sign_in_as(@organizer)
+    post admin_rules_path, params: {
+      club_rules_revision: { club_id: other_club.id, season: "open_water", body: "hi" }
+    }
+    rev = ClubRulesRevision.order(:id).last
+    assert_equal @club, rev.club, "must ignore client-provided club_id"
+  end
+
+  test "create rejects blank body" do
+    sign_in_as(@organizer)
+    assert_no_difference "ClubRulesRevision.count" do
+      post admin_rules_path, params: {
+        club_rules_revision: { season: "open_water", body: "" }
+      }
+    end
+    assert_response :unprocessable_entity
+  end
+
+  test "create does not modify any prior revision" do
+    prior = create(:club_rules_revision, club: @club, edited_by_user: @organizer,
+                                         season: :open_water, body: "ORIGINAL")
+    sign_in_as(@organizer)
+    post admin_rules_path, params: {
+      club_rules_revision: { season: "open_water", body: "REPLACEMENT" }
+    }
+    assert_equal "ORIGINAL", prior.reload.body
+  end
+
   private
 
   def sign_in_as(user)

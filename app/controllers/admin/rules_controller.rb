@@ -6,6 +6,24 @@ class Admin::RulesController < Admin::BaseController
     @ice_revision        = ClubRulesRevision.latest_for(club: current_club, season: :ice)
   end
 
+  def new
+    season = params[:season].to_s
+    season = "open_water" unless ALLOWED_SEASONS.include?(season)
+    @revision = ClubRulesRevision.new(club: current_club, season: season,
+                                      edited_by_user: current_user)
+  end
+
+  def create
+    @revision = ClubRulesRevision.new(revision_params)
+    @revision.club = current_club
+    @revision.edited_by_user = current_user
+    if @revision.save
+      redirect_to admin_rules_path, notice: "New revision saved."
+    else
+      render :new, status: :unprocessable_entity
+    end
+  end
+
   def set_active_season
     season = params[:season].to_s
     unless ALLOWED_SEASONS.include?(season)
@@ -14,5 +32,11 @@ class Admin::RulesController < Admin::BaseController
     end
     current_club.update!(active_rules_season: season)
     redirect_to admin_rules_path, notice: "Active season set to #{season.humanize}."
+  end
+
+  private
+
+  def revision_params
+    params.require(:club_rules_revision).permit(:season, :body)
   end
 end
