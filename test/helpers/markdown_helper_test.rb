@@ -21,6 +21,11 @@ class MarkdownHelperTest < ActionView::TestCase
     assert_match "<td>1</td>", html
   end
 
+  test "renders strikethrough" do
+    html = render_markdown("~~gone~~")
+    assert_match %r{<(del|s)>gone</(del|s)>}, html
+  end
+
   test "strips script tags" do
     html = render_markdown("Hello <script>alert(1)</script> world")
     assert_no_match %r{<script}, html

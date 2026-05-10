@@ -37,12 +37,14 @@ class Admin::RulesController < Admin::BaseController
   def history
     @season = params[:season].to_s
     @season = "open_water" unless ALLOWED_SEASONS.include?(@season)
-    @revisions = current_club.rules_revisions.where(season: @season).order(created_at: :desc)
+    @revisions = current_club.rules_revisions
+                             .includes(:edited_by_user)
+                             .where(season: @season)
+                             .order(created_at: :desc)
   end
 
   def show
-    @revision = current_club.rules_revisions.find_by(id: params[:id])
-    head :not_found and return if @revision.nil?
+    @revision = current_club.rules_revisions.find(params[:id])
   end
 
   private
