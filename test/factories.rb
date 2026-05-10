@@ -115,4 +115,11 @@ FactoryBot.define do
     association :club
     role { :member }
   end
+
+  factory :club_rules_revision do
+    association :club
+    association :edited_by_user, factory: :user
+    season { :open_water }
+    body { "# Rules\n\n- Be excellent to each other." }
+  end
 end
