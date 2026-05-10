@@ -1,0 +1,26 @@
+<% if @revision.nil? %>
+  <div class="my-6">
+    <h1 class="text-2xl font-semibold mb-2">Rules</h1>
+    <p class="text-slate-400">No rules published yet.</p>
+  </div>
+<% else %>
+  <% season_label = @revision.season_open_water? ? "Open water rules" : "Ice rules" %>
+  <div class="my-6">
+    <h1 class="text-2xl font-semibold mb-4"><%= season_label %></h1>
+    <div class="prose prose-invert max-w-none text-slate-100
+                [&_a]:text-blue-300 [&_a]:underline [&_a]:underline-offset-2
+                [&_h1]:text-xl [&_h1]:font-semibold [&_h1]:mt-6 [&_h1]:mb-2
+                [&_h2]:text-lg [&_h2]:font-semibold [&_h2]:mt-5 [&_h2]:mb-2
+                [&_ul]:list-disc [&_ul]:pl-5 [&_ol]:list-decimal [&_ol]:pl-5
+                [&_p]:my-2 [&_li]:my-1
+                [&_code]:bg-slate-800 [&_code]:px-1 [&_code]:rounded
+                [&_pre]:bg-slate-800 [&_pre]:p-3 [&_pre]:rounded">
+      <%= render_markdown(@revision.body) %>
+    </div>
+    <p class="text-xs text-slate-400 mt-6">
+      Last edited <%= @revision.created_at.to_date.strftime("%b %-d, %Y") %><%
+        if current_user.organizer_in?(current_club)
+      %> by <%= @revision.edited_by_user.name %><% end %>
+    </p>
+  </div>
+<% end %>
