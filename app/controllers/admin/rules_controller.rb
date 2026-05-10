@@ -34,6 +34,17 @@ class Admin::RulesController < Admin::BaseController
     redirect_to admin_rules_path, notice: "Active season set to #{season.humanize}."
   end
 
+  def history
+    @season = params[:season].to_s
+    @season = "open_water" unless ALLOWED_SEASONS.include?(@season)
+    @revisions = current_club.rules_revisions.where(season: @season).order(created_at: :desc)
+  end
+
+  def show
+    @revision = current_club.rules_revisions.find_by(id: params[:id])
+    head :not_found and return if @revision.nil?
+  end
+
   private
 
   def revision_params

@@ -1,0 +1,25 @@
+<% season_label = @season == "open_water" ? "Open water rules" : "Ice rules" %>
+<div class="mb-4">
+  <%= link_to "← Back to rules", admin_rules_path, class: "text-blue-300 hover:underline text-sm" %>
+</div>
+<h1 class="text-2xl font-bold mb-6 text-white"><%= season_label %> · history</h1>
+
+<% if @revisions.empty? %>
+  <p class="text-slate-400">No revisions yet.</p>
+<% else %>
+  <ul class="bg-slate-800 rounded-xl border border-slate-700 divide-y divide-slate-700">
+    <% @revisions.each do |rev| %>
+      <li>
+        <%= link_to admin_rule_path(rev),
+                    class: "block px-4 py-3 hover:bg-slate-700" do %>
+          <div class="text-slate-100 font-medium">
+            <%= rev.created_at.to_date.strftime("%b %-d, %Y") %>
+            <span class="text-slate-400 font-normal text-sm">at <%= rev.created_at.strftime("%-l:%M %p") %></span>
+          </div>
+          <div class="text-slate-400 text-xs mt-0.5">by <%= rev.edited_by_user.name %></div>
+          <div class="text-slate-500 text-xs mt-1 truncate"><%= rev.body.truncate(80) %></div>
+        <% end %>
+      </li>
+    <% end %>
+  </ul>
+<% end %>

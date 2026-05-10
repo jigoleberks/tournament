@@ -100,6 +100,58 @@ class Admin::RulesControllerTest < ActionDispatch::IntegrationTest
     assert_equal "ORIGINAL", prior.reload.body
   end
 
+  test "history requires organizer role" do
+    sign_in_as(@member)
+    get history_admin_rules_path(season: "open_water")
+    assert_response :forbidden
+  end
+
+  test "history lists revisions for the requested season most recent first" do
+    older = create(:club_rules_revision, club: @club, edited_by_user: @organizer,
+                                         season: :open_water, body: "OLDER",
+                                         created_at: 2.days.ago)
+    newer = create(:club_rules_revision, club: @club, edited_by_user: @organizer,
+                                         season: :open_water, body: "NEWER",
+                                         created_at: 1.day.ago)
+    unrelated = create(:club_rules_revision, club: @club, edited_by_user: @organizer,
+                                             season: :ice, body: "ICE")
+    sign_in_as(@organizer)
+    get history_admin_rules_path(season: "open_water")
+    assert_response :success
+    body = response.body
+    assert_match "NEWER", body
+    assert_match "OLDER", body
+    assert_no_match "ICE", body
+    assert body.index("NEWER") < body.index("OLDER"), "newer should appear before older"
+  end
+
+  test "show renders a single past revision" do
+    rev = create(:club_rules_revision, club: @club, edited_by_user: @organizer,
+                                       season: :open_water, body: "# Specific revision body")
+    sign_in_as(@organizer)
+    get admin_rule_path(rev)
+    assert_response :success
+    assert_match "Specific revision body", response.body
+  end
+
+  test "show requires organizer role" do
+    rev = create(:club_rules_revision, club: @club, edited_by_user: @organizer,
+                                       season: :open_water, body: "x")
+    sign_in_as(@member)
+    get admin_rule_path(rev)
+    assert_response :forbidden
+  end
+
+  test "show 404s for a revision in another club" do
+    other_club = create(:club)
+    other_user = create(:user, club: other_club)
+    rev = create(:club_rules_revision, club: other_club, edited_by_user: other_user,
+                                       season: :open_water, body: "x")
+    sign_in_as(@organizer)
+    get admin_rule_path(rev)
+    assert_response :not_found
+  end
+
   private
 
   def sign_in_as(user)
