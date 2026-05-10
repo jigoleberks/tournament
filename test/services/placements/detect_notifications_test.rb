@@ -39,6 +39,8 @@ module Placements
       payloads = DetectNotifications.call(result: result)
       ann_self_bump = payloads.find { |p| p[:reason] == "bumped" && p[:user] == @ann }
       assert_nil ann_self_bump, "submitter should not get a bumped push for displacing their own team's placement"
+      joe_bump = payloads.find { |p| p[:reason] == "bumped" && p[:user] == @joe }
+      assert joe_bump, "the actually-bumped teammate should still be notified"
     end
 
     test "does not notify the submitter when biggest_vs_smallest bumps the submitter's own previous extreme" do
