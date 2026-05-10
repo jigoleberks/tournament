@@ -296,6 +296,43 @@ module Catches
     assert_equal [10, 22], active_lens, "expected the middle catch to be ignored"
   end
 
+  test "biggest_vs_smallest: a catch tying the current biggest or smallest is a no-op (first to set wins)" do
+    club = create(:club)
+    walleye = create(:species, club: club)
+    user = create(:user, club: club)
+    t = build(:tournament, club: club, format: :biggest_vs_smallest, mode: :solo,
+              kind: :event, starts_at: 1.hour.ago, ends_at: 1.hour.from_now)
+    t.scoring_slots.build(species: walleye, slot_count: 1)
+    t.save!
+    entry = create(:tournament_entry, tournament: t)
+    create(:tournament_entry_member, tournament_entry: entry, user: user)
+
+    [22, 10].each do |len|
+      Catches::PlaceInSlots.call(
+        catch: create(:catch, user: user, species: walleye, length_inches: len,
+                      captured_at_device: 30.minutes.ago)
+      )
+    end
+
+    original_max_id = CatchPlacement.where(tournament: t, active: true)
+                                    .joins(:catch).order("catches.length_inches DESC").first.id
+    original_min_id = CatchPlacement.where(tournament: t, active: true)
+                                    .joins(:catch).order("catches.length_inches ASC").first.id
+
+    [22, 10].each do |tied_len|
+      Catches::PlaceInSlots.call(
+        catch: create(:catch, user: user, species: walleye, length_inches: tied_len,
+                      captured_at_device: 25.minutes.ago)
+      )
+    end
+
+    active = CatchPlacement.where(tournament: t, active: true).includes(:catch).to_a
+    active_lens = active.map { |p| p.catch.length_inches }.sort
+    assert_equal [10, 22], active_lens, "expected ties to neither bump nor add a placement"
+    assert_equal [original_min_id, original_max_id].sort, active.map(&:id).sort,
+                 "expected the original biggest/smallest placements to remain active"
+  end
+
   test "biggest_vs_smallest: new catch after a placement is deactivated fills the freed slot index without colliding" do
     club = create(:club)
     walleye = create(:species, club: club)
