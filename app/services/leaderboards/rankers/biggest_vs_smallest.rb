@@ -12,9 +12,8 @@ module Leaderboards
         rows = entry_rows.map do |row|
           fish = row[:fish]
           if fish.size >= 2
-            lens   = fish.map { |f| f[:length_inches] }
             sorted = fish.sort_by { |f| -f[:length_inches] }  # biggest first
-            spread = lens.max - lens.min
+            spread = sorted.first[:length_inches] - sorted.last[:length_inches]
             {
               entry: row[:entry],
               total: spread,
