@@ -17,7 +17,7 @@
             <span class="text-slate-400 font-normal text-sm">at <%= rev.created_at.strftime("%-l:%M %p") %></span>
           </div>
           <div class="text-slate-400 text-xs mt-0.5">by <%= rev.edited_by_user.name %></div>
-          <div class="text-slate-500 text-xs mt-1 truncate"><%= rev.body.truncate(80) %></div>
+          <div class="text-slate-500 text-xs mt-1 truncate"><%= rev.body.to_plain_text.truncate(80) %></div>
         <% end %>
       </li>
     <% end %>
