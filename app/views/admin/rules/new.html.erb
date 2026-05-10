@@ -18,9 +18,9 @@
   <%= f.hidden_field :season %>
 
   <div>
-    <%= f.label :body, "Body (Markdown)", class: "block text-sm font-medium text-slate-200 mb-1" %>
-    <%= f.text_area :body, rows: 20,
-                    class: "w-full font-mono text-sm bg-slate-900 text-slate-100 border border-slate-700 rounded-lg p-3" %>
+    <%= f.label :body, class: "block text-sm font-medium text-slate-200 mb-1" %>
+    <%= f.rich_text_area :body,
+                         class: "block w-full bg-slate-900 text-slate-100 border border-slate-700 rounded-lg trix-content min-h-[20rem]" %>
   </div>
 
   <div class="flex gap-2">
