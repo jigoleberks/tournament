@@ -59,14 +59,14 @@ class Admin::RulesControllerTest < ActionDispatch::IntegrationTest
     sign_in_as(@organizer)
     assert_difference "ClubRulesRevision.count", 1 do
       post admin_rules_path, params: {
-        club_rules_revision: { season: "open_water", body: "# Hello" }
+        club_rules_revision: { season: "open_water", body: "<h1>Hello</h1>" }
       }
     end
     rev = ClubRulesRevision.order(:id).last
     assert_equal @organizer, rev.edited_by_user
     assert_equal @club, rev.club
     assert rev.season_open_water?
-    assert_equal "# Hello", rev.body
+    assert_includes rev.body.to_s, "<h1>Hello</h1>"
     assert_redirected_to admin_rules_path
   end
 
@@ -74,7 +74,7 @@ class Admin::RulesControllerTest < ActionDispatch::IntegrationTest
     other_club = create(:club)
     sign_in_as(@organizer)
     post admin_rules_path, params: {
-      club_rules_revision: { club_id: other_club.id, season: "open_water", body: "hi" }
+      club_rules_revision: { club_id: other_club.id, season: "open_water", body: "<div>hi</div>" }
     }
     rev = ClubRulesRevision.order(:id).last
     assert_equal @club, rev.club, "must ignore client-provided club_id"
@@ -92,12 +92,12 @@ class Admin::RulesControllerTest < ActionDispatch::IntegrationTest
 
   test "create does not modify any prior revision" do
     prior = create(:club_rules_revision, club: @club, edited_by_user: @organizer,
-                                         season: :open_water, body: "ORIGINAL")
+                                         season: :open_water, body: "<div>ORIGINAL</div>")
     sign_in_as(@organizer)
     post admin_rules_path, params: {
-      club_rules_revision: { season: "open_water", body: "REPLACEMENT" }
+      club_rules_revision: { season: "open_water", body: "<div>REPLACEMENT</div>" }
     }
-    assert_equal "ORIGINAL", prior.reload.body
+    assert_includes prior.reload.body.to_s, "ORIGINAL"
   end
 
   test "history requires organizer role" do
@@ -108,13 +108,13 @@ class Admin::RulesControllerTest < ActionDispatch::IntegrationTest
 
   test "history lists revisions for the requested season most recent first" do
     older = create(:club_rules_revision, club: @club, edited_by_user: @organizer,
-                                         season: :open_water, body: "OLDER",
+                                         season: :open_water, body: "<div>OLDER</div>",
                                          created_at: 2.days.ago)
     newer = create(:club_rules_revision, club: @club, edited_by_user: @organizer,
-                                         season: :open_water, body: "NEWER",
+                                         season: :open_water, body: "<div>NEWER</div>",
                                          created_at: 1.day.ago)
     unrelated = create(:club_rules_revision, club: @club, edited_by_user: @organizer,
-                                             season: :ice, body: "ICE")
+                                             season: :ice, body: "<div>ICE</div>")
     sign_in_as(@organizer)
     get history_admin_rules_path(season: "open_water")
     assert_response :success
@@ -127,7 +127,7 @@ class Admin::RulesControllerTest < ActionDispatch::IntegrationTest
 
   test "show renders a single past revision" do
     rev = create(:club_rules_revision, club: @club, edited_by_user: @organizer,
-                                       season: :open_water, body: "# Specific revision body")
+                                       season: :open_water, body: "<h1>Specific revision body</h1>")
     sign_in_as(@organizer)
     get admin_rule_path(rev)
     assert_response :success
@@ -136,7 +136,7 @@ class Admin::RulesControllerTest < ActionDispatch::IntegrationTest
 
   test "show requires organizer role" do
     rev = create(:club_rules_revision, club: @club, edited_by_user: @organizer,
-                                       season: :open_water, body: "x")
+                                       season: :open_water, body: "<div>x</div>")
     sign_in_as(@member)
     get admin_rule_path(rev)
     assert_response :forbidden
@@ -146,7 +146,7 @@ class Admin::RulesControllerTest < ActionDispatch::IntegrationTest
     other_club = create(:club)
     other_user = create(:user, club: other_club)
     rev = create(:club_rules_revision, club: other_club, edited_by_user: other_user,
-                                       season: :open_water, body: "x")
+                                       season: :open_water, body: "<div>x</div>")
     sign_in_as(@organizer)
     get admin_rule_path(rev)
     assert_response :not_found

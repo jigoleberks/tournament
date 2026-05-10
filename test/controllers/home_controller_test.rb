@@ -50,7 +50,7 @@ class HomeControllerTest < ActionDispatch::IntegrationTest
 
   test "home page shows Rules button with date when active-season revision exists" do
     rev = create(:club_rules_revision, club: @club, edited_by_user: @organizer,
-                                       season: :open_water, body: "x",
+                                       season: :open_water, body: "<div>x</div>",
                                        created_at: Time.zone.local(2026, 5, 9, 10))
     sign_in_as(@member)
     get root_path
@@ -61,10 +61,10 @@ class HomeControllerTest < ActionDispatch::IntegrationTest
 
   test "home Rules button reflects active season change" do
     create(:club_rules_revision, club: @club, edited_by_user: @organizer,
-                                 season: :open_water, body: "ow",
+                                 season: :open_water, body: "<div>ow</div>",
                                  created_at: Time.zone.local(2026, 5, 9, 10))
     ice_rev = create(:club_rules_revision, club: @club, edited_by_user: @organizer,
-                                           season: :ice, body: "ice",
+                                           season: :ice, body: "<div>ice</div>",
                                            created_at: Time.zone.local(2026, 1, 1, 10))
     @club.update!(active_rules_season: :ice)
     sign_in_as(@member)

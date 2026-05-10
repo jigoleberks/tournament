@@ -14,7 +14,7 @@ class RulesControllerTest < ActionDispatch::IntegrationTest
 
   test "shows the active season's latest revision body" do
     create(:club_rules_revision, club: @club, edited_by_user: @organizer,
-                                 season: :open_water, body: "# Open water\n\n- No live bait")
+                                 season: :open_water, body: "<h1>Open water</h1><ul><li>No live bait</li></ul>")
     sign_in_as(@member)
     get rules_path
     assert_response :success
@@ -31,7 +31,7 @@ class RulesControllerTest < ActionDispatch::IntegrationTest
 
   test "shows the editor name only for organizer viewers" do
     create(:club_rules_revision, club: @club, edited_by_user: @organizer,
-                                 season: :open_water, body: "rules")
+                                 season: :open_water, body: "<div>rules</div>")
     sign_in_as(@organizer)
     get rules_path
     assert_match @organizer.name, response.body
@@ -43,9 +43,9 @@ class RulesControllerTest < ActionDispatch::IntegrationTest
 
   test "switches to ice revision when active_rules_season is ice" do
     create(:club_rules_revision, club: @club, edited_by_user: @organizer,
-                                 season: :open_water, body: "OPEN WATER BODY")
+                                 season: :open_water, body: "<div>OPEN WATER BODY</div>")
     create(:club_rules_revision, club: @club, edited_by_user: @organizer,
-                                 season: :ice, body: "ICE BODY")
+                                 season: :ice, body: "<div>ICE BODY</div>")
     @club.update!(active_rules_season: :ice)
     sign_in_as(@member)
 
