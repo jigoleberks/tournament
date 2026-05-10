@@ -61,6 +61,12 @@ Rails.application.routes.draw do
     resources :tournament_templates do
       member { post :clone }
     end
+    resources :rules, only: [ :index, :new, :create, :show ] do
+      collection do
+        get  :history
+        post :set_active_season
+      end
+    end
   end
 
   resources :tournaments, only: [:index, :show] do
