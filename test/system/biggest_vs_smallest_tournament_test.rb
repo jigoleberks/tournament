@@ -63,6 +63,34 @@ class BiggestVsSmallestTournamentTest < ApplicationSystemTestCase
     assert_match format_length_dual(12), rows.first.text
   end
 
+  test "Biggest vs Smallest tournament: complete entry with spread 0 renders 0.00\", not the dash placeholder" do
+    t = build(:tournament, club: @club, name: "BvS Tied",
+              format: :biggest_vs_smallest, mode: :solo, kind: :event,
+              starts_at: 30.minutes.ago, ends_at: 30.minutes.from_now)
+    t.scoring_slots.build(species: @walleye, slot_count: 1)
+    t.save!
+
+    entry = create(:tournament_entry, tournament: t)
+    create(:tournament_entry_member, tournament_entry: entry, user: @angler_a)
+
+    # Two equal-length catches → complete entry, spread 0.
+    [20.minutes.ago, 10.minutes.ago].each do |captured|
+      Catches::PlaceInSlots.call(
+        catch: create(:catch, user: @angler_a, species: @walleye,
+                      length_inches: 18, captured_at_device: captured)
+      )
+    end
+
+    sign_in_as(@organizer)
+    visit tournament_path(t)
+
+    score_cell = find("#leaderboard tbody tr:first-child td:last-child")
+    inches_part, cm_part = format_length_parts(0)
+    assert_match inches_part, score_cell.text, "expected complete BvS entry with spread 0 to show the inches value"
+    assert_match cm_part,     score_cell.text, "expected complete BvS entry with spread 0 to show the cm value"
+    assert_no_match(/\A—\z/, score_cell.text.strip, "spread of 0 for a complete entry should not render as a dash")
+  end
+
   private
 
   # Mirrors the helper used by test/system/big_fish_season_tournament_test.rb.

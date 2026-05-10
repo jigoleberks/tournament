@@ -118,7 +118,9 @@
         <td class="px-3 py-3 font-mono">
           <% if row_visible %>
             <% scoring_value = row[:total] %>
-            <% if scoring_value.nil? || scoring_value.zero? %>
+            <%# BvS spread of 0 (two equal-length catches) is a real score for a complete entry, not "—". %>
+            <% bvs_complete_zero = tournament&.format_biggest_vs_smallest? && row[:complete] && scoring_value == 0 %>
+            <% if scoring_value.nil? || (scoring_value.zero? && !bvs_complete_zero) %>
               <div>—</div>
             <% else %>
               <% inches_part, cm_part = format_length_parts(scoring_value) %>
