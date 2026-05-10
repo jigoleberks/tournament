@@ -40,4 +40,48 @@ class HomeControllerTest < ActionDispatch::IntegrationTest
     assert_redirected_to new_session_path
     assert_nil session[:user_id]
   end
+
+  test "home page hides Rules button when no revision exists for active season" do
+    sign_in_as(@member)
+    get root_path
+    assert_response :success
+    assert_no_match %r{Rules \(}, response.body
+  end
+
+  test "home page shows Rules button with date when active-season revision exists" do
+    rev = create(:club_rules_revision, club: @club, edited_by_user: @organizer,
+                                       season: :open_water, body: "x",
+                                       created_at: Time.zone.local(2026, 5, 9, 10))
+    sign_in_as(@member)
+    get root_path
+    assert_response :success
+    assert_match "Rules (May 9, 2026)", response.body
+    assert_match rules_path, response.body
+  end
+
+  test "home Rules button reflects active season change" do
+    create(:club_rules_revision, club: @club, edited_by_user: @organizer,
+                                 season: :open_water, body: "ow",
+                                 created_at: Time.zone.local(2026, 5, 9, 10))
+    ice_rev = create(:club_rules_revision, club: @club, edited_by_user: @organizer,
+                                           season: :ice, body: "ice",
+                                           created_at: Time.zone.local(2026, 1, 1, 10))
+    @club.update!(active_rules_season: :ice)
+    sign_in_as(@member)
+    get root_path
+    assert_match "Rules (Jan 1, 2026)", response.body
+  end
+
+  private
+
+  def sign_in_as(user)
+    token = SignInToken.issue!(user: user)
+    get consume_session_path(token: token.token)
+  end
+
+  def setup
+    @club = create(:club)
+    @member = create(:user, club: @club, role: :member)
+    @organizer = create(:user, club: @club, role: :organizer)
+  end
 end
