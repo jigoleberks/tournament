@@ -15,6 +15,7 @@ class Tournament < ApplicationRecord
   validate :blind_leaderboard_requires_end_time
   validate :blind_leaderboard_locked_after_start, on: :update
   validate :format_locked_after_start, on: :update
+  validate :train_cars_locked_after_start, on: :update
   validate :big_fish_season_requires_solo
   validate :big_fish_season_requires_one_scoring_slot
   validate :hidden_length_requires_one_scoring_slot
@@ -138,6 +139,12 @@ class Tournament < ApplicationRecord
     return unless will_save_change_to_format?
     return if starts_at.blank? || starts_at > Time.current
     errors.add(:format, "can't be changed once the tournament has started")
+  end
+
+  def train_cars_locked_after_start
+    return unless will_save_change_to_train_cars?
+    return if starts_at.blank? || starts_at > Time.current
+    errors.add(:train_cars, "can't be changed once the tournament has started")
   end
 
   def fish_train_requires_event_kind_with_end_time

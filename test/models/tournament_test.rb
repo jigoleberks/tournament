@@ -469,4 +469,29 @@ class TournamentTest < ActiveSupport::TestCase
     [perch, pike, walleye].each { |sp| t.scoring_slots.build(species: sp, slot_count: 1) }
     assert t.valid?, t.errors.full_messages.inspect
   end
+
+  test "train_cars cannot be changed after the tournament has started" do
+    s = create(:species, club: @club)
+    t = build(:tournament, club: @club, format: :fish_train, mode: :solo,
+              kind: :event, starts_at: 1.hour.ago, ends_at: 1.hour.from_now,
+              train_cars: [s.id, s.id, s.id])
+    t.scoring_slots.build(species: s, slot_count: 1)
+    t.save!
+
+    t.train_cars = [s.id, s.id, s.id, s.id]
+    assert_not t.valid?
+    assert_includes t.errors[:train_cars], "can't be changed once the tournament has started"
+  end
+
+  test "train_cars can be changed before the tournament starts" do
+    s = create(:species, club: @club)
+    t = build(:tournament, club: @club, format: :fish_train, mode: :solo,
+              kind: :event, starts_at: 1.hour.from_now, ends_at: 4.hours.from_now,
+              train_cars: [s.id, s.id, s.id])
+    t.scoring_slots.build(species: s, slot_count: 1)
+    t.save!
+
+    t.train_cars = [s.id, s.id, s.id, s.id]
+    assert t.valid?, t.errors.full_messages.to_sentence
+  end
 end
