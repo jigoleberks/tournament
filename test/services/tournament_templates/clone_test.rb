@@ -129,5 +129,24 @@ module TournamentTemplates
       assert_equal 1, cloned.scoring_slots.count
       assert_equal walleye, cloned.scoring_slots.first.species
     end
+
+    test "copies fish_train format and train_cars to the cloned tournament" do
+      perch = create(:species, club: @club)
+      pike  = create(:species, club: @club)
+      tpl = build(:tournament_template, club: @club, name: "FT Wed",
+                  format: :fish_train, mode: :solo,
+                  train_cars: [perch.id, pike.id, perch.id])
+      [perch, pike].each { |sp| tpl.tournament_template_scoring_slots.build(species: sp, slot_count: 1) }
+      tpl.save!
+
+      cloned = Clone.call(template: tpl,
+                          starts_at: 1.day.from_now,
+                          ends_at:   1.day.from_now + 4.hours)
+
+      assert cloned.persisted?
+      assert cloned.format_fish_train?
+      assert_equal [perch.id, pike.id, perch.id], cloned.train_cars
+      assert_equal 2, cloned.scoring_slots.count
+    end
   end
 end

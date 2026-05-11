@@ -265,6 +265,33 @@ class Organizers::TournamentsControllerTest < ActionDispatch::IntegrationTest
     assert created.format_biggest_vs_smallest?
   end
 
+  test "create accepts format: fish_train with train_cars array" do
+    sign_in_as(@organizer)
+    perch = create(:species, club: @club, name: "Perch FT")
+    pike  = create(:species, club: @club, name: "Pike FT")
+
+    assert_difference -> { Tournament.count } => 1 do
+      post organizers_tournaments_path, params: {
+        tournament: {
+          name: "FT Wed",
+          kind: "event",
+          mode: "solo",
+          format: "fish_train",
+          starts_at: 1.day.from_now,
+          ends_at: 1.day.from_now + 4.hours,
+          train_cars: [perch.id.to_s, pike.id.to_s, perch.id.to_s],
+          scoring_slots_attributes: {
+            "0" => { species_id: perch.id, slot_count: 1 },
+            "1" => { species_id: pike.id,  slot_count: 1 }
+          }
+        }
+      }
+    end
+    created = Tournament.order(:id).last
+    assert created.format_fish_train?
+    assert_equal [perch.id, pike.id, perch.id], created.train_cars
+  end
+
   private
 
   def sign_in_as(user)

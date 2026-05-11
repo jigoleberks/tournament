@@ -49,7 +49,28 @@
         <td class="px-3 py-3"><%= scope.visibility == :full ? i + 1 : "—" %></td>
         <td class="px-3 py-3">
           <% per_catch = tournament&.format_big_fish_season? || (tournament&.format_hidden_length? && tournament.hidden_length_target.nil?) %>
-          <% if tournament&.format_biggest_vs_smallest? %>
+          <% if tournament&.format_fish_train? %>
+            <div class="font-medium"><%= row[:entry].display_name %></div>
+            <% if row_visible && row[:fish].present? %>
+              <% last_idx = row[:fish].size - 1 %>
+              <div class="text-xs text-slate-400 mt-1 flex flex-wrap items-baseline gap-x-2 gap-y-1">
+                <% row[:fish].each_with_index do |f, i| %>
+                  <% url, frame = catch_link_target(tournament: tournament, catch_id: f[:id]) %>
+                  <% car_classes = i == last_idx ? "italic text-slate-200" : "" %>
+                  <span class="<%= car_classes %>">
+                    <%= f[:species_name] %>
+                    <%= link_to format_length_dual(f[:length_inches]), url,
+                                class: "text-blue-300 underline-offset-2 hover:underline",
+                                data: frame ? { turbo_frame: frame } : {} %>
+                    <% if i == last_idx %>
+                      <span class="ml-1 px-1.5 py-0.5 rounded bg-slate-800 text-slate-300 text-[10px] uppercase tracking-wide">current</span>
+                    <% end %>
+                  </span>
+                  <% if i < last_idx %><span class="text-slate-600">·</span><% end %>
+                <% end %>
+              </div>
+            <% end %>
+          <% elsif tournament&.format_biggest_vs_smallest? %>
             <div class="font-medium"><%= row[:entry].display_name %></div>
             <% if row_visible %>
               <% if row[:fish].size >= 2 %>

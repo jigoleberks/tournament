@@ -103,6 +103,8 @@
     <p class="text-xs text-slate-500 italic">
       Save the template for another empty row to appear on the edit page.
     </p>
+
+    <%= render "organizers/shared/fish_train_builder", f: f, record: @template, club: current_club %>
   </div>
 
   <%= f.submit class: "w-full h-14 px-6 text-lg font-semibold rounded-lg bg-blue-600 active:bg-blue-700 text-white" %>

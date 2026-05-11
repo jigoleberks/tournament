@@ -167,4 +167,68 @@ class TournamentTemplateTest < ActiveSupport::TestCase
     tpl.tournament_template_scoring_slots.build(species: walleye, slot_count: 1)
     assert tpl.valid?, tpl.errors.full_messages.inspect
   end
+
+  test "format enum includes fish_train" do
+    walleye = create(:species, club: @club)
+    tpl = build(:tournament_template, club: @club, format: :fish_train, mode: :solo,
+                train_cars: [walleye.id, walleye.id, walleye.id])
+    tpl.tournament_template_scoring_slots.build(species: walleye, slot_count: 1)
+    assert tpl.valid?, tpl.errors.full_messages.inspect
+    assert tpl.format_fish_train?
+  end
+
+  test "fish_train template errors when no scoring slot is configured" do
+    tpl = build(:tournament_template, club: @club, format: :fish_train, mode: :solo,
+                train_cars: [1, 1, 1])
+    assert_not tpl.valid?
+    assert_includes tpl.errors[:tournament_template_scoring_slots],
+                    "Fish Train tournaments must have between 1 and 3 species in the pool"
+  end
+
+  test "fish_train template errors when pool has more than 3 species" do
+    s1 = create(:species, club: @club)
+    s2 = create(:species, club: @club)
+    s3 = create(:species, club: @club)
+    s4 = create(:species, club: @club)
+    tpl = build(:tournament_template, club: @club, format: :fish_train, mode: :solo,
+                train_cars: [s1.id, s2.id, s3.id])
+    [s1, s2, s3, s4].each { |s| tpl.tournament_template_scoring_slots.build(species: s, slot_count: 1) }
+    assert_not tpl.valid?
+    assert_includes tpl.errors[:tournament_template_scoring_slots],
+                    "Fish Train tournaments must have between 1 and 3 species in the pool"
+  end
+
+  test "fish_train template errors when train length is out of 3..6 range" do
+    s = create(:species, club: @club)
+    short = build(:tournament_template, club: @club, format: :fish_train, mode: :solo,
+                  train_cars: [s.id, s.id])
+    short.tournament_template_scoring_slots.build(species: s, slot_count: 1)
+    long  = build(:tournament_template, club: @club, format: :fish_train, mode: :solo,
+                  train_cars: Array.new(7) { s.id })
+    long.tournament_template_scoring_slots.build(species: s, slot_count: 1)
+    assert_not short.valid?
+    assert_not long.valid?
+    assert_includes short.errors[:train_cars], "Fish Train must have between 3 and 6 cars"
+    assert_includes long.errors[:train_cars],  "Fish Train must have between 3 and 6 cars"
+  end
+
+  test "fish_train template errors when a car species is off-pool" do
+    pool   = create(:species, club: @club)
+    outsider = create(:species, club: @club)
+    tpl = build(:tournament_template, club: @club, format: :fish_train, mode: :solo,
+                train_cars: [pool.id, outsider.id, pool.id])
+    tpl.tournament_template_scoring_slots.build(species: pool, slot_count: 1)
+    assert_not tpl.valid?
+    assert_includes tpl.errors[:train_cars],
+                    "Fish Train cars must reference species in the pool"
+  end
+
+  test "fish_train template accepts team mode and a valid 6-car train" do
+    s1 = create(:species, club: @club)
+    s2 = create(:species, club: @club)
+    tpl = build(:tournament_template, club: @club, format: :fish_train, mode: :team,
+                train_cars: [s1.id, s2.id, s1.id, s2.id, s1.id, s2.id])
+    [s1, s2].each { |sp| tpl.tournament_template_scoring_slots.build(species: sp, slot_count: 1) }
+    assert tpl.valid?, tpl.errors.full_messages.inspect
+  end
 end

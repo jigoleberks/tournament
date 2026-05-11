@@ -1,0 +1,36 @@
+<%# Local: f (form builder), record (Tournament or TournamentTemplate), club %>
+<div data-tournament-format-target="trainBuilder"
+     class="<%= 'hidden' unless record.format_fish_train? %> mt-4">
+  <h3 class="text-slate-200 text-sm font-medium mb-1">Train cars</h3>
+  <p class="text-slate-400 text-xs mb-2">
+    3–6 ordered cars. Anglers must catch them in this order; each car locks once they advance.
+    Each car must use one of the species in the pool above.
+  </p>
+
+  <div data-controller="fish-train-builder"
+       data-fish-train-builder-min-value="3"
+       data-fish-train-builder-max-value="6">
+
+    <div data-fish-train-builder-target="carContainer">
+      <% existing_cars = record.train_cars || [] %>
+      <% rows_to_render = existing_cars.size >= 3 ? existing_cars : (existing_cars + Array.new(3 - existing_cars.size)) %>
+      <% rows_to_render.each do |species_id| %>
+        <%= render "organizers/shared/fish_train_car_row", f: f, club: club, species_id: species_id %>
+      <% end %>
+    </div>
+
+    <template data-fish-train-builder-target="carTemplate">
+      <%= render "organizers/shared/fish_train_car_row", f: f, club: club, species_id: nil %>
+    </template>
+
+    <div class="flex items-center gap-3 mt-2">
+      <button type="button"
+              data-fish-train-builder-target="addButton"
+              data-action="fish-train-builder#add"
+              class="h-10 px-4 rounded bg-emerald-900 hover:bg-emerald-800 text-sm disabled:opacity-40">
+        + Add car
+      </button>
+      <span data-fish-train-builder-target="carCount" class="text-xs text-slate-400"></span>
+    </div>
+  </div>
+</div>

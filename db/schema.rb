@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_05_10_065116) do
+ActiveRecord::Schema[8.1].define(version: 2026_05_10_201419) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -375,6 +375,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_05_10_065116) do
     t.integer "format", default: 0, null: false
     t.integer "mode", default: 0, null: false
     t.string "name", null: false
+    t.integer "train_cars", default: [], null: false, array: true
     t.datetime "updated_at", null: false
     t.index ["club_id"], name: "index_tournament_templates_on_club_id"
   end
@@ -397,6 +398,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_05_10_065116) do
     t.string "season_tag"
     t.datetime "starts_at", null: false
     t.integer "template_source_id"
+    t.integer "train_cars", default: [], null: false, array: true
     t.datetime "updated_at", null: false
     t.index ["club_id", "starts_at", "ends_at"], name: "index_tournaments_on_club_id_and_starts_at_and_ends_at"
     t.index ["club_id"], name: "index_tournaments_on_club_id"

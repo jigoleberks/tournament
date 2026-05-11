@@ -365,5 +365,457 @@ module Catches
     assert_equal [0, 1], active_indexes,
                  "expected new placement to land at the freed slot_index without colliding"
   end
+
+  test "fish_train: first catch matching car 0 species creates a placement at slot_index 0" do
+    club = create(:club)
+    perch = create(:species, club: club, name: "Perch")
+    pike  = create(:species, club: club, name: "Pike")
+    user  = create(:user, club: club)
+    t = build(:tournament, club: club, format: :fish_train, mode: :solo,
+              kind: :event, starts_at: 1.hour.ago, ends_at: 1.hour.from_now,
+              train_cars: [perch.id, pike.id, perch.id])
+    [perch, pike].each { |s| t.scoring_slots.build(species: s, slot_count: 1) }
+    t.save!
+    entry = create(:tournament_entry, tournament: t)
+    create(:tournament_entry_member, tournament_entry: entry, user: user)
+
+    Catches::PlaceInSlots.call(
+      catch: create(:catch, user: user, species: perch, length_inches: 12,
+                    captured_at_device: 30.minutes.ago)
+    )
+
+    placements = CatchPlacement.where(tournament: t, active: true).order(:slot_index)
+    assert_equal 1, placements.count
+    assert_equal 0, placements.first.slot_index
+    assert_equal perch, placements.first.species
+  end
+
+  test "fish_train: a longer catch of the current car species replaces it" do
+    club = create(:club)
+    perch = create(:species, club: club)
+    pike  = create(:species, club: club)
+    user  = create(:user, club: club)
+    t = build(:tournament, club: club, format: :fish_train, mode: :solo,
+              kind: :event, starts_at: 1.hour.ago, ends_at: 1.hour.from_now,
+              train_cars: [perch.id, pike.id, perch.id])
+    [perch, pike].each { |s| t.scoring_slots.build(species: s, slot_count: 1) }
+    t.save!
+    entry = create(:tournament_entry, tournament: t)
+    create(:tournament_entry_member, tournament_entry: entry, user: user)
+
+    [10, 14].each do |len|
+      Catches::PlaceInSlots.call(
+        catch: create(:catch, user: user, species: perch, length_inches: len,
+                      captured_at_device: 30.minutes.ago)
+      )
+    end
+
+    active = CatchPlacement.where(tournament: t, active: true).includes(:catch)
+    assert_equal 1, active.count
+    assert_equal 14, active.first.catch.length_inches.to_i
+    inactive = CatchPlacement.where(tournament: t, active: false)
+    assert_equal 1, inactive.count, "expected the smaller perch placement to be deactivated"
+  end
+
+  test "fish_train: a same-or-shorter catch of the current car species is a no-op" do
+    club = create(:club)
+    perch = create(:species, club: club)
+    pike  = create(:species, club: club)
+    user  = create(:user, club: club)
+    t = build(:tournament, club: club, format: :fish_train, mode: :solo,
+              kind: :event, starts_at: 1.hour.ago, ends_at: 1.hour.from_now,
+              train_cars: [perch.id, pike.id, perch.id])
+    [perch, pike].each { |s| t.scoring_slots.build(species: s, slot_count: 1) }
+    t.save!
+    entry = create(:tournament_entry, tournament: t)
+    create(:tournament_entry_member, tournament_entry: entry, user: user)
+
+    Catches::PlaceInSlots.call(
+      catch: create(:catch, user: user, species: perch, length_inches: 14, captured_at_device: 30.minutes.ago)
+    )
+    Catches::PlaceInSlots.call(
+      catch: create(:catch, user: user, species: perch, length_inches: 14, captured_at_device: 25.minutes.ago)
+    )
+    Catches::PlaceInSlots.call(
+      catch: create(:catch, user: user, species: perch, length_inches: 10, captured_at_device: 20.minutes.ago)
+    )
+
+    active = CatchPlacement.where(tournament: t, active: true).includes(:catch).to_a
+    assert_equal 1, active.size
+    assert_equal 14, active.first.catch.length_inches.to_i
+  end
+
+  test "fish_train: catching the next car species advances and locks the previous car" do
+    club = create(:club)
+    perch = create(:species, club: club)
+    pike  = create(:species, club: club)
+    walleye = create(:species, club: club)
+    user  = create(:user, club: club)
+    t = build(:tournament, club: club, format: :fish_train, mode: :solo,
+              kind: :event, starts_at: 1.hour.ago, ends_at: 1.hour.from_now,
+              train_cars: [perch.id, pike.id, walleye.id])
+    [perch, pike, walleye].each { |s| t.scoring_slots.build(species: s, slot_count: 1) }
+    t.save!
+    entry = create(:tournament_entry, tournament: t)
+    create(:tournament_entry_member, tournament_entry: entry, user: user)
+
+    Catches::PlaceInSlots.call(
+      catch: create(:catch, user: user, species: perch, length_inches: 12, captured_at_device: 30.minutes.ago)
+    )
+    Catches::PlaceInSlots.call(
+      catch: create(:catch, user: user, species: pike, length_inches: 22, captured_at_device: 25.minutes.ago)
+    )
+
+    active = CatchPlacement.where(tournament: t, active: true).order(:slot_index).includes(:catch).to_a
+    assert_equal [0, 1], active.map(&:slot_index)
+    assert_equal perch, active[0].species
+    assert_equal pike,  active[1].species
+  end
+
+  test "fish_train: catching a previously-locked car species is a no-op" do
+    club = create(:club)
+    perch = create(:species, club: club)
+    pike  = create(:species, club: club)
+    walleye = create(:species, club: club)
+    user  = create(:user, club: club)
+    t = build(:tournament, club: club, format: :fish_train, mode: :solo,
+              kind: :event, starts_at: 1.hour.ago, ends_at: 1.hour.from_now,
+              train_cars: [perch.id, pike.id, walleye.id])
+    [perch, pike, walleye].each { |s| t.scoring_slots.build(species: s, slot_count: 1) }
+    t.save!
+    entry = create(:tournament_entry, tournament: t)
+    create(:tournament_entry_member, tournament_entry: entry, user: user)
+
+    Catches::PlaceInSlots.call(
+      catch: create(:catch, user: user, species: perch, length_inches: 12, captured_at_device: 30.minutes.ago)
+    )
+    Catches::PlaceInSlots.call(
+      catch: create(:catch, user: user, species: pike, length_inches: 22, captured_at_device: 25.minutes.ago)
+    )
+    Catches::PlaceInSlots.call(
+      catch: create(:catch, user: user, species: perch, length_inches: 30, captured_at_device: 20.minutes.ago)
+    )
+
+    active = CatchPlacement.where(tournament: t, active: true).order(:slot_index).includes(:catch).to_a
+    assert_equal [0, 1], active.map(&:slot_index), "perch car 0 stays locked at the previous length"
+    assert_equal 12, active[0].catch.length_inches.to_i, "locked car length unchanged"
+  end
+
+  test "fish_train: a repeated species in the train opens a new car after walking through" do
+    club = create(:club)
+    perch   = create(:species, club: club)
+    pike    = create(:species, club: club)
+    walleye = create(:species, club: club)
+    user    = create(:user, club: club)
+    t = build(:tournament, club: club, format: :fish_train, mode: :solo,
+              kind: :event, starts_at: 1.hour.ago, ends_at: 1.hour.from_now,
+              train_cars: [perch.id, pike.id, walleye.id, perch.id])
+    [perch, pike, walleye].each { |s| t.scoring_slots.build(species: s, slot_count: 1) }
+    t.save!
+    entry = create(:tournament_entry, tournament: t)
+    create(:tournament_entry_member, tournament_entry: entry, user: user)
+
+    [
+      [perch,   12], [pike,    20], [walleye, 18], [perch, 16]
+    ].each do |species, len|
+      Catches::PlaceInSlots.call(
+        catch: create(:catch, user: user, species: species, length_inches: len,
+                      captured_at_device: 30.minutes.ago)
+      )
+    end
+
+    active = CatchPlacement.where(tournament: t, active: true).order(:slot_index).includes(:catch).to_a
+    assert_equal [0, 1, 2, 3], active.map(&:slot_index)
+    assert_equal [perch, pike, walleye, perch], active.map(&:species)
+    assert_equal [12, 20, 18, 16], active.map { |p| p.catch.length_inches.to_i }
+  end
+
+  test "fish_train: catch of an off-pool species is a no-op" do
+    club = create(:club)
+    perch = create(:species, club: club)
+    pike  = create(:species, club: club)
+    off_pool = create(:species, club: club)
+    user  = create(:user, club: club)
+    t = build(:tournament, club: club, format: :fish_train, mode: :solo,
+              kind: :event, starts_at: 1.hour.ago, ends_at: 1.hour.from_now,
+              train_cars: [perch.id, pike.id, perch.id])
+    [perch, pike].each { |s| t.scoring_slots.build(species: s, slot_count: 1) }
+    t.save!
+    entry = create(:tournament_entry, tournament: t)
+    create(:tournament_entry_member, tournament_entry: entry, user: user)
+
+    Catches::PlaceInSlots.call(
+      catch: create(:catch, user: user, species: off_pool, length_inches: 30,
+                    captured_at_device: 30.minutes.ago)
+    )
+
+    assert_equal 0, CatchPlacement.where(tournament: t).count
+  end
+
+  test "fish_train: improving the last (final) car works indefinitely (no implicit end-of-train lock)" do
+    club = create(:club)
+    perch = create(:species, club: club)
+    pike  = create(:species, club: club)
+    user  = create(:user, club: club)
+    t = build(:tournament, club: club, format: :fish_train, mode: :solo,
+              kind: :event, starts_at: 1.hour.ago, ends_at: 1.hour.from_now,
+              train_cars: [perch.id, pike.id, perch.id])
+    [perch, pike].each { |s| t.scoring_slots.build(species: s, slot_count: 1) }
+    t.save!
+    entry = create(:tournament_entry, tournament: t)
+    create(:tournament_entry_member, tournament_entry: entry, user: user)
+
+    [
+      [perch, 10], [pike, 22], [perch, 12], [perch, 14], [perch, 18]
+    ].each do |species, len|
+      Catches::PlaceInSlots.call(
+        catch: create(:catch, user: user, species: species, length_inches: len,
+                      captured_at_device: 30.minutes.ago)
+      )
+    end
+
+    active = CatchPlacement.where(tournament: t, active: true).order(:slot_index).includes(:catch).to_a
+    assert_equal [0, 1, 2], active.map(&:slot_index)
+    assert_equal 10, active[0].catch.length_inches.to_i, "car 0 locked at first perch"
+    assert_equal 22, active[1].catch.length_inches.to_i, "car 1 locked at first pike"
+    assert_equal 18, active[2].catch.length_inches.to_i, "car 2 (last car) keeps improving"
+  end
+
+  test "fish_train: consecutive same-species cars form a top-N group (W=14, W=22 fill both W slots)" do
+    club = create(:club)
+    perch   = create(:species, club: club)
+    walleye = create(:species, club: club)
+    user    = create(:user, club: club)
+    t = build(:tournament, club: club, format: :fish_train, mode: :solo,
+              kind: :event, starts_at: 1.hour.ago, ends_at: 1.hour.from_now,
+              train_cars: [perch.id, walleye.id, walleye.id])
+    [perch, walleye].each { |s| t.scoring_slots.build(species: s, slot_count: 1) }
+    t.save!
+    entry = create(:tournament_entry, tournament: t)
+    create(:tournament_entry_member, tournament_entry: entry, user: user)
+
+    [
+      [perch,   10],
+      [walleye, 14],
+      [walleye, 22]
+    ].each do |species, len|
+      Catches::PlaceInSlots.call(
+        catch: create(:catch, user: user, species: species, length_inches: len,
+                      captured_at_device: 30.minutes.ago)
+      )
+    end
+
+    active = CatchPlacement.where(tournament: t, active: true).order(:slot_index).includes(:catch).to_a
+    assert_equal [0, 1, 2], active.map(&:slot_index), "all three slots filled (P group + 2-car W group)"
+    assert_equal 14, active[1].catch.length_inches.to_i, "first W fills the first W slot"
+    assert_equal 22, active[2].catch.length_inches.to_i, "second W fills the second W slot (not improve)"
+  end
+
+  test "fish_train: a bigger catch replaces the smallest in a full same-species group; survivor shifts down" do
+    club = create(:club)
+    perch   = create(:species, club: club)
+    walleye = create(:species, club: club)
+    user    = create(:user, club: club)
+    t = build(:tournament, club: club, format: :fish_train, mode: :solo,
+              kind: :event, starts_at: 1.hour.ago, ends_at: 1.hour.from_now,
+              train_cars: [perch.id, walleye.id, walleye.id])
+    [perch, walleye].each { |s| t.scoring_slots.build(species: s, slot_count: 1) }
+    t.save!
+    entry = create(:tournament_entry, tournament: t)
+    create(:tournament_entry_member, tournament_entry: entry, user: user)
+
+    # State after first three catches: slots [P10, W14, W22].
+    # Then W=23 bumps the smallest W (=14). Survivor W=22 shifts from slot 2
+    # down to slot 1, and W=23 lands at slot 2 ("fill forward — newest highest").
+    # Then W=18 is smaller than the new smallest (22), no-op.
+    # Then W=22.5 bumps 22; W=23 shifts to slot 1, W=22.5 to slot 2.
+    [
+      [perch,   10],
+      [walleye, 14],
+      [walleye, 22],
+      [walleye, 23],
+      [walleye, 18],
+      [walleye, 22.5]
+    ].each do |species, len|
+      Catches::PlaceInSlots.call(
+        catch: create(:catch, user: user, species: species, length_inches: len,
+                      captured_at_device: 30.minutes.ago)
+      )
+    end
+
+    active = CatchPlacement.where(tournament: t, active: true).order(:slot_index).includes(:catch).to_a
+    assert_equal [0, 1, 2], active.map(&:slot_index)
+    assert_in_delta 10,   active[0].catch.length_inches.to_f
+    assert_in_delta 23,   active[1].catch.length_inches.to_f, 0.01, "older survivor (23) in the lower W slot"
+    assert_in_delta 22.5, active[2].catch.length_inches.to_f, 0.01, "newest survivor (22.5) in the highest W slot"
+  end
+
+  test "fish_train: catching the next group's species locks the previous group permanently" do
+    club = create(:club)
+    perch   = create(:species, club: club)
+    walleye = create(:species, club: club)
+    pike    = create(:species, club: club)
+    user    = create(:user, club: club)
+    t = build(:tournament, club: club, format: :fish_train, mode: :solo,
+              kind: :event, starts_at: 1.hour.ago, ends_at: 1.hour.from_now,
+              train_cars: [perch.id, walleye.id, walleye.id, pike.id])
+    [perch, walleye, pike].each { |s| t.scoring_slots.build(species: s, slot_count: 1) }
+    t.save!
+    entry = create(:tournament_entry, tournament: t)
+    create(:tournament_entry_member, tournament_entry: entry, user: user)
+
+    # Fill P + both W slots, then advance to pike. A later walleye should be
+    # a no-op because the W group is now locked.
+    [
+      [perch,   10],
+      [walleye, 14],
+      [walleye, 22],
+      [pike,    30],
+      [walleye, 100]  # bigger than anything in the W group, but locked
+    ].each do |species, len|
+      Catches::PlaceInSlots.call(
+        catch: create(:catch, user: user, species: species, length_inches: len,
+                      captured_at_device: 30.minutes.ago)
+      )
+    end
+
+    active = CatchPlacement.where(tournament: t, active: true).order(:slot_index).includes(:catch).to_a
+    assert_equal [0, 1, 2, 3], active.map(&:slot_index)
+    assert_equal 14, active[1].catch.length_inches.to_i, "W group locked — W=100 did not replace W=14"
+    assert_equal 22, active[2].catch.length_inches.to_i, "W group locked — W=100 did not replace W=22"
+    assert_equal 30, active[3].catch.length_inches.to_i, "pike advanced and locked the W group"
+  end
+
+  test "fish_train: full P→W→K→W→W walkthrough matches the score-maximizing top-N rule" do
+    club = create(:club)
+    perch   = create(:species, club: club)
+    pike    = create(:species, club: club)
+    walleye = create(:species, club: club)
+    user    = create(:user, club: club)
+    t = build(:tournament, club: club, format: :fish_train, mode: :solo,
+              kind: :event, starts_at: 1.hour.ago, ends_at: 1.hour.from_now,
+              train_cars: [perch.id, walleye.id, pike.id, walleye.id, walleye.id])
+    [perch, pike, walleye].each { |s| t.scoring_slots.build(species: s, slot_count: 1) }
+    t.save!
+    entry = create(:tournament_entry, tournament: t)
+    create(:tournament_entry_member, tournament_entry: entry, user: user)
+
+    # User's smoke-test catches: P14, W14, K14, W14, W28, W16
+    # Expected with the group rule:
+    #   - P14 fills P group (slot 0).
+    #   - W14 advances to W-group-1, fills slot 1.
+    #   - K14 advances to K group, fills slot 2.
+    #   - W14 advances to W-group-2 (slots 3 and 4), fills slot 3.
+    #   - W28 fills empty slot 4. State: slot 3=14, slot 4=28.
+    #   - W16 bumps smallest (W=14). Survivor W=28 shifts slot 4→3. W=16 lands at slot 4.
+    [
+      [perch,   14],
+      [walleye, 14],
+      [pike,    14],
+      [walleye, 14],
+      [walleye, 28],
+      [walleye, 16]
+    ].each do |species, len|
+      Catches::PlaceInSlots.call(
+        catch: create(:catch, user: user, species: species, length_inches: len,
+                      captured_at_device: 30.minutes.ago)
+      )
+    end
+
+    active = CatchPlacement.where(tournament: t, active: true).order(:slot_index).includes(:catch).to_a
+    assert_equal [0, 1, 2, 3, 4], active.map(&:slot_index), "all 5 cars filled"
+    assert_equal [14, 14, 14, 28, 16], active.map { |p| p.catch.length_inches.to_i }
+    sum = active.sum { |p| p.catch.length_inches.to_i }
+    assert_equal 86, sum, "score = 14+14+14+28+16 (top 2 of {14, 28, 16} placed in W-group-2)"
+  end
+
+  test "fish_train: 3-car same-species group, judge DQ + refill + bump exercises survivors crossing paths" do
+    club = create(:club)
+    walleye = create(:species, club: club)
+    user    = create(:user, club: club)
+    t = build(:tournament, club: club, format: :fish_train, mode: :solo,
+              kind: :event, starts_at: 1.hour.ago, ends_at: 1.hour.from_now,
+              train_cars: [walleye.id, walleye.id, walleye.id])
+    t.scoring_slots.build(species: walleye, slot_count: 1)
+    t.save!
+    entry = create(:tournament_entry, tournament: t)
+    create(:tournament_entry_member, tournament_entry: entry, user: user)
+
+    # Through normal fills+bumps the invariant "older survivor at lower slot"
+    # holds, so survivors never need to cross paths during a shift. Judge DQs
+    # break that invariant: a refill into a low slot can be NEWER than the
+    # survivor at a higher slot. The next bump then needs to swap their slots.
+    #
+    # Sequence:
+    #   1. W=20 → slot 0  (oldest)
+    #   2. W=14 → slot 1  (smallest, middle)
+    #   3. W=30 → slot 2  (newest at this point)
+    #   4. Judge DQs slot 0's placement.        State: slot 1=W14, slot 2=W30.
+    #   5. W=25 fills empty slot 0.             State: slot 0=W25, slot 1=W14, slot 2=W30.
+    #      Now created_at order: W14 (oldest) < W30 < W25 (newest).
+    #      But by slot:          slot 0=W25 (newest), slot 2=W30 (mid), slot 1=W14 (oldest).
+    #   6. W=50 bumps W=14 (smallest, slot 1). Survivors are W30 (slot 2, older
+    #      than W25) and W25 (slot 0, newest). After sorting by created_at:
+    #        [W30 (older, slot 2), W25 (newer, slot 0)] → targets [0, 1].
+    #        W30 must move 2→0; W25 must move 0→1. They cross.
+    #      Single-pass shift would violate idx_active_placements_uniq_per_slot
+    #      when W30 tries to write slot 0 while W25 still occupies it.
+    [20, 14, 30].each do |len|
+      Catches::PlaceInSlots.call(
+        catch: create(:catch, user: user, species: walleye, length_inches: len,
+                      captured_at_device: 30.minutes.ago)
+      )
+    end
+    CatchPlacement.where(tournament: t, slot_index: 0, active: true).sole.update!(active: false)
+    Catches::PlaceInSlots.call(
+      catch: create(:catch, user: user, species: walleye, length_inches: 25,
+                    captured_at_device: 30.minutes.ago)
+    )
+    Catches::PlaceInSlots.call(
+      catch: create(:catch, user: user, species: walleye, length_inches: 50,
+                    captured_at_device: 30.minutes.ago)
+    )
+
+    active = CatchPlacement.where(tournament: t, active: true).order(:slot_index).includes(:catch).to_a
+    assert_equal [0, 1, 2], active.map(&:slot_index), "all three slots filled after crossed-path shift"
+    assert_equal [30, 25, 50], active.map { |p| p.catch.length_inches.to_i },
+                 "W30 (older survivor) lands at slot 0, W25 at slot 1, new W50 at slot 2"
+  end
+
+  test "fish_train: judge DQ in a past group leaves a permanent hole; later same-species catch no-ops" do
+    club = create(:club)
+    perch   = create(:species, club: club)
+    walleye = create(:species, club: club)
+    pike    = create(:species, club: club)
+    user    = create(:user, club: club)
+    t = build(:tournament, club: club, format: :fish_train, mode: :solo,
+              kind: :event, starts_at: 1.hour.ago, ends_at: 1.hour.from_now,
+              train_cars: [perch.id, walleye.id, pike.id])
+    [perch, walleye, pike].each { |s| t.scoring_slots.build(species: s, slot_count: 1) }
+    t.save!
+    entry = create(:tournament_entry, tournament: t)
+    create(:tournament_entry_member, tournament_entry: entry, user: user)
+
+    # Fill all 3 cars, then DQ the middle (W) placement and try to refill.
+    [[perch, 10], [walleye, 20], [pike, 30]].each do |species, len|
+      Catches::PlaceInSlots.call(
+        catch: create(:catch, user: user, species: species, length_inches: len,
+                      captured_at_device: 30.minutes.ago)
+      )
+    end
+    w_placement = CatchPlacement.where(tournament: t, species: walleye, active: true).sole
+    w_placement.update!(active: false)
+
+    Catches::PlaceInSlots.call(
+      catch: create(:catch, user: user, species: walleye, length_inches: 25,
+                    captured_at_device: 30.minutes.ago)
+    )
+
+    active = CatchPlacement.where(tournament: t, active: true).order(:slot_index).includes(:catch).to_a
+    assert_equal [0, 2], active.map(&:slot_index),
+                 "past-group DQ leaves a permanent hole — slot 1 is not re-filled"
+    assert_equal [10, 30], active.map { |p| p.catch.length_inches.to_i }
+  end
+
   end
 end

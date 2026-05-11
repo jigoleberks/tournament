@@ -363,4 +363,135 @@ class TournamentTest < ActiveSupport::TestCase
     t.scoring_slots.build(species: walleye, slot_count: 1)
     assert t.valid?, t.errors.full_messages.inspect
   end
+
+  test "format enum includes fish_train" do
+    walleye = create(:species, club: @club)
+    t = build(:tournament, club: @club, format: :fish_train, mode: :solo,
+              kind: :event, ends_at: 2.hours.from_now,
+              train_cars: [walleye.id, walleye.id, walleye.id])
+    t.scoring_slots.build(species: walleye, slot_count: 1)
+    assert t.valid?, t.errors.full_messages.inspect
+    assert t.format_fish_train?
+  end
+
+  test "fish_train tournament errors when no scoring slot is configured" do
+    t = build(:tournament, club: @club, format: :fish_train, mode: :solo,
+              kind: :event, ends_at: 2.hours.from_now, train_cars: [1, 1, 1])
+    assert_not t.valid?
+    assert_includes t.errors[:scoring_slots],
+                    "Fish Train tournaments must have between 1 and 3 species in the pool"
+  end
+
+  test "fish_train tournament errors when pool has more than 3 species" do
+    s1 = create(:species, club: @club)
+    s2 = create(:species, club: @club)
+    s3 = create(:species, club: @club)
+    s4 = create(:species, club: @club)
+    t = build(:tournament, club: @club, format: :fish_train, mode: :solo,
+              kind: :event, ends_at: 2.hours.from_now,
+              train_cars: [s1.id, s2.id, s3.id])
+    [s1, s2, s3, s4].each { |s| t.scoring_slots.build(species: s, slot_count: 1) }
+    assert_not t.valid?
+    assert_includes t.errors[:scoring_slots],
+                    "Fish Train tournaments must have between 1 and 3 species in the pool"
+  end
+
+  test "fish_train tournament errors when train has fewer than 3 cars" do
+    s = create(:species, club: @club)
+    t = build(:tournament, club: @club, format: :fish_train, mode: :solo,
+              kind: :event, ends_at: 2.hours.from_now,
+              train_cars: [s.id, s.id])
+    t.scoring_slots.build(species: s, slot_count: 1)
+    assert_not t.valid?
+    assert_includes t.errors[:train_cars],
+                    "Fish Train must have between 3 and 6 cars"
+  end
+
+  test "fish_train tournament errors when train has more than 6 cars" do
+    s = create(:species, club: @club)
+    t = build(:tournament, club: @club, format: :fish_train, mode: :solo,
+              kind: :event, ends_at: 2.hours.from_now,
+              train_cars: Array.new(7) { s.id })
+    t.scoring_slots.build(species: s, slot_count: 1)
+    assert_not t.valid?
+    assert_includes t.errors[:train_cars],
+                    "Fish Train must have between 3 and 6 cars"
+  end
+
+  test "fish_train tournament errors when a train car references a species not in the pool" do
+    pool_species = create(:species, club: @club)
+    off_pool     = create(:species, club: @club)
+    t = build(:tournament, club: @club, format: :fish_train, mode: :solo,
+              kind: :event, ends_at: 2.hours.from_now,
+              train_cars: [pool_species.id, off_pool.id, pool_species.id])
+    t.scoring_slots.build(species: pool_species, slot_count: 1)
+    assert_not t.valid?
+    assert_includes t.errors[:train_cars],
+                    "Fish Train cars must reference species in the pool"
+  end
+
+  test "fish_train tournament requires kind=event" do
+    s = create(:species, club: @club)
+    t = build(:tournament, club: @club, format: :fish_train, mode: :solo,
+              kind: :ongoing, ends_at: 2.hours.from_now,
+              train_cars: [s.id, s.id, s.id])
+    t.scoring_slots.build(species: s, slot_count: 1)
+    assert_not t.valid?
+    assert_includes t.errors[:format], "Fish Train tournaments must be event kind with an end time"
+  end
+
+  test "fish_train tournament requires ends_at" do
+    s = create(:species, club: @club)
+    t = build(:tournament, club: @club, format: :fish_train, mode: :solo,
+              kind: :event, ends_at: nil,
+              train_cars: [s.id, s.id, s.id])
+    t.scoring_slots.build(species: s, slot_count: 1)
+    assert_not t.valid?
+    assert_includes t.errors[:format], "Fish Train tournaments must be event kind with an end time"
+  end
+
+  test "fish_train tournament accepts team mode" do
+    s = create(:species, club: @club)
+    t = build(:tournament, club: @club, format: :fish_train, mode: :team,
+              kind: :event, ends_at: 2.hours.from_now,
+              train_cars: [s.id, s.id, s.id])
+    t.scoring_slots.build(species: s, slot_count: 1)
+    assert t.valid?, t.errors.full_messages.inspect
+  end
+
+  test "fish_train tournament accepts a 6-car train with 3 distinct species, repeats allowed" do
+    perch   = create(:species, club: @club, name: "Perch")
+    pike    = create(:species, club: @club, name: "Pike")
+    walleye = create(:species, club: @club, name: "Walleye")
+    t = build(:tournament, club: @club, format: :fish_train, mode: :solo,
+              kind: :event, ends_at: 2.hours.from_now,
+              train_cars: [perch.id, pike.id, walleye.id, perch.id, pike.id, walleye.id])
+    [perch, pike, walleye].each { |sp| t.scoring_slots.build(species: sp, slot_count: 1) }
+    assert t.valid?, t.errors.full_messages.inspect
+  end
+
+  test "train_cars cannot be changed after the tournament has started" do
+    s = create(:species, club: @club)
+    t = build(:tournament, club: @club, format: :fish_train, mode: :solo,
+              kind: :event, starts_at: 1.hour.ago, ends_at: 1.hour.from_now,
+              train_cars: [s.id, s.id, s.id])
+    t.scoring_slots.build(species: s, slot_count: 1)
+    t.save!
+
+    t.train_cars = [s.id, s.id, s.id, s.id]
+    assert_not t.valid?
+    assert_includes t.errors[:train_cars], "can't be changed once the tournament has started"
+  end
+
+  test "train_cars can be changed before the tournament starts" do
+    s = create(:species, club: @club)
+    t = build(:tournament, club: @club, format: :fish_train, mode: :solo,
+              kind: :event, starts_at: 1.hour.from_now, ends_at: 4.hours.from_now,
+              train_cars: [s.id, s.id, s.id])
+    t.scoring_slots.build(species: s, slot_count: 1)
+    t.save!
+
+    t.train_cars = [s.id, s.id, s.id, s.id]
+    assert t.valid?, t.errors.full_messages.to_sentence
+  end
 end
