@@ -21,7 +21,13 @@ module Catches
           ::CatchPlacement.where(id: freed.map(&:id)).update_all(active: false)
           freed.each do |p|
             p.reload
-            ::Catches::PromoteBackup.call(freed_placement: p)
+            if p.tournament.format_biggest_vs_smallest?
+              ::Catches::ReconcileBvsExtremes.call(
+                tournament: p.tournament, entry: p.tournament_entry, species: p.species
+              )
+            else
+              ::Catches::PromoteBackup.call(freed_placement: p)
+            end
           end
         end
       end

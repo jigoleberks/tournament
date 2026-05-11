@@ -40,7 +40,7 @@ module Catches
           @catch.update!(status: :disqualified)
           freed.each do |p|
             p.reload
-            Catches::PromoteBackup.call(freed_placement: p)
+            reconcile_freed(p)
           end
         when :manual_override
           prior_length  = @catch.length_inches
@@ -71,7 +71,7 @@ module Catches
             @catch.update!(species_id: @species_id)
             freed.each do |p|
               p.reload
-              Catches::PromoteBackup.call(freed_placement: p)
+              reconcile_freed(p)
             end
 
             # Re-place the catch under the new species. PlaceInSlots will only
@@ -101,7 +101,11 @@ module Catches
             # is currently placed in; a previously-unplaced larger catch should
             # take its slot. Sort by entry id for stable lock order.
             @catch.catch_placements.active.includes(:tournament, :tournament_entry).order(:tournament_entry_id).each do |p|
-              Catches::RebalanceSlots.call(tournament: p.tournament, entry: p.tournament_entry, species: @catch.species)
+              if p.tournament.format_biggest_vs_smallest?
+                Catches::ReconcileBvsExtremes.call(tournament: p.tournament, entry: p.tournament_entry, species: @catch.species)
+              else
+                Catches::RebalanceSlots.call(tournament: p.tournament, entry: p.tournament_entry, species: @catch.species)
+              end
             end
           end
         end
@@ -123,6 +127,21 @@ module Catches
     end
 
     private
+
+    # PromoteBackup picks the largest non-placed catch — correct for Standard
+    # but wrong for BvS when the freed slot held the smaller extreme. BvS
+    # re-derives both extremes from the eligible catch set instead.
+    def reconcile_freed(placement)
+      if placement.tournament.format_biggest_vs_smallest?
+        Catches::ReconcileBvsExtremes.call(
+          tournament: placement.tournament,
+          entry: placement.tournament_entry,
+          species: placement.species
+        )
+      else
+        Catches::PromoteBackup.call(freed_placement: placement)
+      end
+    end
 
     def snapshot
       species = Species.find_by(id: @catch.species_id)

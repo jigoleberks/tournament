@@ -49,6 +49,41 @@ module Catches
       assert_equal 1, backup.reload.catch_placements.where(active: true).count, "backup should be promoted into freed slot"
     end
 
+    test "BvS: drops a member's extreme placement and reconciles to the remaining members' actual extremes" do
+      # Team BvS entry. @kept catches: 22, 16, 12; @removed catches: 10.
+      # Incremental placement walks active to [22@?, 10@?] (10 bumps 12 which
+      # bumps 16). Drop @removed. PromoteBackup would pick the largest unplaced
+      # (16) into the freed slot → [22, 16] (spread 6). Correct BvS: eligible
+      # is now {22, 16, 12} → [22, 12] (spread 10).
+      bvs = build(:tournament, club: @club, mode: :team, format: :biggest_vs_smallest,
+                  kind: :event, starts_at: 1.hour.ago, ends_at: 1.hour.from_now)
+      bvs.scoring_slots.build(species: @walleye, slot_count: 1)
+      bvs.save!
+      bvs_entry = create(:tournament_entry, tournament: bvs)
+      create(:tournament_entry_member, tournament_entry: bvs_entry, user: @kept)
+      create(:tournament_entry_member, tournament_entry: bvs_entry, user: @removed)
+
+      [[@kept, 22, 30.minutes.ago],
+       [@kept, 16, 25.minutes.ago],
+       [@kept, 12, 20.minutes.ago],
+       [@removed, 10, 15.minutes.ago]].each do |user, length, captured|
+        Catches::PlaceInSlots.call(
+          catch: create(:catch, user: user, species: @walleye,
+                                length_inches: length, captured_at_device: captured)
+        )
+      end
+      pre_lens = bvs_entry.catch_placements.where(active: true)
+                          .includes(:catch).map { |p| p.catch.length_inches.to_f }.sort
+      assert_equal [10.0, 22.0], pre_lens, "preconditions: expected entry's extremes to be [10, 22]"
+
+      Catches::DropMemberFromEntry.call(entry: bvs_entry, user: @removed)
+
+      active_lens = bvs_entry.catch_placements.where(active: true)
+                              .includes(:catch).map { |p| p.catch.length_inches.to_f }.sort
+      assert_equal [12.0, 22.0], active_lens,
+                   "expected biggest 22 and actual smallest 12 — not next-largest 16"
+    end
+
     test "does not promote a backup catch from the removed user" do
       slot1 = create(:catch, user: @kept,    species: @walleye, length_inches: 22, captured_at_device: 30.minutes.ago)
       slot2 = create(:catch, user: @removed, species: @walleye, length_inches: 20, captured_at_device: 25.minutes.ago)
