@@ -729,5 +729,93 @@ module Catches
     assert_equal 86, sum, "score = 14+14+14+28+16 (top 2 of {14, 28, 16} placed in W-group-2)"
   end
 
+  test "fish_train: 3-car same-species group, judge DQ + refill + bump exercises survivors crossing paths" do
+    club = create(:club)
+    walleye = create(:species, club: club)
+    user    = create(:user, club: club)
+    t = build(:tournament, club: club, format: :fish_train, mode: :solo,
+              kind: :event, starts_at: 1.hour.ago, ends_at: 1.hour.from_now,
+              train_cars: [walleye.id, walleye.id, walleye.id])
+    t.scoring_slots.build(species: walleye, slot_count: 1)
+    t.save!
+    entry = create(:tournament_entry, tournament: t)
+    create(:tournament_entry_member, tournament_entry: entry, user: user)
+
+    # Through normal fills+bumps the invariant "older survivor at lower slot"
+    # holds, so survivors never need to cross paths during a shift. Judge DQs
+    # break that invariant: a refill into a low slot can be NEWER than the
+    # survivor at a higher slot. The next bump then needs to swap their slots.
+    #
+    # Sequence:
+    #   1. W=20 → slot 0  (oldest)
+    #   2. W=14 → slot 1  (smallest, middle)
+    #   3. W=30 → slot 2  (newest at this point)
+    #   4. Judge DQs slot 0's placement.        State: slot 1=W14, slot 2=W30.
+    #   5. W=25 fills empty slot 0.             State: slot 0=W25, slot 1=W14, slot 2=W30.
+    #      Now created_at order: W14 (oldest) < W30 < W25 (newest).
+    #      But by slot:          slot 0=W25 (newest), slot 2=W30 (mid), slot 1=W14 (oldest).
+    #   6. W=50 bumps W=14 (smallest, slot 1). Survivors are W30 (slot 2, older
+    #      than W25) and W25 (slot 0, newest). After sorting by created_at:
+    #        [W30 (older, slot 2), W25 (newer, slot 0)] → targets [0, 1].
+    #        W30 must move 2→0; W25 must move 0→1. They cross.
+    #      Single-pass shift would violate idx_active_placements_uniq_per_slot
+    #      when W30 tries to write slot 0 while W25 still occupies it.
+    [20, 14, 30].each do |len|
+      Catches::PlaceInSlots.call(
+        catch: create(:catch, user: user, species: walleye, length_inches: len,
+                      captured_at_device: 30.minutes.ago)
+      )
+    end
+    CatchPlacement.where(tournament: t, slot_index: 0, active: true).sole.update!(active: false)
+    Catches::PlaceInSlots.call(
+      catch: create(:catch, user: user, species: walleye, length_inches: 25,
+                    captured_at_device: 30.minutes.ago)
+    )
+    Catches::PlaceInSlots.call(
+      catch: create(:catch, user: user, species: walleye, length_inches: 50,
+                    captured_at_device: 30.minutes.ago)
+    )
+
+    active = CatchPlacement.where(tournament: t, active: true).order(:slot_index).includes(:catch).to_a
+    assert_equal [0, 1, 2], active.map(&:slot_index), "all three slots filled after crossed-path shift"
+    assert_equal [30, 25, 50], active.map { |p| p.catch.length_inches.to_i },
+                 "W30 (older survivor) lands at slot 0, W25 at slot 1, new W50 at slot 2"
+  end
+
+  test "fish_train: judge DQ in a past group leaves a permanent hole; later same-species catch no-ops" do
+    club = create(:club)
+    perch   = create(:species, club: club)
+    walleye = create(:species, club: club)
+    pike    = create(:species, club: club)
+    user    = create(:user, club: club)
+    t = build(:tournament, club: club, format: :fish_train, mode: :solo,
+              kind: :event, starts_at: 1.hour.ago, ends_at: 1.hour.from_now,
+              train_cars: [perch.id, walleye.id, pike.id])
+    [perch, walleye, pike].each { |s| t.scoring_slots.build(species: s, slot_count: 1) }
+    t.save!
+    entry = create(:tournament_entry, tournament: t)
+    create(:tournament_entry_member, tournament_entry: entry, user: user)
+
+    # Fill all 3 cars, then DQ the middle (W) placement and try to refill.
+    [[perch, 10], [walleye, 20], [pike, 30]].each do |species, len|
+      Catches::PlaceInSlots.call(
+        catch: create(:catch, user: user, species: species, length_inches: len,
+                      captured_at_device: 30.minutes.ago)
+      )
+    end
+    w_placement = CatchPlacement.where(tournament: t, species: walleye, active: true).sole
+    w_placement.update!(active: false)
+
+    Catches::PlaceInSlots.call(
+      catch: create(:catch, user: user, species: walleye, length_inches: 25,
+                    captured_at_device: 30.minutes.ago)
+    )
+
+    active = CatchPlacement.where(tournament: t, active: true).order(:slot_index).includes(:catch).to_a
+    assert_equal [0, 2], active.map(&:slot_index),
+                 "past-group DQ leaves a permanent hole — slot 1 is not re-filled"
+    assert_equal [10, 30], active.map { |p| p.catch.length_inches.to_i }
+  end
+
   end
 end

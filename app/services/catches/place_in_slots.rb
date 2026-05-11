@@ -104,6 +104,14 @@ module Catches
             # surviving placements shift to the lower slots (in catch order,
             # oldest first) and the new catch lands in the highest slot of
             # the group. "Fill forward" — newest fish at the highest slot.
+            #
+            # Judge DQ semantics: deactivating a placement in a past group
+            # leaves a permanent hole — a later same-species catch is neither
+            # the current group's species nor the next group's species, so it
+            # no-ops. A DQ in the *current* group is implicitly re-fillable
+            # because group_placements is recomputed on each new catch. This
+            # matches BvS: the state machine is append-only; the angler
+            # recovers by catching forward, not back.
             all_active = entry.catch_placements
               .where(active: true)
               .includes(:catch).order(:slot_index).to_a
@@ -142,10 +150,19 @@ module Catches
                   smallest.update!(active: false)
                   bumped << smallest
                   survivors = (group_placements - [smallest]).sort_by(&:created_at)
+                  # Two-pass shift via unique negative sentinels so survivors
+                  # can cross paths (e.g. a 3-car group where the smallest is
+                  # in the middle and an older survivor must move past a
+                  # newer one). The idx_active_placements_uniq_per_slot index
+                  # would reject the intermediate state of a single-pass shift.
+                  moves = []
                   survivors.each_with_index do |sp, i|
                     target = group_slots[i]
-                    sp.update!(slot_index: target) if sp.slot_index != target
+                    next if sp.slot_index == target
+                    moves << [sp, target]
+                    sp.update!(slot_index: -(sp.id + 1))
                   end
+                  moves.each { |sp, target| sp.update!(slot_index: target) }
                   created << CatchPlacement.create!(
                     catch: @catch, tournament: tournament, tournament_entry: entry,
                     species: @catch.species, slot_index: group_slots.last, active: true
