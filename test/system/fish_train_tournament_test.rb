@@ -107,6 +107,36 @@ class FishTrainTournamentTest < ApplicationSystemTestCase
     assert_match "Angler B", rows.last.text
   end
 
+  test "switching a draft tournament to Fish Train reveals the builder and persists train_cars" do
+    tournament = create(:tournament, club: @club, name: "FT Draft",
+                                     mode: :solo, format: :standard, kind: :event,
+                                     starts_at: 1.day.from_now, ends_at: 2.days.from_now)
+    create(:scoring_slot, tournament: tournament, species: @walleye, slot_count: 1)
+
+    sign_in_as(@organizer)
+    visit edit_organizers_tournament_path(tournament)
+
+    # Before switching, the train builder is hidden.
+    assert_no_text "Train cars"
+
+    select "Fish Train", from: "Format"
+
+    # After switching, the train builder section appears.
+    assert_text "Train cars"
+
+    # Pick Walleye in each of the 3 default car selects so the cars match the pool.
+    car_selects = all("select[name='tournament[train_cars][]']")
+    assert_equal 3, car_selects.size, "expected 3 default train car rows"
+    car_selects.each { |sel| sel.find("option", text: "Walleye").select_option }
+
+    click_button "Update Tournament"
+
+    assert_current_path organizers_tournaments_path
+    tournament.reload
+    assert tournament.format_fish_train?
+    assert_equal [@walleye.id, @walleye.id, @walleye.id], tournament.train_cars
+  end
+
   private
 
   def sign_in_as(user)

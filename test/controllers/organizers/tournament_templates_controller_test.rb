@@ -43,6 +43,75 @@ class Organizers::TournamentTemplatesControllerTest < ActionDispatch::Integratio
     assert TournamentTemplate.last.blind_leaderboard?
   end
 
+  test "create accepts format: big_fish_season with one scoring slot" do
+    walleye = create(:species, club: @club)
+    assert_difference -> { TournamentTemplate.count }, 1 do
+      post organizers_tournament_templates_path, params: {
+        tournament_template: {
+          name: "BFS Monthly", mode: "solo", format: "big_fish_season",
+          tournament_template_scoring_slots_attributes: {
+            "0" => { species_id: walleye.id, slot_count: 1 }
+          }
+        }
+      }
+    end
+    assert_redirected_to organizers_tournament_templates_path
+    assert TournamentTemplate.last.format_big_fish_season?
+  end
+
+  test "create accepts format: hidden_length with one scoring slot" do
+    walleye = create(:species, club: @club)
+    assert_difference -> { TournamentTemplate.count }, 1 do
+      post organizers_tournament_templates_path, params: {
+        tournament_template: {
+          name: "HL Monthly", mode: "solo", format: "hidden_length",
+          tournament_template_scoring_slots_attributes: {
+            "0" => { species_id: walleye.id, slot_count: 1 }
+          }
+        }
+      }
+    end
+    assert_redirected_to organizers_tournament_templates_path
+    assert TournamentTemplate.last.format_hidden_length?
+  end
+
+  test "create accepts format: biggest_vs_smallest with one scoring slot" do
+    walleye = create(:species, club: @club)
+    assert_difference -> { TournamentTemplate.count }, 1 do
+      post organizers_tournament_templates_path, params: {
+        tournament_template: {
+          name: "BvS Monthly", mode: "solo", format: "biggest_vs_smallest",
+          tournament_template_scoring_slots_attributes: {
+            "0" => { species_id: walleye.id, slot_count: 1 }
+          }
+        }
+      }
+    end
+    assert_redirected_to organizers_tournament_templates_path
+    assert TournamentTemplate.last.format_biggest_vs_smallest?
+  end
+
+  test "create accepts format: fish_train with train_cars and pool" do
+    perch = create(:species, club: @club, name: "Perch")
+    pike  = create(:species, club: @club, name: "Pike")
+    assert_difference -> { TournamentTemplate.count }, 1 do
+      post organizers_tournament_templates_path, params: {
+        tournament_template: {
+          name: "FT Monthly", mode: "solo", format: "fish_train",
+          train_cars: [perch.id.to_s, pike.id.to_s, perch.id.to_s],
+          tournament_template_scoring_slots_attributes: {
+            "0" => { species_id: perch.id, slot_count: 1 },
+            "1" => { species_id: pike.id,  slot_count: 1 }
+          }
+        }
+      }
+    end
+    assert_redirected_to organizers_tournament_templates_path
+    created = TournamentTemplate.last
+    assert created.format_fish_train?
+    assert_equal [perch.id, pike.id, perch.id], created.train_cars
+  end
+
   private
 
   def sign_in_as(user)
