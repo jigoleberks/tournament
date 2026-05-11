@@ -1,2 +1,7 @@
 @import "tailwindcss";
 @import "../stylesheets/actiontext.css" layer(base);
+
+/* Hide the Trix attach-file toolbar group. The rules editor doesn't accept
+   file uploads — leaving the paperclip button visible would let organizers
+   upload arbitrary blobs through Active Storage with no validation. */
+trix-toolbar .trix-button-group--file-tools { display: none; }
