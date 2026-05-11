@@ -74,6 +74,28 @@ class HiddenLengthTournamentTest < ApplicationSystemTestCase
     assert_match expected_winner, rows.first.text
   end
 
+  test "switching a draft tournament to Hidden Length keeps a single scoring slot" do
+    pike = create(:species, club: @club, name: "Pike")
+
+    tournament = create(:tournament, club: @club, name: "HL Draft",
+                                     mode: :solo, format: :standard, kind: :event,
+                                     starts_at: 1.day.from_now, ends_at: 2.days.from_now)
+    create(:scoring_slot, tournament: tournament, species: @walleye, slot_count: 2)
+    create(:scoring_slot, tournament: tournament, species: pike,     slot_count: 1)
+
+    sign_in_as(@organizer)
+    visit edit_organizers_tournament_path(tournament)
+
+    select "Hidden Length", from: "Format"
+    click_button "Update Tournament"
+
+    assert_current_path organizers_tournaments_path
+    tournament.reload
+    assert tournament.format_hidden_length?
+    assert_equal 1, tournament.scoring_slots.count
+    assert_equal @walleye.id, tournament.scoring_slots.first.species_id
+  end
+
   private
 
   # Mirrors the helper used by test/system/big_fish_season_tournament_test.rb.
