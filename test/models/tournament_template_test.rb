@@ -134,4 +134,37 @@ class TournamentTemplateTest < ActiveSupport::TestCase
     tpl.tournament_template_scoring_slots.build(species: walleye, slot_count: 1)
     assert tpl.valid?, tpl.errors.full_messages.inspect
   end
+
+  test "format enum includes biggest_vs_smallest" do
+    walleye = create(:species, club: @club)
+    tpl = build(:tournament_template, club: @club, format: :biggest_vs_smallest, mode: :solo)
+    tpl.tournament_template_scoring_slots.build(species: walleye, slot_count: 1)
+    assert tpl.valid?, tpl.errors.full_messages.inspect
+    assert tpl.format_biggest_vs_smallest?
+  end
+
+  test "biggest_vs_smallest template errors when no scoring slot is configured" do
+    tpl = build(:tournament_template, club: @club, format: :biggest_vs_smallest, mode: :solo)
+    assert_not tpl.valid?
+    assert_includes tpl.errors[:tournament_template_scoring_slots],
+                    "Biggest vs Smallest tournaments must have exactly one species configured"
+  end
+
+  test "biggest_vs_smallest template errors with more than one scoring slot" do
+    walleye = create(:species, club: @club)
+    pike    = create(:species, club: @club)
+    tpl = build(:tournament_template, club: @club, format: :biggest_vs_smallest, mode: :solo)
+    tpl.tournament_template_scoring_slots.build(species: walleye, slot_count: 1)
+    tpl.tournament_template_scoring_slots.build(species: pike, slot_count: 1)
+    assert_not tpl.valid?
+    assert_includes tpl.errors[:tournament_template_scoring_slots],
+                    "Biggest vs Smallest tournaments must have exactly one species configured"
+  end
+
+  test "biggest_vs_smallest template accepts team mode" do
+    walleye = create(:species, club: @club)
+    tpl = build(:tournament_template, club: @club, format: :biggest_vs_smallest, mode: :team)
+    tpl.tournament_template_scoring_slots.build(species: walleye, slot_count: 1)
+    assert tpl.valid?, tpl.errors.full_messages.inspect
+  end
 end

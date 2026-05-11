@@ -2,15 +2,11 @@ module Leaderboards
   class Build
     def self.call(tournament:)
       rows = build_rows(tournament)
-      ranker_for(tournament.format).call(rows, tournament: tournament)
-    end
-
-    def self.ranker_for(format)
-      case format
-      when "standard"        then Leaderboards::Rankers::Standard
-      when "big_fish_season" then Leaderboards::Rankers::BigFishSeason
-      when "hidden_length"   then Leaderboards::Rankers::HiddenLength
-      else                        Leaderboards::Rankers::Standard
+      case tournament.format
+      when "hidden_length"       then Leaderboards::Rankers::HiddenLength.call(rows, tournament: tournament)
+      when "big_fish_season"     then Leaderboards::Rankers::BigFishSeason.call(rows)
+      when "biggest_vs_smallest" then Leaderboards::Rankers::BiggestVsSmallest.call(rows)
+      else                            Leaderboards::Rankers::Standard.call(rows)
       end
     end
 
@@ -51,6 +47,6 @@ module Leaderboards
       end
     end
 
-    private_class_method :ranker_for, :build_rows
+    private_class_method :build_rows
   end
 end

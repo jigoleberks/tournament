@@ -359,5 +359,107 @@ module Catches
       existing_pike_placement = existing_pike.catch_placements.where(species: @pike).first
       assert_not existing_pike_placement.active?, "22\" pike should have been bumped"
     end
+
+    # --- Biggest vs Smallest reconciliation paths -----------------------------
+    #
+    # PromoteBackup / RebalanceSlots assume "fill the freed slot with the
+    # largest non-placed catch," which is wrong for BvS when the freed slot
+    # was holding the smaller extreme. ApplyJudgeAction has to route BvS
+    # placements through Catches::ReconcileBvsExtremes instead.
+
+    def make_bvs_setup
+      bvs_user = create(:user, club: @club)
+      bvs = build(:tournament, club: @club, format: :biggest_vs_smallest, mode: :solo,
+                  kind: :event, starts_at: 1.hour.ago, ends_at: 1.hour.from_now)
+      bvs.scoring_slots.build(species: @walleye, slot_count: 1)
+      bvs.save!
+      bvs_entry = create(:tournament_entry, tournament: bvs)
+      create(:tournament_entry_member, tournament_entry: bvs_entry, user: bvs_user)
+      [bvs, bvs_entry, bvs_user]
+    end
+
+    test "BvS: disqualifying the smallest extreme reconciles to the actual next-smallest" do
+      bvs, bvs_entry, bvs_user = make_bvs_setup
+      # Catches: 22, 10, 14, 12. After incremental placement, active is [22, 10];
+      # 14 and 12 were mid-range and dropped (inactive placements may exist for
+      # 14/12 if PlaceInSlots created and then deactivated them — for BvS, the
+      # service skips mid-range entirely, so there is no inactive row for them).
+      catches = [22, 10, 14, 12].each_with_index.map do |len, i|
+        c = create(:catch, user: bvs_user, species: @walleye, length_inches: len,
+                           captured_at_device: (30 - i).minutes.ago, status: :needs_review)
+        Catches::PlaceInSlots.call(catch: c)
+        c
+      end
+      smallest = catches[1]  # the 10" catch
+
+      ApplyJudgeAction.call(tournament: bvs, catch: smallest, judge: @judge,
+                            action: :disqualify, note: "blurry photo")
+
+      active_lens = bvs_entry.catch_placements.where(active: true)
+                              .includes(:catch).map { |p| p.catch.length_inches.to_f }.sort
+      assert_equal [12.0, 22.0], active_lens,
+                   "expected biggest 22 and actual remaining smallest 12 — not next-largest 14"
+    end
+
+    test "BvS: disqualifying the biggest extreme reconciles to the actual next-biggest" do
+      bvs, bvs_entry, bvs_user = make_bvs_setup
+      catches = [22, 10, 14, 12].each_with_index.map do |len, i|
+        c = create(:catch, user: bvs_user, species: @walleye, length_inches: len,
+                           captured_at_device: (30 - i).minutes.ago, status: :needs_review)
+        Catches::PlaceInSlots.call(catch: c)
+        c
+      end
+      biggest = catches[0]  # the 22" catch
+
+      ApplyJudgeAction.call(tournament: bvs, catch: biggest, judge: @judge,
+                            action: :disqualify, note: "out of bounds")
+
+      active_lens = bvs_entry.catch_placements.where(active: true)
+                              .includes(:catch).map { |p| p.catch.length_inches.to_f }.sort
+      assert_equal [10.0, 14.0], active_lens,
+                   "expected new biggest 14 and unchanged smallest 10"
+    end
+
+    test "BvS: manual_override species-change reconciles the prior species's extremes" do
+      bvs, bvs_entry, bvs_user = make_bvs_setup
+      catches = [22, 10, 14, 12].each_with_index.map do |len, i|
+        c = create(:catch, user: bvs_user, species: @walleye, length_inches: len,
+                           captured_at_device: (30 - i).minutes.ago, status: :needs_review)
+        Catches::PlaceInSlots.call(catch: c)
+        c
+      end
+      smallest = catches[1]  # the 10" catch — currently the entry's smallest
+
+      ApplyJudgeAction.call(tournament: bvs, catch: smallest, judge: @judge,
+                            action: :manual_override, note: "misidentified",
+                            species_id: @pike.id)
+
+      active_lens = bvs_entry.catch_placements.where(active: true, species_id: @walleye.id)
+                              .includes(:catch).map { |p| p.catch.length_inches.to_f }.sort
+      assert_equal [12.0, 22.0], active_lens,
+                   "expected walleye BvS to reconcile to [22, 12] after the 10\" moved to pike"
+    end
+
+    test "BvS: manual_override length-shrink re-derives both extremes from the eligible catch set" do
+      bvs, bvs_entry, bvs_user = make_bvs_setup
+      # Active becomes [22, 12]; 14 is mid-range (dropped). Edit 22 down to 13.
+      # Old RebalanceSlots would produce [13, 14] (largest-unplaced fills the
+      # smallest active slot). Correct BvS: eligible = {13, 14, 12} → [14, 12].
+      [22, 12, 14].each_with_index do |len, i|
+        Catches::PlaceInSlots.call(
+          catch: create(:catch, user: bvs_user, species: @walleye, length_inches: len,
+                                captured_at_device: (30 - i).minutes.ago, status: :synced)
+        )
+      end
+      shrinker = ::Catch.find_by!(length_inches: 22, user_id: bvs_user.id)
+
+      ApplyJudgeAction.call(tournament: bvs, catch: shrinker, judge: @judge,
+                            action: :manual_override, note: "remeasured", length_inches: 13)
+
+      active_lens = bvs_entry.catch_placements.where(active: true)
+                              .includes(:catch).map { |p| p.catch.length_inches.to_f }.sort
+      assert_equal [12.0, 14.0], active_lens,
+                   "expected biggest 14 and smallest 12 after the 22 shrank to 13"
+    end
   end
 end

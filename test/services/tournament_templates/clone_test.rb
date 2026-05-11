@@ -112,5 +112,22 @@ module TournamentTemplates
       assert_equal 1, cloned.scoring_slots.count
       assert_equal walleye, cloned.scoring_slots.first.species
     end
+
+    test "copies biggest_vs_smallest format and its single scoring slot to the cloned tournament" do
+      walleye = create(:species, club: @club)
+      tpl = build(:tournament_template, club: @club, name: "BvS Wed",
+                  format: :biggest_vs_smallest, mode: :solo)
+      tpl.tournament_template_scoring_slots.build(species: walleye, slot_count: 1)
+      tpl.save!
+
+      cloned = Clone.call(template: tpl,
+                          starts_at: 1.day.from_now,
+                          ends_at:   1.day.from_now + 4.hours)
+
+      assert cloned.persisted?
+      assert cloned.format_biggest_vs_smallest?
+      assert_equal 1, cloned.scoring_slots.count
+      assert_equal walleye, cloned.scoring_slots.first.species
+    end
   end
 end

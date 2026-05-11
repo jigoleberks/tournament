@@ -36,8 +36,9 @@ module Placements
     private
 
     def bumped_users
+      submitter = @result[:submitter]
       @result[:bumped].flat_map do |placement|
-        placement.tournament_entry.users.map do |user|
+        placement.tournament_entry.users.reject { |u| u == submitter }.map do |user|
           { user: user, tournament: placement.tournament }
         end
       end

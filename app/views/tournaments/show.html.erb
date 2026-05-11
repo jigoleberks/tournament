@@ -38,7 +38,9 @@
     <ul class="text-slate-100 space-y-1">
       <% slots.each do |slot| %>
         <li>
-          <% if @tournament.format_hidden_length? %>
+          <% if @tournament.format_biggest_vs_smallest? %>
+            Biggest minus smallest <%= slot.species.name.downcase %>
+          <% elsif @tournament.format_hidden_length? %>
             Hidden length 12"-22" <%= slot.species.name.downcase %>
           <% elsif slot.slot_count == 1 %>
             Largest <%= slot.species.name.downcase %>

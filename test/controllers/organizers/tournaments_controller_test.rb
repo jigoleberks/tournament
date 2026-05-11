@@ -244,6 +244,27 @@ class Organizers::TournamentsControllerTest < ActionDispatch::IntegrationTest
                "expected strong params to drop hidden_length_target"
   end
 
+  test "create accepts format: biggest_vs_smallest" do
+    sign_in_as(@organizer)
+    walleye = create(:species, club: @club, name: "Walleye BvS")
+
+    assert_difference -> { Tournament.count } => 1 do
+      post organizers_tournaments_path, params: {
+        tournament: {
+          name: "BvS Wed",
+          kind: "event",
+          mode: "solo",
+          format: "biggest_vs_smallest",
+          starts_at: 1.day.from_now,
+          ends_at: 1.day.from_now + 4.hours,
+          scoring_slots_attributes: { "0" => { species_id: walleye.id, slot_count: 1 } }
+        }
+      }
+    end
+    created = Tournament.order(:id).last
+    assert created.format_biggest_vs_smallest?
+  end
+
   private
 
   def sign_in_as(user)

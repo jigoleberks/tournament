@@ -29,6 +29,45 @@ module Placements
       assert_match "bumped", bumped_payload[:body]
     end
 
+    test "does not notify the submitter when their own catch bumps a teammate's placement on a shared entry" do
+      first = create(:catch, user: @joe, species: @walleye, length_inches: 18)
+      Catches::PlaceInSlots.call(catch: first)
+
+      bigger = create(:catch, user: @ann, species: @walleye, length_inches: 22)
+      result = Catches::PlaceInSlots.call(catch: bigger)
+
+      payloads = DetectNotifications.call(result: result)
+      ann_self_bump = payloads.find { |p| p[:reason] == "bumped" && p[:user] == @ann }
+      assert_nil ann_self_bump, "submitter should not get a bumped push for displacing their own team's placement"
+      joe_bump = payloads.find { |p| p[:reason] == "bumped" && p[:user] == @joe }
+      assert joe_bump, "the actually-bumped teammate should still be notified"
+    end
+
+    test "does not notify the submitter when biggest_vs_smallest bumps the submitter's own previous extreme" do
+      bvs = build(:tournament, club: @club, format: :biggest_vs_smallest, mode: :solo,
+                  kind: :event, starts_at: 1.hour.ago, ends_at: 1.hour.from_now)
+      bvs.scoring_slots.build(species: @walleye, slot_count: 1)
+      bvs.save!
+      entry = create(:tournament_entry, tournament: bvs)
+      create(:tournament_entry_member, tournament_entry: entry, user: @joe)
+
+      [22, 12].each do |len|
+        Catches::PlaceInSlots.call(
+          catch: create(:catch, user: @joe, species: @walleye, length_inches: len,
+                        captured_at_device: 30.minutes.ago)
+        )
+      end
+
+      result = Catches::PlaceInSlots.call(
+        catch: create(:catch, user: @joe, species: @walleye, length_inches: 25,
+                      captured_at_device: 25.minutes.ago)
+      )
+
+      payloads = DetectNotifications.call(result: result)
+      self_bump = payloads.find { |p| p[:reason] == "bumped" && p[:user] == @joe && p[:tournament] == bvs }
+      assert_nil self_bump, "BvS submitter should not be notified for bumping their own previous extreme"
+    end
+
     test "produces a 'took the lead' notification when first place changes" do
       # Separate entry for lead-change detection: solo tournament
       solo_t = create(:tournament, club: @club, starts_at: 1.hour.ago, ends_at: 1.hour.from_now)
