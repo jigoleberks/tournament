@@ -70,6 +70,16 @@ class Admin::RulesControllerTest < ActionDispatch::IntegrationTest
     assert_redirected_to admin_rules_path
   end
 
+  test "create rejects unknown season values" do
+    sign_in_as(@organizer)
+    assert_no_difference "ClubRulesRevision.count" do
+      post admin_rules_path, params: {
+        club_rules_revision: { season: "summer", body: "<div>x</div>" }
+      }
+    end
+    assert_response :unprocessable_entity
+  end
+
   test "create with another club's club_id param still scopes to current_club" do
     other_club = create(:club)
     sign_in_as(@organizer)

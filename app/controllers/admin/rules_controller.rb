@@ -14,7 +14,12 @@ class Admin::RulesController < Admin::BaseController
   end
 
   def create
-    @revision = ClubRulesRevision.new(revision_params)
+    attrs = revision_params
+    unless ALLOWED_SEASONS.include?(attrs[:season].to_s)
+      head :unprocessable_entity
+      return
+    end
+    @revision = ClubRulesRevision.new(attrs)
     @revision.club = current_club
     @revision.edited_by_user = current_user
     if @revision.save
