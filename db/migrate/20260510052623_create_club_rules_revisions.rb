@@ -3,7 +3,6 @@ class CreateClubRulesRevisions < ActiveRecord::Migration[8.1]
     create_table :club_rules_revisions do |t|
       t.references :club, null: false, foreign_key: true
       t.integer :season, null: false
-      t.text :body, null: false
       t.references :edited_by_user, null: false, foreign_key: { to_table: :users }
       t.timestamps
     end
