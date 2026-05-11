@@ -3,3 +3,6 @@ import "controllers"
 import "sw_register"
 import "offline/sync"
 import "@hotwired/turbo-rails"
+
+import "trix"
+import "@rails/actiontext"

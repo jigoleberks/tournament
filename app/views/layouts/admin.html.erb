@@ -31,6 +31,8 @@
                           class: "px-3 py-2 rounded-md text-sm font-medium #{controller_name == 'members' ? 'bg-slate-900 text-white' : 'text-slate-300 hover:bg-slate-700 hover:text-white'}" %>
               <%= link_to "Templates", admin_tournament_templates_path, 
                           class: "px-3 py-2 rounded-md text-sm font-medium #{controller_name == 'tournament_templates' ? 'bg-slate-900 text-white' : 'text-slate-300 hover:bg-slate-700 hover:text-white'}" %>
+              <%= link_to "Rules", admin_rules_path,
+                          class: "px-3 py-2 rounded-md text-sm font-medium #{controller_name == 'rules' ? 'bg-slate-900 text-white' : 'text-slate-300 hover:bg-slate-700 hover:text-white'}" %>
               <%= link_to "Catch History", admin_catches_path,
                           class: "px-3 py-2 rounded-md text-sm font-medium #{controller_name == 'catches' ? 'bg-slate-900 text-white' : 'text-slate-300 hover:bg-slate-700 hover:text-white'}" %>
               <% if current_user&.admin? %>

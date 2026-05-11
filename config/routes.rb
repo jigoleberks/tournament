@@ -61,6 +61,12 @@ Rails.application.routes.draw do
     resources :tournament_templates do
       member { post :clone }
     end
+    resources :rules, only: [ :index, :new, :create, :show ] do
+      collection do
+        get  :history
+        post :set_active_season
+      end
+    end
   end
 
   resources :tournaments, only: [:index, :show] do
@@ -95,6 +101,7 @@ Rails.application.routes.draw do
   get "season-points/tournaments", to: "season_points#tournaments", as: :season_points_tournaments
 
   get "/pre_trip", to: "pre_trip#show", as: :pre_trip
+  get "/rules", to: "rules#show", as: :rules
   patch "/me", to: "users#update", as: :me
 
   resource :notification_settings, only: [:show], controller: :notification_settings do

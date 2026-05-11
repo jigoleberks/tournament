@@ -89,6 +89,14 @@
   <%= link_to "Pre-trip check", pre_trip_path, class: "block w-full h-12 px-4 rounded-lg bg-slate-700 active:bg-slate-600 text-slate-100 text-center leading-[3rem]" %>
 </div>
 
+<% if (rev = current_club&.current_rules_revision) %>
+  <div class="my-3">
+    <%= link_to "Rules (#{rev.created_at.to_date.strftime('%b %-d, %Y')})",
+                rules_path,
+                class: "block w-full h-12 px-4 rounded-lg bg-slate-700 active:bg-slate-600 text-slate-100 text-center leading-[3rem]" %>
+  </div>
+<% end %>
+
 <% if current_user.organizer_in?(current_club) %>
   <div class="my-3">
     <%= link_to "Organizer", organizers_tournaments_path,

@@ -1,0 +1,23 @@
+<% season_label = @revision.season_open_water? ? "Open water rules" : "Ice rules" %>
+<div class="mb-4">
+  <%= link_to "← Back to history",
+              history_admin_rules_path(season: @revision.season),
+              class: "text-blue-300 hover:underline text-sm" %>
+</div>
+<h1 class="text-2xl font-bold mb-1 text-white"><%= season_label %></h1>
+<p class="text-xs text-slate-400 mb-6">
+  Revision from <%= @revision.created_at.to_date.strftime("%b %-d, %Y") %>
+  at <%= @revision.created_at.strftime("%-l:%M %p") %>
+  by <%= @revision.edited_by_user.name %>
+</p>
+
+<div class="prose prose-invert max-w-none text-slate-100
+            [&_a]:text-blue-300 [&_a]:underline [&_a]:underline-offset-2
+            [&_h1]:text-xl [&_h1]:font-semibold [&_h1]:mt-6 [&_h1]:mb-2
+            [&_h2]:text-lg [&_h2]:font-semibold [&_h2]:mt-5 [&_h2]:mb-2
+            [&_ul]:list-disc [&_ul]:pl-5 [&_ol]:list-decimal [&_ol]:pl-5
+            [&_div]:my-2 [&_li]:my-1
+            [&_code]:bg-slate-800 [&_code]:px-1 [&_code]:rounded
+            [&_pre]:bg-slate-800 [&_pre]:p-3 [&_pre]:rounded">
+  <%= @revision.body %>
+</div>

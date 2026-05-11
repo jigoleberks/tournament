@@ -28,6 +28,7 @@ services:
       SEED_ORGANIZER_NAME: ${SEED_ORGANIZER_NAME:-Organizer}
       SEED_ORGANIZER_EMAIL: ${SEED_ORGANIZER_EMAIL:-organizer@example.com}
       SEED_DEMO_DATA: ${SEED_DEMO_DATA:-}
+      GEOFENCE_MAP_URL: ${GEOFENCE_MAP_URL:-}
       SOLID_QUEUE_IN_PUMA: "1"
     volumes: [".:/app"]
     ports: ["127.0.0.1:3000:3000"]

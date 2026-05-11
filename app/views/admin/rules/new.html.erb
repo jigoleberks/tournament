@@ -1,0 +1,32 @@
+<% season_label = @revision.season_open_water? ? "Open water rules" : "Ice rules" %>
+<h1 class="text-2xl font-bold mb-2 text-white">New revision · <%= season_label %></h1>
+<p class="text-slate-400 text-sm mb-6">
+  Saving creates a new revision. The previous revision is preserved in history.
+</p>
+
+<%= form_with model: @revision, url: admin_rules_path, local: true, class: "space-y-4" do |f| %>
+  <% if @revision.errors.any? %>
+    <div class="bg-rose-900 text-rose-100 rounded-lg p-3 text-sm">
+      <ul class="list-disc pl-5">
+        <% @revision.errors.full_messages.each do |msg| %>
+          <li><%= msg %></li>
+        <% end %>
+      </ul>
+    </div>
+  <% end %>
+
+  <%= f.hidden_field :season %>
+
+  <div>
+    <%= f.label :body, class: "block text-sm font-medium text-slate-200 mb-1" %>
+    <%= f.rich_text_area :body,
+                         class: "block w-full bg-slate-900 text-slate-100 border border-slate-700 rounded-lg trix-content min-h-[20rem]" %>
+  </div>
+
+  <div class="flex gap-2">
+    <%= f.submit "Save revision",
+                 class: "px-4 py-2 rounded-lg bg-blue-600 text-white font-medium hover:bg-blue-700" %>
+    <%= link_to "Cancel", admin_rules_path,
+                class: "px-4 py-2 rounded-lg bg-slate-700 text-slate-100 font-medium hover:bg-slate-600" %>
+  </div>
+<% end %>
