@@ -1,0 +1,59 @@
+require "test_helper"
+
+class Admin::Clubs::TournamentsControllerTest < ActionDispatch::IntegrationTest
+  setup do
+    @host_club    = create(:club, name: "Host Anglers")
+    @foreign_club = create(:club, name: "Northtown Anglers")
+    @admin     = create(:user, club: @host_club, admin: true, role: :organizer)
+    @organizer = create(:user, club: @host_club, role: :organizer)
+    @member    = create(:user, club: @host_club, role: :member)
+
+    @foreign_t = create(:tournament, club: @foreign_club, name: "Northtown Spring Bash")
+    @host_t    = create(:tournament, club: @host_club, name: "Host Club Derby")
+  end
+
+  test "signed-out user redirects to sign-in" do
+    get admin_club_tournaments_path(@foreign_club)
+    assert_redirected_to new_session_path
+  end
+
+  test "non-admin member is forbidden" do
+    sign_in_as(@member)
+    get admin_club_tournaments_path(@foreign_club)
+    assert_response :forbidden
+  end
+
+  test "non-admin organizer is forbidden" do
+    sign_in_as(@organizer)
+    get admin_club_tournaments_path(@foreign_club)
+    assert_response :forbidden
+  end
+
+  test "admin sees the foreign club's tournament" do
+    sign_in_as(@admin)
+    get admin_club_tournaments_path(@foreign_club)
+    assert_response :success
+    assert_includes response.body, "Northtown Spring Bash"
+  end
+
+  test "admin does NOT see host club's tournaments in foreign list" do
+    sign_in_as(@admin)
+    get admin_club_tournaments_path(@foreign_club)
+    assert_response :success
+    refute_includes response.body, "Host Club Derby"
+  end
+
+  test "banner is rendered with the foreign club's name" do
+    sign_in_as(@admin)
+    get admin_club_tournaments_path(@foreign_club)
+    assert_includes response.body, "Viewing Northtown Anglers"
+    assert_includes response.body, "read-only"
+  end
+
+  private
+
+  def sign_in_as(user)
+    token = SignInToken.issue!(user: user)
+    get consume_session_path(token: token.token)
+  end
+end
