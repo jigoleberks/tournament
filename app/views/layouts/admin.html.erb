@@ -72,6 +72,19 @@
       </div>
     <% end %>
 
+    <% if @foreign_club %>
+      <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mt-4">
+        <div class="flex items-center justify-between gap-4 px-4 py-3 rounded-lg bg-amber-500/10 border border-amber-500/40 text-amber-200">
+          <div>
+            <span class="font-semibold">Viewing <%= @foreign_club.name %></span>
+            <span class="text-amber-300/80 ml-2">— read-only (site admin)</span>
+          </div>
+          <%= link_to "← Back to all clubs", admin_clubs_path,
+                      class: "text-sm text-amber-200 hover:text-white underline underline-offset-2" %>
+        </div>
+      </div>
+    <% end %>
+
     <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
       <%= yield %>
     </main>
