@@ -50,6 +50,26 @@ class Admin::Clubs::TournamentsControllerTest < ActionDispatch::IntegrationTest
     assert_includes response.body, "read-only"
   end
 
+  test "admin can view a foreign club's tournament detail page" do
+    sign_in_as(@admin)
+    get admin_club_tournament_path(@foreign_club, @foreign_t)
+    assert_response :success
+    assert_includes response.body, "Northtown Spring Bash"
+    assert_includes response.body, "Viewing Northtown Anglers"
+  end
+
+  test "admin cannot reach a tournament that belongs to a different club via this path" do
+    sign_in_as(@admin)
+    get admin_club_tournament_path(@foreign_club, @host_t)
+    assert_response :not_found
+  end
+
+  test "non-admin cannot view tournament show" do
+    sign_in_as(@organizer)
+    get admin_club_tournament_path(@foreign_club, @foreign_t)
+    assert_response :forbidden
+  end
+
   private
 
   def sign_in_as(user)
