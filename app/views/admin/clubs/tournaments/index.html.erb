@@ -16,7 +16,7 @@
                 <span class="px-2 py-0.5 rounded-full bg-slate-700 text-xs font-medium">(away)</span>
               <% end %>
               <span>•</span>
-              <span><%= t.tournament_entries.count %> entries</span>
+              <span><%= @entry_counts[t.id].to_i %> entries</span>
             </div>
           </div>
         </li>
