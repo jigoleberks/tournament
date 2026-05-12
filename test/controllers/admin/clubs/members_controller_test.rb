@@ -56,6 +56,7 @@ class Admin::Clubs::MembersControllerTest < ActionDispatch::IntegrationTest
     assert membership.organizer?
     # Token's club is the target club, not the admin's home club.
     assert_equal @target_club, SignInToken.last.club
+    assert_equal @admin, SignInToken.last.issued_by_user
   end
 
   test "admin can invite as plain member too" do
@@ -130,6 +131,7 @@ class Admin::Clubs::MembersControllerTest < ActionDispatch::IntegrationTest
     token = SignInToken.order(:id).last
     assert_equal @foreign_member, token.user
     assert_equal @foreign_club, token.club
+    assert_equal @admin, token.issued_by_user
     assert_redirected_to code_admin_club_foreign_member_path(@foreign_club, @foreign_member)
   end
 

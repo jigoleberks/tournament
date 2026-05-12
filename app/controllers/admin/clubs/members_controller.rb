@@ -21,7 +21,7 @@ class Admin::Clubs::MembersController < Admin::Clubs::BaseController
       # falls through with saved=false; AR rolled back the user INSERT.
     end
     if saved
-      token = SignInToken.issue!(user: @user, club: @foreign_club, ttl: 7.days)
+      token = SignInToken.issue!(user: @user, club: @foreign_club, ttl: 7.days, issued_by: current_user)
       InvitationMailer.welcome(token).deliver_later
       redirect_to admin_clubs_path, notice: "Invite sent to #{@user.email} for #{@foreign_club.name}."
     else
@@ -31,7 +31,7 @@ class Admin::Clubs::MembersController < Admin::Clubs::BaseController
 
   def issue_code
     member = @foreign_club.members.active.find(params[:id])
-    token = SignInToken.issue_code!(user: member, club: @foreign_club)
+    token = SignInToken.issue_code!(user: member, club: @foreign_club, issued_by: current_user)
     flash[:code] = token.token
     redirect_to code_admin_club_foreign_member_path(@foreign_club, member), status: :see_other
   end

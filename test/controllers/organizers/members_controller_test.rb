@@ -23,6 +23,7 @@ class Organizers::MembersControllerTest < ActionDispatch::IntegrationTest
     assert_equal @club, membership.club
     assert membership.member?
     assert_equal @club, SignInToken.last.club
+    assert_equal @organizer, SignInToken.last.issued_by_user
   end
 
   test "creating an organizer-role member creates an organizer ClubMembership" do
@@ -37,6 +38,12 @@ class Organizers::MembersControllerTest < ActionDispatch::IntegrationTest
     member = create(:user, club: @club, role: :member)
     post issue_code_organizers_member_path(member)
     assert_equal @club, SignInToken.where(user: member, kind: "code").last.club
+  end
+
+  test "issue_code records the organizer as issuer" do
+    member = create(:user, club: @club, role: :member)
+    post issue_code_organizers_member_path(member)
+    assert_equal @organizer, SignInToken.where(user: member, kind: "code").last.issued_by_user
   end
 
   test "destroy deactivates the member without removing the record" do
