@@ -1,0 +1,23 @@
+<div class="flex items-center justify-between mb-8">
+  <h1 class="text-3xl font-bold">Tournament Templates</h1>
+</div>
+
+<% if @templates.any? %>
+  <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+    <% @templates.each do |t| %>
+      <div class="bg-slate-800 rounded-xl border border-slate-700 p-6 flex flex-col justify-between">
+        <div>
+          <%= link_to t.name, admin_club_tournament_template_path(@foreign_club, t),
+                      class: "text-xl font-semibold text-blue-400 hover:text-blue-300 block mb-2" %>
+          <% if t.scheduled? %>
+            <p class="text-sm text-slate-400 mb-4"><%= t.default_schedule_summary %></p>
+          <% end %>
+        </div>
+      </div>
+    <% end %>
+  </div>
+<% else %>
+  <div class="bg-slate-800/50 rounded-xl border border-dashed border-slate-700 p-12 text-center">
+    <p class="text-slate-400 italic text-lg">No templates yet for this club.</p>
+  </div>
+<% end %>
