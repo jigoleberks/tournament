@@ -43,13 +43,19 @@ class Admin::Clubs::CatchesControllerTest < ActionDispatch::IntegrationTest
     refute_includes response.body, @member.name
   end
 
-  test "user_id filter scopes the list" do
+  test "user_id filter scopes the catch list to the selected user" do
     other_foreign = create(:user, club: @foreign_club, name: "Other Foreign", role: :member)
     create(:catch, user: other_foreign, length_inches: 14.0)
     sign_in_as(@admin)
     get admin_club_catches_path(@foreign_club), params: { user_id: @foreign_member.id }
-    assert_includes response.body, "Northtown Nancy"
-    refute_includes response.body, "Other Foreign"
+
+    # Scope assertions to the catch-card list (the <ul> that contains each catch <li>),
+    # not the whole body — "Other Foreign" is still legitimately present in the filter
+    # dropdown options. assert_select narrows to the catch grid.
+    assert_select "ul.grid li", minimum: 1 do
+      assert_select "*", text: /Northtown Nancy/
+    end
+    assert_select "ul.grid li *", text: /Other Foreign/, count: 0
   end
 
   private
