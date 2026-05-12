@@ -5,21 +5,23 @@
   <% end %>
 </h1>
 
-<% is_judge   = TournamentJudge.exists?(tournament_id: @tournament.id, user_id: current_user.id) %>
-<% is_entered = TournamentEntryMember.joins(:tournament_entry)
-                  .exists?(tournament_entries: { tournament_id: @tournament.id }, user_id: current_user.id) %>
+<% unless @foreign_club %>
+  <% is_judge   = TournamentJudge.exists?(tournament_id: @tournament.id, user_id: current_user.id) %>
+  <% is_entered = TournamentEntryMember.joins(:tournament_entry)
+                    .exists?(tournament_entries: { tournament_id: @tournament.id }, user_id: current_user.id) %>
 
-<% if @tournament.ended? %>
-  <p class="text-slate-400 mb-4">This tournament has ended.</p>
-<% elsif is_judge %>
-  <p class="text-slate-400 mb-4">You're judging this tournament.</p>
-<% elsif is_entered %>
-  <%= link_to "Log Catch", new_catch_path, class: "block w-full h-14 px-6 text-lg font-semibold rounded-lg bg-blue-600 active:bg-blue-700 text-white text-center leading-[3.5rem] #{@tournament.mode_team? ? "mb-2" : "mb-4"}" %>
-  <% if @tournament.mode_team? %>
-    <%= link_to "Log for teammate", select_teammate_catches_path(tournament_id: @tournament.id), class: "block w-full h-12 px-6 text-base font-medium rounded-lg bg-slate-700 active:bg-slate-600 text-slate-100 text-center leading-[3rem] mb-4" %>
+  <% if @tournament.ended? %>
+    <p class="text-slate-400 mb-4">This tournament has ended.</p>
+  <% elsif is_judge %>
+    <p class="text-slate-400 mb-4">You're judging this tournament.</p>
+  <% elsif is_entered %>
+    <%= link_to "Log Catch", new_catch_path, class: "block w-full h-14 px-6 text-lg font-semibold rounded-lg bg-blue-600 active:bg-blue-700 text-white text-center leading-[3.5rem] #{@tournament.mode_team? ? "mb-2" : "mb-4"}" %>
+    <% if @tournament.mode_team? %>
+      <%= link_to "Log for teammate", select_teammate_catches_path(tournament_id: @tournament.id), class: "block w-full h-12 px-6 text-base font-medium rounded-lg bg-slate-700 active:bg-slate-600 text-slate-100 text-center leading-[3rem] mb-4" %>
+    <% end %>
+  <% else %>
+    <p class="text-slate-400 italic">You're not entered. Ask an organizer to add you.</p>
   <% end %>
-<% else %>
-  <p class="text-slate-400 italic">You're not entered. Ask an organizer to add you.</p>
 <% end %>
 
 <% if @tournament.ends_at.present? %>

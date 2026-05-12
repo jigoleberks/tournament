@@ -170,6 +170,13 @@ class Admin::Clubs::MembersControllerTest < ActionDispatch::IntegrationTest
     assert_redirected_to admin_club_foreign_members_path(@foreign_club)
   end
 
+  test "code page 404s for a deactivated member" do
+    @foreign_member.update!(deactivated_at: Time.current)
+    sign_in_as(@admin)
+    get code_admin_club_foreign_member_path(@foreign_club, @foreign_member)
+    assert_response :not_found
+  end
+
   private
 
   def sign_in_as(user)

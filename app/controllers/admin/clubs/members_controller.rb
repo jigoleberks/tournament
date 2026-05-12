@@ -37,7 +37,7 @@ class Admin::Clubs::MembersController < Admin::Clubs::BaseController
   end
 
   def code
-    @member = @foreign_club.members.find(params[:id])
+    @member = @foreign_club.members.active.find(params[:id])
     @code = flash[:code]
     redirect_to admin_club_foreign_members_path(@foreign_club) and return unless @code
   end

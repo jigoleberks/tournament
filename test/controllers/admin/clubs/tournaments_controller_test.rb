@@ -58,6 +58,14 @@ class Admin::Clubs::TournamentsControllerTest < ActionDispatch::IntegrationTest
     assert_includes response.body, "Viewing Northtown Anglers"
   end
 
+  test "admin foreign tournament show suppresses the member-facing entry CTA" do
+    sign_in_as(@admin)
+    get admin_club_tournament_path(@foreign_club, @foreign_t)
+    assert_response :success
+    refute_includes response.body, "You're not entered"
+    refute_includes response.body, "Log Catch"
+  end
+
   test "admin cannot reach a tournament that belongs to a different club via this path" do
     sign_in_as(@admin)
     get admin_club_tournament_path(@foreign_club, @host_t)
