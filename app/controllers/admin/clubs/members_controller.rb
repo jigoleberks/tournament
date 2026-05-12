@@ -3,9 +3,9 @@ class Admin::Clubs::MembersController < ApplicationController
   before_action :require_sign_in!
   before_action :require_admin!
   before_action :set_club
+  before_action :alias_foreign_club
 
   def index
-    @foreign_club = @club
     @users = @foreign_club.members.includes(:club_memberships).order(:deactivated_at, :name)
   end
 
@@ -39,6 +39,13 @@ class Admin::Clubs::MembersController < ApplicationController
 
   def set_club
     @club = Club.find(params[:club_id])
+  end
+
+  # Surface @club under the @foreign_club name so the admin layout's
+  # "Viewing X — read-only" banner appears on every action in this controller,
+  # mirroring the convention used by Admin::Clubs::BaseController.
+  def alias_foreign_club
+    @foreign_club = @club
   end
 
   def user_params
