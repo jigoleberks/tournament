@@ -1,6 +1,6 @@
 class Admin::DashboardsController < Admin::BaseController
   def index
-    return unless current_user&.admin?
+    return unless current_user.admin?
 
     @total_clubs          = Club.count
     @total_active_members = User.active.count
