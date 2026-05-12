@@ -8,8 +8,6 @@ class Admin::Clubs::RulesController < Admin::Clubs::BaseController
 
   def show
     @revision = @foreign_club.rules_revisions.find(params[:id])
-  rescue ActiveRecord::RecordNotFound
-    head :not_found
   end
 
   def history
