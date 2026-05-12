@@ -4,6 +4,11 @@ class Admin::Clubs::MembersController < ApplicationController
   before_action :require_admin!
   before_action :set_club
 
+  def index
+    @foreign_club = @club
+    @users = @foreign_club.members.includes(:club_memberships).order(:deactivated_at, :name)
+  end
+
   def new
     @user = User.new
   end

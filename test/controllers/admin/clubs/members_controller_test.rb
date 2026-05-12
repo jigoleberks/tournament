@@ -7,6 +7,11 @@ class Admin::Clubs::MembersControllerTest < ActionDispatch::IntegrationTest
     @admin = create(:user, club: @admin_home_club, admin: true)
     @organizer = create(:user, club: @admin_home_club, role: :organizer)
     @member = create(:user, club: @admin_home_club, role: :member)
+
+    # --- index (foreign_members) setup ---
+    # Reuse @admin_home_club as host_club and @target_club as foreign_club
+    @foreign_club = @target_club
+    @foreign_member = create(:user, club: @foreign_club, name: "Northtown Nancy", role: :member)
   end
 
   test "signed-out cannot access" do
@@ -82,6 +87,39 @@ class Admin::Clubs::MembersControllerTest < ActionDispatch::IntegrationTest
       }
     end
     assert_response :forbidden
+  end
+
+  # --- index (foreign_members) tests ---
+
+  test "signed-out user redirects to sign-in" do
+    get admin_club_foreign_members_path(@foreign_club)
+    assert_redirected_to new_session_path
+  end
+
+  test "non-admin member is forbidden for index" do
+    sign_in_as(@member)
+    get admin_club_foreign_members_path(@foreign_club)
+    assert_response :forbidden
+  end
+
+  test "non-admin organizer is forbidden for index" do
+    sign_in_as(@organizer)
+    get admin_club_foreign_members_path(@foreign_club)
+    assert_response :forbidden
+  end
+
+  test "admin sees the foreign club's members" do
+    sign_in_as(@admin)
+    get admin_club_foreign_members_path(@foreign_club)
+    assert_response :success
+    assert_includes response.body, "Northtown Nancy"
+  end
+
+  test "admin does NOT see host-club members in foreign list" do
+    sign_in_as(@admin)
+    get admin_club_foreign_members_path(@foreign_club)
+    refute_includes response.body, @member.name
+    refute_includes response.body, @organizer.name
   end
 
   private
