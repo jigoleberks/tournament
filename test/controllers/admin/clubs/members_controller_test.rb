@@ -122,6 +122,54 @@ class Admin::Clubs::MembersControllerTest < ActionDispatch::IntegrationTest
     refute_includes response.body, @organizer.name
   end
 
+  test "admin can issue a sign-in code for a foreign club's member" do
+    sign_in_as(@admin)
+    assert_difference "SignInToken.count", 1 do
+      post issue_code_admin_club_foreign_member_path(@foreign_club, @foreign_member)
+    end
+    token = SignInToken.order(:id).last
+    assert_equal @foreign_member, token.user
+    assert_equal @foreign_club, token.club
+    assert_redirected_to code_admin_club_foreign_member_path(@foreign_club, @foreign_member)
+  end
+
+  test "non-admin cannot issue a code" do
+    sign_in_as(@organizer)
+    assert_no_difference "SignInToken.count" do
+      post issue_code_admin_club_foreign_member_path(@foreign_club, @foreign_member)
+    end
+    assert_response :forbidden
+  end
+
+  test "issue_code 404s for a member not in the foreign club" do
+    sign_in_as(@admin)
+    post issue_code_admin_club_foreign_member_path(@foreign_club, @member)
+    assert_response :not_found
+  end
+
+  test "issue_code 404s for a deactivated member" do
+    @foreign_member.update!(deactivated_at: Time.current)
+    sign_in_as(@admin)
+    post issue_code_admin_club_foreign_member_path(@foreign_club, @foreign_member)
+    assert_response :not_found
+  end
+
+  test "code page renders the flashed code" do
+    sign_in_as(@admin)
+    post issue_code_admin_club_foreign_member_path(@foreign_club, @foreign_member)
+    follow_redirect!
+    assert_response :success
+    code = SignInToken.order(:id).last.token
+    assert_includes response.body, code
+    assert_includes response.body, @foreign_member.name
+  end
+
+  test "code page without a flashed code redirects back to the members index" do
+    sign_in_as(@admin)
+    get code_admin_club_foreign_member_path(@foreign_club, @foreign_member)
+    assert_redirected_to admin_club_foreign_members_path(@foreign_club)
+  end
+
   private
 
   def sign_in_as(user)
