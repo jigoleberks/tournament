@@ -1,6 +1,6 @@
 <div class="flex items-center justify-between mb-8">
   <h1 class="text-3xl font-bold">Manual Sign-in</h1>
-  <%= link_to "Back to Members", admin_club_foreign_members_path(@foreign_club),
+  <%= link_to "Back to Members", admin_club_members_path(@foreign_club),
               class: "text-slate-400 hover:text-white transition-colors" %>
 </div>
 
@@ -17,7 +17,7 @@
       </div>
 
       <div class="mt-12 flex justify-center">
-        <%= link_to "Return to Member List", admin_club_foreign_members_path(@foreign_club),
+        <%= link_to "Return to Member List", admin_club_members_path(@foreign_club),
                     class: "h-12 px-8 inline-flex items-center rounded-lg bg-slate-700 hover:bg-slate-600 text-white font-medium transition-colors"  %>
       </div>
     </div>

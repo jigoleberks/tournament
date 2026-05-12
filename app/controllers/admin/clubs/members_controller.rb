@@ -33,13 +33,13 @@ class Admin::Clubs::MembersController < Admin::Clubs::BaseController
     member = @foreign_club.members.active.find(params[:id])
     token = SignInToken.issue_code!(user: member, club: @foreign_club, issued_by: current_user)
     flash[:code] = token.token
-    redirect_to code_admin_club_foreign_member_path(@foreign_club, member), status: :see_other
+    redirect_to code_admin_club_member_path(@foreign_club, member), status: :see_other
   end
 
   def code
     @member = @foreign_club.members.active.find(params[:id])
     @code = flash[:code]
-    redirect_to admin_club_foreign_members_path(@foreign_club) and return unless @code
+    redirect_to admin_club_members_path(@foreign_club) and return unless @code
   end
 
   private

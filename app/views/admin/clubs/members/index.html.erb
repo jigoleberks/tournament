@@ -30,7 +30,7 @@
             <div class="flex items-center justify-end gap-2">
               <% unless u.deactivated? %>
                 <%= button_to "Issue Code",
-                              issue_code_admin_club_foreign_member_path(@foreign_club, u),
+                              issue_code_admin_club_member_path(@foreign_club, u),
                               method: :post,
                               data: { turbo_confirm: "Generate a one-time sign-in code for #{u.name}? Valid 10 minutes." },
                               class: "px-3 py-1.5 rounded bg-slate-700 hover:bg-slate-600 text-white text-xs font-medium transition-colors" %>

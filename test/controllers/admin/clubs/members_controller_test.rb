@@ -8,8 +8,6 @@ class Admin::Clubs::MembersControllerTest < ActionDispatch::IntegrationTest
     @organizer = create(:user, club: @admin_home_club, role: :organizer)
     @member = create(:user, club: @admin_home_club, role: :member)
 
-    # --- index (foreign_members) setup ---
-    # Reuse @admin_home_club as host_club and @target_club as foreign_club
     @foreign_club = @target_club
     @foreign_member = create(:user, club: @foreign_club, name: "Northtown Nancy", role: :member)
   end
@@ -90,35 +88,33 @@ class Admin::Clubs::MembersControllerTest < ActionDispatch::IntegrationTest
     assert_response :forbidden
   end
 
-  # --- index (foreign_members) tests ---
-
   test "signed-out user redirects to sign-in" do
-    get admin_club_foreign_members_path(@foreign_club)
+    get admin_club_members_path(@foreign_club)
     assert_redirected_to new_session_path
   end
 
   test "non-admin member is forbidden for index" do
     sign_in_as(@member)
-    get admin_club_foreign_members_path(@foreign_club)
+    get admin_club_members_path(@foreign_club)
     assert_response :forbidden
   end
 
   test "non-admin organizer is forbidden for index" do
     sign_in_as(@organizer)
-    get admin_club_foreign_members_path(@foreign_club)
+    get admin_club_members_path(@foreign_club)
     assert_response :forbidden
   end
 
   test "admin sees the foreign club's members" do
     sign_in_as(@admin)
-    get admin_club_foreign_members_path(@foreign_club)
+    get admin_club_members_path(@foreign_club)
     assert_response :success
     assert_includes response.body, "Northtown Nancy"
   end
 
   test "admin does NOT see host-club members in foreign list" do
     sign_in_as(@admin)
-    get admin_club_foreign_members_path(@foreign_club)
+    get admin_club_members_path(@foreign_club)
     refute_includes response.body, @member.name
     refute_includes response.body, @organizer.name
   end
@@ -126,39 +122,39 @@ class Admin::Clubs::MembersControllerTest < ActionDispatch::IntegrationTest
   test "admin can issue a sign-in code for a foreign club's member" do
     sign_in_as(@admin)
     assert_difference "SignInToken.count", 1 do
-      post issue_code_admin_club_foreign_member_path(@foreign_club, @foreign_member)
+      post issue_code_admin_club_member_path(@foreign_club, @foreign_member)
     end
     token = SignInToken.order(:id).last
     assert_equal @foreign_member, token.user
     assert_equal @foreign_club, token.club
     assert_equal @admin, token.issued_by_user
-    assert_redirected_to code_admin_club_foreign_member_path(@foreign_club, @foreign_member)
+    assert_redirected_to code_admin_club_member_path(@foreign_club, @foreign_member)
   end
 
   test "non-admin cannot issue a code" do
     sign_in_as(@organizer)
     assert_no_difference "SignInToken.count" do
-      post issue_code_admin_club_foreign_member_path(@foreign_club, @foreign_member)
+      post issue_code_admin_club_member_path(@foreign_club, @foreign_member)
     end
     assert_response :forbidden
   end
 
   test "issue_code 404s for a member not in the foreign club" do
     sign_in_as(@admin)
-    post issue_code_admin_club_foreign_member_path(@foreign_club, @member)
+    post issue_code_admin_club_member_path(@foreign_club, @member)
     assert_response :not_found
   end
 
   test "issue_code 404s for a deactivated member" do
     @foreign_member.update!(deactivated_at: Time.current)
     sign_in_as(@admin)
-    post issue_code_admin_club_foreign_member_path(@foreign_club, @foreign_member)
+    post issue_code_admin_club_member_path(@foreign_club, @foreign_member)
     assert_response :not_found
   end
 
   test "code page renders the flashed code" do
     sign_in_as(@admin)
-    post issue_code_admin_club_foreign_member_path(@foreign_club, @foreign_member)
+    post issue_code_admin_club_member_path(@foreign_club, @foreign_member)
     follow_redirect!
     assert_response :success
     code = SignInToken.order(:id).last.token
@@ -168,14 +164,14 @@ class Admin::Clubs::MembersControllerTest < ActionDispatch::IntegrationTest
 
   test "code page without a flashed code redirects back to the members index" do
     sign_in_as(@admin)
-    get code_admin_club_foreign_member_path(@foreign_club, @foreign_member)
-    assert_redirected_to admin_club_foreign_members_path(@foreign_club)
+    get code_admin_club_member_path(@foreign_club, @foreign_member)
+    assert_redirected_to admin_club_members_path(@foreign_club)
   end
 
   test "code page 404s for a deactivated member" do
     @foreign_member.update!(deactivated_at: Time.current)
     sign_in_as(@admin)
-    get code_admin_club_foreign_member_path(@foreign_club, @foreign_member)
+    get code_admin_club_member_path(@foreign_club, @foreign_member)
     assert_response :not_found
   end
 

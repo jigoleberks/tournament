@@ -42,15 +42,14 @@ Rails.application.routes.draw do
   namespace :admin do
     root to: "dashboards#index"
     resources :clubs, only: [ :index, :new, :create, :edit, :update ] do
-      resources :members, only: [ :new, :create ], controller: "clubs/members"
       scope module: :clubs do
-        resources :tournaments, only: [:index, :show]
-        resources :members, only: [:index], as: :foreign_members do
+        resources :members, only: [:index, :new, :create] do
           member do
             post :issue_code
             get  :code
           end
         end
+        resources :tournaments, only: [:index, :show]
         resources :catches, only: [:index]
         resources :tournament_templates, only: [:index, :show]
         resources :rules, only: [:index, :show] do
