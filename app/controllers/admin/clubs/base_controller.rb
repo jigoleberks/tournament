@@ -7,7 +7,7 @@ class Admin::Clubs::BaseController < ApplicationController
   private
 
   def require_site_admin!
-    head :forbidden unless current_user&.admin?
+    head :forbidden unless current_user.admin?
   end
 
   def set_foreign_club

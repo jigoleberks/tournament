@@ -37,8 +37,8 @@ class Admin::DashboardsControllerTest < ActionDispatch::IntegrationTest
     assert_includes response.body, "Active members"
     assert_includes response.body, "Active tournaments"
     assert_includes response.body, "Catches last 7 days"
-    # Two clubs exist
-    assert_match %r{Total clubs.*?2}m, response.body
+    # Two clubs exist; scope the count match to the "Total clubs" tile.
+    assert_select "div.p-5", text: /Total clubs\s*2/
   end
 
   private
