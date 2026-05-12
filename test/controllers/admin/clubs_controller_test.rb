@@ -81,6 +81,14 @@ class Admin::ClubsControllerTest < ActionDispatch::IntegrationTest
     assert_equal "BS Phishing Family", @club.reload.name
   end
 
+  test "admin clubs index shows View link to foreign-club tournaments" do
+    other_club = create(:club, name: "Northtown Anglers")
+    sign_in_as(@admin)
+    get admin_clubs_path
+    assert_response :success
+    assert_includes response.body, admin_club_tournaments_path(other_club)
+  end
+
   private
 
   def sign_in_as(user)
