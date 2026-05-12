@@ -1,5 +1,5 @@
 <div class="flex items-center justify-between mb-8">
-  <h1 class="text-3xl font-bold">Invite member to <%= @club.name %></h1>
+  <h1 class="text-3xl font-bold">Invite member to <%= @foreign_club.name %></h1>
   <%= link_to "Back to Clubs", admin_clubs_path, class: "text-slate-400 hover:text-white transition-colors" %>
 </div>
 
@@ -11,7 +11,7 @@
     </div>
 
     <div class="p-6">
-      <%= form_with model: @user, url: admin_club_members_path(@club), scope: :user, local: true,
+      <%= form_with model: @user, url: admin_club_members_path(@foreign_club), scope: :user, local: true,
                     class: "space-y-6" do |f| %>
         <% if @user.errors.any? %>
           <div class="bg-red-900/40 border border-red-800 rounded-lg p-4">
