@@ -81,12 +81,102 @@ class Admin::ClubsControllerTest < ActionDispatch::IntegrationTest
     assert_equal "BS Phishing Family", @club.reload.name
   end
 
-  test "admin clubs index shows View link to foreign-club tournaments" do
+  test "admin clubs index shows View link to foreign-club hub" do
     other_club = create(:club, name: "Northtown Anglers")
     sign_in_as(@admin)
     get admin_clubs_path
     assert_response :success
-    assert_includes response.body, admin_club_tournaments_path(other_club)
+    assert_includes response.body, admin_club_path(other_club)
+  end
+
+  test "admin can view the club hub" do
+    foreign = create(:club, name: "Northtown Anglers")
+    sign_in_as(@admin)
+    get admin_club_path(foreign)
+    assert_response :success
+    assert_includes response.body, "Northtown Anglers"
+  end
+
+  test "non-admin cannot view the club hub" do
+    foreign = create(:club, name: "Northtown Anglers")
+    sign_in_as(@organizer)
+    get admin_club_path(foreign)
+    assert_response :forbidden
+  end
+
+  test "signed-out user cannot view the club hub" do
+    foreign = create(:club, name: "Northtown Anglers")
+    get admin_club_path(foreign)
+    assert_redirected_to new_session_path
+  end
+
+  test "club hub renders the four stat counts" do
+    foreign = create(:club, name: "Northtown Anglers")
+    create(:user, club: foreign, role: :member)
+    create(:user, club: foreign, role: :member)
+    t1 = create(:tournament, club: foreign, starts_at: 2.days.ago, ends_at: 2.days.from_now)
+    create(:tournament, club: foreign, starts_at: 10.days.ago, ends_at: 5.days.ago)
+    create(:catch, user: foreign.members.first, captured_at_device: 1.day.ago)
+
+    sign_in_as(@admin)
+    get admin_club_path(foreign)
+    assert_response :success
+
+    # Stat labels
+    assert_includes response.body, "Members"
+    assert_includes response.body, "Tournaments"
+    assert_includes response.body, "Active now"
+    assert_includes response.body, "Catches"
+
+    # Stat values: 2 members, 2 tournaments, 1 active, 1 catch.
+    # Scope to the stat-value testid so this doesn't depend on Tailwind size classes.
+    assert_select "[data-testid='stat-value']", text: "2", count: 2   # members + tournaments tiles
+    assert_select "[data-testid='stat-value']", text: "1", count: 2   # active + catches tiles
+  end
+
+  test "hub renders the foreign-club admin banner" do
+    foreign = create(:club, name: "Northtown Anglers")
+    sign_in_as(@admin)
+    get admin_club_path(foreign)
+    assert_response :success
+    assert_select "div", text: /Viewing Northtown Anglers/
+    assert_select "a[href=?]", admin_clubs_path, text: /All clubs/
+  end
+
+  test "club hub renders section cards linking to each sub-resource" do
+    foreign = create(:club, name: "Northtown Anglers")
+    sign_in_as(@admin)
+    get admin_club_path(foreign)
+    assert_response :success
+
+    assert_select "a[href=?]", admin_club_tournaments_path(foreign),         text: /Tournaments/
+    assert_select "a[href=?]", admin_club_members_path(foreign),             text: /Members/
+    assert_select "a[href=?]", admin_club_catches_path(foreign),             text: /Catches/
+    assert_select "a[href=?]", admin_club_tournament_templates_path(foreign), text: /Templates/
+    assert_select "a[href=?]", admin_club_rules_path(foreign),               text: /Rules/
+  end
+
+  test "clubs index links each row to the club hub and omits the invite button" do
+    foreign = create(:club, name: "Northtown Anglers")
+    sign_in_as(@admin)
+    get admin_clubs_path
+    assert_response :success
+
+    # Row's name and View button both point at the hub
+    assert_select "a[href=?]", admin_club_path(foreign), text: /Northtown Anglers/
+    assert_select "a[href=?]", admin_club_path(foreign), text: /View/
+
+    # No more "Invite member" row action; no direct link to new-member
+    assert_select "a[href=?]", new_admin_club_member_path(foreign), count: 0
+    refute_includes response.body, "Invite member"
+  end
+
+  test "hub itself does not show a back-to-club banner link" do
+    foreign = create(:club, name: "Northtown Anglers")
+    sign_in_as(@admin)
+    get admin_club_path(foreign)
+    assert_response :success
+    assert_select "a", text: /Back to club/, count: 0
   end
 
   private

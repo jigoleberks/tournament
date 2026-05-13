@@ -8,7 +8,7 @@ class AdminForeignClubDrillInTest < ApplicationSystemTestCase
     create(:tournament, club: @foreign_club, name: "Northtown Spring Bash")
   end
 
-  test "admin can drill from clubs index into a foreign club's tournaments" do
+  test "admin can drill from clubs index into a foreign club's tournaments via the hub" do
     token = SignInToken.issue!(user: @admin)
     visit consume_session_path(token: token.token)
 
@@ -19,8 +19,14 @@ class AdminForeignClubDrillInTest < ApplicationSystemTestCase
       click_link "View"
     end
 
+    # On the hub now
     assert_text "Viewing Northtown Anglers"
     assert_text "read-only"
+    assert_selector "h1", text: "Northtown Anglers"
+    assert_text "Tournaments"
+    assert_text "Members"
+
+    within("main") { click_link "Tournaments" }
     assert_text "Northtown Spring Bash"
   end
 end

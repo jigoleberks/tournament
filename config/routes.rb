@@ -41,7 +41,7 @@ Rails.application.routes.draw do
 
   namespace :admin do
     root to: "dashboards#index"
-    resources :clubs, only: [ :index, :new, :create, :edit, :update ] do
+    resources :clubs, only: [ :index, :show, :new, :create, :edit, :update ] do
       scope module: :clubs do
         resources :members, only: [:index, :new, :create] do
           member do

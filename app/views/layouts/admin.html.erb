@@ -79,8 +79,14 @@
             <span class="font-semibold">Viewing <%= @foreign_club.name %></span>
             <span class="text-amber-300/80 ml-2">— read-only (site admin)</span>
           </div>
-          <%= link_to "← Back to all clubs", admin_clubs_path,
-                      class: "text-sm text-amber-200 hover:text-white underline underline-offset-2" %>
+          <div class="flex items-center gap-4 text-sm">
+            <% unless current_page?(admin_club_path(@foreign_club)) %>
+              <%= link_to "← Back to club", admin_club_path(@foreign_club),
+                          class: "text-amber-200 hover:text-white underline underline-offset-2" %>
+            <% end %>
+            <%= link_to "All clubs", admin_clubs_path,
+                        class: "text-amber-200 hover:text-white underline underline-offset-2" %>
+          </div>
         </div>
       </div>
     <% end %>
