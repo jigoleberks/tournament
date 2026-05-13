@@ -125,7 +125,7 @@ class Admin::ClubsControllerTest < ActionDispatch::IntegrationTest
     # Stat labels
     assert_includes response.body, "Members"
     assert_includes response.body, "Tournaments"
-    assert_includes response.body, "Active"
+    assert_includes response.body, "Active now"
     assert_includes response.body, "Catches"
 
     # Stat values: 2 members, 2 tournaments, 1 active, 1 catch.
