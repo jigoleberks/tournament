@@ -1,5 +1,7 @@
 <div class="flex items-center justify-between mb-8">
   <h1 class="text-3xl font-bold">Members</h1>
+  <%= link_to "Invite Member", new_admin_club_member_path(@foreign_club),
+              class: "h-11 px-5 inline-flex items-center rounded-lg bg-blue-600 text-white font-medium hover:bg-blue-700 transition-colors" %>
 </div>
 
 <div class="bg-slate-800 rounded-xl border border-slate-700 overflow-hidden">

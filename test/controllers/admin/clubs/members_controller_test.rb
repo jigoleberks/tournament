@@ -112,6 +112,13 @@ class Admin::Clubs::MembersControllerTest < ActionDispatch::IntegrationTest
     assert_includes response.body, "Northtown Nancy"
   end
 
+  test "members index links to the invite form" do
+    sign_in_as(@admin)
+    get admin_club_members_path(@foreign_club)
+    assert_response :success
+    assert_select "a[href=?]", new_admin_club_member_path(@foreign_club), text: /Invite Member/
+  end
+
   test "admin does NOT see host-club members in foreign list" do
     sign_in_as(@admin)
     get admin_club_members_path(@foreign_club)
