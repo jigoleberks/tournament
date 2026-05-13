@@ -13,7 +13,7 @@ class Admin::ClubsController < ApplicationController
 
   def show
     @foreign_club            = @club
-    @member_count            = @club.members.count
+    @member_count            = @club.members.distinct.count
     @tournament_count        = @club.tournaments.count
     @active_tournament_count = @club.tournaments.active_at(Time.current).count
     @catch_count             = Catch.where(user_id: @club.members.select(:id))

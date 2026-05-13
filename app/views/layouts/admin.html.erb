@@ -80,7 +80,7 @@
             <span class="text-amber-300/80 ml-2">— read-only (site admin)</span>
           </div>
           <div class="flex items-center gap-4 text-sm">
-            <% unless controller_name == "clubs" && action_name == "show" %>
+            <% unless current_page?(admin_club_path(@foreign_club)) %>
               <%= link_to "← Back to club", admin_club_path(@foreign_club),
                           class: "text-amber-200 hover:text-white underline underline-offset-2" %>
             <% end %>
