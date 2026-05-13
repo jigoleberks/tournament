@@ -18,7 +18,7 @@
       <% @clubs.each do |club| %>
         <tr class="hover:bg-slate-700/30 transition-colors">
           <td class="px-6 py-4 font-medium text-slate-100">
-            <%= link_to club.name, admin_club_path(club), class: "hover:text-white" %>
+            <%= link_to club.name, admin_club_path(club), class: "text-blue-400 hover:text-blue-300" %>
           </td>
           <td class="px-6 py-4 text-sm text-slate-400 text-center"><%= club.user_count %></td>
           <td class="px-6 py-4 text-sm text-slate-400 text-center"><%= club.tournament_count %></td>
