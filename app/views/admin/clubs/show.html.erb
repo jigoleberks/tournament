@@ -1,1 +1,24 @@
-<h1 class="text-3xl font-bold"><%= @club.name %></h1>
+<div class="flex items-center justify-between mb-8">
+  <h1 class="text-3xl font-bold"><%= @club.name %></h1>
+  <%= link_to "Edit", edit_admin_club_path(@club),
+              class: "h-11 px-5 inline-flex items-center rounded-lg bg-slate-700 hover:bg-slate-600 text-white font-medium transition-colors" %>
+</div>
+
+<div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
+  <div class="p-5 bg-slate-800 rounded-xl border border-slate-700">
+    <div class="text-xs text-slate-400 uppercase tracking-wider">Members</div>
+    <div class="text-3xl font-bold text-white mt-1"><%= @member_count %></div>
+  </div>
+  <div class="p-5 bg-slate-800 rounded-xl border border-slate-700">
+    <div class="text-xs text-slate-400 uppercase tracking-wider">Tournaments</div>
+    <div class="text-3xl font-bold text-white mt-1"><%= @tournament_count %></div>
+  </div>
+  <div class="p-5 bg-slate-800 rounded-xl border border-slate-700">
+    <div class="text-xs text-slate-400 uppercase tracking-wider">Active</div>
+    <div class="text-3xl font-bold text-white mt-1"><%= @active_tournament_count %></div>
+  </div>
+  <div class="p-5 bg-slate-800 rounded-xl border border-slate-700">
+    <div class="text-xs text-slate-400 uppercase tracking-wider">Catches</div>
+    <div class="text-3xl font-bold text-white mt-1"><%= @catch_count %></div>
+  </div>
+</div>

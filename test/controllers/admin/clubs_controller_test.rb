@@ -110,6 +110,29 @@ class Admin::ClubsControllerTest < ActionDispatch::IntegrationTest
     assert_redirected_to new_session_path
   end
 
+  test "club hub renders the four stat counts" do
+    foreign = create(:club, name: "Northtown Anglers")
+    create(:user, club: foreign, role: :member)
+    create(:user, club: foreign, role: :member)
+    t1 = create(:tournament, club: foreign, starts_at: 2.days.ago, ends_at: 2.days.from_now)
+    create(:tournament, club: foreign, starts_at: 10.days.ago, ends_at: 5.days.ago)
+    create(:catch, user: foreign.members.first, captured_at_device: 1.day.ago)
+
+    sign_in_as(@admin)
+    get admin_club_path(foreign)
+    assert_response :success
+
+    # Stat labels
+    assert_includes response.body, "Members"
+    assert_includes response.body, "Tournaments"
+    assert_includes response.body, "Active"
+    assert_includes response.body, "Catches"
+
+    # Stat values: 2 members, 2 tournaments, 1 active, 1 catch
+    assert_select "div", text: "2", count: 2   # members + tournaments tiles
+    assert_select "div", text: "1", count: 2   # active + catches tiles
+  end
+
   private
 
   def sign_in_as(user)
