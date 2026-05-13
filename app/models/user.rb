@@ -42,4 +42,8 @@ class User < ApplicationRecord
     return false unless club
     club_memberships.active.where(club: club).exists?
   end
+
+  def admin?
+    !!admin
+  end
 end

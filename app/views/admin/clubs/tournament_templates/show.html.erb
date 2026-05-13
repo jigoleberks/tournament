@@ -1,0 +1,29 @@
+<div class="mb-4">
+  <%= link_to "← Back to templates", admin_club_tournament_templates_path(@foreign_club),
+              class: "text-blue-300 hover:underline text-sm" %>
+</div>
+<h1 class="text-3xl font-bold mb-2"><%= @template.name %></h1>
+<p class="text-slate-400 text-sm mb-6 capitalize"><%= @template.mode %></p>
+
+<% if @template.scheduled? %>
+  <div class="bg-slate-800 rounded-xl border border-slate-700 p-6 mb-6">
+    <h2 class="text-lg font-semibold mb-2">Schedule</h2>
+    <p class="text-slate-300"><%= @template.default_schedule_summary %></p>
+  </div>
+<% end %>
+
+<div class="bg-slate-800 rounded-xl border border-slate-700 p-6">
+  <h2 class="text-lg font-semibold mb-4">Scoring slots</h2>
+  <% if @template.tournament_template_scoring_slots.any? %>
+    <ul class="divide-y divide-slate-700">
+      <% @template.tournament_template_scoring_slots.includes(:species).each do |slot| %>
+        <li class="py-3 flex items-center justify-between">
+          <span class="text-slate-200 capitalize"><%= slot.species.name %></span>
+          <span class="text-slate-400 text-sm"><%= slot.slot_count %> slot<%= "s" unless slot.slot_count == 1 %></span>
+        </li>
+      <% end %>
+    </ul>
+  <% else %>
+    <p class="text-slate-400 italic">No scoring slots defined.</p>
+  <% end %>
+</div>

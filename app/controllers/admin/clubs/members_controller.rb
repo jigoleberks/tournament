@@ -1,8 +1,7 @@
-class Admin::Clubs::MembersController < ApplicationController
-  layout "admin"
-  before_action :require_sign_in!
-  before_action :require_admin!
-  before_action :set_club
+class Admin::Clubs::MembersController < Admin::Clubs::BaseController
+  def index
+    @users = @foreign_club.members.includes(:club_memberships).order(:deactivated_at, :name)
+  end
 
   def new
     @user = User.new
@@ -15,32 +14,37 @@ class Admin::Clubs::MembersController < ApplicationController
     begin
       ActiveRecord::Base.transaction do
         @user.save!
-        ClubMembership.create!(user: @user, club: @club, role: role_for_membership)
+        ClubMembership.create!(user: @user, club: @foreign_club, role: role_for_membership)
       end
       saved = true
     rescue ActiveRecord::RecordInvalid
       # falls through with saved=false; AR rolled back the user INSERT.
     end
     if saved
-      token = SignInToken.issue!(user: @user, club: @club, ttl: 7.days)
+      token = SignInToken.issue!(user: @user, club: @foreign_club, ttl: 7.days, issued_by: current_user)
       InvitationMailer.welcome(token).deliver_later
-      redirect_to admin_clubs_path, notice: "Invite sent to #{@user.email} for #{@club.name}."
+      redirect_to admin_clubs_path, notice: "Invite sent to #{@user.email} for #{@foreign_club.name}."
     else
       render :new, status: :unprocessable_entity
     end
   end
 
-  private
-
-  def set_club
-    @club = Club.find(params[:club_id])
+  def issue_code
+    member = @foreign_club.members.active.find(params[:id])
+    token = SignInToken.issue_code!(user: member, club: @foreign_club, issued_by: current_user)
+    flash[:code] = token.token
+    redirect_to code_admin_club_member_path(@foreign_club, member), status: :see_other
   end
+
+  def code
+    @member = @foreign_club.members.active.find(params[:id])
+    @code = flash[:code]
+    redirect_to admin_club_members_path(@foreign_club) and return unless @code
+  end
+
+  private
 
   def user_params
     params.require(:user).permit(:name, :email, :role)
-  end
-
-  def require_admin!
-    head :forbidden unless current_user&.admin?
   end
 end

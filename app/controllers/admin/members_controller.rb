@@ -25,7 +25,7 @@ class Admin::MembersController < Admin::BaseController
       @user.errors.add(:base, "Couldn't send the invite. Please try again.") if @user.errors.empty?
     end
     if saved
-      token = SignInToken.issue!(user: @user, club: current_club, ttl: 7.days)
+      token = SignInToken.issue!(user: @user, club: current_club, ttl: 7.days, issued_by: current_user)
       InvitationMailer.welcome(token).deliver_later
       redirect_to admin_members_path, notice: "Invite sent."
     else
@@ -51,7 +51,7 @@ class Admin::MembersController < Admin::BaseController
 
   def issue_code
     member = current_club.members.active.find(params[:id])
-    token = SignInToken.issue_code!(user: member, club: current_club)
+    token = SignInToken.issue_code!(user: member, club: current_club, issued_by: current_user)
     flash[:code] = token.token
     redirect_to code_admin_member_path(member), status: :see_other
   end

@@ -3,30 +3,33 @@ require "securerandom"
 class SignInToken < ApplicationRecord
   belongs_to :user
   belongs_to :club, optional: true
+  belongs_to :issued_by_user, class_name: "User", optional: true
 
   CODE_TTL = 10.minutes
   CODE_MAX_ATTEMPTS = 5
 
   scope :open, -> { where(used_at: nil).where("expires_at > ?", Time.current) }
 
-  def self.issue!(user:, club: nil, ttl: 30.minutes)
+  def self.issue!(user:, club: nil, ttl: 30.minutes, issued_by: nil)
     create!(
       user: user,
       club: club || user.club_memberships.active.order(:created_at).first&.club,
       token: SecureRandom.uuid,
       expires_at: ttl.from_now,
-      kind: "link"
+      kind: "link",
+      issued_by_user: issued_by
     )
   end
 
-  def self.issue_code!(user:, club: nil)
+  def self.issue_code!(user:, club: nil, issued_by: nil)
     where(user: user, kind: "code").open.update_all(used_at: Time.current)
     create!(
       user: user,
       club: club || user.club_memberships.active.order(:created_at).first&.club,
       token: generate_code,
       expires_at: CODE_TTL.from_now,
-      kind: "code"
+      kind: "code",
+      issued_by_user: issued_by
     )
   end
 

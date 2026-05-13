@@ -152,4 +152,26 @@ class SignInTokenTest < ActiveSupport::TestCase
     token = SignInToken.issue!(user: @user)
     assert_equal older, token.club
   end
+
+  test "issue! records issued_by when given" do
+    issuer = create(:user)
+    token = SignInToken.issue!(user: @user, issued_by: issuer)
+    assert_equal issuer, token.issued_by_user
+  end
+
+  test "issue! leaves issued_by nil when not given" do
+    token = SignInToken.issue!(user: @user)
+    assert_nil token.issued_by_user
+  end
+
+  test "issue_code! records issued_by when given" do
+    issuer = create(:user)
+    code = SignInToken.issue_code!(user: @user, issued_by: issuer)
+    assert_equal issuer, code.issued_by_user
+  end
+
+  test "issue_code! leaves issued_by nil when not given" do
+    code = SignInToken.issue_code!(user: @user)
+    assert_nil code.issued_by_user
+  end
 end
