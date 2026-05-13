@@ -129,9 +129,18 @@ class Admin::ClubsControllerTest < ActionDispatch::IntegrationTest
     assert_includes response.body, "Catches"
 
     # Stat values: 2 members, 2 tournaments, 1 active, 1 catch.
-    # Scope to the stat-value div class so this doesn't match other "1"/"2"s on the page.
-    assert_select ".text-3xl", text: "2", count: 2   # members + tournaments tiles
-    assert_select ".text-3xl", text: "1", count: 2   # active + catches tiles
+    # Scope to the stat-value testid so this doesn't depend on Tailwind size classes.
+    assert_select "[data-testid='stat-value']", text: "2", count: 2   # members + tournaments tiles
+    assert_select "[data-testid='stat-value']", text: "1", count: 2   # active + catches tiles
+  end
+
+  test "hub renders the foreign-club admin banner" do
+    foreign = create(:club, name: "Northtown Anglers")
+    sign_in_as(@admin)
+    get admin_club_path(foreign)
+    assert_response :success
+    assert_select "div", text: /Viewing Northtown Anglers/
+    assert_select "a[href=?]", admin_clubs_path, text: /All clubs/
   end
 
   test "club hub renders section cards linking to each sub-resource" do
