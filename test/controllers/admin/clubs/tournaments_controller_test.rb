@@ -78,6 +78,13 @@ class Admin::Clubs::TournamentsControllerTest < ActionDispatch::IntegrationTest
     assert_response :forbidden
   end
 
+  test "banner offers a back-to-hub link on sub-section pages" do
+    sign_in_as(@admin)
+    get admin_club_tournaments_path(@foreign_club)
+    assert_response :success
+    assert_select "a[href=?]", admin_club_path(@foreign_club), text: /Back to club/
+  end
+
   private
 
   def sign_in_as(user)

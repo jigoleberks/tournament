@@ -161,6 +161,14 @@ class Admin::ClubsControllerTest < ActionDispatch::IntegrationTest
     refute_includes response.body, "Invite member"
   end
 
+  test "hub itself does not show a back-to-club banner link" do
+    foreign = create(:club, name: "Northtown Anglers")
+    sign_in_as(@admin)
+    get admin_club_path(foreign)
+    assert_response :success
+    assert_select "a", text: /Back to club/, count: 0
+  end
+
   private
 
   def sign_in_as(user)
