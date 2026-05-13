@@ -81,12 +81,12 @@ class Admin::ClubsControllerTest < ActionDispatch::IntegrationTest
     assert_equal "BS Phishing Family", @club.reload.name
   end
 
-  test "admin clubs index shows View link to foreign-club tournaments" do
+  test "admin clubs index shows View link to foreign-club hub" do
     other_club = create(:club, name: "Northtown Anglers")
     sign_in_as(@admin)
     get admin_clubs_path
     assert_response :success
-    assert_includes response.body, admin_club_tournaments_path(other_club)
+    assert_includes response.body, admin_club_path(other_club)
   end
 
   test "admin can view the club hub" do
@@ -144,6 +144,21 @@ class Admin::ClubsControllerTest < ActionDispatch::IntegrationTest
     assert_select "a[href=?]", admin_club_catches_path(foreign),             text: /Catches/
     assert_select "a[href=?]", admin_club_tournament_templates_path(foreign), text: /Templates/
     assert_select "a[href=?]", admin_club_rules_path(foreign),               text: /Rules/
+  end
+
+  test "clubs index links each row to the club hub and omits the invite button" do
+    foreign = create(:club, name: "Northtown Anglers")
+    sign_in_as(@admin)
+    get admin_clubs_path
+    assert_response :success
+
+    # Row's name and View button both point at the hub
+    assert_select "a[href=?]", admin_club_path(foreign), text: /Northtown Anglers/
+    assert_select "a[href=?]", admin_club_path(foreign), text: /View/
+
+    # No more "Invite member" row action; no direct link to new-member
+    assert_select "a[href=?]", new_admin_club_member_path(foreign), count: 0
+    refute_includes response.body, "Invite member"
   end
 
   private

@@ -17,15 +17,15 @@
     <tbody class="divide-y divide-slate-700">
       <% @clubs.each do |club| %>
         <tr class="hover:bg-slate-700/30 transition-colors">
-          <td class="px-6 py-4 font-medium text-slate-100"><%= club.name %></td>
+          <td class="px-6 py-4 font-medium text-slate-100">
+            <%= link_to club.name, admin_club_path(club), class: "hover:text-white" %>
+          </td>
           <td class="px-6 py-4 text-sm text-slate-400 text-center"><%= club.user_count %></td>
           <td class="px-6 py-4 text-sm text-slate-400 text-center"><%= club.tournament_count %></td>
           <td class="px-6 py-4 text-right">
             <div class="flex items-center justify-end gap-2">
-              <%= link_to "View", admin_club_tournaments_path(club),
+              <%= link_to "View", admin_club_path(club),
                           class: "px-3 py-1.5 rounded bg-slate-700 hover:bg-slate-600 text-white text-xs font-medium transition-colors" %>
-              <%= link_to "Invite member", new_admin_club_member_path(club),
-                          class: "px-3 py-1.5 rounded bg-blue-600 hover:bg-blue-700 text-white text-xs font-medium transition-colors" %>
               <%= link_to "Edit", edit_admin_club_path(club),
                           class: "px-3 py-1.5 rounded bg-slate-700 hover:bg-slate-600 text-white text-xs font-medium transition-colors" %>
             </div>
