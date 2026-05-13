@@ -89,6 +89,27 @@ class Admin::ClubsControllerTest < ActionDispatch::IntegrationTest
     assert_includes response.body, admin_club_tournaments_path(other_club)
   end
 
+  test "admin can view the club hub" do
+    foreign = create(:club, name: "Northtown Anglers")
+    sign_in_as(@admin)
+    get admin_club_path(foreign)
+    assert_response :success
+    assert_includes response.body, "Northtown Anglers"
+  end
+
+  test "non-admin cannot view the club hub" do
+    foreign = create(:club, name: "Northtown Anglers")
+    sign_in_as(@organizer)
+    get admin_club_path(foreign)
+    assert_response :forbidden
+  end
+
+  test "signed-out user cannot view the club hub" do
+    foreign = create(:club, name: "Northtown Anglers")
+    get admin_club_path(foreign)
+    assert_redirected_to new_session_path
+  end
+
   private
 
   def sign_in_as(user)

@@ -2,13 +2,22 @@ class Admin::ClubsController < ApplicationController
   layout "admin"
   before_action :require_sign_in!
   before_action :require_admin!
-  before_action :set_club, only: [ :edit, :update ]
+  before_action :set_club, only: [ :edit, :update, :show ]
 
   def index
     @clubs = Club.left_joins(:club_memberships, :tournaments)
                  .group("clubs.id")
                  .select("clubs.*, COUNT(DISTINCT club_memberships.user_id) AS user_count, COUNT(DISTINCT tournaments.id) AS tournament_count")
                  .order(:name)
+  end
+
+  def show
+    @foreign_club            = @club
+    @member_count            = @club.members.active.count
+    @tournament_count        = @club.tournaments.count
+    @active_tournament_count = @club.tournaments.active_at(Time.current).count
+    @catch_count             = Catch.where(user_id: @club.members.select(:id))
+                                    .count
   end
 
   def new
