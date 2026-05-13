@@ -128,9 +128,10 @@ class Admin::ClubsControllerTest < ActionDispatch::IntegrationTest
     assert_includes response.body, "Active"
     assert_includes response.body, "Catches"
 
-    # Stat values: 2 members, 2 tournaments, 1 active, 1 catch
-    assert_select "div", text: "2", count: 2   # members + tournaments tiles
-    assert_select "div", text: "1", count: 2   # active + catches tiles
+    # Stat values: 2 members, 2 tournaments, 1 active, 1 catch.
+    # Scope to the stat-value div class so this doesn't match other "1"/"2"s on the page.
+    assert_select ".text-3xl", text: "2", count: 2   # members + tournaments tiles
+    assert_select ".text-3xl", text: "1", count: 2   # active + catches tiles
   end
 
   test "club hub renders section cards linking to each sub-resource" do
