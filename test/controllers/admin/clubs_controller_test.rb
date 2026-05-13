@@ -133,6 +133,19 @@ class Admin::ClubsControllerTest < ActionDispatch::IntegrationTest
     assert_select "div", text: "1", count: 2   # active + catches tiles
   end
 
+  test "club hub renders section cards linking to each sub-resource" do
+    foreign = create(:club, name: "Northtown Anglers")
+    sign_in_as(@admin)
+    get admin_club_path(foreign)
+    assert_response :success
+
+    assert_select "a[href=?]", admin_club_tournaments_path(foreign),         text: /Tournaments/
+    assert_select "a[href=?]", admin_club_members_path(foreign),             text: /Members/
+    assert_select "a[href=?]", admin_club_catches_path(foreign),             text: /Catches/
+    assert_select "a[href=?]", admin_club_tournament_templates_path(foreign), text: /Templates/
+    assert_select "a[href=?]", admin_club_rules_path(foreign),               text: /Rules/
+  end
+
   private
 
   def sign_in_as(user)
