@@ -97,6 +97,15 @@
   </div>
 <% end %>
 
+<% if ENV["MERCH_URL"].present? %>
+  <div class="my-3">
+    <%= link_to "Merch", ENV["MERCH_URL"],
+                target: "_blank",
+                rel: "noopener noreferrer",
+                class: "block w-full h-12 px-4 rounded-lg bg-emerald-600 active:bg-emerald-700 text-white text-center leading-[3rem]" %>
+  </div>
+<% end %>
+
 <% if current_user.organizer_in?(current_club) %>
   <div class="my-3">
     <%= link_to "Organizer", organizers_tournaments_path,
