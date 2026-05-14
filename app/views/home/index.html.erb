@@ -97,7 +97,7 @@
   </div>
 <% end %>
 
-<% if (merch_url = ENV["MERCH_URL"]).present? %>
+<% if (merch_url = ENV["MERCH_URL"]).present? && merch_url.match?(%r{\Ahttps?://}i) %>
   <div class="my-3">
     <%= link_to "Merch", merch_url,
                 target: "_blank",

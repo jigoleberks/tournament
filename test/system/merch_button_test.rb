@@ -50,4 +50,13 @@ class MerchButtonTest < ApplicationSystemTestCase
 
     assert_no_selector "a", text: "Merch", exact_text: true
   end
+
+  test "Merch button is hidden when MERCH_URL has a non-http(s) scheme" do
+    ENV["MERCH_URL"] = "javascript:alert(1)"
+
+    sign_in_as(@user)
+    visit root_path
+
+    assert_no_selector "a", text: "Merch", exact_text: true
+  end
 end
