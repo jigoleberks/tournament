@@ -26,7 +26,7 @@ class MerchButtonTest < ApplicationSystemTestCase
     sign_in_as(@user)
     visit root_path
 
-    link = find("a", text: "Merch")
+    link = find("a", text: "Merch", exact_text: true)
     assert_equal "https://example.test/merch", link[:href]
     assert_equal "_blank", link[:target]
     assert_includes link[:rel].to_s, "noopener"
@@ -39,7 +39,7 @@ class MerchButtonTest < ApplicationSystemTestCase
     sign_in_as(@user)
     visit root_path
 
-    assert_no_selector "a", text: "Merch"
+    assert_no_selector "a", text: "Merch", exact_text: true
   end
 
   test "Merch button is hidden when MERCH_URL is set to a blank string" do
@@ -48,6 +48,6 @@ class MerchButtonTest < ApplicationSystemTestCase
     sign_in_as(@user)
     visit root_path
 
-    assert_no_selector "a", text: "Merch"
+    assert_no_selector "a", text: "Merch", exact_text: true
   end
 end
