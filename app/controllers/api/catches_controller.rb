@@ -20,7 +20,8 @@ class Api::CatchesController < Api::BaseController
       return render json: { errors: ["You and this teammate aren't on the same entry in any active tournament."] }, status: :unprocessable_entity
     end
 
-    catch_record.flags = Catches::ComputeFlags.call(catch_record)
+    catch_record.flags  = Catches::ComputeFlags.call(catch_record)
+    catch_record.lake   = Catches::DetectLake.call(catch_record)
     catch_record.status = catch_record.flags.empty? ? :synced : :needs_review
     catch_record.synced_at = Time.current
 

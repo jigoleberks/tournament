@@ -216,6 +216,25 @@ class Api::CatchesControllerTest < ActionDispatch::IntegrationTest
     assert_response :ok
   end
 
+  test "POST /api/catches sets lake from GPS coordinates" do
+    photo = fixture_file_upload("sample_walleye.jpg", "image/jpeg")
+    assert_difference -> { Catch.count } => 1 do
+      post "/api/catches", params: {
+        catch: {
+          species_id: @walleye.id,
+          length_inches: 19.5,
+          captured_at_device: Time.current.iso8601,
+          captured_at_gps: Time.current.iso8601,
+          latitude: 53.55, longitude: -103.65, gps_accuracy_m: 8,
+          client_uuid: "uuid-lake-tobin",
+          photo: photo
+        }
+      }, headers: { "Accept" => "application/json" }
+    end
+    assert_response :created
+    assert_equal "tobin", Catch.find_by(client_uuid: "uuid-lake-tobin").lake
+  end
+
   private
 
   def sign_in_as(user)
