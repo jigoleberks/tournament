@@ -858,8 +858,22 @@ class CatchesControllerTest < ActionDispatch::IntegrationTest
     assert_response :success
     assert_select "a[href=?]", catch_path(tobin.id)
     assert_select "a[href=?]", catch_path(other.id)
-    # Dropdown should reflect "All lakes" — i.e. no option carries the raw value.
+    # Dropdown should reflect "All lakes" — i.e. no option carries the raw value,
+    # and the empty-value "All lakes" option is the one marked selected.
     assert_select "select[name='lake'] option[selected][value='not-a-lake']", count: 0
+    assert_select "select[name='lake'] option[selected][value='']"
+  end
+
+  test "index combines species and lake filters" do
+    pike = create(:species, club: @club, name: "Pike")
+    walleye_tobin = create(:catch, user: @user, species: @walleye, length_inches: 22.5, lake: "tobin")
+    pike_tobin    = create(:catch, user: @user, species: pike,    length_inches: 30.0, lake: "tobin")
+    walleye_other = create(:catch, user: @user, species: @walleye, length_inches: 18.0, lake: nil)
+    get catches_path, params: { species: @walleye.id, lake: "tobin", start: "", end: "" }
+    assert_response :success
+    assert_select "a[href=?]", catch_path(walleye_tobin.id)
+    assert_select "a[href=?]", catch_path(pike_tobin.id),    count: 0
+    assert_select "a[href=?]", catch_path(walleye_other.id), count: 0
   end
 
   private

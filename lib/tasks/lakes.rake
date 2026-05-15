@@ -7,6 +7,8 @@ namespace :lakes do
     scope.find_each(batch_size: 500) do |c|
       key = Catches::DetectLake.call(c)
       next if c.lake == key
+      # update_columns: lake is purely derived from GPS, so skip callbacks
+      # and avoid bumping updated_at across the whole table on backfill.
       c.update_columns(lake: key)
       updated += 1
     end
