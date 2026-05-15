@@ -14,7 +14,7 @@
 <%= form_with url: map_catches_path, method: :get, local: true,
               data: { controller: "auto-submit", action: "change->auto-submit#submit" },
               class: "flex items-center gap-2 mt-3 mb-3 text-sm" do %>
-  <% request.query_parameters.except(:species, :lake, :start, :end, :controller, :action).each do |k, v| %>
+  <% request.query_parameters.except(:species, :lake, :sort, :start, :end, :controller, :action).each do |k, v| %>
     <%= hidden_field_tag k, v %>
   <% end %>
   <%= hidden_field_tag :start, params[:start] if params.key?(:start) %>
