@@ -791,6 +791,91 @@ class CatchesControllerTest < ActionDispatch::IntegrationTest
     assert_no_match(/12\.0 km\/h \/ [\d\.]+ mph (?:N|NE|E|SE|S|SW|W|NW)/, response.body)
   end
 
+  test "POST /catches sets lake when GPS falls inside a known polygon" do
+    photo = fixture_file_upload("sample_walleye.jpg", "image/jpeg")
+    post catches_path, params: {
+      catch: { species_id: @walleye.id, length_inches: 18.5,
+               captured_at_device: Time.current,
+               latitude: 53.55, longitude: -103.65,
+               client_uuid: "client-tobin", photo: photo }
+    }
+    assert_equal "tobin", Catch.find_by(client_uuid: "client-tobin").lake
+  end
+
+  test "POST /catches leaves lake nil when no GPS" do
+    photo = fixture_file_upload("sample_walleye.jpg", "image/jpeg")
+    post catches_path, params: {
+      catch: { species_id: @walleye.id, length_inches: 18.5,
+               captured_at_device: Time.current,
+               client_uuid: "client-no-gps", photo: photo }
+    }
+    assert_nil Catch.find_by(client_uuid: "client-no-gps").lake
+  end
+
+  test "index filters by lake key" do
+    tobin = create(:catch, user: @user, species: @walleye, length_inches: 22.5, lake: "tobin")
+    other = create(:catch, user: @user, species: @walleye, length_inches: 18.0, lake: nil)
+    get catches_path, params: { lake: "tobin", start: "", end: "" }
+    assert_response :success
+    assert_select "a[href=?]", catch_path(tobin.id)
+    assert_select "a[href=?]", catch_path(other.id), count: 0
+  end
+
+  test "index filters to other when lake is nil" do
+    tobin = create(:catch, user: @user, species: @walleye, length_inches: 22.5, lake: "tobin")
+    other = create(:catch, user: @user, species: @walleye, length_inches: 18.0, lake: nil)
+    get catches_path, params: { lake: "other", start: "", end: "" }
+    assert_response :success
+    assert_select "a[href=?]", catch_path(other.id)
+    assert_select "a[href=?]", catch_path(tobin.id), count: 0
+  end
+
+  test "index does not filter when lake param is blank or 'all'" do
+    tobin = create(:catch, user: @user, species: @walleye, length_inches: 22.5, lake: "tobin")
+    other = create(:catch, user: @user, species: @walleye, length_inches: 18.0, lake: nil)
+    get catches_path, params: { lake: "all", start: "", end: "" }
+    assert_response :success
+    assert_select "a[href=?]", catch_path(tobin.id)
+    assert_select "a[href=?]", catch_path(other.id)
+  end
+
+  test "map filters by lake key" do
+    tobin = create(:catch, user: @user, species: @walleye, length_inches: 22.5,
+                           lake: "tobin", latitude: 53.55, longitude: -103.65)
+    other = create(:catch, user: @user, species: @walleye, length_inches: 18.0,
+                           lake: nil, latitude: 49.41, longitude: -103.62)
+    get map_catches_path, params: { lake: "tobin", start: "", end: "" }
+    assert_response :success
+    body = response.body
+    assert_includes body, tobin.length_inches.to_s
+    refute_includes body, other.length_inches.to_s
+  end
+
+  test "index ignores unknown lake keys and shows all catches" do
+    tobin = create(:catch, user: @user, species: @walleye, length_inches: 22.5, lake: "tobin")
+    other = create(:catch, user: @user, species: @walleye, length_inches: 18.0, lake: nil)
+    get catches_path, params: { lake: "not-a-lake", start: "", end: "" }
+    assert_response :success
+    assert_select "a[href=?]", catch_path(tobin.id)
+    assert_select "a[href=?]", catch_path(other.id)
+    # Dropdown should reflect "All lakes" — i.e. no option carries the raw value,
+    # and the empty-value "All lakes" option is the one marked selected.
+    assert_select "select[name='lake'] option[selected][value='not-a-lake']", count: 0
+    assert_select "select[name='lake'] option[selected][value='']"
+  end
+
+  test "index combines species and lake filters" do
+    pike = create(:species, club: @club, name: "Pike")
+    walleye_tobin = create(:catch, user: @user, species: @walleye, length_inches: 22.5, lake: "tobin")
+    pike_tobin    = create(:catch, user: @user, species: pike,    length_inches: 30.0, lake: "tobin")
+    walleye_other = create(:catch, user: @user, species: @walleye, length_inches: 18.0, lake: nil)
+    get catches_path, params: { species: @walleye.id, lake: "tobin", start: "", end: "" }
+    assert_response :success
+    assert_select "a[href=?]", catch_path(walleye_tobin.id)
+    assert_select "a[href=?]", catch_path(pike_tobin.id),    count: 0
+    assert_select "a[href=?]", catch_path(walleye_other.id), count: 0
+  end
+
   private
 
   def sign_in_as(user)

@@ -11,6 +11,7 @@ class CatchesController < ApplicationController
     @month_start = parse_date(params[:month]) || (@selected_start || Date.current).beginning_of_month
     @month_start = @month_start.beginning_of_month
     @species_filter_id = params[:species].presence&.to_i
+    @lake_filter_key   = normalized_lake_filter
     @sort = params[:sort].presence&.to_sym || :newest
 
     # :catch_placements is preloaded so visible_flags_for -> can_review_catch?
@@ -31,6 +32,7 @@ class CatchesController < ApplicationController
     @month_start = parse_date(params[:month]) || (@selected_start || Date.current).beginning_of_month
     @month_start = @month_start.beginning_of_month
     @species_filter_id = params[:species].presence&.to_i
+    @lake_filter_key   = normalized_lake_filter
     @available_species = Species.order(:name)
 
     scope = current_user.catches.includes(:species, photo_attachment: :blob)
@@ -38,6 +40,7 @@ class CatchesController < ApplicationController
       scope = scope.where(captured_at_device: @selected_start.beginning_of_day..@selected_end.end_of_day)
     end
     scope = scope.where(species_id: @species_filter_id) if @species_filter_id
+    scope = apply_lake_filter(scope) if @lake_filter_key
     @catches = scope.order(captured_at_device: :desc)
     @counts_by_date = counts_by_date(@month_start)
 
@@ -93,6 +96,7 @@ class CatchesController < ApplicationController
     end
 
     @catch.flags = Catches::ComputeFlags.call(@catch)
+    @catch.lake  = Catches::DetectLake.call(@catch)
     @catch.status = @catch.flags.empty? ? :synced : :needs_review
     @catch.synced_at = Time.current
 
@@ -207,11 +211,30 @@ class CatchesController < ApplicationController
       scope = scope.where(captured_at_device: @selected_start.beginning_of_day..@selected_end.end_of_day)
     end
     scope = scope.where(species_id: @species_filter_id) if @species_filter_id
+    scope = apply_lake_filter(scope) if @lake_filter_key
     case @sort
     when :longest  then scope.order(length_inches: :desc, captured_at_device: :desc)
     when :shortest then scope.order(length_inches: :asc, captured_at_device: :desc)
     else                scope.order(captured_at_device: :desc)
     end
+  end
+
+  def apply_lake_filter(scope)
+    case @lake_filter_key
+    when "all"   then scope
+    when "other" then scope.where(lake: nil)
+    else              scope.where(lake: @lake_filter_key)
+    end
+  end
+
+  # Coerce ?lake= to a value the dropdown will faithfully reflect. Unknown
+  # keys (renamed polygons, stale bookmarks) become nil so the user doesn't
+  # see "All lakes" selected while an invisible filter zeroes out the list.
+  def normalized_lake_filter
+    raw = params[:lake].presence
+    return nil if raw.nil?
+    return raw if raw == "all" || raw == "other"
+    Geofence::Lakes.known_key?(raw) ? raw : nil
   end
 
   def counts_by_date(month_start)

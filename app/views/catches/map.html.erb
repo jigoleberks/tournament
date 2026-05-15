@@ -14,7 +14,7 @@
 <%= form_with url: map_catches_path, method: :get, local: true,
               data: { controller: "auto-submit", action: "change->auto-submit#submit" },
               class: "flex items-center gap-2 mt-3 mb-3 text-sm" do %>
-  <% request.query_parameters.except(:species, :start, :end, :controller, :action).each do |k, v| %>
+  <% request.query_parameters.except(:species, :lake, :sort, :start, :end, :controller, :action).each do |k, v| %>
     <%= hidden_field_tag k, v %>
   <% end %>
   <%= hidden_field_tag :start, params[:start] if params.key?(:start) %>
@@ -32,6 +32,16 @@
                  options_for_select(
                    [["All species", ""]] + @available_species.map { |s| [s.name, s.id] },
                    @species_filter_id&.to_s
+                 ),
+                 class: "h-10 px-2 rounded-lg bg-slate-800 border border-slate-700 text-slate-100" %>
+
+  <label class="text-slate-300">Lake</label>
+  <%= select_tag :lake,
+                 options_for_select(
+                   [["All lakes", ""]] +
+                   Geofence::Lakes.all.map { |l| [l[:name], l[:key]] } +
+                   [["Other (no lake match)", "other"]],
+                   @lake_filter_key.to_s
                  ),
                  class: "h-10 px-2 rounded-lg bg-slate-800 border border-slate-700 text-slate-100" %>
 <% end %>
