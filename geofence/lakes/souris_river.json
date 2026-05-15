@@ -4,7 +4,7 @@
     {
       "type": "Feature",
       "properties": {
-        "name": "Souris River (Mainprize to north of Nickle Lake)",
+        "name": "Souris River",
         "buffer_m": 150.0,
         "sources": [
           172169962,
