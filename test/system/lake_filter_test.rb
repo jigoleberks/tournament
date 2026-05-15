@@ -24,7 +24,6 @@ class LakeFilterTest < ApplicationSystemTestCase
     assert_text "18.0"
 
     find("select[name='lake']").find("option", text: "Tobin Lake").select_option
-    page.execute_script("document.querySelector(\"select[name='lake']\").dispatchEvent(new Event('change', {bubbles: true}))")
 
     assert_no_text "18.0"
     assert_text "22.5"
@@ -37,7 +36,6 @@ class LakeFilterTest < ApplicationSystemTestCase
     visit catches_path(start: "", end: "")
 
     find("select[name='lake']").find("option", text: "Other (no lake match)").select_option
-    page.execute_script("document.querySelector(\"select[name='lake']\").dispatchEvent(new Event('change', {bubbles: true}))")
 
     assert_no_text "22.5"
     assert_text "18.0"

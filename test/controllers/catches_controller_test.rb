@@ -851,6 +851,17 @@ class CatchesControllerTest < ActionDispatch::IntegrationTest
     refute_includes body, other.length_inches.to_s
   end
 
+  test "index ignores unknown lake keys and shows all catches" do
+    tobin = create(:catch, user: @user, species: @walleye, length_inches: 22.5, lake: "tobin")
+    other = create(:catch, user: @user, species: @walleye, length_inches: 18.0, lake: nil)
+    get catches_path, params: { lake: "not-a-lake", start: "", end: "" }
+    assert_response :success
+    assert_select "a[href=?]", catch_path(tobin.id)
+    assert_select "a[href=?]", catch_path(other.id)
+    # Dropdown should reflect "All lakes" — i.e. no option carries the raw value.
+    assert_select "select[name='lake'] option[selected][value='not-a-lake']", count: 0
+  end
+
   private
 
   def sign_in_as(user)

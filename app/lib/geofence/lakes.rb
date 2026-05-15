@@ -1,20 +1,24 @@
 module Geofence
   module Lakes
     KIND_ORDER = { "lake" => 0, "river" => 1 }.freeze
+    MUTEX = Mutex.new
 
     module_function
 
     def all
-      load!
-      @entries
+      data[:entries]
+    end
+
+    def known_key?(key)
+      return false if key.nil?
+      data[:keys].include?(key)
     end
 
     def match(latitude, longitude)
       return nil if latitude.nil? || longitude.nil?
-      load!
       x = longitude.to_f
       y = latitude.to_f
-      @polygons.each do |key, polys|
+      data[:polygons].each do |key, polys|
         polys.each do |rings|
           outer, *holes = rings
           next unless ::Geofence.point_in_polygon?(x, y, outer)
@@ -26,13 +30,22 @@ module Geofence
     end
 
     def reload!
-      @entries = nil
-      @polygons = nil
+      MUTEX.synchronize { @data = nil }
     end
 
     def load!
-      return if @entries
+      data
+      nil
+    end
 
+    # Single-ivar snapshot so concurrent readers either see the previous fully-
+    # built hash or the new one — never a half-loaded state. The fast path
+    # avoids the mutex once @data is set.
+    def data
+      @data || MUTEX.synchronize { @data ||= build }
+    end
+
+    def build
       raw = Dir[Rails.root.join("geofence/lakes/*.json")].map do |path|
         key  = File.basename(path, ".json")
         feat = JSON.parse(File.read(path)).fetch("features").first
@@ -47,13 +60,11 @@ module Geofence
 
       sorted = raw.sort_by { |r| [KIND_ORDER[r[:kind]] || 99, r[:name]] }
 
-      # Build into locals first so that a concurrent reader either sees the
-      # pre-load state (both nil → re-runs load!) or the fully-populated state.
-      polygons = sorted.map { |r| [r[:key], r[:polygons]] }
-      entries  = sorted.map { |r| { key: r[:key], name: r[:name], kind: r[:kind] }.freeze }.freeze
-
-      @polygons = polygons   # assign data first
-      @entries  = entries    # then the guard — readers checking @entries see consistent state
+      {
+        polygons: sorted.map { |r| [r[:key], r[:polygons]] }.freeze,
+        entries:  sorted.map { |r| { key: r[:key], name: r[:name], kind: r[:kind] }.freeze }.freeze,
+        keys:     sorted.map { |r| r[:key] }.to_set.freeze,
+      }.freeze
     end
 
     # Returns an array of polygons, where each polygon is [outer_ring, *hole_rings].

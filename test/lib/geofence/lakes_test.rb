@@ -46,4 +46,15 @@ class Geofence::LakesTest < ActiveSupport::TestCase
     # Coordinates verified against the polygon: southern basin, clear of all hole rings.
     assert_equal "last_mountain", Geofence::Lakes.match(50.76, -104.885)
   end
+
+  test ".known_key? is true for a real polygon key" do
+    assert Geofence::Lakes.known_key?("tobin")
+  end
+
+  test ".known_key? is false for unknown, nil, and reserved sentinels" do
+    refute Geofence::Lakes.known_key?("not-a-lake")
+    refute Geofence::Lakes.known_key?(nil)
+    refute Geofence::Lakes.known_key?("all")
+    refute Geofence::Lakes.known_key?("other")
+  end
 end
