@@ -791,6 +791,27 @@ class CatchesControllerTest < ActionDispatch::IntegrationTest
     assert_no_match(/12\.0 km\/h \/ [\d\.]+ mph (?:N|NE|E|SE|S|SW|W|NW)/, response.body)
   end
 
+  test "POST /catches sets lake when GPS falls inside a known polygon" do
+    photo = fixture_file_upload("sample_walleye.jpg", "image/jpeg")
+    post catches_path, params: {
+      catch: { species_id: @walleye.id, length_inches: 18.5,
+               captured_at_device: Time.current,
+               latitude: 53.55, longitude: -103.65,
+               client_uuid: "client-tobin", photo: photo }
+    }
+    assert_equal "tobin", Catch.find_by(client_uuid: "client-tobin").lake
+  end
+
+  test "POST /catches leaves lake nil when no GPS" do
+    photo = fixture_file_upload("sample_walleye.jpg", "image/jpeg")
+    post catches_path, params: {
+      catch: { species_id: @walleye.id, length_inches: 18.5,
+               captured_at_device: Time.current,
+               client_uuid: "client-no-gps", photo: photo }
+    }
+    assert_nil Catch.find_by(client_uuid: "client-no-gps").lake
+  end
+
   private
 
   def sign_in_as(user)

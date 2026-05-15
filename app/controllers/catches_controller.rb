@@ -93,6 +93,7 @@ class CatchesController < ApplicationController
     end
 
     @catch.flags = Catches::ComputeFlags.call(@catch)
+    @catch.lake  = Catches::DetectLake.call(@catch)
     @catch.status = @catch.flags.empty? ? :synced : :needs_review
     @catch.synced_at = Time.current
 
