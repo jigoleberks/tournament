@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_05_12_040738) do
+ActiveRecord::Schema[8.1].define(version: 2026_05_15_011202) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -79,6 +79,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_05_12_040738) do
     t.datetime "created_at", null: false
     t.text "flags", default: [], null: false, array: true
     t.decimal "gps_accuracy_m", precision: 7, scale: 1
+    t.string "lake", limit: 64
     t.decimal "latitude", precision: 9, scale: 6
     t.decimal "length_inches", precision: 5, scale: 2, null: false
     t.bigint "logged_by_user_id"
@@ -95,6 +96,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_05_12_040738) do
     t.decimal "wind_direction_deg", precision: 5, scale: 1
     t.decimal "wind_speed_kph", precision: 5, scale: 1
     t.index ["client_uuid"], name: "index_catches_on_client_uuid", unique: true
+    t.index ["lake"], name: "index_catches_on_lake"
     t.index ["logged_by_user_id"], name: "index_catches_on_logged_by_user_id"
     t.index ["species_id"], name: "index_catches_on_species_id"
     t.index ["user_id"], name: "index_catches_on_user_id"
