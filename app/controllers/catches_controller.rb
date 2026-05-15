@@ -32,6 +32,7 @@ class CatchesController < ApplicationController
     @month_start = parse_date(params[:month]) || (@selected_start || Date.current).beginning_of_month
     @month_start = @month_start.beginning_of_month
     @species_filter_id = params[:species].presence&.to_i
+    @lake_filter_key   = params[:lake].presence
     @available_species = Species.order(:name)
 
     scope = current_user.catches.includes(:species, photo_attachment: :blob)
@@ -39,6 +40,7 @@ class CatchesController < ApplicationController
       scope = scope.where(captured_at_device: @selected_start.beginning_of_day..@selected_end.end_of_day)
     end
     scope = scope.where(species_id: @species_filter_id) if @species_filter_id
+    scope = apply_lake_filter(scope) if @lake_filter_key
     @catches = scope.order(captured_at_device: :desc)
     @counts_by_date = counts_by_date(@month_start)
 

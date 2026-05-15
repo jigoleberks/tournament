@@ -839,6 +839,18 @@ class CatchesControllerTest < ActionDispatch::IntegrationTest
     assert_select "a[href=?]", catch_path(other.id)
   end
 
+  test "map filters by lake key" do
+    tobin = create(:catch, user: @user, species: @walleye, length_inches: 22.5,
+                           lake: "tobin", latitude: 53.55, longitude: -103.65)
+    other = create(:catch, user: @user, species: @walleye, length_inches: 18.0,
+                           lake: nil, latitude: 49.41, longitude: -103.62)
+    get map_catches_path, params: { lake: "tobin", start: "", end: "" }
+    assert_response :success
+    body = response.body
+    assert_includes body, tobin.length_inches.to_s
+    refute_includes body, other.length_inches.to_s
+  end
+
   private
 
   def sign_in_as(user)
