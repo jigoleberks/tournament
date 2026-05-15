@@ -47,8 +47,13 @@ module Geofence
 
       sorted = raw.sort_by { |r| [KIND_ORDER[r[:kind]] || 99, r[:name]] }
 
-      @entries  = sorted.map { |r| { key: r[:key], name: r[:name], kind: r[:kind] } }
-      @polygons = sorted.map { |r| [r[:key], r[:polygons]] }
+      # Build into locals first so that a concurrent reader either sees the
+      # pre-load state (both nil → re-runs load!) or the fully-populated state.
+      polygons = sorted.map { |r| [r[:key], r[:polygons]] }
+      entries  = sorted.map { |r| { key: r[:key], name: r[:name], kind: r[:kind] }.freeze }.freeze
+
+      @polygons = polygons   # assign data first
+      @entries  = entries    # then the guard — readers checking @entries see consistent state
     end
 
     # Returns an array of polygons, where each polygon is [outer_ring, *hole_rings].
