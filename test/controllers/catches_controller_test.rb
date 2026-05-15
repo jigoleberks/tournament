@@ -812,6 +812,33 @@ class CatchesControllerTest < ActionDispatch::IntegrationTest
     assert_nil Catch.find_by(client_uuid: "client-no-gps").lake
   end
 
+  test "index filters by lake key" do
+    tobin = create(:catch, user: @user, species: @walleye, length_inches: 22.5, lake: "tobin")
+    other = create(:catch, user: @user, species: @walleye, length_inches: 18.0, lake: nil)
+    get catches_path, params: { lake: "tobin", start: "", end: "" }
+    assert_response :success
+    assert_select "a[href=?]", catch_path(tobin.id)
+    assert_select "a[href=?]", catch_path(other.id), count: 0
+  end
+
+  test "index filters to other when lake is nil" do
+    tobin = create(:catch, user: @user, species: @walleye, length_inches: 22.5, lake: "tobin")
+    other = create(:catch, user: @user, species: @walleye, length_inches: 18.0, lake: nil)
+    get catches_path, params: { lake: "other", start: "", end: "" }
+    assert_response :success
+    assert_select "a[href=?]", catch_path(other.id)
+    assert_select "a[href=?]", catch_path(tobin.id), count: 0
+  end
+
+  test "index does not filter when lake param is blank or 'all'" do
+    tobin = create(:catch, user: @user, species: @walleye, length_inches: 22.5, lake: "tobin")
+    other = create(:catch, user: @user, species: @walleye, length_inches: 18.0, lake: nil)
+    get catches_path, params: { lake: "all", start: "", end: "" }
+    assert_response :success
+    assert_select "a[href=?]", catch_path(tobin.id)
+    assert_select "a[href=?]", catch_path(other.id)
+  end
+
   private
 
   def sign_in_as(user)

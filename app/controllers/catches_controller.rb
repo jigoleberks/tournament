@@ -11,6 +11,7 @@ class CatchesController < ApplicationController
     @month_start = parse_date(params[:month]) || (@selected_start || Date.current).beginning_of_month
     @month_start = @month_start.beginning_of_month
     @species_filter_id = params[:species].presence&.to_i
+    @lake_filter_key   = params[:lake].presence
     @sort = params[:sort].presence&.to_sym || :newest
 
     # :catch_placements is preloaded so visible_flags_for -> can_review_catch?
@@ -208,10 +209,19 @@ class CatchesController < ApplicationController
       scope = scope.where(captured_at_device: @selected_start.beginning_of_day..@selected_end.end_of_day)
     end
     scope = scope.where(species_id: @species_filter_id) if @species_filter_id
+    scope = apply_lake_filter(scope) if @lake_filter_key
     case @sort
     when :longest  then scope.order(length_inches: :desc, captured_at_device: :desc)
     when :shortest then scope.order(length_inches: :asc, captured_at_device: :desc)
     else                scope.order(captured_at_device: :desc)
+    end
+  end
+
+  def apply_lake_filter(scope)
+    case @lake_filter_key
+    when "all"   then scope
+    when "other" then scope.where(lake: nil)
+    else              scope.where(lake: @lake_filter_key)
     end
   end
 
