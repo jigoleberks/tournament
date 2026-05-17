@@ -37,22 +37,41 @@ export default class extends Controller {
   }
 
   async enable() {
-    const perm = await Notification.requestPermission()
-    if (perm !== "granted") return this.refresh()
+    let step = "requestPermission"
+    try {
+      this.statusTarget.textContent = "asking permission…"
+      const perm = await Notification.requestPermission()
+      if (perm !== "granted") {
+        this.statusTarget.textContent = `permission: ${perm}`
+        return this.refresh()
+      }
 
-    const reg = await navigator.serviceWorker.ready
-    const sub = await reg.pushManager.subscribe({
-      userVisibleOnly: true,
-      applicationServerKey: urlB64ToUint8Array(vapidPublicKey())
-    })
+      step = "serviceWorker.ready"
+      this.statusTarget.textContent = "waiting for worker…"
+      const reg = await withTimeout(navigator.serviceWorker.ready, 10000, step)
 
-    await fetch("/api/push_subscriptions", {
-      method: "POST",
-      headers: { "Content-Type": "application/json", "X-CSRF-Token": csrfToken() },
-      credentials: "same-origin",
-      body: JSON.stringify({ subscription: sub.toJSON() })
-    })
-    this.refresh()
+      step = "pushManager.subscribe"
+      this.statusTarget.textContent = "subscribing…"
+      const sub = await withTimeout(reg.pushManager.subscribe({
+        userVisibleOnly: true,
+        applicationServerKey: urlB64ToUint8Array(vapidPublicKey())
+      }), 20000, step)
+
+      step = "POST /api/push_subscriptions"
+      this.statusTarget.textContent = "saving…"
+      const res = await fetch("/api/push_subscriptions", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "X-CSRF-Token": csrfToken() },
+        credentials: "same-origin",
+        body: JSON.stringify({ subscription: sub.toJSON() })
+      })
+      if (!res.ok) throw new Error(`HTTP ${res.status} ${res.statusText}`)
+      this.refresh()
+    } catch (e) {
+      const msg = `${step} failed: ${e.name || "Error"}: ${e.message || e}`
+      this.statusTarget.textContent = msg
+      console.error("push enable:", msg, e)
+    }
   }
 
   async disable() {
@@ -82,4 +101,10 @@ function urlB64ToUint8Array(b64) {
   const base64 = (b64 + padding).replace(/-/g, "+").replace(/_/g, "/")
   const raw = atob(base64)
   return new Uint8Array([...raw].map((c) => c.charCodeAt(0)))
+}
+function withTimeout(promise, ms, label) {
+  return Promise.race([
+    promise,
+    new Promise((_, reject) => setTimeout(() => reject(new Error(`timeout after ${ms}ms`)), ms))
+  ])
 }
