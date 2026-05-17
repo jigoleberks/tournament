@@ -24,6 +24,18 @@ namespace :catches do
     puts "Done."
   end
 
+  desc "Refetch conditions to swap surface_pressure for pressure_msl and add 24h trend"
+  task backfill_pressure_msl: :environment do
+    scope = Catch.where.not(latitude: nil, longitude: nil)
+    total = scope.count
+    puts "Refetching pressure (msl + 24h trend) for #{total} catches…"
+    scope.ids.each_with_index do |id, i|
+      FetchCatchConditionsJob.perform_now(catch_id: id)
+      puts "  #{i + 1}/#{total} done"
+    end
+    puts "Done."
+  end
+
   desc "Backfill flags for catches whose flag column is empty"
   task backfill_flags: :environment do
     scope = Catch.where("array_length(flags, 1) IS NULL")

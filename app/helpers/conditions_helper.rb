@@ -18,4 +18,14 @@ module ConditionsHelper
     bins = %w[N NE E SE S SW W NW]
     bins[((deg.to_f + 22.5) / 45).floor % 8]
   end
+
+  PRESSURE_TREND_THRESHOLD_HPA = 2.0
+
+  def format_pressure_trend(delta_hpa)
+    return nil if delta_hpa.nil?
+    delta = delta_hpa.to_f
+    return "steady" if delta.abs < PRESSURE_TREND_THRESHOLD_HPA
+    direction = delta.positive? ? "rising" : "falling"
+    "#{direction} #{(delta.abs / 10).round(1)} kPa over 24h"
+  end
 end

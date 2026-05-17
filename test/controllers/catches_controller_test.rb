@@ -762,6 +762,32 @@ class CatchesControllerTest < ActionDispatch::IntegrationTest
     refute_match "hPa", response.body
   end
 
+  test "show: conditions panel renders pressure trend when present" do
+    catch_record = create(:catch,
+      user: @user, species: @walleye, length_inches: 18.5,
+      barometric_pressure_hpa: 1013.25,
+      pressure_trend_24h_hpa: 4.0,
+      moon_phase: "Full Moon"
+    )
+
+    get catch_path(catch_record.id)
+    assert_response :success
+    assert_match "rising 0.4 kPa over 24h", response.body
+  end
+
+  test "show: conditions panel omits trend when pressure_trend_24h_hpa is nil" do
+    catch_record = create(:catch,
+      user: @user, species: @walleye, length_inches: 18.5,
+      barometric_pressure_hpa: 1013.25,
+      pressure_trend_24h_hpa: nil,
+      moon_phase: "Full Moon"
+    )
+
+    get catch_path(catch_record.id)
+    assert_response :success
+    refute_match "over 24h", response.body
+  end
+
   test "show: conditions panel renders compass label after wind speed" do
     catch_record = create(:catch,
       user: @user, species: @walleye, length_inches: 18.5,
