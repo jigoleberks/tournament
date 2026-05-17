@@ -72,4 +72,39 @@ class UserTest < ActiveSupport::TestCase
     create(:club_membership, user: u, club: @club, role: :member, deactivated_at: Time.current)
     assert_not u.member_of?(@club)
   end
+
+  test "touch_last_seen! writes when last_seen_at is nil" do
+    u = create(:user, club: @club)
+    assert_nil u.last_seen_at
+    freeze_time do
+      u.touch_last_seen!
+      assert_equal Time.current, u.reload.last_seen_at
+    end
+  end
+
+  test "touch_last_seen! writes when last_seen_at is older than the throttle window" do
+    u = create(:user, club: @club, last_seen_at: 2.hours.ago)
+    before = u.last_seen_at
+    freeze_time do
+      u.touch_last_seen!
+      assert_equal Time.current, u.reload.last_seen_at
+      assert_not_equal before, u.last_seen_at
+    end
+  end
+
+  test "touch_last_seen! is a no-op when last_seen_at is within the throttle window" do
+    recent = 5.minutes.ago
+    u = create(:user, club: @club, last_seen_at: recent)
+    u.touch_last_seen!
+    assert_in_delta recent.to_f, u.reload.last_seen_at.to_f, 0.001
+  end
+
+  test "touch_last_seen! does not bump updated_at" do
+    u = create(:user, club: @club, last_seen_at: 2.hours.ago)
+    original_updated_at = u.reload.updated_at
+    travel 1.minute do
+      u.touch_last_seen!
+      assert_equal original_updated_at, u.reload.updated_at
+    end
+  end
 end
