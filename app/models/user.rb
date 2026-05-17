@@ -29,8 +29,15 @@ class User < ApplicationRecord
   LENGTH_UNITS = %w[inches centimeters].freeze
   validates :length_unit, inclusion: { in: LENGTH_UNITS }
 
+  LAST_SEEN_THROTTLE = 1.hour
+
   def metric?
     length_unit == "centimeters"
+  end
+
+  def touch_last_seen!
+    return if last_seen_at && last_seen_at > LAST_SEEN_THROTTLE.ago
+    update_columns(last_seen_at: Time.current)
   end
 
   def organizer_in?(club)

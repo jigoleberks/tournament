@@ -413,6 +413,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_05_15_011202) do
     t.datetime "created_at", null: false
     t.datetime "deactivated_at"
     t.string "email", null: false
+    t.datetime "last_seen_at"
     t.string "length_unit", default: "inches", null: false
     t.string "name", null: false
     t.datetime "updated_at", null: false
