@@ -7,9 +7,9 @@
         <%= link_to t, class: "flex flex-wrap items-baseline gap-x-2 px-4 py-3" do %>
           <span class="text-lg font-medium text-blue-300"><%= t.name %></span>
           <span class="text-sm text-slate-400">— ended <%= t.ends_at.strftime("%b %d, %Y") %></span>
-          <% winner = Tournaments::TopThree.call(tournament: t).first %>
+          <% winner = @winners[t.id] %>
           <% if winner %>
-            <span class="text-sm text-slate-400">— winner — <%= winner[:entry].display_name %></span>
+            <span class="text-sm text-slate-400">— winner — <%= winner.display_name %></span>
           <% end %>
         <% end %>
       </li>

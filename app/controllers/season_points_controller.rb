@@ -19,5 +19,6 @@ class SeasonPointsController < ApplicationController
     else
       []
     end
+    @winners = ::Tournaments::WinnersFor.call(tournaments: @tournaments.to_a)
   end
 end
