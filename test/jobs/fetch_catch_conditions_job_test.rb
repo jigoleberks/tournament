@@ -93,6 +93,8 @@ class FetchCatchConditionsJobTest < ActiveJob::TestCase
     }.to_json
   end
 
+  # Process-global swap of Net::HTTP.new; safe under Rails' default parallelize-by-process,
+  # but would race any other Net::HTTP user if the suite is ever switched to thread parallelism.
   def stub_open_meteo(body, capture: nil)
     fake_response = Object.new
     fake_response.define_singleton_method(:body) { body }
