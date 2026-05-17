@@ -30,15 +30,14 @@ class FetchCatchConditionsJob < ApplicationJob
 
   def fetch_weather(catch_record)
     captured_at = catch_record.captured_at_device.utc
-    date_str    = captured_at.to_date.to_s
 
     uri = URI(OPEN_METEO_URL)
     uri.query = URI.encode_www_form(
       latitude:   catch_record.latitude.to_f,
       longitude:  catch_record.longitude.to_f,
-      hourly:     "temperature_2m,surface_pressure,wind_speed_10m,wind_direction_10m",
-      start_date: date_str,
-      end_date:   date_str,
+      hourly:     "temperature_2m,pressure_msl,wind_speed_10m,wind_direction_10m",
+      start_date: (captured_at.to_date - 1.day).to_s,
+      end_date:   captured_at.to_date.to_s,
       timezone:   "UTC"
     )
 
@@ -54,13 +53,18 @@ class FetchCatchConditionsJob < ApplicationJob
     hourly = data["hourly"]
     times  = hourly["time"]
 
-    hour_str = captured_at.strftime("%Y-%m-%dT%H:00")
-    idx = times.index(hour_str)
+    idx      = times.index(captured_at.strftime("%Y-%m-%dT%H:00"))
     return unless idx
+    prior_idx = times.index((captured_at - 24.hours).strftime("%Y-%m-%dT%H:00"))
+
+    current_pressure = hourly["pressure_msl"][idx]
+    prior_pressure   = prior_idx ? hourly["pressure_msl"][prior_idx] : nil
+    trend = (current_pressure && prior_pressure) ? (current_pressure - prior_pressure) : nil
 
     {
       temperature_c:           hourly["temperature_2m"][idx],
-      barometric_pressure_hpa: hourly["surface_pressure"][idx],
+      barometric_pressure_hpa: current_pressure,
+      pressure_trend_24h_hpa:  trend,
       wind_speed_kph:          hourly["wind_speed_10m"][idx],
       wind_direction_deg:      hourly["wind_direction_10m"][idx]
     }

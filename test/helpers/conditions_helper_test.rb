@@ -33,4 +33,24 @@ class ConditionsHelperTest < ActionView::TestCase
   test "format_wind_compass accepts decimals (Open-Meteo returns floats)" do
     assert_equal "NW", format_wind_compass(312.7)
   end
+
+  test "format_pressure_trend returns nil for nil" do
+    assert_nil format_pressure_trend(nil)
+  end
+
+  test "format_pressure_trend labels +/-2 hPa or more as rising/falling with kPa magnitude" do
+    assert_equal "rising 0.4 kPa over 24h", format_pressure_trend(4.0)
+    assert_equal "falling 0.3 kPa over 24h", format_pressure_trend(-3.0)
+  end
+
+  test "format_pressure_trend labels deltas inside the threshold as steady" do
+    assert_equal "steady for past 24h", format_pressure_trend(1.9)
+    assert_equal "steady for past 24h", format_pressure_trend(-1.9)
+    assert_equal "steady for past 24h", format_pressure_trend(0)
+  end
+
+  test "format_pressure_trend treats exactly +/-2 hPa as a meaningful change" do
+    assert_equal "rising 0.2 kPa over 24h", format_pressure_trend(2.0)
+    assert_equal "falling 0.2 kPa over 24h", format_pressure_trend(-2.0)
+  end
 end

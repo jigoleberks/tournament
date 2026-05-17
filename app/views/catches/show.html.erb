@@ -74,7 +74,14 @@
         <div><dt class="inline text-slate-500">Temp:</dt> <dd class="inline"><%= format_temperature_dual(@catch.temperature_c) %></dd></div>
       <% end %>
       <% if @catch.barometric_pressure_hpa.present? %>
-        <div><dt class="inline text-slate-500">Pressure:</dt> <dd class="inline"><%= (@catch.barometric_pressure_hpa.to_f / 10).round(1) %> kPa</dd></div>
+        <div>
+          <dt class="inline text-slate-500">Pressure:</dt>
+          <dd class="inline"><%= (@catch.barometric_pressure_hpa.to_f / 10).round(1) %> kPa</dd>
+          <% trend = format_pressure_trend(@catch.pressure_trend_24h_hpa) %>
+          <% if trend %>
+            <span class="text-slate-500">(<%= trend %>)</span>
+          <% end %>
+        </div>
       <% end %>
       <% if @catch.wind_speed_kph.present? %>
         <%
