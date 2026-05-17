@@ -182,6 +182,24 @@ class Admin::Clubs::MembersControllerTest < ActionDispatch::IntegrationTest
     assert_response :not_found
   end
 
+  test "renders Never badge for users with no last_seen_at on the per-club view" do
+    create(:user, club: @foreign_club, name: "Unclaimed Carl", last_seen_at: nil)
+    sign_in_as(@admin)
+    get admin_club_members_path(@foreign_club)
+    assert_response :success
+    assert_match %r{Unclaimed Carl.*Never}m, response.body
+  end
+
+  test "renders relative time for users with a last_seen_at on the per-club view" do
+    freeze_time do
+      create(:user, club: @foreign_club, name: "Active Alice", last_seen_at: 3.days.ago)
+      sign_in_as(@admin)
+      get admin_club_members_path(@foreign_club)
+      assert_response :success
+      assert_match %r{Active Alice.*3 days ago}m, response.body
+    end
+  end
+
   private
 
   def sign_in_as(user)
