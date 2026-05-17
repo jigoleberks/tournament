@@ -24,7 +24,7 @@ module ConditionsHelper
   def format_pressure_trend(delta_hpa)
     return nil if delta_hpa.nil?
     delta = delta_hpa.to_f
-    return "steady" if delta.abs < PRESSURE_TREND_THRESHOLD_HPA
+    return "steady for past 24h" if delta.abs < PRESSURE_TREND_THRESHOLD_HPA
     direction = delta.positive? ? "rising" : "falling"
     "#{direction} #{(delta.abs / 10).round(1)} kPa over 24h"
   end

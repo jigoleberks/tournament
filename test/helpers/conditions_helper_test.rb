@@ -44,9 +44,9 @@ class ConditionsHelperTest < ActionView::TestCase
   end
 
   test "format_pressure_trend labels deltas inside the threshold as steady" do
-    assert_equal "steady", format_pressure_trend(1.9)
-    assert_equal "steady", format_pressure_trend(-1.9)
-    assert_equal "steady", format_pressure_trend(0)
+    assert_equal "steady for past 24h", format_pressure_trend(1.9)
+    assert_equal "steady for past 24h", format_pressure_trend(-1.9)
+    assert_equal "steady for past 24h", format_pressure_trend(0)
   end
 
   test "format_pressure_trend treats exactly +/-2 hPa as a meaningful change" do
