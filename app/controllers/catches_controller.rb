@@ -211,11 +211,10 @@ class CatchesController < ApplicationController
     return params if (1..12).include?(params[:month].to_i)  # service handles month-of-year
     return params if params.key?(:start) || params.key?(:end)  # explicit params win
     # Default range: inject as :start/:end so the service's date filter fires.
-    if @selected_start
-      params.merge(start: @selected_start.iso8601, end: @selected_end.iso8601)
-    else
-      params.merge(start: "", end: "")  # no catches at all — pass explicit empty
-    end
+    # If @selected_start is nil (user has no catches at all), pass params
+    # unchanged so apply_date_range short-circuits.
+    return params if @selected_start.nil?
+    params.merge(start: @selected_start.iso8601, end: @selected_end.iso8601)
   end
 
   def sort_catches(scope)
