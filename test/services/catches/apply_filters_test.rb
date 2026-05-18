@@ -100,4 +100,13 @@ class Catches::ApplyFiltersTest < ActiveSupport::TestCase
     assert_includes call(month: "13"), may
     assert_includes call(month: ""),   may
   end
+
+  test "month filter buckets late-evening catches by local time, not UTC" do
+    # 10:30pm local on May 31. In UTC this is June 1 04:30. The correct
+    # local month is May, so a `month: 5` filter must include this catch.
+    late_may = create(:catch, user: @user, species: @walleye, length_inches: 18,
+                              captured_at_device: Time.zone.local(2025, 5, 31, 22, 30))
+    result = call(month: "5")
+    assert_includes result, late_may
+  end
 end

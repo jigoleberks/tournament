@@ -52,12 +52,17 @@ module Catches
     end
 
     def apply_month_of_year(s, m)
-      # EXTRACT in Postgres uses the session timezone for timestamps without
-      # timezone, but captured_at_device is timestamptz. We convert to the app
-      # zone explicitly so a 2am-UTC catch in CST still buckets to the prior
-      # local day's month.
+      # captured_at_device is `timestamp(6) without time zone`, storing UTC
+      # values. The first AT TIME ZONE 'UTC' tags the naive timestamp as UTC
+      # (yielding a timestamptz); the second converts to the app zone,
+      # returning a naive local timestamp. EXTRACT then sees the correct
+      # local month — a 10:30pm-local catch (4:30 UTC the next day) still
+      # buckets to the prior local day's month.
       tz = @time_zone.tzinfo.name
-      s.where("EXTRACT(MONTH FROM (catches.captured_at_device AT TIME ZONE ?)) = ?", tz, m)
+      s.where(
+        "EXTRACT(MONTH FROM (catches.captured_at_device AT TIME ZONE 'UTC' AT TIME ZONE ?)) = ?",
+        tz, m
+      )
     end
 
     def apply_date_range(s)
