@@ -20,6 +20,7 @@ module Catches
       s = apply_band(s, column: :wind_speed_kph,          bands: Catches::FilterBands::WIND_SPEED, param: :wind_speed)
       s = apply_band(s, column: :barometric_pressure_hpa, bands: Catches::FilterBands::PRESSURE,   param: :pressure)
       s = apply_moon(s)
+      s = apply_time_of_day(s)
       s
     end
 
@@ -132,6 +133,19 @@ module Catches
         # band is a Range like (0.125...0.375)
         s.where("moon_phase_fraction >= ? AND moon_phase_fraction < ?", band.begin, band.end)
       end
+    end
+
+    def apply_time_of_day(s)
+      key = @params[:tod].presence
+      hours = Catches::FilterBands::TIME_OF_DAY[key]
+      return s if hours.nil?
+      # See apply_month_of_year for why we need the double AT TIME ZONE
+      # (captured_at_device is `timestamp without time zone` storing UTC).
+      tz = @time_zone.tzinfo.name
+      s.where(
+        "EXTRACT(HOUR FROM (catches.captured_at_device AT TIME ZONE 'UTC' AT TIME ZONE ?)) IN (?)",
+        tz, hours
+      )
     end
 
     def parse_date(str)

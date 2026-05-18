@@ -237,4 +237,32 @@ class Catches::ApplyFiltersTest < ActiveSupport::TestCase
     nilled = create(:catch, user: @user, species: @walleye, length_inches: 18, captured_at_device: 1.day.ago, moon_phase_fraction: nil)
     refute_includes call(moon: "full"), nilled
   end
+
+  test "tod dawn matches 4..6" do
+    five  = create(:catch, user: @user, species: @walleye, length_inches: 18, captured_at_device: Time.zone.local(2025, 5, 10, 5, 30))
+    seven = create(:catch, user: @user, species: @walleye, length_inches: 18, captured_at_device: Time.zone.local(2025, 5, 10, 7, 0))
+    result = call(tod: "dawn")
+    assert_includes result, five
+    refute_includes result, seven
+  end
+
+  test "tod noon matches 11..13" do
+    eleven   = create(:catch, user: @user, species: @walleye, length_inches: 18, captured_at_device: Time.zone.local(2025, 5, 10, 11, 0))
+    thirteen = create(:catch, user: @user, species: @walleye, length_inches: 18, captured_at_device: Time.zone.local(2025, 5, 10, 13, 59))
+    fourteen = create(:catch, user: @user, species: @walleye, length_inches: 18, captured_at_device: Time.zone.local(2025, 5, 10, 14, 0))
+    result = call(tod: "noon")
+    assert_includes result, eleven
+    assert_includes result, thirteen
+    refute_includes result, fourteen
+  end
+
+  test "tod night wraps across midnight (23..3)" do
+    eleven_pm = create(:catch, user: @user, species: @walleye, length_inches: 18, captured_at_device: Time.zone.local(2025, 5, 10, 23, 30))
+    two_am    = create(:catch, user: @user, species: @walleye, length_inches: 18, captured_at_device: Time.zone.local(2025, 5, 11,  2, 0))
+    five_am   = create(:catch, user: @user, species: @walleye, length_inches: 18, captured_at_device: Time.zone.local(2025, 5, 10,  5, 0))
+    result = call(tod: "night")
+    assert_includes result, eleven_pm
+    assert_includes result, two_am
+    refute_includes result, five_am
+  end
 end
