@@ -32,17 +32,10 @@ module Catches
     end
 
     def apply_lake(s)
-      key = normalized_lake_filter
+      key = ::Geofence::Lakes.normalize_key(@params[:lake])
       return s if key.nil? || key == "all"
       return s.where(lake: nil) if key == "other"
       s.where(lake: key)
-    end
-
-    def normalized_lake_filter
-      raw = @params[:lake].presence
-      return nil if raw.nil?
-      return raw if raw == "all" || raw == "other"
-      ::Geofence::Lakes.known_key?(raw) ? raw : nil
     end
 
     def apply_month_or_date_range(s)
@@ -90,6 +83,8 @@ module Catches
       # Half-open interval [low, high): a catch at exactly the boundary
       # belongs to the next cardinal (e.g. 22.5° → NE, not N). Matches the
       # `format_wind_compass` helper's `((deg + 22.5) / 45).floor` convention.
+      # Only the N band wraps (centre 0, low = -22.5); every other cardinal
+      # in WIND_DIR_CENTRES has 0 <= low and high <= 360.
       key = @params[:wind_dir].presence
       centre = Catches::FilterBands::WIND_DIR_CENTRES[key]
       return s if centre.nil?
@@ -97,10 +92,7 @@ module Catches
       low  = centre - half
       high = centre + half
       if low < 0
-        # wraps below 0 (only happens for N)
         s.where("wind_direction_deg >= ? OR wind_direction_deg < ?", (low % 360), high)
-      elsif high > 360
-        s.where("wind_direction_deg >= ? OR wind_direction_deg < ?", low, (high % 360))
       else
         s.where("wind_direction_deg >= ? AND wind_direction_deg < ?", low, high)
       end
@@ -122,6 +114,7 @@ module Catches
         conditions << "#{column} #{op} ?"
         values << band[:max]
       end
+      return s if conditions.empty?
       # NULL columns drop out automatically — neither >= nor <= matches NULL.
       s.where(conditions.join(" AND "), *values)
     end

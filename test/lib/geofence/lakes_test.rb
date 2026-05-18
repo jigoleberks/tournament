@@ -57,4 +57,16 @@ class Geofence::LakesTest < ActiveSupport::TestCase
     refute Geofence::Lakes.known_key?("all")
     refute Geofence::Lakes.known_key?("other")
   end
+
+  test ".normalize_key passes through known keys and reserved sentinels" do
+    assert_equal "tobin",  Geofence::Lakes.normalize_key("tobin")
+    assert_equal "all",    Geofence::Lakes.normalize_key("all")
+    assert_equal "other",  Geofence::Lakes.normalize_key("other")
+  end
+
+  test ".normalize_key returns nil for blank and unknown values" do
+    assert_nil Geofence::Lakes.normalize_key(nil)
+    assert_nil Geofence::Lakes.normalize_key("")
+    assert_nil Geofence::Lakes.normalize_key("not-a-lake")
+  end
 end

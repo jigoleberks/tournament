@@ -6,9 +6,9 @@ class CatchesController < ApplicationController
     @month_start = parse_date(params[:month_nav]) || (@selected_start || Date.current).beginning_of_month
     @month_start = @month_start.beginning_of_month
     @species_filter_id = params[:species].presence&.to_i
-    @lake_filter_key   = normalized_lake_filter_param
+    @lake_filter_key   = Geofence::Lakes.normalize_key(params[:lake])
     @sort = params[:sort].presence&.to_sym || :newest
-    @month_of_year_active = (1..12).include?(params[:month].to_i) ? params[:month].to_i : nil
+    @month_of_year_active = month_of_year_param
 
     # :catch_placements is preloaded so visible_flags_for -> can_review_catch?
     # (which walks placements to find tournament_ids) doesn't N+1 for staff
@@ -26,9 +26,9 @@ class CatchesController < ApplicationController
     @month_start = parse_date(params[:month_nav]) || (@selected_start || Date.current).beginning_of_month
     @month_start = @month_start.beginning_of_month
     @species_filter_id = params[:species].presence&.to_i
-    @lake_filter_key   = normalized_lake_filter_param
+    @lake_filter_key   = Geofence::Lakes.normalize_key(params[:lake])
     @available_species = Species.order(:name)
-    @month_of_year_active = (1..12).include?(params[:month].to_i) ? params[:month].to_i : nil
+    @month_of_year_active = month_of_year_param
 
     base = current_user.catches.includes(:species, photo_attachment: :blob)
     @catches = Catches::ApplyFilters.call(scope: base, params: effective_filter_params).order(captured_at_device: :desc)
@@ -196,8 +196,17 @@ class CatchesController < ApplicationController
     Date.parse(s) rescue nil
   end
 
+  # Returns the integer 1..12 when ?month= is a valid month, else nil. Used as
+  # the gate for "month-of-year mode": when present it overrides the date range
+  # (both in the controller's resolved range and in the params passed to the
+  # service, which has its own copy of this predicate).
+  def month_of_year_param
+    m = params[:month].to_i
+    (1..12).include?(m) ? m : nil
+  end
+
   def resolve_date_range
-    return [nil, nil] if (1..12).include?(params[:month].to_i)  # month-of-year wins
+    return [nil, nil] if month_of_year_param  # month-of-year wins
     if params.key?(:start) || params.key?(:end)
       parse_date_range(params)
     else
@@ -208,7 +217,7 @@ class CatchesController < ApplicationController
   # Merge the controller's resolved date range into params so ApplyFilters
   # sees the default-date-range dates when no explicit start/end were given.
   def effective_filter_params
-    return params if (1..12).include?(params[:month].to_i)  # service handles month-of-year
+    return params if month_of_year_param  # service handles month-of-year
     return params if params.key?(:start) || params.key?(:end)  # explicit params win
     # Default range: inject as :start/:end so the service's date filter fires.
     # If @selected_start is nil (user has no catches at all), pass params
@@ -223,16 +232,6 @@ class CatchesController < ApplicationController
     when :shortest then scope.order(length_inches: :asc, captured_at_device: :desc)
     else                scope.order(captured_at_device: :desc)
     end
-  end
-
-  # Coerce ?lake= to a value the dropdown will faithfully reflect. Unknown
-  # keys (renamed polygons, stale bookmarks) become nil so the user doesn't
-  # see "All lakes" selected while an invisible filter zeroes out the list.
-  def normalized_lake_filter_param
-    raw = params[:lake].presence
-    return nil if raw.nil?
-    return raw if raw == "all" || raw == "other"
-    ::Geofence::Lakes.known_key?(raw) ? raw : nil
   end
 
   def counts_by_date(month_start)
