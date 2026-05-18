@@ -2,46 +2,36 @@ class CatchesController < ApplicationController
   before_action :require_sign_in!
 
   def index
-    @selected_start, @selected_end =
-      if params.key?(:start) || params.key?(:end)
-        parse_date_range(params)
-      else
-        default_date_range
-      end
-    @month_start = parse_date(params[:month]) || (@selected_start || Date.current).beginning_of_month
+    @selected_start, @selected_end = resolve_date_range
+    @month_start = parse_date(params[:month_nav]) || (@selected_start || Date.current).beginning_of_month
     @month_start = @month_start.beginning_of_month
     @species_filter_id = params[:species].presence&.to_i
-    @lake_filter_key   = normalized_lake_filter
+    @lake_filter_key   = normalized_lake_filter_param
     @sort = params[:sort].presence&.to_sym || :newest
+    @month_of_year_active = (1..12).include?(params[:month].to_i) ? params[:month].to_i : nil
 
     # :catch_placements is preloaded so visible_flags_for -> can_review_catch?
     # (which walks placements to find tournament_ids) doesn't N+1 for staff
     # viewers when any rendered catch carries the possible_duplicate flag.
-    @catches = filter_and_sort(current_user.catches.includes(:species, :catch_placements, photo_attachment: :blob))
+    base = current_user.catches.includes(:species, :catch_placements, photo_attachment: :blob)
+    filter_params = effective_filter_params
+    filtered = Catches::ApplyFilters.call(scope: base, params: filter_params)
+    @catches = sort_catches(filtered)
     @counts_by_date = counts_by_date(@month_start)
     @available_species = Species.order(:name)
   end
 
   def map
-    @selected_start, @selected_end =
-      if params.key?(:start) || params.key?(:end)
-        parse_date_range(params)
-      else
-        default_date_range
-      end
-    @month_start = parse_date(params[:month]) || (@selected_start || Date.current).beginning_of_month
+    @selected_start, @selected_end = resolve_date_range
+    @month_start = parse_date(params[:month_nav]) || (@selected_start || Date.current).beginning_of_month
     @month_start = @month_start.beginning_of_month
     @species_filter_id = params[:species].presence&.to_i
-    @lake_filter_key   = normalized_lake_filter
+    @lake_filter_key   = normalized_lake_filter_param
     @available_species = Species.order(:name)
+    @month_of_year_active = (1..12).include?(params[:month].to_i) ? params[:month].to_i : nil
 
-    scope = current_user.catches.includes(:species, photo_attachment: :blob)
-    if @selected_start
-      scope = scope.where(captured_at_device: @selected_start.beginning_of_day..@selected_end.end_of_day)
-    end
-    scope = scope.where(species_id: @species_filter_id) if @species_filter_id
-    scope = apply_lake_filter(scope) if @lake_filter_key
-    @catches = scope.order(captured_at_device: :desc)
+    base = current_user.catches.includes(:species, photo_attachment: :blob)
+    @catches = Catches::ApplyFilters.call(scope: base, params: effective_filter_params).order(captured_at_device: :desc)
     @counts_by_date = counts_by_date(@month_start)
 
     @map_points = @catches.filter_map do |c|
@@ -206,12 +196,29 @@ class CatchesController < ApplicationController
     Date.parse(s) rescue nil
   end
 
-  def filter_and_sort(scope)
-    if @selected_start
-      scope = scope.where(captured_at_device: @selected_start.beginning_of_day..@selected_end.end_of_day)
+  def resolve_date_range
+    return [nil, nil] if (1..12).include?(params[:month].to_i)  # month-of-year wins
+    if params.key?(:start) || params.key?(:end)
+      parse_date_range(params)
+    else
+      default_date_range
     end
-    scope = scope.where(species_id: @species_filter_id) if @species_filter_id
-    scope = apply_lake_filter(scope) if @lake_filter_key
+  end
+
+  # Merge the controller's resolved date range into params so ApplyFilters
+  # sees the default-date-range dates when no explicit start/end were given.
+  def effective_filter_params
+    return params if (1..12).include?(params[:month].to_i)  # service handles month-of-year
+    return params if params.key?(:start) || params.key?(:end)  # explicit params win
+    # Default range: inject as :start/:end so the service's date filter fires.
+    if @selected_start
+      params.merge(start: @selected_start.iso8601, end: @selected_end.iso8601)
+    else
+      params.merge(start: "", end: "")  # no catches at all — pass explicit empty
+    end
+  end
+
+  def sort_catches(scope)
     case @sort
     when :longest  then scope.order(length_inches: :desc, captured_at_device: :desc)
     when :shortest then scope.order(length_inches: :asc, captured_at_device: :desc)
@@ -219,22 +226,14 @@ class CatchesController < ApplicationController
     end
   end
 
-  def apply_lake_filter(scope)
-    case @lake_filter_key
-    when "all"   then scope
-    when "other" then scope.where(lake: nil)
-    else              scope.where(lake: @lake_filter_key)
-    end
-  end
-
   # Coerce ?lake= to a value the dropdown will faithfully reflect. Unknown
   # keys (renamed polygons, stale bookmarks) become nil so the user doesn't
   # see "All lakes" selected while an invisible filter zeroes out the list.
-  def normalized_lake_filter
+  def normalized_lake_filter_param
     raw = params[:lake].presence
     return nil if raw.nil?
     return raw if raw == "all" || raw == "other"
-    Geofence::Lakes.known_key?(raw) ? raw : nil
+    ::Geofence::Lakes.known_key?(raw) ? raw : nil
   end
 
   def counts_by_date(month_start)

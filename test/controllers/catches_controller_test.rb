@@ -501,16 +501,16 @@ class CatchesControllerTest < ActionDispatch::IntegrationTest
       # would bucket onto May 9; fixed code keys by local date (May 8).
       late_evening = Time.zone.local(2026, 5, 8, 23, 0)
       create_catch(captured_at: late_evening)
-      get catches_path, params: { start: "2026-05-08", end: "2026-05-08", month: "2026-05-01" }
+      get catches_path, params: { start: "2026-05-08", end: "2026-05-08", month_nav: "2026-05-01" }
       counts = assigns(:counts_by_date)
       assert_equal 1, counts[Date.new(2026, 5, 8)]
       assert_nil counts[Date.new(2026, 5, 9)]
     end
   end
 
-  test "GET /catches?month=2026-05-01 controls the displayed month independently of selection" do
+  test "GET /catches?month_nav=2026-05-01 controls the displayed month independently of selection" do
     create_catch(captured_at: Time.zone.parse("2026-05-15 10:00"))
-    get catches_path, params: { start: "", end: "", month: "2026-05-01" }
+    get catches_path, params: { start: "", end: "", month_nav: "2026-05-01" }
     assert_equal Date.new(2026, 5, 1), assigns(:month_start)
     assert_equal 1, assigns(:counts_by_date)[Date.new(2026, 5, 15)]
   end
@@ -525,7 +525,7 @@ class CatchesControllerTest < ActionDispatch::IntegrationTest
 
   test "GET /catches renders the catch calendar with a count badge for days that have catches" do
     create_catch(captured_at: Time.zone.parse("2026-05-08 10:00"))
-    get catches_path, params: { start: "2026-05-08", end: "2026-05-08", month: "2026-05-01" }
+    get catches_path, params: { start: "2026-05-08", end: "2026-05-08", month_nav: "2026-05-01" }
     assert_response :ok
     assert_select "[data-test='catch-calendar']"
     assert_select "[data-test='calendar-day-2026-05-08']"
@@ -535,7 +535,7 @@ class CatchesControllerTest < ActionDispatch::IntegrationTest
 
   test "GET /catches calendar marks the selected day with selected styling" do
     create_catch(captured_at: Time.zone.parse("2026-05-08 10:00"))
-    get catches_path, params: { start: "2026-05-08", end: "2026-05-08", month: "2026-05-01" }
+    get catches_path, params: { start: "2026-05-08", end: "2026-05-08", month_nav: "2026-05-01" }
     assert_select "[data-test='calendar-day-2026-05-08'][data-selected='true']"
   end
 
@@ -874,6 +874,41 @@ class CatchesControllerTest < ActionDispatch::IntegrationTest
     assert_select "a[href=?]", catch_path(walleye_tobin.id)
     assert_select "a[href=?]", catch_path(pike_tobin.id),    count: 0
     assert_select "a[href=?]", catch_path(walleye_other.id), count: 0
+  end
+
+  test "index: min_length param filters short catches out" do
+    short = create(:catch, user: @user, species: @walleye, length_inches: 12, captured_at_device: Time.current)
+    long  = create(:catch, user: @user, species: @walleye, length_inches: 22, captured_at_device: Time.current)
+    get catches_path(min_length: 18, start: "", end: "")
+    assert_response :success
+    assert_select "a[href=?]", catch_path(long.id)
+    assert_select "a[href=?]", catch_path(short.id), count: 0
+  end
+
+  test "index: month param overrides date range" do
+    in_may_far_back = create(:catch, user: @user, species: @walleye, length_inches: 18, captured_at_device: Time.zone.local(2023, 5, 10, 9))
+    get catches_path(month: 5, start: "2026-01-01", end: "2026-12-31")
+    assert_response :success
+    assert_select "a[href=?]", catch_path(in_may_far_back.id)
+  end
+
+  test "index: wind_dir param filters by direction" do
+    ne = create(:catch, user: @user, species: @walleye, length_inches: 18, captured_at_device: Time.current, wind_direction_deg: 45)
+    sw = create(:catch, user: @user, species: @walleye, length_inches: 18, captured_at_device: Time.current, wind_direction_deg: 225)
+    get catches_path(wind_dir: "ne", start: "", end: "")
+    assert_response :success
+    assert_select "a[href=?]", catch_path(ne.id)
+    assert_select "a[href=?]", catch_path(sw.id), count: 0
+  end
+
+  test "map: pressure filter applies to map points" do
+    high = create(:catch, user: @user, species: @walleye, length_inches: 18, captured_at_device: Time.current, latitude: 49.4, longitude: -103.6, barometric_pressure_hpa: 1025)
+    low  = create(:catch, user: @user, species: @walleye, length_inches: 18, captured_at_device: Time.current, latitude: 49.4, longitude: -103.6, barometric_pressure_hpa: 1005)
+    get map_catches_path(pressure: "high", start: "", end: "")
+    assert_response :success
+    body = response.body
+    assert_match catch_path(high.id), body
+    refute_match catch_path(low.id),  body
   end
 
   private
