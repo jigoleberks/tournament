@@ -18,6 +18,8 @@
            lake_filter_key: @lake_filter_key,
            show_sort: false %>
 
+<%= render "catches/match_conditions", path_helper: :map_catches_path %>
+
 <div class="relative w-full aspect-[3/4] rounded-xl overflow-hidden shadow-xl border border-slate-700"
      data-controller="map"
      data-map-points-value="<%= @map_points.to_json %>">

@@ -19,6 +19,8 @@
            sort: @sort,
            show_sort: true %>
 
+<%= render "catches/match_conditions", path_helper: :catches_path %>
+
 <% if @catches.any? %>
   <ul class="grid grid-cols-2 gap-2 mt-4">
     <% @catches.each do |c| %>

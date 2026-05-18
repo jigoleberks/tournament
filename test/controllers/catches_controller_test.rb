@@ -911,6 +911,25 @@ class CatchesControllerTest < ActionDispatch::IntegrationTest
     refute_match catch_path(low.id),  body
   end
 
+  test "index: match conditions panel renders chips for all bands" do
+    create(:catch, user: @user, species: @walleye, length_inches: 18, captured_at_device: Time.current)
+    get catches_path
+    assert_response :success
+    assert_select "[data-test='chip-wind_dir-ne']"
+    assert_select "[data-test='chip-wind_speed-mod']"
+    assert_select "[data-test='chip-pressure-low']"
+    assert_select "[data-test='chip-moon-full']"
+    assert_select "[data-test='chip-tod-noon']"
+    assert_select "[data-test='month-of-year']"
+  end
+
+  test "index: active count badge shows when conditions are set" do
+    create(:catch, user: @user, species: @walleye, length_inches: 18, captured_at_device: Time.current)
+    get catches_path(wind_dir: "ne", moon: "full")
+    assert_response :success
+    assert_select "[data-test='mc-active-count']", text: /\(2 active\)/
+  end
+
   private
 
   def sign_in_as(user)
