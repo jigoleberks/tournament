@@ -4,6 +4,30 @@ module Catches
       new(scope, params, time_zone).call
     end
 
+    # Shared by the controller (for :start/:end and :month_nav) and the
+    # service's own apply_date_range. Narrow rescue so unrelated errors
+    # don't get swallowed as "blank date".
+    def self.parse_date(str)
+      return nil if str.blank?
+      Date.parse(str)
+    rescue ArgumentError, TypeError
+      nil
+    end
+
+    # Returns the subset of match-condition params that would actually filter.
+    # Views use this to count truly-active conditions, since `params[k].present?`
+    # would lie for hand-crafted invalid values like `?month=13` or `?moon=halfmoon`.
+    def self.active_filter_keys(params)
+      keys = []
+      keys << :month      if (1..12).include?(params[:month].to_i)
+      keys << :wind_dir   if Catches::FilterBands::WIND_DIR_CENTRES.key?(params[:wind_dir].to_s)
+      keys << :wind_speed if Catches::FilterBands::WIND_SPEED.key?(params[:wind_speed].to_s)
+      keys << :pressure   if Catches::FilterBands::PRESSURE.key?(params[:pressure].to_s)
+      keys << :moon       if Catches::FilterBands::MOON.key?(params[:moon].to_s)
+      keys << :tod        if Catches::FilterBands::TIME_OF_DAY.key?(params[:tod].to_s)
+      keys
+    end
+
     def initialize(scope, params, time_zone)
       @scope = scope
       @params = params
@@ -44,6 +68,8 @@ module Catches
       apply_date_range(s)
     end
 
+    # Validates `?month=` as 1..12. Mirrored in CatchesController#month_of_year_param
+    # so the service stays self-contained (no controller-helper dependency).
     def month_of_year
       m = @params[:month].to_i
       (1..12).include?(m) ? m : nil
@@ -67,8 +93,8 @@ module Catches
       start_param = @params[:start].presence
       end_param   = @params[:end].presence
       return s if start_param.nil? && end_param.nil?
-      start_date = parse_date(start_param) || parse_date(end_param)
-      finish_date = parse_date(end_param) || start_date
+      start_date = self.class.parse_date(start_param) || self.class.parse_date(end_param)
+      finish_date = self.class.parse_date(end_param) || start_date
       return s if start_date.nil?
       start_date, finish_date = finish_date, start_date if start_date > finish_date
       s.where(captured_at_device: start_date.beginning_of_day..finish_date.end_of_day)
@@ -144,9 +170,5 @@ module Catches
       )
     end
 
-    def parse_date(str)
-      return nil if str.blank?
-      Date.parse(str) rescue nil
-    end
   end
 end

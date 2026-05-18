@@ -1,7 +1,11 @@
 <%# locals: path_helper: %>
 <%
-  active_keys = %i[month wind_dir wind_speed pressure moon tod]
-  active_count = active_keys.count { |k| params[k].present? }
+  # `all_condition_keys` strips every panel-managed param from the URL for the
+  # Clear link (even invalid values like ?month=13). `active_count` reflects only
+  # filters that would actually apply — so a hand-crafted invalid value doesn't
+  # auto-open the panel or inflate the badge.
+  all_condition_keys = %i[month wind_dir wind_speed pressure moon tod]
+  active_count = Catches::ApplyFilters.active_filter_keys(params).size
   open = params[:mc] == "open" || active_count > 0
   rows = [
     { param: :wind_dir,   label: "Wind dir",    bands: Catches::FilterBands::WIND_DIR_LABELS },
@@ -61,7 +65,7 @@
 
     <% if active_count > 0 %>
       <%= link_to "Clear conditions",
-                  public_send(path_helper, request.query_parameters.except(*active_keys, :controller, :action).merge(mc: "open")),
+                  public_send(path_helper, request.query_parameters.except(*all_condition_keys, :controller, :action).merge(mc: "open")),
                   "data-test": "clear-conditions",
                   class: "text-blue-400" %>
     <% end %>

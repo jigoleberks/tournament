@@ -3,7 +3,7 @@ class CatchesController < ApplicationController
 
   def index
     @selected_start, @selected_end = resolve_date_range
-    @month_start = parse_date(params[:month_nav]) || (@selected_start || Date.current).beginning_of_month
+    @month_start = Catches::ApplyFilters.parse_date(params[:month_nav]) || (@selected_start || Date.current).beginning_of_month
     @month_start = @month_start.beginning_of_month
     @species_filter_id = params[:species].presence&.to_i
     @lake_filter_key   = Geofence::Lakes.normalize_key(params[:lake])
@@ -23,7 +23,7 @@ class CatchesController < ApplicationController
 
   def map
     @selected_start, @selected_end = resolve_date_range
-    @month_start = parse_date(params[:month_nav]) || (@selected_start || Date.current).beginning_of_month
+    @month_start = Catches::ApplyFilters.parse_date(params[:month_nav]) || (@selected_start || Date.current).beginning_of_month
     @month_start = @month_start.beginning_of_month
     @species_filter_id = params[:species].presence&.to_i
     @lake_filter_key   = Geofence::Lakes.normalize_key(params[:lake])
@@ -171,8 +171,8 @@ class CatchesController < ApplicationController
   end
 
   def parse_date_range(params)
-    start = parse_date(params[:start])
-    finish = parse_date(params[:end]) || start
+    start = Catches::ApplyFilters.parse_date(params[:start])
+    finish = Catches::ApplyFilters.parse_date(params[:end]) || start
     return [nil, nil] if start.nil? && finish.nil?
     start ||= finish
     start, finish = finish, start if start > finish
@@ -189,11 +189,6 @@ class CatchesController < ApplicationController
     else
       [nil, nil]
     end
-  end
-
-  def parse_date(s)
-    return nil unless s.present?
-    Date.parse(s) rescue nil
   end
 
   # Returns the integer 1..12 when ?month= is a valid month, else nil. Used as

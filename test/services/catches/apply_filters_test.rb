@@ -272,6 +272,38 @@ class Catches::ApplyFiltersTest < ActiveSupport::TestCase
     refute_includes result, five_am
   end
 
+  test "active_filter_keys: empty when no condition params" do
+    assert_empty Catches::ApplyFilters.active_filter_keys(ActionController::Parameters.new)
+  end
+
+  test "active_filter_keys: rejects invalid values that the service would silently ignore" do
+    params = ActionController::Parameters.new(
+      month: "13", wind_dir: "up", wind_speed: "hurricane",
+      pressure: "very_low", moon: "halfmoon", tod: "afternoon"
+    )
+    assert_empty Catches::ApplyFilters.active_filter_keys(params)
+  end
+
+  test "active_filter_keys: returns the subset with valid values" do
+    params = ActionController::Parameters.new(
+      month: "5", wind_dir: "ne", moon: "halfmoon", pressure: "low", tod: "noon"
+    )
+    assert_equal %i[month wind_dir pressure tod], Catches::ApplyFilters.active_filter_keys(params)
+  end
+
+  test "parse_date: blank in, nil out" do
+    assert_nil Catches::ApplyFilters.parse_date(nil)
+    assert_nil Catches::ApplyFilters.parse_date("")
+  end
+
+  test "parse_date: unparseable strings return nil without raising" do
+    assert_nil Catches::ApplyFilters.parse_date("banana")
+  end
+
+  test "parse_date: valid ISO date round-trips" do
+    assert_equal Date.new(2026, 5, 17), Catches::ApplyFilters.parse_date("2026-05-17")
+  end
+
   test "filters AND together: only catches matching every active filter survive" do
     match     = create(:catch, user: @user, species: @walleye, length_inches: 22,
                                captured_at_device: 1.day.ago,

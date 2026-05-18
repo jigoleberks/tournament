@@ -930,6 +930,24 @@ class CatchesControllerTest < ActionDispatch::IntegrationTest
     assert_select "[data-test='mc-active-count']", text: /\(2 active\)/
   end
 
+  test "index: active count badge ignores invalid condition values" do
+    create(:catch, user: @user, species: @walleye, length_inches: 18, captured_at_device: Time.current)
+    get catches_path(month: "13", wind_dir: "up", moon: "halfmoon")
+    assert_response :success
+    assert_select "[data-test='mc-active-count']", count: 0
+  end
+
+  test "GET /catches calendar prev/next nav drops :month so navigation exits month-of-year mode" do
+    create(:catch, user: @user, species: @walleye, length_inches: 18, captured_at_device: Time.zone.local(2024, 5, 10))
+    get catches_path(month: 5)
+    assert_response :success
+    %w[Previous Next].each do |dir|
+      assert_select "a[aria-label='#{dir} month']" do |els|
+        assert_no_match(/[?&]month=/, els.first["href"])
+      end
+    end
+  end
+
   private
 
   def sign_in_as(user)

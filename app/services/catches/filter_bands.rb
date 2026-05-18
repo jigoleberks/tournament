@@ -22,8 +22,10 @@ module Catches
       "high"   => { min: 1020,   max: nil,  min_inclusive: false }
     }.freeze
 
+    # The "new" band wraps across 0/1 (< 0.125 OR >= 0.875), so it can't be a
+    # half-open Range like the others — ApplyFilters#apply_moon special-cases :new.
     MOON = {
-      "new"  => :new,    # < 0.125 OR >= 0.875
+      "new"  => :new,
       "q1"   => (0.125...0.375),
       "full" => (0.375...0.625),
       "q3"   => (0.625...0.875)
