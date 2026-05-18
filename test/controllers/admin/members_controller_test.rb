@@ -56,6 +56,20 @@ class Admin::MembersControllerTest < ActionDispatch::IntegrationTest
     assert_equal "old@example.com", @member.email
   end
 
+  test "update drops admin and role from strong params" do
+    sign_in_as(@admin)
+    assert_not @member.admin?
+    assert_not @member.organizer_in?(@club)
+    patch admin_member_path(@member), params: {
+      user: { name: "Renamed", email: "renamed@example.com", admin: true, role: "organizer" }
+    }
+    assert_redirected_to admin_members_path
+    @member.reload
+    assert_equal "Renamed", @member.name
+    assert_not @member.admin?
+    assert_not @member.organizer_in?(@club)
+  end
+
   test "update is scoped to current club" do
     sign_in_as(@admin)
     other_club_user = create(:user, club: create(:club), role: :member)
