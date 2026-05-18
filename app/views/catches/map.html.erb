@@ -9,7 +9,8 @@
            current_end: @selected_end,
            counts_by_date: @counts_by_date,
            path_helper: :map_catches_path,
-           params: request.query_parameters %>
+           params: request.query_parameters,
+           month_of_year_active: @month_of_year_active %>
 
 <%= render "catches/filter_bar",
            path_helper: :map_catches_path,

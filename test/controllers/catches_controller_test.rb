@@ -947,4 +947,11 @@ class CatchesControllerTest < ActionDispatch::IntegrationTest
     rec.save!
     rec
   end
+
+  test "index: month-of-year shows note in calendar" do
+    create(:catch, user: @user, species: @walleye, length_inches: 18, captured_at_device: Time.zone.local(2024, 5, 10))
+    get catches_path(month: 5)
+    assert_response :success
+    assert_select "[data-test='month-of-year-note']", text: /Showing all years · May/
+  end
 end
