@@ -17,6 +17,8 @@ module Catches
       s = apply_month_or_date_range(s)
       s = apply_min_length(s)
       s = apply_wind_dir(s)
+      s = apply_band(s, column: :wind_speed_kph,          bands: Catches::FilterBands::WIND_SPEED, param: :wind_speed)
+      s = apply_band(s, column: :barometric_pressure_hpa, bands: Catches::FilterBands::PRESSURE,   param: :pressure)
       s
     end
 
@@ -97,6 +99,26 @@ module Catches
       else
         s.where(wind_direction_deg: low..high)
       end
+    end
+
+    def apply_band(s, column:, bands:, param:)
+      key = @params[param].presence
+      band = bands[key]
+      return s if band.nil?
+      conditions = []
+      values = []
+      if band[:min]
+        op = band[:min_inclusive] == false ? ">" : ">="
+        conditions << "#{column} #{op} ?"
+        values << band[:min]
+      end
+      if band[:max]
+        op = band[:max_inclusive] == false ? "<" : "<="
+        conditions << "#{column} #{op} ?"
+        values << band[:max]
+      end
+      # NULL columns drop out automatically — neither >= nor <= matches NULL.
+      s.where(conditions.join(" AND "), *values)
     end
 
     def parse_date(str)

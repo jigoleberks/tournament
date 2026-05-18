@@ -138,4 +138,72 @@ class Catches::ApplyFiltersTest < ActiveSupport::TestCase
     c = create(:catch, user: @user, species: @walleye, length_inches: 18, captured_at_device: 1.day.ago, wind_direction_deg: 45)
     assert_includes call(wind_dir: "up"), c
   end
+
+  test "wind_speed calm matches < 5" do
+    calm  = create(:catch, user: @user, species: @walleye, length_inches: 18, captured_at_device: 1.day.ago, wind_speed_kph: 3)
+    light = create(:catch, user: @user, species: @walleye, length_inches: 18, captured_at_device: 1.day.ago, wind_speed_kph: 5)
+    result = call(wind_speed: "calm")
+    assert_includes result, calm
+    refute_includes result, light
+  end
+
+  test "wind_speed light matches 5..15 inclusive" do
+    light_lo = create(:catch, user: @user, species: @walleye, length_inches: 18, captured_at_device: 1.day.ago, wind_speed_kph: 5)
+    light_hi = create(:catch, user: @user, species: @walleye, length_inches: 18, captured_at_device: 1.day.ago, wind_speed_kph: 15)
+    over     = create(:catch, user: @user, species: @walleye, length_inches: 18, captured_at_device: 1.day.ago, wind_speed_kph: 16)
+    result = call(wind_speed: "light")
+    assert_includes result, light_lo
+    assert_includes result, light_hi
+    refute_includes result, over
+  end
+
+  test "wind_speed mod matches >15 and <=25" do
+    just_over_15 = create(:catch, user: @user, species: @walleye, length_inches: 18, captured_at_device: 1.day.ago, wind_speed_kph: 15.5)
+    twenty_five  = create(:catch, user: @user, species: @walleye, length_inches: 18, captured_at_device: 1.day.ago, wind_speed_kph: 25)
+    fifteen      = create(:catch, user: @user, species: @walleye, length_inches: 18, captured_at_device: 1.day.ago, wind_speed_kph: 15)
+    result = call(wind_speed: "mod")
+    assert_includes result, just_over_15
+    assert_includes result, twenty_five
+    refute_includes result, fifteen
+  end
+
+  test "wind_speed strong matches > 25" do
+    strong = create(:catch, user: @user, species: @walleye, length_inches: 18, captured_at_device: 1.day.ago, wind_speed_kph: 30)
+    edge   = create(:catch, user: @user, species: @walleye, length_inches: 18, captured_at_device: 1.day.ago, wind_speed_kph: 25)
+    result = call(wind_speed: "strong")
+    assert_includes result, strong
+    refute_includes result, edge
+  end
+
+  test "pressure low matches < 1010" do
+    low = create(:catch, user: @user, species: @walleye, length_inches: 18, captured_at_device: 1.day.ago, barometric_pressure_hpa: 1005)
+    norm = create(:catch, user: @user, species: @walleye, length_inches: 18, captured_at_device: 1.day.ago, barometric_pressure_hpa: 1010)
+    result = call(pressure: "low")
+    assert_includes result, low
+    refute_includes result, norm
+  end
+
+  test "pressure normal matches 1010..1020 inclusive" do
+    n1 = create(:catch, user: @user, species: @walleye, length_inches: 18, captured_at_device: 1.day.ago, barometric_pressure_hpa: 1010)
+    n2 = create(:catch, user: @user, species: @walleye, length_inches: 18, captured_at_device: 1.day.ago, barometric_pressure_hpa: 1020)
+    high = create(:catch, user: @user, species: @walleye, length_inches: 18, captured_at_device: 1.day.ago, barometric_pressure_hpa: 1021)
+    result = call(pressure: "normal")
+    assert_includes result, n1
+    assert_includes result, n2
+    refute_includes result, high
+  end
+
+  test "pressure high matches > 1020" do
+    high = create(:catch, user: @user, species: @walleye, length_inches: 18, captured_at_device: 1.day.ago, barometric_pressure_hpa: 1025)
+    edge = create(:catch, user: @user, species: @walleye, length_inches: 18, captured_at_device: 1.day.ago, barometric_pressure_hpa: 1020)
+    result = call(pressure: "high")
+    assert_includes result, high
+    refute_includes result, edge
+  end
+
+  test "wind_speed/pressure: NULL columns excluded when filter active" do
+    nilled = create(:catch, user: @user, species: @walleye, length_inches: 18, captured_at_device: 1.day.ago, wind_speed_kph: nil, barometric_pressure_hpa: nil)
+    refute_includes call(wind_speed: "calm"), nilled
+    refute_includes call(pressure: "low"),    nilled
+  end
 end
