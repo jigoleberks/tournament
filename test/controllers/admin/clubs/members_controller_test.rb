@@ -182,6 +182,58 @@ class Admin::Clubs::MembersControllerTest < ActionDispatch::IntegrationTest
     assert_response :not_found
   end
 
+  test "non-admin organizer cannot GET edit on a cross-club member" do
+    sign_in_as(@organizer)
+    get edit_admin_club_member_path(@foreign_club, @foreign_member)
+    assert_response :forbidden
+  end
+
+  test "admin can GET edit on a cross-club member" do
+    sign_in_as(@admin)
+    get edit_admin_club_member_path(@foreign_club, @foreign_member)
+    assert_response :success
+    assert_select "form"
+    assert_select "input[name='user[name]'][value=?]", @foreign_member.name
+    assert_select "input[name='user[email]'][value=?]", @foreign_member.email
+    assert_includes response.body, @foreign_club.name
+  end
+
+  test "admin can PATCH update a cross-club member" do
+    sign_in_as(@admin)
+    patch admin_club_member_path(@foreign_club, @foreign_member), params: {
+      user: { name: "Renamed Nancy", email: "Nancy@Northtown.example" }
+    }
+    assert_redirected_to admin_club_members_path(@foreign_club)
+    @foreign_member.reload
+    assert_equal "Renamed Nancy", @foreign_member.name
+    assert_equal "nancy@northtown.example", @foreign_member.email
+  end
+
+  test "update on a cross-club member with invalid email re-renders edit" do
+    sign_in_as(@admin)
+    other = create(:user, club: @foreign_club, role: :member, email: "taken@northtown.example")
+    patch admin_club_member_path(@foreign_club, @foreign_member), params: {
+      user: { name: "Whoever", email: other.email }
+    }
+    assert_response :unprocessable_entity
+    @foreign_member.reload
+    assert_not_equal other.email, @foreign_member.email
+  end
+
+  test "update on a cross-club member drops admin and role from strong params" do
+    sign_in_as(@admin)
+    assert_not @foreign_member.admin?
+    assert_not @foreign_member.organizer_in?(@foreign_club)
+    patch admin_club_member_path(@foreign_club, @foreign_member), params: {
+      user: { name: "Renamed", email: "renamed@northtown.example", admin: true, role: "organizer" }
+    }
+    assert_redirected_to admin_club_members_path(@foreign_club)
+    @foreign_member.reload
+    assert_equal "Renamed", @foreign_member.name
+    assert_not @foreign_member.admin?
+    assert_not @foreign_member.organizer_in?(@foreign_club)
+  end
+
   private
 
   def sign_in_as(user)

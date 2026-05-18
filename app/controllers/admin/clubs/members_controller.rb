@@ -7,6 +7,19 @@ class Admin::Clubs::MembersController < Admin::Clubs::BaseController
     @user = User.new
   end
 
+  def edit
+    @user = @foreign_club.members.find(params[:id])
+  end
+
+  def update
+    @user = @foreign_club.members.find(params[:id])
+    if @user.update(edit_params)
+      redirect_to admin_club_members_path(@foreign_club), notice: "#{@user.name} updated."
+    else
+      render :edit, status: :unprocessable_entity
+    end
+  end
+
   def create
     @user = User.new(user_params.except(:role))
     role_for_membership = user_params[:role].presence || "member"
@@ -46,5 +59,9 @@ class Admin::Clubs::MembersController < Admin::Clubs::BaseController
 
   def user_params
     params.require(:user).permit(:name, :email, :role)
+  end
+
+  def edit_params
+    params.require(:user).permit(:name, :email)
   end
 end

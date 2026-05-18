@@ -31,6 +31,8 @@
           <td class="px-6 py-4 text-right">
             <div class="flex items-center justify-end gap-2">
               <% unless u.deactivated? %>
+                <%= link_to "Edit", edit_admin_club_member_path(@foreign_club, u),
+                            class: "px-3 py-1.5 rounded bg-slate-700 hover:bg-slate-600 text-white text-xs font-medium transition-colors" %>
                 <%= button_to "Issue Code",
                               issue_code_admin_club_member_path(@foreign_club, u),
                               method: :post,
