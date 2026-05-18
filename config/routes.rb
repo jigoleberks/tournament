@@ -63,7 +63,7 @@ Rails.application.routes.draw do
       end
       resources :tournament_judges,  only: [:create, :destroy]
     end
-    resources :members, only: [:index, :new, :create, :destroy] do
+    resources :members, only: [:index, :new, :create, :edit, :update, :destroy] do
       member do
         post :reactivate
         post :issue_code
