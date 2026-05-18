@@ -948,6 +948,26 @@ class CatchesControllerTest < ActionDispatch::IntegrationTest
     end
   end
 
+  test "index: month-of-year shows note in calendar" do
+    create(:catch, user: @user, species: @walleye, length_inches: 18, captured_at_device: Time.zone.local(2024, 5, 10))
+    get catches_path(month: 5)
+    assert_response :success
+    assert_select "[data-test='month-of-year-note']", text: /Showing all years · May/
+  end
+
+  test "index: calendar count badges are suppressed when month-of-year is active" do
+    # Without month-of-year, the badge for today renders.
+    create(:catch, user: @user, species: @walleye, length_inches: 18, captured_at_device: Time.current)
+    get catches_path
+    assert_response :success
+    assert_select "[data-test='count-badge']"
+    # With month-of-year active, badges would represent only the current month
+    # while the list shows all years — hide them to avoid the mismatch.
+    get catches_path(month: Date.current.month.to_s)
+    assert_response :success
+    assert_select "[data-test='count-badge']", count: 0
+  end
+
   private
 
   def sign_in_as(user)
@@ -964,12 +984,5 @@ class CatchesControllerTest < ActionDispatch::IntegrationTest
     end
     rec.save!
     rec
-  end
-
-  test "index: month-of-year shows note in calendar" do
-    create(:catch, user: @user, species: @walleye, length_inches: 18, captured_at_device: Time.zone.local(2024, 5, 10))
-    get catches_path(month: 5)
-    assert_response :success
-    assert_select "[data-test='month-of-year-note']", text: /Showing all years · May/
   end
 end

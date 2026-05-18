@@ -14,12 +14,21 @@ module Catches
       nil
     end
 
+    # Returns the integer 1..12 when params[:month] is a valid month, else nil.
+    # Public so the controller can decide whether month-of-year mode is active
+    # (which affects calendar nav and the date-range bypass) without
+    # re-implementing the predicate.
+    def self.month_of_year(params)
+      m = params[:month].to_i
+      (1..12).include?(m) ? m : nil
+    end
+
     # Returns the subset of match-condition params that would actually filter.
     # Views use this to count truly-active conditions, since `params[k].present?`
     # would lie for hand-crafted invalid values like `?month=13` or `?moon=halfmoon`.
     def self.active_filter_keys(params)
       keys = []
-      keys << :month      if (1..12).include?(params[:month].to_i)
+      keys << :month      if month_of_year(params)
       keys << :wind_dir   if Catches::FilterBands::WIND_DIR_CENTRES.key?(params[:wind_dir].to_s)
       keys << :wind_speed if Catches::FilterBands::WIND_SPEED.key?(params[:wind_speed].to_s)
       keys << :pressure   if Catches::FilterBands::PRESSURE.key?(params[:pressure].to_s)
@@ -63,16 +72,9 @@ module Catches
     end
 
     def apply_month_or_date_range(s)
-      m = month_of_year
+      m = self.class.month_of_year(@params)
       return apply_month_of_year(s, m) if m
       apply_date_range(s)
-    end
-
-    # Validates `?month=` as 1..12. Mirrored in CatchesController#month_of_year_param
-    # so the service stays self-contained (no controller-helper dependency).
-    def month_of_year
-      m = @params[:month].to_i
-      (1..12).include?(m) ? m : nil
     end
 
     def apply_month_of_year(s, m)
@@ -124,7 +126,11 @@ module Catches
       end
     end
 
+    # The column name is interpolated into SQL, so guard against a future
+    # caller passing user-influenced input. Today every invocation in #call
+    # hardcodes the column, but the assertion keeps that contract explicit.
     def apply_band(s, column:, bands:, param:)
+      raise ArgumentError, "column must be a Symbol, got #{column.inspect}" unless column.is_a?(Symbol)
       key = @params[param].presence
       band = bands[key]
       return s if band.nil?

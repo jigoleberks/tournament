@@ -44,7 +44,11 @@
                                                      selected_end: current_end,
                                                      in_displayed_month: true) do %>
           <span><%= day.day %></span>
-          <% if (n = counts_by_date[day]) && n > 0 %>
+          <%# Suppress per-day counts when month-of-year is active: the grid
+              still shows just the current month, but the page is filtering
+              across all years — so a "3" badge would represent a different
+              slice than the catches list below it. %>
+          <% if !month_of_year_active && (n = counts_by_date[day]) && n > 0 %>
             <span data-test="count-badge"
                   class="absolute top-0 right-0 -mt-1 -mr-1 bg-blue-500 text-white text-[10px] leading-none rounded-full px-1.5 py-0.5"><%= n %></span>
           <% end %>

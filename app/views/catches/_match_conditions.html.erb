@@ -18,7 +18,7 @@
 %>
 
 <div data-controller="match-conditions"
-     data-match-conditions-open-value="<%= open %>"
+     data-match-conditions-open-value="<%= open.to_s %>"
      class="mt-2 mb-3 text-sm">
   <button type="button"
           data-action="match-conditions#toggle"
@@ -53,14 +53,11 @@
     </div>
 
     <% rows.each do |row| %>
-      <div class="flex flex-wrap items-center gap-2">
-        <span class="text-slate-300 w-24"><%= row[:label] %></span>
-        <% row[:bands].each do |value, display| %>
-          <% active = params[row[:param]] == value.to_s %>
-          <% carry = request.query_parameters.except(row[:param], :controller, :action, :mc) %>
-          <%= match_conditions_chip(path: path, param: row[:param], value: value, label: display, active: active, carry_params: carry) %>
-        <% end %>
-      </div>
+      <% carry = request.query_parameters.except(row[:param], :controller, :action, :mc) %>
+      <%= render "catches/match_condition_row",
+                 path: path, param: row[:param], label: row[:label],
+                 bands: row[:bands], current_value: params[row[:param]].to_s,
+                 carry_params: carry %>
     <% end %>
 
     <% if active_count > 0 %>

@@ -191,13 +191,10 @@ class CatchesController < ApplicationController
     end
   end
 
-  # Returns the integer 1..12 when ?month= is a valid month, else nil. Used as
-  # the gate for "month-of-year mode": when present it overrides the date range
-  # (both in the controller's resolved range and in the params passed to the
-  # service, which has its own copy of this predicate).
+  # Thin wrapper so the controller (which also assigns @month_of_year_active
+  # for the calendar partial) shares the service's predicate.
   def month_of_year_param
-    m = params[:month].to_i
-    (1..12).include?(m) ? m : nil
+    Catches::ApplyFilters.month_of_year(params)
   end
 
   def resolve_date_range
@@ -209,14 +206,19 @@ class CatchesController < ApplicationController
     end
   end
 
-  # Merge the controller's resolved date range into params so ApplyFilters
-  # sees the default-date-range dates when no explicit start/end were given.
+  # Returns the params hash the service should see. The controller resolves
+  # date-range defaults itself (so the calendar agrees with the catches list);
+  # this method exists to push those resolved defaults back through to
+  # ApplyFilters when no explicit ?start/?end was given.
+  #
+  # Truth table for what we pass to the service:
+  #   month=valid       → params unchanged (service handles month-of-year)
+  #   start or end set  → params unchanged (explicit user intent wins)
+  #   no catches at all → params unchanged (no default range to inject)
+  #   otherwise         → params + injected :start/:end from default_date_range
   def effective_filter_params
-    return params if month_of_year_param  # service handles month-of-year
-    return params if params.key?(:start) || params.key?(:end)  # explicit params win
-    # Default range: inject as :start/:end so the service's date filter fires.
-    # If @selected_start is nil (user has no catches at all), pass params
-    # unchanged so apply_date_range short-circuits.
+    return params if month_of_year_param
+    return params if params.key?(:start) || params.key?(:end)
     return params if @selected_start.nil?
     params.merge(start: @selected_start.iso8601, end: @selected_end.iso8601)
   end
