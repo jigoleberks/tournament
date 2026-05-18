@@ -20,4 +20,12 @@ class Catches::FilterBandsTest < ActiveSupport::TestCase
     assert_equal %w[dawn morning noon daylight evening dusk night],
                  Catches::FilterBands::TIME_OF_DAY.keys
   end
+
+  test "label constants cover their data counterparts" do
+    assert_equal Catches::FilterBands::WIND_DIR_CENTRES.keys, Catches::FilterBands::WIND_DIR_LABELS.keys
+    assert_equal Catches::FilterBands::WIND_SPEED.keys,       Catches::FilterBands::WIND_SPEED_LABELS.keys
+    assert_equal Catches::FilterBands::PRESSURE.keys,         Catches::FilterBands::PRESSURE_LABELS.keys
+    assert_equal Catches::FilterBands::MOON.keys,             Catches::FilterBands::MOON_LABELS.keys
+    assert_equal Catches::FilterBands::TIME_OF_DAY.keys,      Catches::FilterBands::TIME_OF_DAY_LABELS.keys
+  end
 end

@@ -6,6 +6,9 @@ module Catches
     }.freeze
     WIND_DIR_HALF_WIDTH = 22.5
 
+    # Band rows: :min / :max are the numeric bounds (nil = unbounded on that side).
+    # :min_inclusive / :max_inclusive default to true (inclusive) when omitted;
+    # set explicitly to false for an exclusive boundary.
     WIND_SPEED = {
       "calm"   => { min: nil,  max: 5,   max_inclusive: false },
       "light"  => { min: 5,    max: 15,  max_inclusive: true  },
