@@ -1,5 +1,12 @@
 module Catches
   class ApplyFilters
+    # Every URL param the match-conditions panel manages. Shared with the
+    # partial so the panel's "Clear conditions" link can strip them without
+    # restating the list, and `active_filter_keys` returns a subset of these.
+    # Adding a new panel filter? Append to this list AND add a per-key
+    # validity check in active_filter_keys (and a row in _match_conditions).
+    MATCH_CONDITION_KEYS = %i[month wind_dir wind_speed pressure moon tod].freeze
+
     def self.call(scope:, params:, time_zone: Time.zone)
       new(scope, params, time_zone).call
     end
@@ -23,9 +30,12 @@ module Catches
       (1..12).include?(m) ? m : nil
     end
 
-    # Returns the subset of match-condition params that would actually filter.
-    # Views use this to count truly-active conditions, since `params[k].present?`
-    # would lie for hand-crafted invalid values like `?month=13` or `?moon=halfmoon`.
+    # Returns the subset of MATCH_CONDITION_KEYS whose params would actually
+    # filter. Views use this to count truly-active conditions, since
+    # `params[k].present?` would lie for hand-crafted invalid values like
+    # `?month=13` or `?moon=halfmoon`. Intentionally excludes filter-bar
+    # params (:species, :lake, :sort, :min_length) — those have their own
+    # always-visible inputs, so the panel's badge counts panel state only.
     def self.active_filter_keys(params)
       keys = []
       keys << :month      if month_of_year(params)

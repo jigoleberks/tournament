@@ -515,6 +515,13 @@ class CatchesControllerTest < ActionDispatch::IntegrationTest
     assert_equal 1, assigns(:counts_by_date)[Date.new(2026, 5, 15)]
   end
 
+  test "GET /catches?month_nav=garbage falls back to current month without raising" do
+    create_catch(captured_at: Time.zone.parse("2026-05-15 10:00"))
+    get catches_path, params: { start: "", end: "", month_nav: "banana" }
+    assert_response :ok
+    assert_equal Date.current.beginning_of_month, assigns(:month_start)
+  end
+
   test "GET /catches assigns @available_species ordered by name" do
     pike  = create(:species, club: @club, name: "Pike")
     perch = create(:species, club: @club, name: "Perch")
@@ -921,6 +928,18 @@ class CatchesControllerTest < ActionDispatch::IntegrationTest
     assert_select "[data-test='chip-moon-full']"
     assert_select "[data-test='chip-tod-noon']"
     assert_select "[data-test='month-of-year']"
+  end
+
+  test "index: match conditions toggle exposes aria state for assistive tech" do
+    create(:catch, user: @user, species: @walleye, length_inches: 18, captured_at_device: Time.current)
+    # No active conditions → panel collapsed → aria-expanded=false.
+    get catches_path
+    assert_select "[data-test='match-conditions-toggle'][aria-expanded='false'][aria-controls='match-conditions-panel']"
+    assert_select "#match-conditions-panel"
+
+    # An active condition auto-opens the panel → aria-expanded=true.
+    get catches_path(wind_dir: "ne")
+    assert_select "[data-test='match-conditions-toggle'][aria-expanded='true'][aria-controls='match-conditions-panel']"
   end
 
   test "index: active count badge shows when conditions are set" do

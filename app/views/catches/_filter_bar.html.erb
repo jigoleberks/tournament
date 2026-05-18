@@ -5,6 +5,10 @@
   <% request.query_parameters.except(:species, :sort, :lake, :start, :end, :min_length, :controller, :action).each do |k, v| %>
     <%= hidden_field_tag k, v %>
   <% end %>
+  <%# Preserve :start/:end across auto-submit of the species/lake/sort %>
+  <%# dropdowns; the except() above keeps them out of the generic carry-through %>
+  <%# so they only render here, where blank strings (?start=&end=) are kept %>
+  <%# verbatim — losing them would snap the page back to default_date_range. %>
   <%= hidden_field_tag :start, params[:start] if params.key?(:start) %>
   <%= hidden_field_tag :end,   params[:end]   if params.key?(:end) %>
 

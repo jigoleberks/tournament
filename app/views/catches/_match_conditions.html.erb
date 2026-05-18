@@ -1,10 +1,9 @@
 <%# locals: path_helper: %>
 <%
-  # `all_condition_keys` strips every panel-managed param from the URL for the
-  # Clear link (even invalid values like ?month=13). `active_count` reflects only
-  # filters that would actually apply — so a hand-crafted invalid value doesn't
-  # auto-open the panel or inflate the badge.
-  all_condition_keys = %i[month wind_dir wind_speed pressure moon tod]
+  # MATCH_CONDITION_KEYS strips every panel-managed param from the URL for
+  # the Clear link (even invalid values like ?month=13). `active_count` only
+  # reflects filters that would actually apply — so a hand-crafted invalid
+  # value doesn't auto-open the panel or inflate the badge.
   active_count = Catches::ApplyFilters.active_filter_keys(params).size
   open = params[:mc] == "open" || active_count > 0
   rows = [
@@ -23,6 +22,8 @@
   <button type="button"
           data-action="match-conditions#toggle"
           data-test="match-conditions-toggle"
+          aria-expanded="<%= open.to_s %>"
+          aria-controls="match-conditions-panel"
           class="flex items-center gap-2 text-slate-200 font-medium">
     <span data-match-conditions-target="caret"><%= open ? "▾" : "▸" %></span>
     Match conditions
@@ -31,7 +32,8 @@
     <% end %>
   </button>
 
-  <div data-match-conditions-target="panel"
+  <div id="match-conditions-panel"
+       data-match-conditions-target="panel"
        class="<%= open ? "" : "hidden" %> mt-3 p-3 bg-slate-800 rounded-xl space-y-3">
     <div class="flex flex-wrap items-center gap-2">
       <span class="text-slate-300 w-24">Month</span>
@@ -62,7 +64,7 @@
 
     <% if active_count > 0 %>
       <%= link_to "Clear conditions",
-                  public_send(path_helper, request.query_parameters.except(*all_condition_keys, :controller, :action).merge(mc: "open")),
+                  public_send(path_helper, request.query_parameters.except(*Catches::ApplyFilters::MATCH_CONDITION_KEYS, :controller, :action).merge(mc: "open")),
                   "data-test": "clear-conditions",
                   class: "text-blue-400" %>
     <% end %>

@@ -11,6 +11,7 @@ export default class extends Controller {
     if (this.hasCaretTarget) {
       this.caretTarget.textContent = this.openValue ? "▾" : "▸"
     }
+    event.currentTarget.setAttribute("aria-expanded", String(this.openValue))
     this.syncUrl()
   }
 
