@@ -87,6 +87,9 @@ module Catches
     end
 
     def apply_wind_dir(s)
+      # Half-open interval [low, high): a catch at exactly the boundary
+      # belongs to the next cardinal (e.g. 22.5° → NE, not N). Matches the
+      # `format_wind_compass` helper's `((deg + 22.5) / 45).floor` convention.
       key = @params[:wind_dir].presence
       centre = Catches::FilterBands::WIND_DIR_CENTRES[key]
       return s if centre.nil?
@@ -95,11 +98,11 @@ module Catches
       high = centre + half
       if low < 0
         # wraps below 0 (only happens for N)
-        s.where("wind_direction_deg >= ? OR wind_direction_deg <= ?", (low % 360), high)
+        s.where("wind_direction_deg >= ? OR wind_direction_deg < ?", (low % 360), high)
       elsif high > 360
-        s.where("wind_direction_deg >= ? OR wind_direction_deg <= ?", low, (high % 360))
+        s.where("wind_direction_deg >= ? OR wind_direction_deg < ?", low, (high % 360))
       else
-        s.where(wind_direction_deg: low..high)
+        s.where("wind_direction_deg >= ? AND wind_direction_deg < ?", low, high)
       end
     end
 

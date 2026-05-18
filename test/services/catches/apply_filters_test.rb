@@ -110,7 +110,7 @@ class Catches::ApplyFiltersTest < ActiveSupport::TestCase
     assert_includes result, late_may
   end
 
-  test "wind_dir NE matches 22.5..67.5" do
+  test "wind_dir NE matches [22.5, 67.5)" do
     inside  = create(:catch, user: @user, species: @walleye, length_inches: 18, captured_at_device: 1.day.ago, wind_direction_deg: 45)
     edge_lo = create(:catch, user: @user, species: @walleye, length_inches: 18, captured_at_device: 1.day.ago, wind_direction_deg: 22.5)
     edge_hi = create(:catch, user: @user, species: @walleye, length_inches: 18, captured_at_device: 1.day.ago, wind_direction_deg: 67.5)
@@ -119,7 +119,7 @@ class Catches::ApplyFiltersTest < ActiveSupport::TestCase
     result = call(wind_dir: "ne")
     assert_includes result, inside
     assert_includes result, edge_lo
-    assert_includes result, edge_hi
+    refute_includes result, edge_hi  # 67.5 belongs to E (next cardinal)
     refute_includes result, outside
     refute_includes result, nilled
   end
@@ -132,6 +132,12 @@ class Catches::ApplyFiltersTest < ActiveSupport::TestCase
     assert_includes result, near_360
     assert_includes result, near_0
     refute_includes result, away
+  end
+
+  test "wind_dir boundary at 22.5 belongs to NE only, not N" do
+    edge = create(:catch, user: @user, species: @walleye, length_inches: 18, captured_at_device: 1.day.ago, wind_direction_deg: 22.5)
+    assert_includes call(wind_dir: "ne"), edge
+    refute_includes call(wind_dir: "n"),  edge
   end
 
   test "wind_dir: unknown value ignored" do

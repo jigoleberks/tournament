@@ -28,9 +28,10 @@ class CatchesFilteringTest < ApplicationSystemTestCase
     assert_selector "a[href='#{catch_path(ne.id)}']"
     assert_no_selector "a[href='#{catch_path(sw.id)}']"
 
-    # Tapping the active chip clears it.
+    # Tapping the active chip clears it; the param is dropped entirely
+    # (not just emptied), so the URL has no `wind_dir=` key at all.
     find("[data-test='chip-wind_dir-ne']").click
-    assert_no_match(/wind_dir=ne/, current_url)
+    assert_no_match(/wind_dir=/, current_url)
     assert_selector "a[href='#{catch_path(ne.id)}']"
     assert_selector "a[href='#{catch_path(sw.id)}']"
   end
