@@ -15,6 +15,7 @@ module Catches
       s = apply_species(s)
       s = apply_lake(s)
       s = apply_date_range(s)
+      s = apply_min_length(s)
       s
     end
 
@@ -48,6 +49,11 @@ module Catches
       return s if start_date.nil?
       start_date, finish_date = finish_date, start_date if start_date > finish_date
       s.where(captured_at_device: start_date.beginning_of_day..finish_date.end_of_day)
+    end
+
+    def apply_min_length(s)
+      val = @params[:min_length].to_f
+      val.positive? ? s.where("length_inches >= ?", val) : s
     end
 
     def parse_date(str)

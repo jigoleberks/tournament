@@ -56,4 +56,24 @@ class Catches::ApplyFiltersTest < ActiveSupport::TestCase
     refute_includes result, too_early
     refute_includes result, too_late
   end
+
+  test "min_length excludes shorter catches" do
+    short = create(:catch, user: @user, species: @walleye, length_inches: 12, captured_at_device: 1.day.ago)
+    long  = create(:catch, user: @user, species: @walleye, length_inches: 22, captured_at_device: 1.day.ago)
+    result = call(min_length: "18")
+    refute_includes result, short
+    assert_includes result, long
+  end
+
+  test "min_length boundary is inclusive" do
+    exact = create(:catch, user: @user, species: @walleye, length_inches: 18, captured_at_device: 1.day.ago)
+    result = call(min_length: "18")
+    assert_includes result, exact
+  end
+
+  test "min_length: blank or zero is ignored" do
+    short = create(:catch, user: @user, species: @walleye, length_inches: 12, captured_at_device: 1.day.ago)
+    assert_includes call(min_length: ""),  short
+    assert_includes call(min_length: "0"), short
+  end
 end
