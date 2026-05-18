@@ -14,7 +14,7 @@ module Catches
       s = @scope
       s = apply_species(s)
       s = apply_lake(s)
-      s = apply_date_range(s)
+      s = apply_month_or_date_range(s)
       s = apply_min_length(s)
       s
     end
@@ -38,6 +38,26 @@ module Catches
       return nil if raw.nil?
       return raw if raw == "all" || raw == "other"
       ::Geofence::Lakes.known_key?(raw) ? raw : nil
+    end
+
+    def apply_month_or_date_range(s)
+      m = month_of_year
+      return apply_month_of_year(s, m) if m
+      apply_date_range(s)
+    end
+
+    def month_of_year
+      m = @params[:month].to_i
+      (1..12).include?(m) ? m : nil
+    end
+
+    def apply_month_of_year(s, m)
+      # EXTRACT in Postgres uses the session timezone for timestamps without
+      # timezone, but captured_at_device is timestamptz. We convert to the app
+      # zone explicitly so a 2am-UTC catch in CST still buckets to the prior
+      # local day's month.
+      tz = @time_zone.tzinfo.name
+      s.where("EXTRACT(MONTH FROM (catches.captured_at_device AT TIME ZONE ?)) = ?", tz, m)
     end
 
     def apply_date_range(s)

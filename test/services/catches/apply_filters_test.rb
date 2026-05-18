@@ -76,4 +76,28 @@ class Catches::ApplyFiltersTest < ActiveSupport::TestCase
     assert_includes call(min_length: ""),  short
     assert_includes call(min_length: "0"), short
   end
+
+  test "month filter matches that month across years" do
+    may_2024 = create(:catch, user: @user, species: @walleye, length_inches: 18, captured_at_device: Time.zone.local(2024, 5, 10, 9))
+    may_2025 = create(:catch, user: @user, species: @walleye, length_inches: 18, captured_at_device: Time.zone.local(2025, 5, 10, 9))
+    jun_2025 = create(:catch, user: @user, species: @walleye, length_inches: 18, captured_at_device: Time.zone.local(2025, 6, 10, 9))
+    result = call(month: "5")
+    assert_includes result, may_2024
+    assert_includes result, may_2025
+    refute_includes result, jun_2025
+  end
+
+  test "month filter overrides start/end date range" do
+    may = create(:catch, user: @user, species: @walleye, length_inches: 18, captured_at_device: Time.zone.local(2024, 5, 10, 9))
+    # date range would normally exclude 2024
+    result = call(month: "5", start: "2026-01-01", end: "2026-12-31")
+    assert_includes result, may
+  end
+
+  test "month filter ignores out-of-range values" do
+    may = create(:catch, user: @user, species: @walleye, length_inches: 18, captured_at_device: Time.zone.local(2025, 5, 10, 9))
+    assert_includes call(month: "0"),  may
+    assert_includes call(month: "13"), may
+    assert_includes call(month: ""),   may
+  end
 end
