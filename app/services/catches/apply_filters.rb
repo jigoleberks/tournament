@@ -19,6 +19,7 @@ module Catches
       s = apply_wind_dir(s)
       s = apply_band(s, column: :wind_speed_kph,          bands: Catches::FilterBands::WIND_SPEED, param: :wind_speed)
       s = apply_band(s, column: :barometric_pressure_hpa, bands: Catches::FilterBands::PRESSURE,   param: :pressure)
+      s = apply_moon(s)
       s
     end
 
@@ -119,6 +120,18 @@ module Catches
       end
       # NULL columns drop out automatically — neither >= nor <= matches NULL.
       s.where(conditions.join(" AND "), *values)
+    end
+
+    def apply_moon(s)
+      key = @params[:moon].presence
+      band = Catches::FilterBands::MOON[key]
+      return s if band.nil?
+      if band == :new
+        s.where("moon_phase_fraction < ? OR moon_phase_fraction >= ?", 0.125, 0.875)
+      else
+        # band is a Range like (0.125...0.375)
+        s.where("moon_phase_fraction >= ? AND moon_phase_fraction < ?", band.begin, band.end)
+      end
     end
 
     def parse_date(str)

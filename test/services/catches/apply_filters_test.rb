@@ -206,4 +206,35 @@ class Catches::ApplyFiltersTest < ActiveSupport::TestCase
     refute_includes call(wind_speed: "calm"), nilled
     refute_includes call(pressure: "low"),    nilled
   end
+
+  test "moon q1 matches 0.125..<0.375" do
+    inside  = create(:catch, user: @user, species: @walleye, length_inches: 18, captured_at_device: 1.day.ago, moon_phase_fraction: 0.25)
+    edge_lo = create(:catch, user: @user, species: @walleye, length_inches: 18, captured_at_device: 1.day.ago, moon_phase_fraction: 0.125)
+    edge_hi = create(:catch, user: @user, species: @walleye, length_inches: 18, captured_at_device: 1.day.ago, moon_phase_fraction: 0.375)
+    result = call(moon: "q1")
+    assert_includes result, inside
+    assert_includes result, edge_lo
+    refute_includes result, edge_hi  # exclusive top
+  end
+
+  test "moon full matches 0.375..<0.625" do
+    inside = create(:catch, user: @user, species: @walleye, length_inches: 18, captured_at_device: 1.day.ago, moon_phase_fraction: 0.5)
+    result = call(moon: "full")
+    assert_includes result, inside
+  end
+
+  test "moon new wraps across 0/1" do
+    early = create(:catch, user: @user, species: @walleye, length_inches: 18, captured_at_device: 1.day.ago, moon_phase_fraction: 0.05)
+    late  = create(:catch, user: @user, species: @walleye, length_inches: 18, captured_at_device: 1.day.ago, moon_phase_fraction: 0.95)
+    mid   = create(:catch, user: @user, species: @walleye, length_inches: 18, captured_at_device: 1.day.ago, moon_phase_fraction: 0.5)
+    result = call(moon: "new")
+    assert_includes result, early
+    assert_includes result, late
+    refute_includes result, mid
+  end
+
+  test "moon: NULL fraction excluded when filter active" do
+    nilled = create(:catch, user: @user, species: @walleye, length_inches: 18, captured_at_device: 1.day.ago, moon_phase_fraction: nil)
+    refute_includes call(moon: "full"), nilled
+  end
 end
