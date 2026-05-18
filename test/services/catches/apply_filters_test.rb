@@ -265,4 +265,24 @@ class Catches::ApplyFiltersTest < ActiveSupport::TestCase
     assert_includes result, two_am
     refute_includes result, five_am
   end
+
+  test "filters AND together: only catches matching every active filter survive" do
+    match     = create(:catch, user: @user, species: @walleye, length_inches: 22,
+                               captured_at_device: 1.day.ago,
+                               wind_direction_deg: 45, moon_phase_fraction: 0.5)
+    wrong_dir = create(:catch, user: @user, species: @walleye, length_inches: 22,
+                               captured_at_device: 1.day.ago,
+                               wind_direction_deg: 225, moon_phase_fraction: 0.5)
+    wrong_moon = create(:catch, user: @user, species: @walleye, length_inches: 22,
+                                captured_at_device: 1.day.ago,
+                                wind_direction_deg: 45, moon_phase_fraction: 0.1)
+    too_short = create(:catch, user: @user, species: @walleye, length_inches: 12,
+                               captured_at_device: 1.day.ago,
+                               wind_direction_deg: 45, moon_phase_fraction: 0.5)
+    result = call(wind_dir: "ne", moon: "full", min_length: "18")
+    assert_includes result, match
+    refute_includes result, wrong_dir
+    refute_includes result, wrong_moon
+    refute_includes result, too_short
+  end
 end
