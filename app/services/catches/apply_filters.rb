@@ -16,6 +16,7 @@ module Catches
       s = apply_lake(s)
       s = apply_month_or_date_range(s)
       s = apply_min_length(s)
+      s = apply_wind_dir(s)
       s
     end
 
@@ -79,6 +80,23 @@ module Catches
     def apply_min_length(s)
       val = @params[:min_length].to_f
       val.positive? ? s.where("length_inches >= ?", val) : s
+    end
+
+    def apply_wind_dir(s)
+      key = @params[:wind_dir].presence
+      centre = Catches::FilterBands::WIND_DIR_CENTRES[key]
+      return s if centre.nil?
+      half = Catches::FilterBands::WIND_DIR_HALF_WIDTH
+      low  = centre - half
+      high = centre + half
+      if low < 0
+        # wraps below 0 (only happens for N)
+        s.where("wind_direction_deg >= ? OR wind_direction_deg <= ?", (low % 360), high)
+      elsif high > 360
+        s.where("wind_direction_deg >= ? OR wind_direction_deg <= ?", low, (high % 360))
+      else
+        s.where(wind_direction_deg: low..high)
+      end
     end
 
     def parse_date(str)

@@ -109,4 +109,33 @@ class Catches::ApplyFiltersTest < ActiveSupport::TestCase
     result = call(month: "5")
     assert_includes result, late_may
   end
+
+  test "wind_dir NE matches 22.5..67.5" do
+    inside  = create(:catch, user: @user, species: @walleye, length_inches: 18, captured_at_device: 1.day.ago, wind_direction_deg: 45)
+    edge_lo = create(:catch, user: @user, species: @walleye, length_inches: 18, captured_at_device: 1.day.ago, wind_direction_deg: 22.5)
+    edge_hi = create(:catch, user: @user, species: @walleye, length_inches: 18, captured_at_device: 1.day.ago, wind_direction_deg: 67.5)
+    outside = create(:catch, user: @user, species: @walleye, length_inches: 18, captured_at_device: 1.day.ago, wind_direction_deg: 80)
+    nilled  = create(:catch, user: @user, species: @walleye, length_inches: 18, captured_at_device: 1.day.ago, wind_direction_deg: nil)
+    result = call(wind_dir: "ne")
+    assert_includes result, inside
+    assert_includes result, edge_lo
+    assert_includes result, edge_hi
+    refute_includes result, outside
+    refute_includes result, nilled
+  end
+
+  test "wind_dir N wraps across 0/360" do
+    near_360 = create(:catch, user: @user, species: @walleye, length_inches: 18, captured_at_device: 1.day.ago, wind_direction_deg: 350)
+    near_0   = create(:catch, user: @user, species: @walleye, length_inches: 18, captured_at_device: 1.day.ago, wind_direction_deg: 10)
+    away     = create(:catch, user: @user, species: @walleye, length_inches: 18, captured_at_device: 1.day.ago, wind_direction_deg: 100)
+    result = call(wind_dir: "n")
+    assert_includes result, near_360
+    assert_includes result, near_0
+    refute_includes result, away
+  end
+
+  test "wind_dir: unknown value ignored" do
+    c = create(:catch, user: @user, species: @walleye, length_inches: 18, captured_at_device: 1.day.ago, wind_direction_deg: 45)
+    assert_includes call(wind_dir: "up"), c
+  end
 end
