@@ -36,28 +36,36 @@ docker compose exec web bin/rails console
 
 ## Authentication
 
-Custom-built (no Devise). Magic-link sign-in via `SignInToken` (email-delivered or console-fetched). Also supports 8-digit codes with attempt tracking. Session stores `user_id`. Roles are `member` (0) or `organizer` (1) on the `User` model.
+Custom-built (no Devise). Magic-link sign-in via `SignInToken` (email-delivered or console-fetched). Also supports 8-digit codes with attempt tracking. Session stores `user_id`.
+
+Two distinct authorization concepts on `User`:
+- **Per-club role** — lives on `ClubMembership`, enum `member` (0) or `organizer` (1). A user can be a member in one club and an organizer in another.
+- **Site admin** — boolean `admin:` flag on `User` directly, scope-free. Site admins can create/manage clubs and edit/invite members across clubs ("approved to use this server's hardware", not a per-club role). Bootstrap the first admin with `User.find_by(email: …).update!(admin: true)`.
 
 `Authentication` concern (`app/controllers/concerns/authentication.rb`) provides `current_user`, `signed_in?`, `require_sign_in!`, `sign_in!`, `sign_out!`.
 
-Three base controller patterns enforce access:
-- `Organizers::BaseController` — requires organizer role
+Base controller patterns enforce access:
+- `Organizers::BaseController` — requires organizer role in the current club
 - `Judges::BaseController` — requires judge assignment for a specific tournament
 - `Api::BaseController` — requires sign-in, returns 401 (not redirect)
+- `Admin::BaseController` — requires organizer in the current club (laptop admin UI)
+- `Admin::Clubs::BaseController` — requires `admin: true` on `User` (cross-club operations)
 
 ## Routing
 
-Three namespaced areas plus public routes:
-- `/organizers/*` — tournament CRUD, member management, judge assignment, catch history, templates
+Namespaced areas plus public routes:
+- `/organizers/*` — tournament CRUD, member management, judge assignment, catch history, templates (mobile-friendly)
 - `/judges/tournaments/:tournament_id/*` — catch review (approve/flag/DQ/manual override)
+- `/admin/*` — laptop admin UI; organizer-only; same data as `/organizers/*` with a wider layout
+- `/admin/clubs/*` — site-admin only; create clubs and invite/manage members across clubs
 - `/api/*` — offline catch submission, push subscription management
 - Public: catches logging, tournament leaderboards, sign-in flow
 
 ## Domain Models
 
-Single-tenant: one `Club` per deployment. All users, species, and tournaments are club-scoped.
+Multi-club: a single deployment can host multiple `Club`s. Tournaments, templates, and per-club roles are club-scoped; `User`s and `Species` are global. Users join clubs via `ClubMembership` (which carries the per-club role); a single user can belong to multiple clubs with different roles.
 
-Core models: `User`, `Catch`, `Tournament`, `ScoringSlot`, `TournamentEntry`, `CatchPlacement`, `JudgeAction`, `Species`, `PushSubscription`, `SignInToken`, `TournamentTemplate`.
+Core models: `User`, `Club`, `ClubMembership`, `Catch`, `Tournament`, `ScoringSlot`, `TournamentEntry`, `CatchPlacement`, `JudgeAction`, `Species`, `PushSubscription`, `SignInToken`, `TournamentTemplate`.
 
 Key patterns:
 - Soft deletes via `deactivated_at` on User, `active: false` on CatchPlacement
@@ -69,10 +77,13 @@ Key patterns:
 Business logic lives in `app/services/` using the `Module::Class` pattern with a `self.call` class method interface:
 
 - `Catches::PlaceInSlots` — Core scoring: places a catch into tournament scoring slots, broadcasts leaderboard, triggers push notifications
+- `Catches::ApplyFilters` — Applies the catch history / map filters (species, lake, length, time-of-day, month, wind, pressure, moon); shared by `CatchesController#index` and `#map`
+- `Catches::FilterBands` — Single source of truth for filter cut points (pressure bands, wind speed bins, moon-phase bins); used by both server-side filtering and the filter-bar UI
 - `Leaderboards::Build` — Builds ranked leaderboard by summing active placement lengths per entry
 - `Placements::BroadcastLeaderboard` — Turbo Stream replace to the tournament channel
 - `Placements::DetectNotifications` — Detects bumped-from-slot and took-the-lead events
 - `Tournaments::ActiveForUser` — Finds active tournaments a user is entered in
+- `Tournaments::WinnersFor` — Batched per-tournament winner lookup for the archived-tournaments index (avoids N+1 across many tournaments)
 - `Catches::ApplyJudgeAction` — Applies judge actions (approve/flag/DQ) to catches
 - `TournamentTemplates::Clone` — Clones a template into a new tournament
 
@@ -99,4 +110,13 @@ Test directories: `test/models/`, `test/controllers/` (including api/judges/orga
 - Enums stored as integers
 - No member self-signup; organizers add members
 - Catch photo detail pages gated to organizers/judges only
-- Branch off `main`, name branches by change not author, squash-merge by default
+
+## Branching workflow
+
+Day-to-day development happens on the shared `jig_dev` branch — both maintainers push directly to it. Test VMs deploy from `jig_dev`; the prod VM tracks `main`.
+
+- **Pull before you push.** `git pull --rebase origin jig_dev` before starting work and before pushing. Small frequent conflicts are easier to resolve than one big one at PR-merge time.
+- **One PR per release cut**, not per commit. When `jig_dev` is in a shippable state, open a PR `jig_dev → main`. Squash-merge to `main` is fine — jig_dev's commit history doesn't need to survive.
+- **Dependabot still targets `main`.** After a bump merges to main, fast-forward into jig_dev (`git checkout jig_dev && git merge --ff-only main && git push`).
+- **Prod hotfixes** branch off `main` directly. After merging to main, fast-forward main into jig_dev.
+- The `jig_dev` branch has GitHub branch protection enabled to prevent accidental deletion. Force-push is allowed for history cleanup.

@@ -42,7 +42,7 @@ These steps assume Linux (tested on Debian/Ubuntu); macOS works the same with Ho
 - Docker + Docker Compose v2 (`docker compose ...`)
 - Git
 
-That's it — no Ruby, Postgres, or image tooling on the host. To rebrand the favicon and PWA icon, drop a square image in at `public/icon.jpg` (browsers and Android scale it; 512×512 looks best for the home-screen install).
+That's it — no Ruby, Postgres, or image tooling on the host. To rebrand the favicon and PWA icon, drop a square image in at `public/icon.jpg` (browsers and Android scale it; 512×512 looks best for the home-screen install). The PWA manifest also references PNG icons at `public/icons/icon-192.png`, `public/icons/icon-512.png`, and `public/icons/icon-maskable-512.png` — supply these (especially the maskable 512) for the cleanest iOS/Android home-screen install; without them the install still works but the manifest entries 404.
 
 ### 2. Clone
 
