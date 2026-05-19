@@ -15,10 +15,18 @@ export default class extends Controller {
     this.videoTarget.srcObject = this.stream
     await this.videoTarget.play()
     this.chunks = []
-    this.recorder = new MediaRecorder(this.stream, { mimeType: "video/webm" })
+    // iOS Safari only supports video/mp4 for MediaRecorder; Chrome/Firefox prefer webm.
+    // Hardcoding webm previously made every iPhone hit NotSupportedError on construct.
+    const candidates = ["video/mp4;codecs=h264,aac", "video/mp4", "video/webm;codecs=vp9", "video/webm"]
+    const mimeType = candidates.find((t) => MediaRecorder.isTypeSupported && MediaRecorder.isTypeSupported(t))
+    if (!mimeType) {
+      this.markFailed()
+      return
+    }
+    this.recorder = new MediaRecorder(this.stream, { mimeType })
     this.recorder.ondataavailable = (e) => { if (e.data.size) this.chunks.push(e.data) }
     this.recorder.onstop = () => {
-      this.blob = new Blob(this.chunks, { type: "video/webm" })
+      this.blob = new Blob(this.chunks, { type: mimeType })
       this.previewTarget.src = URL.createObjectURL(this.blob)
       this.previewTarget.dataset.captured = "true"
       this.dispatch("captured", { detail: { blob: this.blob } })
