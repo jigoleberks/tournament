@@ -8,6 +8,14 @@ class TournamentsControllerTest < ActionDispatch::IntegrationTest
     get consume_session_path(token: SignInToken.last.token)
   end
 
+  # Helper for the gate tests where the tournament uses entrants_only_leaderboard
+  # — adds the test user (or a passed-in user) to a fresh tournament entry.
+  def enroll_user_in(tournament, user: @user)
+    entry = create(:tournament_entry, tournament: tournament)
+    create(:tournament_entry_member, tournament_entry: entry, user: user)
+    entry
+  end
+
   test "archived redirects to sign in when not signed in" do
     delete session_path
     get archived_tournaments_path
@@ -82,6 +90,62 @@ class TournamentsControllerTest < ActionDispatch::IntegrationTest
     assert_response :success
     assert_match "TaggedTourney", response.body
     assert_no_match "Spring 2026", response.body
+  end
+
+  test "show with entrants_only_leaderboard on: non-entered member is redirected with a flash" do
+    tournament = create(:tournament, club: @club, name: "Closed Doors", entrants_only_leaderboard: true)
+    get tournament_path(tournament)
+    assert_redirected_to root_path
+    follow_redirect!
+    assert_match(/Ask an organizer to add you/, flash[:alert].to_s)
+  end
+
+  test "show with entrants_only_leaderboard on: redirect still applies after the tournament ends" do
+    tournament = create(:tournament, club: @club, starts_at: 2.hours.ago, ends_at: 1.hour.ago,
+                                     entrants_only_leaderboard: true)
+    get tournament_path(tournament)
+    assert_redirected_to root_path
+  end
+
+  test "show with entrants_only_leaderboard on: entered member is allowed" do
+    tournament = create(:tournament, club: @club, entrants_only_leaderboard: true)
+    enroll_user_in(tournament)
+    get tournament_path(tournament)
+    assert_response :success
+  end
+
+  test "show with entrants_only_leaderboard on: assigned judge (not entered) is allowed" do
+    judge = create(:user, club: @club, name: "Hon. Judge", role: :member)
+    tournament = create(:tournament, club: @club, entrants_only_leaderboard: true)
+    create(:tournament_judge, tournament: tournament, user: judge)
+    post session_path, params: { email: judge.email }
+    get consume_session_path(token: SignInToken.last.token)
+    get tournament_path(tournament)
+    assert_response :success
+  end
+
+  test "show with entrants_only_leaderboard on: club organizer (not entered) is allowed" do
+    organizer = create(:user, club: @club, name: "Org", role: :organizer)
+    tournament = create(:tournament, club: @club, entrants_only_leaderboard: true)
+    post session_path, params: { email: organizer.email }
+    get consume_session_path(token: SignInToken.last.token)
+    get tournament_path(tournament)
+    assert_response :success
+  end
+
+  test "show with entrants_only_leaderboard on: site admin (not entered) is allowed" do
+    admin = create(:user, club: @club, name: "Site Admin", role: :member, admin: true)
+    tournament = create(:tournament, club: @club, entrants_only_leaderboard: true)
+    post session_path, params: { email: admin.email }
+    get consume_session_path(token: SignInToken.last.token)
+    get tournament_path(tournament)
+    assert_response :success
+  end
+
+  test "show with entrants_only_leaderboard off (default): any signed-in club member can view" do
+    tournament = create(:tournament, club: @club, name: "Open Doors")
+    get tournament_path(tournament)
+    assert_response :success
   end
 
   test "show renders the ends label and date/time on the same line, date right-aligned" do

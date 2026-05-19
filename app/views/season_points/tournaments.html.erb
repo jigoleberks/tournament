@@ -12,17 +12,24 @@
         <% tournaments.each do |t| %>
           <% winner = @winners[t.id] %>
           <% winner_label = winner ? winner.display_name : "—" %>
-          <li class="p-3">
-            <%= link_to t, class: "block" do %>
-              <div class="flex justify-between items-center">
-                <div>
-                  <div class="font-medium text-slate-100"><%= t.name %></div>
-                  <div class="text-xs text-slate-400">
-                    <%= l(t.ends_at.to_date, format: :long) %> · Won by: <%= winner_label %>
-                  </div>
+          <% row = capture do %>
+            <div class="flex justify-between items-center">
+              <div>
+                <div class="font-medium text-slate-100"><%= t.name %></div>
+                <div class="text-xs text-slate-400">
+                  <%= l(t.ends_at.to_date, format: :long) %> · Won by: <%= winner_label %>
                 </div>
-                <span class="text-slate-400">→</span>
               </div>
+              <% if tournament_leaderboard_visible?(t) %>
+                <span class="text-slate-400">→</span>
+              <% end %>
+            </div>
+          <% end %>
+          <li class="p-3">
+            <% if tournament_leaderboard_visible?(t) %>
+              <%= link_to t, class: "block" do %><%= row %><% end %>
+            <% else %>
+              <div class="block"><%= row %></div>
             <% end %>
           </li>
         <% end %>

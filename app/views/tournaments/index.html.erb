@@ -6,7 +6,11 @@
   <ul class="space-y-2">
     <% @active_tournaments.each do |t| %>
       <li class="bg-slate-800 rounded-lg px-4 py-3">
-        <%= link_to t.name, t, class: "text-lg font-medium text-blue-300" %>
+        <% if tournament_leaderboard_visible?(t) %>
+          <%= link_to t.name, t, class: "text-lg font-medium text-blue-300" %>
+        <% else %>
+          <span class="text-lg font-medium text-slate-200"><%= t.name %></span>
+        <% end %>
         <% if t.season_tag.present? %>
           <span class="text-sm text-slate-400">— <%= t.season_tag %></span>
         <% end %>
@@ -22,7 +26,11 @@
   <ul class="space-y-2">
     <% @completed_tournaments.each do |t| %>
       <li class="bg-slate-800 rounded-lg px-4 py-3 opacity-75">
-        <%= link_to t.name, t, class: "text-lg font-medium text-blue-300" %>
+        <% if tournament_leaderboard_visible?(t) %>
+          <%= link_to t.name, t, class: "text-lg font-medium text-blue-300" %>
+        <% else %>
+          <span class="text-lg font-medium text-slate-200"><%= t.name %></span>
+        <% end %>
         <span class="text-xs uppercase tracking-wide text-slate-400 ml-2">Completed</span>
         <% if t.season_tag.present? %>
           <span class="text-sm text-slate-400">— <%= t.season_tag %></span>

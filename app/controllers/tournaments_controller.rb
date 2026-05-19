@@ -12,6 +12,11 @@ class TournamentsController < ApplicationController
 
   def show
     @tournament = current_club.tournaments.find(params[:id])
+    unless tournament_leaderboard_visible?(@tournament)
+      redirect_to root_path,
+                  alert: "Ask an organizer to add you to this tournament to see its leaderboard."
+      return
+    end
     @leaderboard = Leaderboards::Build.call(tournament: @tournament)
     @viewer_scope = Leaderboards::ViewerScope.for(tournament: @tournament, user: current_user)
     if @tournament.ended?
