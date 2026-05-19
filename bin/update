@@ -23,6 +23,9 @@ docker compose run --rm web bin/rails catches:backfill_conditions
 echo "==> Backfilling any catches missing flags..."
 docker compose run --rm web bin/rails catches:backfill_flags
 
+echo "==> Regenerating PWA icons if the source changed..."
+docker compose run --rm web bin/rails icons:generate
+
 echo "==> Recreating containers..."
 docker compose up -d
 
