@@ -48,6 +48,42 @@ class TournamentsControllerTest < ActionDispatch::IntegrationTest
     assert_no_match "OtherClubTourney", response.body
   end
 
+  test "archived renders the winner's display_name for tournaments with a placed catch" do
+    species = create(:species, club: @club)
+    t = create(:tournament, club: @club, name: "BigFishNight",
+               starts_at: 6.days.ago, ends_at: 5.days.ago)
+    create(:scoring_slot, tournament: t, species: species, slot_count: 1)
+    angler = create(:user, club: @club, name: "Galen Patterson")
+    entry = create(:tournament_entry, tournament: t)
+    create(:tournament_entry_member, tournament_entry: entry, user: angler)
+    catch_record = create(:catch, user: angler, species: species, length_inches: 22.5,
+                                  captured_at_device: 5.days.ago - 1.hour)
+    create(:catch_placement, catch: catch_record, tournament: t,
+                              tournament_entry: entry, species: species, slot_index: 0)
+
+    get archived_tournaments_path
+    assert_response :success
+    assert_match "Galen Patterson", response.body
+    assert_match "winner", response.body
+  end
+
+  test "archived omits the winner suffix when a tournament has no placed catches" do
+    create(:tournament, club: @club, name: "EmptyTourney", ends_at: 5.days.ago)
+    get archived_tournaments_path
+    assert_response :success
+    assert_match "EmptyTourney", response.body
+    assert_no_match "winner", response.body
+  end
+
+  test "archived does not render the season_tag on rows" do
+    create(:tournament, club: @club, name: "TaggedTourney",
+           ends_at: 5.days.ago, season_tag: "Spring 2026")
+    get archived_tournaments_path
+    assert_response :success
+    assert_match "TaggedTourney", response.body
+    assert_no_match "Spring 2026", response.body
+  end
+
   test "show renders the ends label and date/time on the same line, date right-aligned" do
     ends_at = Time.zone.local(2026, 6, 15, 18, 30)
     tournament = create(:tournament, club: @club, ends_at: ends_at)

@@ -1,7 +1,7 @@
 module Leaderboards
   class Build
-    def self.call(tournament:)
-      rows = build_rows(tournament)
+    def self.call(tournament:, entries: nil, placements: nil, total_capacity: nil)
+      rows = build_rows(tournament, entries: entries, placements: placements, total_capacity: total_capacity)
       case tournament.format
       when "hidden_length"       then Leaderboards::Rankers::HiddenLength.call(rows, tournament: tournament)
       when "big_fish_season"     then Leaderboards::Rankers::BigFishSeason.call(rows)
@@ -11,14 +11,14 @@ module Leaderboards
       end
     end
 
-    def self.build_rows(tournament)
-      entries = tournament.tournament_entries.includes(:users)
-      placements_by_entry = CatchPlacement.active
+    def self.build_rows(tournament, entries: nil, placements: nil, total_capacity: nil)
+      entries ||= tournament.tournament_entries.includes(:users)
+      placements ||= CatchPlacement.active
         .where(tournament_id: tournament.id)
         .includes(catch: [:species, :user, :logged_by_user, { judge_actions: :judge_user }])
-        .group_by(&:tournament_entry_id)
+      placements_by_entry = placements.group_by(&:tournament_entry_id)
 
-      total_capacity = tournament.scoring_slots.sum(:slot_count)
+      total_capacity ||= tournament.scoring_slots.sum(:slot_count)
 
       entries.map do |entry|
         placements = placements_by_entry[entry.id] || []

@@ -10,8 +10,8 @@
     <% else %>
       <ul class="bg-slate-800 rounded-xl divide-y divide-slate-700">
         <% tournaments.each do |t| %>
-          <% winner_row = Tournaments::TopThree.call(tournament: t).first %>
-          <% winner_label = winner_row ? winner_row[:entry].display_name : "—" %>
+          <% winner = @winners[t.id] %>
+          <% winner_label = winner ? winner.display_name : "—" %>
           <li class="p-3">
             <%= link_to t, class: "block" do %>
               <div class="flex justify-between items-center">

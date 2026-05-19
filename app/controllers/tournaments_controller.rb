@@ -26,5 +26,6 @@ class TournamentsController < ApplicationController
     @tournaments = current_club.tournaments
       .where("ends_at IS NOT NULL AND ends_at < ?", 24.hours.ago)
       .order(ends_at: :desc)
+    @winners = Tournaments::WinnersFor.call(tournaments: @tournaments)
   end
 end
