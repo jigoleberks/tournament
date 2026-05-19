@@ -4,7 +4,7 @@
        hidden
        class="bg-yellow-500/20 border border-yellow-500/40 text-yellow-100 rounded-lg px-3 py-3 my-2 mx-4 text-sm">
     <p class="font-semibold mb-1">Install this app to your home screen.</p>
-    <p class="mb-3">
+    <p>
       In Safari, tap
       <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none"
            stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
@@ -14,24 +14,19 @@
         <line x1="12" y1="2" x2="12" y2="15"/>
       </svg>
       Share, then <em>Add to Home Screen</em>. Push notifications need install,
-      and catches sync more reliably from the home-screen app.
+      and catches sync more reliably from the home-screen app. This banner
+      disappears once you open the app from your home screen.
     </p>
-    <button type="button"
-            onclick="this.closest('#ios-install-coach').hidden=true;try{localStorage.setItem('ios-coach-dismissed','1')}catch(_){}"
-            class="h-8 px-3 rounded-lg bg-yellow-500/30 active:bg-yellow-500/50 text-yellow-100 text-sm font-medium">
-      Got it
-    </button>
   </div>
   <script>
     (function() {
       var el = document.getElementById("ios-install-coach");
       if (!el) return;
-      var standalone = false, dismissed = false;
+      var standalone = false;
       try {
         standalone = window.matchMedia("(display-mode: standalone)").matches;
-        dismissed = !!localStorage.getItem("ios-coach-dismissed");
       } catch (_) {}
-      if (!standalone && !dismissed) el.hidden = false;
+      if (!standalone) el.hidden = false;
     })();
   </script>
 <% end %>
