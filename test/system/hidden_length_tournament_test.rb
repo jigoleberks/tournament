@@ -24,12 +24,13 @@ class HiddenLengthTournamentTest < ApplicationSystemTestCase
     create(:tournament_entry_member, tournament_entry: eb, user: @angler_b)
 
     # Each angler logs two catches inside the tournament window.
-    [
+    catches_data = [
       [@angler_a, 22, 20.minutes.ago],
       [@angler_a, 17.5, 10.minutes.ago],
       [@angler_b, 14, 15.minutes.ago],
       [@angler_b, 19, 5.minutes.ago]
-    ].each do |user, length, captured|
+    ]
+    catches_data.each do |user, length, captured|
       Catches::PlaceInSlots.call(
         catch: create(:catch, user: user, species: @walleye,
                       length_inches: length, captured_at_device: captured)
@@ -65,12 +66,17 @@ class HiddenLengthTournamentTest < ApplicationSystemTestCase
     rows = all("#leaderboard tbody tr")
     assert_equal 2, rows.size, "expected 2 per-entry rows post-reveal"
 
-    # Verify ranking: each angler's closest catch.
-    a_lengths = [22, 17.5]
-    b_lengths = [14, 19]
-    a_closest = a_lengths.min_by { |l| (l - target.to_f).abs }
-    b_closest = b_lengths.min_by { |l| (l - target.to_f).abs }
-    expected_winner = (a_closest - target.to_f).abs <= (b_closest - target.to_f).abs ? "Angler A" : "Angler B"
+    # Verify ranking. Each angler's qualifying catch is the closest to the
+    # target; ties (within an angler or across anglers) break to the earliest
+    # captured_at_device, per club rule.
+    qualifying = catches_data
+      .group_by { |user, _length, _captured| user }
+      .transform_values do |rows_for_user|
+        rows_for_user.min_by { |_user, length, captured| [(length - target.to_f).abs, captured] }
+      end
+    expected_winner = qualifying.values
+      .min_by { |_user, length, captured| [(length - target.to_f).abs, captured] }
+      .first.name
     assert_match expected_winner, rows.first.text
   end
 
