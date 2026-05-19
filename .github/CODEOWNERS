@@ -1,0 +1,8 @@
+# Code owners for jigoleberks/tournament.
+# Lines later in the file take precedence over earlier lines.
+# See https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/customizing-your-repository/about-code-owners
+#
+# Enforced by the JBR1 ruleset on main: every PR into main requires
+# review from at least one owner listed here. Admins can bypass.
+
+* @jigoleberks
