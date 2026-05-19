@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Pull latest from main and bring the docker stack up to date.
+# Pull latest on the current branch and bring the docker stack up to date.
 # Run from anywhere — switches to the repo root automatically.
 set -euo pipefail
 
