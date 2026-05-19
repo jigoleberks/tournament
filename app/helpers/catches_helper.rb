@@ -83,10 +83,12 @@ module CatchesHelper
   # Returns a URL for the given day-cell on the calendar. The URL encodes the
   # next selection state per `next_range`, while passing other params (species,
   # sort, page, etc.) through unchanged. Drops Rails-internal :controller and
-  # :action keys that may show up in `request.query_parameters`.
+  # :action keys, the :month filter (tapping a day returns to date-range mode,
+  # overriding any active month-of-year filter), and :mc (so the match
+  # conditions panel collapses on a calendar tap).
   def month_calendar_link_url(day, current_start:, current_end:, params:, path_helper:)
     target_start, target_end = next_range(day, current_start, current_end)
-    cleaned = params.to_h.with_indifferent_access.except(:controller, :action)
+    cleaned = params.to_h.with_indifferent_access.except(:controller, :action, :month, :mc)
     public_send(path_helper, cleaned.merge(
       start: target_start&.iso8601,
       end: target_end&.iso8601

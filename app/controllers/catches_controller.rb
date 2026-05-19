@@ -2,46 +2,36 @@ class CatchesController < ApplicationController
   before_action :require_sign_in!
 
   def index
-    @selected_start, @selected_end =
-      if params.key?(:start) || params.key?(:end)
-        parse_date_range(params)
-      else
-        default_date_range
-      end
-    @month_start = parse_date(params[:month]) || (@selected_start || Date.current).beginning_of_month
+    @selected_start, @selected_end = resolve_date_range
+    @month_start = Catches::ApplyFilters.parse_date(params[:month_nav]) || (@selected_start || Date.current).beginning_of_month
     @month_start = @month_start.beginning_of_month
     @species_filter_id = params[:species].presence&.to_i
-    @lake_filter_key   = normalized_lake_filter
+    @lake_filter_key   = Geofence::Lakes.normalize_key(params[:lake])
     @sort = params[:sort].presence&.to_sym || :newest
+    @month_of_year_active = month_of_year_param
 
     # :catch_placements is preloaded so visible_flags_for -> can_review_catch?
     # (which walks placements to find tournament_ids) doesn't N+1 for staff
     # viewers when any rendered catch carries the possible_duplicate flag.
-    @catches = filter_and_sort(current_user.catches.includes(:species, :catch_placements, photo_attachment: :blob))
+    base = current_user.catches.includes(:species, :catch_placements, photo_attachment: :blob)
+    filter_params = effective_filter_params
+    filtered = Catches::ApplyFilters.call(scope: base, params: filter_params)
+    @catches = sort_catches(filtered)
     @counts_by_date = counts_by_date(@month_start)
     @available_species = Species.order(:name)
   end
 
   def map
-    @selected_start, @selected_end =
-      if params.key?(:start) || params.key?(:end)
-        parse_date_range(params)
-      else
-        default_date_range
-      end
-    @month_start = parse_date(params[:month]) || (@selected_start || Date.current).beginning_of_month
+    @selected_start, @selected_end = resolve_date_range
+    @month_start = Catches::ApplyFilters.parse_date(params[:month_nav]) || (@selected_start || Date.current).beginning_of_month
     @month_start = @month_start.beginning_of_month
     @species_filter_id = params[:species].presence&.to_i
-    @lake_filter_key   = normalized_lake_filter
+    @lake_filter_key   = Geofence::Lakes.normalize_key(params[:lake])
     @available_species = Species.order(:name)
+    @month_of_year_active = month_of_year_param
 
-    scope = current_user.catches.includes(:species, photo_attachment: :blob)
-    if @selected_start
-      scope = scope.where(captured_at_device: @selected_start.beginning_of_day..@selected_end.end_of_day)
-    end
-    scope = scope.where(species_id: @species_filter_id) if @species_filter_id
-    scope = apply_lake_filter(scope) if @lake_filter_key
-    @catches = scope.order(captured_at_device: :desc)
+    base = current_user.catches.includes(:species, photo_attachment: :blob)
+    @catches = Catches::ApplyFilters.call(scope: base, params: effective_filter_params).order(captured_at_device: :desc)
     @counts_by_date = counts_by_date(@month_start)
 
     @map_points = @catches.filter_map do |c|
@@ -181,8 +171,8 @@ class CatchesController < ApplicationController
   end
 
   def parse_date_range(params)
-    start = parse_date(params[:start])
-    finish = parse_date(params[:end]) || start
+    start = Catches::ApplyFilters.parse_date(params[:start])
+    finish = Catches::ApplyFilters.parse_date(params[:end]) || start
     return [nil, nil] if start.nil? && finish.nil?
     start ||= finish
     start, finish = finish, start if start > finish
@@ -201,40 +191,44 @@ class CatchesController < ApplicationController
     end
   end
 
-  def parse_date(s)
-    return nil unless s.present?
-    Date.parse(s) rescue nil
+  # Thin wrapper so the controller (which also assigns @month_of_year_active
+  # for the calendar partial) shares the service's predicate.
+  def month_of_year_param
+    Catches::ApplyFilters.month_of_year(params)
   end
 
-  def filter_and_sort(scope)
-    if @selected_start
-      scope = scope.where(captured_at_device: @selected_start.beginning_of_day..@selected_end.end_of_day)
+  def resolve_date_range
+    return [nil, nil] if month_of_year_param  # month-of-year wins
+    if params.key?(:start) || params.key?(:end)
+      parse_date_range(params)
+    else
+      default_date_range
     end
-    scope = scope.where(species_id: @species_filter_id) if @species_filter_id
-    scope = apply_lake_filter(scope) if @lake_filter_key
+  end
+
+  # Returns the params hash the service should see. The controller resolves
+  # date-range defaults itself (so the calendar agrees with the catches list);
+  # this method exists to push those resolved defaults back through to
+  # ApplyFilters when no explicit ?start/?end was given.
+  #
+  # Truth table for what we pass to the service:
+  #   month=valid       → params unchanged (service handles month-of-year)
+  #   start or end set  → params unchanged (explicit user intent wins)
+  #   no catches at all → params unchanged (no default range to inject)
+  #   otherwise         → params + injected :start/:end from default_date_range
+  def effective_filter_params
+    return params if month_of_year_param
+    return params if params.key?(:start) || params.key?(:end)
+    return params if @selected_start.nil?
+    params.merge(start: @selected_start.iso8601, end: @selected_end.iso8601)
+  end
+
+  def sort_catches(scope)
     case @sort
     when :longest  then scope.order(length_inches: :desc, captured_at_device: :desc)
     when :shortest then scope.order(length_inches: :asc, captured_at_device: :desc)
     else                scope.order(captured_at_device: :desc)
     end
-  end
-
-  def apply_lake_filter(scope)
-    case @lake_filter_key
-    when "all"   then scope
-    when "other" then scope.where(lake: nil)
-    else              scope.where(lake: @lake_filter_key)
-    end
-  end
-
-  # Coerce ?lake= to a value the dropdown will faithfully reflect. Unknown
-  # keys (renamed polygons, stale bookmarks) become nil so the user doesn't
-  # see "All lakes" selected while an invisible filter zeroes out the list.
-  def normalized_lake_filter
-    raw = params[:lake].presence
-    return nil if raw.nil?
-    return raw if raw == "all" || raw == "other"
-    Geofence::Lakes.known_key?(raw) ? raw : nil
   end
 
   def counts_by_date(month_start)

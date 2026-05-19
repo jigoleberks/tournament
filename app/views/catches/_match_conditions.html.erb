@@ -1,0 +1,72 @@
+<%# locals: path_helper: %>
+<%
+  # MATCH_CONDITION_KEYS strips every panel-managed param from the URL for
+  # the Clear link (even invalid values like ?month=13). `active_count` only
+  # reflects filters that would actually apply — so a hand-crafted invalid
+  # value doesn't auto-open the panel or inflate the badge.
+  active_count = Catches::ApplyFilters.active_filter_keys(params).size
+  open = params[:mc] == "open" || active_count > 0
+  rows = [
+    { param: :wind_dir,   label: "Wind dir",    bands: Catches::FilterBands::WIND_DIR_LABELS },
+    { param: :wind_speed, label: "Wind speed",  bands: Catches::FilterBands::WIND_SPEED_LABELS },
+    { param: :pressure,   label: "Pressure",    bands: Catches::FilterBands::PRESSURE_LABELS },
+    { param: :moon,       label: "Moon",        bands: Catches::FilterBands::MOON_LABELS },
+    { param: :tod,        label: "Time of day", bands: Catches::FilterBands::TIME_OF_DAY_LABELS }
+  ]
+  path = public_send(path_helper)
+%>
+
+<div data-controller="match-conditions"
+     data-match-conditions-open-value="<%= open.to_s %>"
+     class="mt-2 mb-3 text-sm">
+  <button type="button"
+          data-action="match-conditions#toggle"
+          data-test="match-conditions-toggle"
+          aria-expanded="<%= open.to_s %>"
+          aria-controls="match-conditions-panel"
+          class="flex items-center gap-2 text-slate-200 font-medium">
+    <span data-match-conditions-target="caret"><%= open ? "▾" : "▸" %></span>
+    Match conditions
+    <% if active_count > 0 %>
+      <span class="text-xs text-slate-400" data-test="mc-active-count">(<%= active_count %> active)</span>
+    <% end %>
+  </button>
+
+  <div id="match-conditions-panel"
+       data-match-conditions-target="panel"
+       class="<%= open ? "" : "hidden" %> mt-3 p-3 bg-slate-800 rounded-xl space-y-3">
+    <div class="flex flex-wrap items-center gap-2">
+      <span class="text-slate-300 w-24">Month</span>
+      <%= form_with url: path, method: :get, local: true,
+                    data: { controller: "auto-submit", action: "change->auto-submit#submit" },
+                    class: "inline" do %>
+        <% request.query_parameters.except(:month, :start, :end, :controller, :action, :mc).each do |k, v| %>
+          <%= hidden_field_tag k, v %>
+        <% end %>
+        <%= hidden_field_tag :mc, "open" %>
+        <%= select_tag :month,
+                       options_for_select(
+                         [["Any month", ""]] + (1..12).map { |m| [Date::MONTHNAMES[m], m.to_s] },
+                         params[:month].to_s
+                       ),
+                       "data-test": "month-of-year",
+                       class: "h-9 px-2 rounded-lg bg-slate-900 border border-slate-700 text-slate-100" %>
+      <% end %>
+    </div>
+
+    <% rows.each do |row| %>
+      <% carry = request.query_parameters.except(row[:param], :controller, :action, :mc) %>
+      <%= render "catches/match_condition_row",
+                 path: path, param: row[:param], label: row[:label],
+                 bands: row[:bands], current_value: params[row[:param]].to_s,
+                 carry_params: carry %>
+    <% end %>
+
+    <% if active_count > 0 %>
+      <%= link_to "Clear conditions",
+                  public_send(path_helper, request.query_parameters.except(*Catches::ApplyFilters::MATCH_CONDITION_KEYS, :controller, :action).merge(mc: "open")),
+                  "data-test": "clear-conditions",
+                  class: "text-blue-400" %>
+    <% end %>
+  </div>
+</div>

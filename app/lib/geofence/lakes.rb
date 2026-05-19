@@ -14,6 +14,17 @@ module Geofence
       data[:keys].include?(key)
     end
 
+    # Coerce a raw `?lake=` value to a canonical filter key. Returns "all",
+    # "other", a known polygon key, or nil for blanks and unknown keys
+    # (renamed polygons, stale bookmarks) so callers don't quietly apply an
+    # invisible filter that zeroes out the list.
+    def normalize_key(raw)
+      raw = raw.presence
+      return nil if raw.nil?
+      return raw if raw == "all" || raw == "other"
+      known_key?(raw) ? raw : nil
+    end
+
     def match(latitude, longitude)
       return nil if latitude.nil? || longitude.nil?
       x = longitude.to_f

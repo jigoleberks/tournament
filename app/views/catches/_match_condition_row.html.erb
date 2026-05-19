@@ -1,0 +1,20 @@
+<%# locals: path:, param:, label:, bands:, current_value:, carry_params: %>
+<div class="flex flex-wrap items-center gap-2">
+  <span class="text-slate-300 w-24"><%= label %></span>
+  <%= form_with url: path, method: :get, local: true, class: "flex flex-wrap gap-2" do %>
+    <% carry_params.each do |k, v| %>
+      <%= hidden_field_tag k, v %>
+    <% end %>
+    <%= hidden_field_tag :mc, "open" %>
+    <% bands.each do |value, display| %>
+      <% active = current_value == value.to_s %>
+      <% cls = active ? "bg-blue-600 border-blue-500 text-white" : "bg-slate-800 border-slate-700 text-slate-200" %>
+      <%# Active chip: no name/value so the submitter contributes nothing,
+          which drops the param from the URL entirely (clean toggle-off). %>
+      <%= button_tag display, type: :submit,
+                     name: (active ? nil : param), value: (active ? nil : value),
+                     class: "px-3 py-1 rounded-full text-sm border #{cls}",
+                     data: { test: "chip-#{param}-#{value}" } %>
+    <% end %>
+  <% end %>
+</div>

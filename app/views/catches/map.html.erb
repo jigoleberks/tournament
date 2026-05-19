@@ -9,42 +9,17 @@
            current_end: @selected_end,
            counts_by_date: @counts_by_date,
            path_helper: :map_catches_path,
-           params: request.query_parameters %>
+           params: request.query_parameters,
+           month_of_year_active: @month_of_year_active %>
 
-<%= form_with url: map_catches_path, method: :get, local: true,
-              data: { controller: "auto-submit", action: "change->auto-submit#submit" },
-              class: "flex items-center gap-2 mt-3 mb-3 text-sm" do %>
-  <% request.query_parameters.except(:species, :lake, :sort, :start, :end, :controller, :action).each do |k, v| %>
-    <%= hidden_field_tag k, v %>
-  <% end %>
-  <%= hidden_field_tag :start, params[:start] if params.key?(:start) %>
-  <%= hidden_field_tag :end,   params[:end]   if params.key?(:end) %>
+<%= render "catches/filter_bar",
+           path_helper: :map_catches_path,
+           available_species: @available_species,
+           species_filter_id: @species_filter_id,
+           lake_filter_key: @lake_filter_key,
+           show_sort: false %>
 
-  <%= link_to "Show all dates",
-              map_catches_path(request.query_parameters.except(:start, :end, :controller, :action).merge(start: "", end: "")),
-              "data-test": "show-all-dates",
-              class: "text-blue-400" %>
-
-  <span class="ml-auto"></span>
-
-  <label class="text-slate-300">Species</label>
-  <%= select_tag :species,
-                 options_for_select(
-                   [["All species", ""]] + @available_species.map { |s| [s.name, s.id] },
-                   @species_filter_id&.to_s
-                 ),
-                 class: "h-10 px-2 rounded-lg bg-slate-800 border border-slate-700 text-slate-100" %>
-
-  <label class="text-slate-300">Lake</label>
-  <%= select_tag :lake,
-                 options_for_select(
-                   [["All lakes", ""]] +
-                   Geofence::Lakes.all.map { |l| [l[:name], l[:key]] } +
-                   [["Other (no lake match)", "other"]],
-                   @lake_filter_key.to_s
-                 ),
-                 class: "h-10 px-2 rounded-lg bg-slate-800 border border-slate-700 text-slate-100" %>
-<% end %>
+<%= render "catches/match_conditions", path_helper: :map_catches_path %>
 
 <div class="relative w-full aspect-[3/4] rounded-xl overflow-hidden shadow-xl border border-slate-700"
      data-controller="map"
