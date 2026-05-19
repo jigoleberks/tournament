@@ -1,10 +1,25 @@
 class Admin::MembersController < Admin::BaseController
+  before_action :require_admin!, only: [:edit, :update, :destroy, :reactivate]
+
   def index
     @users = current_club.members.includes(:club_memberships).order(:deactivated_at, :name)
   end
 
   def new
     @user = User.new
+  end
+
+  def edit
+    @user = current_club.members.find(params[:id])
+  end
+
+  def update
+    @user = current_club.members.find(params[:id])
+    if @user.update(edit_params)
+      redirect_to admin_members_path, notice: "#{@user.name} updated."
+    else
+      render :edit, status: :unprocessable_entity
+    end
   end
 
   def create
@@ -66,5 +81,13 @@ class Admin::MembersController < Admin::BaseController
 
   def user_params
     params.require(:user).permit(:name, :email, :role)
+  end
+
+  def edit_params
+    params.require(:user).permit(:name, :email)
+  end
+
+  def require_admin!
+    head :forbidden unless current_user&.admin?
   end
 end

@@ -43,7 +43,7 @@ Rails.application.routes.draw do
     root to: "dashboards#index"
     resources :clubs, only: [ :index, :show, :new, :create, :edit, :update ] do
       scope module: :clubs do
-        resources :members, only: [:index, :new, :create] do
+        resources :members, only: [:index, :new, :create, :edit, :update] do
           member do
             post :issue_code
             get  :code
@@ -63,7 +63,7 @@ Rails.application.routes.draw do
       end
       resources :tournament_judges,  only: [:create, :destroy]
     end
-    resources :members, only: [:index, :new, :create, :destroy] do
+    resources :members, only: [:index, :new, :create, :edit, :update, :destroy] do
       member do
         post :reactivate
         post :issue_code

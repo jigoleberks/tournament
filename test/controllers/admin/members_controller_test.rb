@@ -1,0 +1,116 @@
+require "test_helper"
+
+class Admin::MembersControllerTest < ActionDispatch::IntegrationTest
+  setup do
+    @club = create(:club)
+    @admin = create(:user, club: @club, admin: true, role: :organizer)
+    @organizer = create(:user, club: @club, role: :organizer)
+    @member = create(:user, club: @club, role: :member, name: "Old Name", email: "old@example.com")
+  end
+
+  test "non-admin organizer cannot GET edit" do
+    sign_in_as(@organizer)
+    get edit_admin_member_path(@member)
+    assert_response :forbidden
+  end
+
+  test "admin can GET edit" do
+    sign_in_as(@admin)
+    get edit_admin_member_path(@member)
+    assert_response :success
+    assert_select "form"
+    assert_select "input[name='user[name]'][value=?]", "Old Name"
+    assert_select "input[name='user[email]'][value=?]", "old@example.com"
+  end
+
+  test "admin can PATCH update to change name and email" do
+    sign_in_as(@admin)
+    patch admin_member_path(@member), params: {
+      user: { name: "New Name", email: "New@Example.COM" }
+    }
+    assert_redirected_to admin_members_path
+    @member.reload
+    assert_equal "New Name", @member.name
+    assert_equal "new@example.com", @member.email
+  end
+
+  test "non-admin organizer cannot PATCH update" do
+    sign_in_as(@organizer)
+    patch admin_member_path(@member), params: {
+      user: { name: "Hijack", email: "hijack@example.com" }
+    }
+    assert_response :forbidden
+    @member.reload
+    assert_equal "Old Name", @member.name
+    assert_equal "old@example.com", @member.email
+  end
+
+  test "update with invalid email re-renders edit with errors" do
+    sign_in_as(@admin)
+    other = create(:user, club: @club, role: :member, email: "taken@example.com")
+    patch admin_member_path(@member), params: {
+      user: { name: "Whoever", email: other.email }
+    }
+    assert_response :unprocessable_entity
+    @member.reload
+    assert_equal "old@example.com", @member.email
+  end
+
+  test "update drops admin and role from strong params" do
+    sign_in_as(@admin)
+    assert_not @member.admin?
+    assert_not @member.organizer_in?(@club)
+    patch admin_member_path(@member), params: {
+      user: { name: "Renamed", email: "renamed@example.com", admin: true, role: "organizer" }
+    }
+    assert_redirected_to admin_members_path
+    @member.reload
+    assert_equal "Renamed", @member.name
+    assert_not @member.admin?
+    assert_not @member.organizer_in?(@club)
+  end
+
+  test "update is scoped to current club" do
+    sign_in_as(@admin)
+    other_club_user = create(:user, club: create(:club), role: :member)
+    patch admin_member_path(other_club_user), params: {
+      user: { name: "Cross", email: "cross@example.com" }
+    }
+    assert_response :not_found
+  end
+
+  test "non-admin organizer cannot destroy" do
+    sign_in_as(@organizer)
+    delete admin_member_path(@member)
+    assert_response :forbidden
+    assert_not @member.reload.deactivated?
+  end
+
+  test "admin can destroy" do
+    sign_in_as(@admin)
+    delete admin_member_path(@member)
+    assert @member.reload.deactivated?
+  end
+
+  test "non-admin organizer cannot reactivate" do
+    @member.update!(deactivated_at: 1.day.ago)
+    sign_in_as(@organizer)
+    post reactivate_admin_member_path(@member)
+    assert_response :forbidden
+    assert @member.reload.deactivated?
+  end
+
+  test "admin can reactivate" do
+    @member.update!(deactivated_at: 1.day.ago)
+    sign_in_as(@admin)
+    post reactivate_admin_member_path(@member)
+    assert_not @member.reload.deactivated?
+  end
+
+  private
+
+  def sign_in_as(user)
+    token = SignInToken.issue!(user: user)
+    get consume_session_path(token: token.token)
+  end
+end
