@@ -1,4 +1,4 @@
-const CACHE = "shell-v7";
+const CACHE = "shell-v8";
 const SHELL = ["/manifest.webmanifest", "/icon.png"];
 
 self.addEventListener("install", (event) => {
