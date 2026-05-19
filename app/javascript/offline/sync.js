@@ -65,6 +65,13 @@ window.addEventListener("online", () => { drain().catch(() => {}) })
 window.addEventListener("bsfamilies:try-sync", () => { drain().catch(() => {}) })
 window.addEventListener("load", () => { if (navigator.onLine) drain().catch(() => {}) })
 
+// iOS has no Background Sync, so foregrounding the app is our main retry trigger
+// for catches queued during the event. Without this, pendings can sit until the
+// user manually reopens the page (see 2026-05-13 wrong-winner incident).
+document.addEventListener("visibilitychange", () => {
+  if (document.visibilityState === "visible" && navigator.onLine) drain().catch(() => {})
+})
+
 navigator.serviceWorker?.addEventListener("message", (e) => {
   if (e.data?.type === "drain") drain().catch(() => {})
 })
