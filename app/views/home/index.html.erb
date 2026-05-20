@@ -66,13 +66,17 @@
     <h2 class="text-lg font-semibold mb-2">Completed tournaments</h2>
     <% recent_completed.each do |t| %>
       <% row_classes = "block py-3 px-2 rounded text-slate-100 border-b border-slate-700 last:border-0 opacity-75" %>
+      <% visible = tournament_leaderboard_visible?(t) %>
       <% row = capture do %>
         <span class="block"><%= t.name %></span>
         <% if (window = tournament_window(t)) %>
           <span class="block text-xs text-slate-400 mt-0.5"><%= window %></span>
         <% end %>
+        <% unless visible %>
+          <span class="block text-xs text-slate-400 mt-0.5">Ask an organizer to add you to see the leaderboard.</span>
+        <% end %>
       <% end %>
-      <% if tournament_leaderboard_visible?(t) %>
+      <% if visible %>
         <%= link_to t, class: "#{row_classes} hover:bg-slate-700" do %><%= row %><% end %>
       <% else %>
         <div class="<%= row_classes %>"><%= row %></div>

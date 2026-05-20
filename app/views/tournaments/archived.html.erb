@@ -12,6 +12,9 @@
         <% if (winner = @winners[t.id]) %>
           <span class="text-sm text-slate-400">— winner — <%= winner.display_name %></span>
         <% end %>
+        <% unless visible %>
+          <span class="w-full text-xs text-slate-400">Ask an organizer to add you to see the leaderboard.</span>
+        <% end %>
       <% end %>
       <li class="bg-slate-800 rounded-lg opacity-75 <%= "active:bg-slate-700" if visible %>">
         <% if visible %>

@@ -17,8 +17,14 @@ export default class extends Controller {
     this.chunks = []
     // iOS Safari only supports video/mp4 for MediaRecorder; Chrome/Firefox prefer webm.
     // Hardcoding webm previously made every iPhone hit NotSupportedError on construct.
+    // A browser missing MediaRecorder entirely must fail gracefully, not throw a
+    // ReferenceError that skips the failed-event the catch form listens for.
+    if (typeof MediaRecorder === "undefined" || !MediaRecorder.isTypeSupported) {
+      this.markFailed()
+      return
+    }
     const candidates = ["video/mp4;codecs=h264,aac", "video/mp4", "video/webm;codecs=vp9", "video/webm"]
-    const mimeType = candidates.find((t) => MediaRecorder.isTypeSupported && MediaRecorder.isTypeSupported(t))
+    const mimeType = candidates.find((t) => MediaRecorder.isTypeSupported(t))
     if (!mimeType) {
       this.markFailed()
       return

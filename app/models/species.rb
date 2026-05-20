@@ -10,6 +10,9 @@ class Species < ApplicationRecord
   validates :name, presence: true, uniqueness: { case_sensitive: false }
 
   def self.in_log_order
-    all.sort_by { |species| [LOG_ORDER.index(species.name) || LOG_ORDER.size, species.name] }
+    all.sort_by do |species|
+      rank = LOG_ORDER.index { |name| name.casecmp?(species.name) } || LOG_ORDER.size
+      [rank, species.name.downcase]
+    end
   end
 end

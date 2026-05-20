@@ -30,4 +30,13 @@ class SpeciesTest < ActiveSupport::TestCase
     # fall to the end ordered alphabetically.
     assert_equal %w[Walleye Crappie Sturgeon], Species.in_log_order.map(&:name)
   end
+
+  test "in_log_order matches LOG_ORDER case-insensitively" do
+    # name uniqueness is case-insensitive, so a species could be stored with
+    # casing that differs from LOG_ORDER's entries — it must still sort by rank.
+    create(:species, name: "perch")
+    create(:species, name: "WALLEYE")
+
+    assert_equal %w[WALLEYE perch], Species.in_log_order.map(&:name)
+  end
 end

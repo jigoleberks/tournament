@@ -92,6 +92,28 @@ class TournamentsControllerTest < ActionDispatch::IntegrationTest
     assert_no_match "Spring 2026", response.body
   end
 
+  test "index shows the leaderboard hint on a locked entrants-only row" do
+    create(:tournament, club: @club, name: "Closed Active", entrants_only_leaderboard: true)
+    get tournaments_path
+    assert_response :success
+    assert_match "Ask an organizer to add you", response.body
+  end
+
+  test "index shows no leaderboard hint when the tournament is open to everyone" do
+    create(:tournament, club: @club, name: "Open Active")
+    get tournaments_path
+    assert_response :success
+    assert_no_match "Ask an organizer to add you", response.body
+  end
+
+  test "archived shows the leaderboard hint on a locked entrants-only row" do
+    create(:tournament, club: @club, name: "Closed Archive",
+           ends_at: 5.days.ago, entrants_only_leaderboard: true)
+    get archived_tournaments_path
+    assert_response :success
+    assert_match "Ask an organizer to add you", response.body
+  end
+
   test "show with entrants_only_leaderboard on: non-entered member is redirected with a flash" do
     tournament = create(:tournament, club: @club, name: "Closed Doors", entrants_only_leaderboard: true)
     get tournament_path(tournament)
