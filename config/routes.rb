@@ -18,6 +18,7 @@ Rails.application.routes.draw do
   root "home#index"
 
   get "/manifest.webmanifest", to: "pwa#manifest"
+  get "/service-worker.js", to: "pwa#service_worker"
 
   namespace :organizers do
     resources :tournaments do

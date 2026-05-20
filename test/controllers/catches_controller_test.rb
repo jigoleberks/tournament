@@ -1013,6 +1013,18 @@ class CatchesControllerTest < ActionDispatch::IntegrationTest
     assert_select "[data-test='count-badge']", count: 0
   end
 
+  test "new: species dropdown is ordered by Species::LOG_ORDER, not alphabetically" do
+    # setup already creates "Walleye"; create the rest so Species.all is
+    # exactly the LOG_ORDER set and the rendered options can be compared to it.
+    Species::LOG_ORDER.each { |name| Species.find_or_create_by!(name: name) }
+
+    get new_catch_path
+    assert_response :success
+
+    rendered = css_select("#catch_species_id option").map { |option| option.text.strip }
+    assert_equal Species::LOG_ORDER, rendered
+  end
+
   private
 
   def sign_in_as(user)

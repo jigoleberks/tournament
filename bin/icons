@@ -1,0 +1,9 @@
+#!/usr/bin/env bash
+# Generate the PWA + apple-touch icons in public/icons/ from public/icon.png
+# (or public/icon.jpg). Idempotent: skips outputs already newer than the source.
+# Safe to run on its own; bin/update calls it automatically.
+set -euo pipefail
+
+cd "$(dirname "$0")/.."
+
+docker compose run --rm -T web bin/rails icons:generate

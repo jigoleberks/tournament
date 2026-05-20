@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Pull latest from main and bring the docker stack up to date.
+# Pull latest on the current branch and bring the docker stack up to date.
 # Run from anywhere — switches to the repo root automatically.
 set -euo pipefail
 
@@ -23,8 +23,19 @@ docker compose run --rm web bin/rails catches:backfill_conditions
 echo "==> Backfilling any catches missing flags..."
 docker compose run --rm web bin/rails catches:backfill_flags
 
+echo "==> Regenerating PWA icons if the source changed..."
+docker compose run --rm web bin/rails icons:generate
+
 echo "==> Recreating containers..."
 docker compose up -d
+
+# `up -d` only recreates a container when its image or compose config
+# changed -- a plain code pull leaves the already-running web container as
+# is, so Puma keeps serving the routes and initializers it loaded at boot.
+# Restart it explicitly so freshly pulled routes/initializers (e.g. new
+# config/initializers/*) are actually loaded.
+echo "==> Restarting web so freshly pulled code is loaded..."
+docker compose restart web
 
 echo
 echo "==> Done. Tailing web logs (Ctrl-C to exit)..."

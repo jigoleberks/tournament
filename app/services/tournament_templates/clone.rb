@@ -17,6 +17,7 @@ module TournamentTemplates
           template_source_id: template.id,
           awards_season_points: template.awards_season_points,
           blind_leaderboard: template.blind_leaderboard,
+          entrants_only_leaderboard: template.entrants_only_leaderboard,
           scoring_slots_attributes: slots_attrs
         )
         tournament

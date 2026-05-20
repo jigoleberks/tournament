@@ -26,7 +26,10 @@ async function drain() {
         if (rec.app_build) fd.append("catch[app_build]", rec.app_build)
         if (rec.note) fd.append("catch[note]", rec.note)
         if (rec.photo) fd.append("catch[photo]", rec.photo, "photo.jpg")
-        if (rec.video) fd.append("catch[video]", rec.video, "video.webm")
+        if (rec.video) {
+          const ext = (rec.video.type || "").includes("mp4") ? "mp4" : "webm"
+          fd.append("catch[video]", rec.video, `video.${ext}`)
+        }
         if (rec.teammate_user_id) fd.append("teammate_user_id", rec.teammate_user_id)
 
         const resp = await fetch(ENDPOINT, {
@@ -64,6 +67,13 @@ function csrfToken() {
 window.addEventListener("online", () => { drain().catch(() => {}) })
 window.addEventListener("bsfamilies:try-sync", () => { drain().catch(() => {}) })
 window.addEventListener("load", () => { if (navigator.onLine) drain().catch(() => {}) })
+
+// iOS has no Background Sync, so foregrounding the app is our main retry trigger
+// for catches queued during the event. Without this, pendings can sit until the
+// user manually reopens the page (see 2026-05-13 wrong-winner incident).
+document.addEventListener("visibilitychange", () => {
+  if (document.visibilityState === "visible" && navigator.onLine) drain().catch(() => {})
+})
 
 navigator.serviceWorker?.addEventListener("message", (e) => {
   if (e.data?.type === "drain") drain().catch(() => {})

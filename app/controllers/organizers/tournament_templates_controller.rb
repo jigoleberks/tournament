@@ -55,7 +55,7 @@ class Organizers::TournamentTemplatesController < Organizers::BaseController
     params.require(:tournament_template).permit(
       :name, :mode, :format, :default_duration_days,
       :default_weekday, :default_start_time, :default_end_time,
-      :awards_season_points, :blind_leaderboard,
+      :awards_season_points, :blind_leaderboard, :entrants_only_leaderboard,
       train_cars: [],
       tournament_template_scoring_slots_attributes: [:id, :species_id, :slot_count, :_destroy]
     )

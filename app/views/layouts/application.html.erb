@@ -2,7 +2,7 @@
 <html>
   <head>
     <title><%= content_for(:title) || ENV.fetch("APP_NAME", "Tournament") %></title>
-    <meta name="viewport" content="width=device-width,initial-scale=1">
+    <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="mobile-web-app-capable" content="yes">
     <%= csrf_meta_tags %>
@@ -44,7 +44,7 @@
     </main>
 
     <% if signed_in? %>
-      <nav class="fixed bottom-0 inset-x-0 max-w-md mx-auto bg-slate-800/95 backdrop-blur border-t border-slate-700 flex">
+      <nav class="fixed bottom-0 inset-x-0 max-w-md mx-auto bg-slate-800/95 backdrop-blur border-t border-slate-700 flex pb-[env(safe-area-inset-bottom)]">
         <%= link_to root_path, "aria-label": "Home",
                     class: "flex-1 flex items-center justify-center h-16 active:bg-slate-700" do %>
           <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-8 h-8 text-slate-100" aria-hidden="true">

@@ -82,7 +82,9 @@ export default class extends Controller {
         } catch (_) {}
       }
 
-      window.dispatchEvent(new Event("bsfamilies:try-sync"))
+      // Don't dispatch try-sync here: the upload would race window.location.href below
+      // and Safari kills in-flight fetches when a page navigates. The destination page's
+      // load handler in offline/sync.js drains the queue on arrival.
       window.location.href = "/"
     } catch (err) {
       this._setSubmitting(false)

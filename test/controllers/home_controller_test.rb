@@ -72,6 +72,26 @@ class HomeControllerTest < ActionDispatch::IntegrationTest
     assert_match "Rules (Jan 1, 2026)", response.body
   end
 
+  test "home: leaderboard hint appears once per locked tournament row" do
+    create(:tournament, club: @club, entrants_only_leaderboard: true)
+    create(:tournament, club: @club, entrants_only_leaderboard: true)
+    sign_in_as(@member)
+
+    get root_path
+    assert_response :success
+    assert_select "span",
+                  { text: "Ask an organizer to add you to see the leaderboard.", count: 2 }
+  end
+
+  test "home: no leaderboard hint when the only other tournament is visible" do
+    create(:tournament, club: @club, entrants_only_leaderboard: false)
+    sign_in_as(@member)
+
+    get root_path
+    assert_response :success
+    assert_not_includes @response.body, "Ask an organizer to add you to see the leaderboard."
+  end
+
   private
 
   def sign_in_as(user)
