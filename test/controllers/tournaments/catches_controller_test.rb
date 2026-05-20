@@ -114,4 +114,24 @@ class Tournaments::CatchesControllerTest < ActionDispatch::IntegrationTest
 
     assert_redirected_to new_session_path
   end
+
+  test "entrants_only tournament returns 404 for a member who is not entered" do
+    @tournament.update!(entrants_only_leaderboard: true)
+
+    sign_in_as(@member)
+
+    get tournament_catch_path(@tournament, @catch)
+
+    assert_response :not_found
+  end
+
+  test "entrants_only tournament returns 200 for an entered member" do
+    @tournament.update!(entrants_only_leaderboard: true)
+
+    sign_in_as(@other)
+
+    get tournament_catch_path(@tournament, @catch)
+
+    assert_response :ok
+  end
 end

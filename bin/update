@@ -29,6 +29,14 @@ docker compose run --rm web bin/rails icons:generate
 echo "==> Recreating containers..."
 docker compose up -d
 
+# `up -d` only recreates a container when its image or compose config
+# changed -- a plain code pull leaves the already-running web container as
+# is, so Puma keeps serving the routes and initializers it loaded at boot.
+# Restart it explicitly so freshly pulled routes/initializers (e.g. new
+# config/initializers/*) are actually loaded.
+echo "==> Restarting web so freshly pulled code is loaded..."
+docker compose restart web
+
 echo
 echo "==> Done. Tailing web logs (Ctrl-C to exit)..."
 docker compose logs -f --tail=20 web
