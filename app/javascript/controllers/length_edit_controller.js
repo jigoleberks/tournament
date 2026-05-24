@@ -13,7 +13,7 @@ export default class extends Controller {
     const oldUnit = this.inputTarget.dataset.lengthEditUnit
     if (oldUnit === newUnit) return
 
-    const stepSize = newUnit === "centimeters" ? 0.5 : 0.25
+    const stepSize = 0.25
     const v = parseFloat(this.inputTarget.value)
     if (!Number.isNaN(v)) {
       const factor = oldUnit === "inches" && newUnit === "centimeters" ? 2.54

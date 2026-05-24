@@ -38,7 +38,7 @@
     <%= current_user.metric? ? "Length (cm)" : "Length (in)" %>
   </label>
   <input id="catch_length_inches" type="number"
-         step="<%= current_user.metric? ? "0.5" : "0.25" %>"
+         step="0.25"
          min="0"
          data-catch-form-target="lengthInput"
          data-catch-form-unit="<%= current_user.length_unit %>"

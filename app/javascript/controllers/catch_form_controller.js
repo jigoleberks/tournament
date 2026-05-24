@@ -120,7 +120,7 @@ export default class extends Controller {
     }
 
     this.lengthInputTarget.dataset.catchFormUnit = newUnit
-    this.lengthInputTarget.step = newUnit === "centimeters" ? "0.5" : "0.25"
+    this.lengthInputTarget.step = "0.25"
     if (this.hasLengthLabelTarget) {
       this.lengthLabelTarget.textContent = newUnit === "centimeters" ? "Length (cm)" : "Length (in)"
     }
