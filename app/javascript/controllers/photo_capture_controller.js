@@ -63,12 +63,36 @@ export default class extends Controller {
   }
 
   // Diagnostic overlay for tuning the capability probe against real hardware.
-  // Visit /catches/new?camdebug=1 to render a collapsible JSON dump of what
-  // getUserMedia + enumerateDevices report on this device. Stays inert in
-  // normal use — only renders when the query param is present.
-  _cameraDebugEnabled() {
-    try { return new URLSearchParams(location.search).get("camdebug") === "1" }
+  // Two ways to enable:
+  //   - ?camdebug=1 on the URL (one-shot for browser testing)
+  //   - tap the small "Camera debug" link at the bottom of the catch form
+  //     (persists in localStorage, useful inside an installed PWA where
+  //     there is no address bar)
+  toggleDebug() {
+    const storageOn = this._cameraDebugStored()
+    try {
+      if (storageOn) localStorage.removeItem("catchCameraDebug")
+      else           localStorage.setItem("catchCameraDebug", "1")
+    } catch (_) {}
+
+    if (storageOn) {
+      const el = document.getElementById("camdebug-output")
+      if (el) el.remove()
+    } else {
+      this._renderCameraDebug()
+    }
+  }
+
+  _cameraDebugStored() {
+    try { return localStorage.getItem("catchCameraDebug") === "1" }
     catch (_) { return false }
+  }
+
+  _cameraDebugEnabled() {
+    try {
+      if (new URLSearchParams(location.search).get("camdebug") === "1") return true
+    } catch (_) {}
+    return this._cameraDebugStored()
   }
 
   async _renderCameraDebug() {
