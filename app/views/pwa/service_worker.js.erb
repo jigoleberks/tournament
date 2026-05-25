@@ -1,4 +1,4 @@
-const CACHE = "shell-<%= ::AppVersion.current %>";
+const CACHE = <%= ("shell-" + ::AppVersion.current).to_json.html_safe %>;
 const SHELL = ["/manifest.webmanifest", "/icon.png"];
 
 self.addEventListener("install", (event) => {
@@ -33,17 +33,15 @@ self.addEventListener("fetch", (event) => {
     return;
   }
 
-  // Network-first for everything else. Checking request.mode === "navigate" alone
-  // misses Turbo Drive's fetch() calls (mode "cors"/"same-origin"), which previously
-  // caused visited pages to be served stale from cache after backgrounding.
+  // Network-first for everything else, and DO NOT cache the responses. They
+  // may contain authenticated/personalized HTML; serving a cached copy after
+  // sign-out (or to another user on a shared device) would leak data. We
+  // intentionally don't fall back to caches.match here for the same reason —
+  // the static shell branch above is the only path that populates the cache.
+  // Truly-offline navigation gets the bare 503 response and the page-level
+  // pending-catches widget keeps working from IndexedDB.
   event.respondWith(
-    fetch(event.request).then((res) => {
-      if (res.status === 200) {
-        const copy = res.clone();
-        caches.open(CACHE).then((c) => c.put(event.request, copy));
-      }
-      return res;
-    }).catch(() => caches.match(event.request).then((c) => c || new Response("offline", { status: 503 })))
+    fetch(event.request).catch(() => new Response("offline", { status: 503 }))
   );
 });
 

@@ -10,15 +10,14 @@
     <% else %>
       <ul class="bg-slate-800 rounded-xl divide-y divide-slate-700">
         <% tournaments.each do |t| %>
-          <% winner = @winners[t.id] %>
-          <% winner_label = winner ? winner.display_name : "—" %>
           <% visible = tournament_leaderboard_visible?(t) %>
+          <% winner = visible ? @winners[t.id] : nil %>
           <% row = capture do %>
             <div class="flex justify-between items-center">
               <div>
                 <div class="font-medium text-slate-100"><%= t.name %></div>
                 <div class="text-xs text-slate-400">
-                  <%= l(t.ends_at.to_date, format: :long) %> · Won by: <%= winner_label %>
+                  <%= l(t.ends_at.to_date, format: :long) %><% if visible %> · Won by: <%= winner ? winner.display_name : "—" %><% end %>
                 </div>
                 <% unless visible %>
                   <div class="text-xs text-slate-400 mt-0.5">Ask an organizer to add you to see the leaderboard.</div>

@@ -9,7 +9,7 @@
       <% row = capture do %>
         <span class="<%= name_classes %>"><%= t.name %></span>
         <span class="text-sm text-slate-400">— ended <%= t.ends_at.strftime("%b %d, %Y") %></span>
-        <% if (winner = @winners[t.id]) %>
+        <% if visible && (winner = @winners[t.id]) %>
           <span class="text-sm text-slate-400">— winner — <%= winner.display_name %></span>
         <% end %>
         <% unless visible %>

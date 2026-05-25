@@ -57,8 +57,23 @@ export default class extends Controller {
     await this.videoTarget.play()
     this._setState("streaming")
     await this._probeZoom()
+    this._syncZoomFromStream()
     await this._restoreDesiredZoom()
     this._updateZoomButtons()
+  }
+
+  // After every fresh stream, snap this.zoom to whichever known lens the OS
+  // actually opened. Without this, retake() reuses the prior this.zoom even
+  // though getUserMedia({ facingMode: "environment" }) typically lands on the
+  // main lens — leaving the 0.5x button highlighted, but a no-op (because
+  // _setZoom short-circuits on this.zoom === value).
+  _syncZoomFromStream() {
+    if (this.zoomMethod !== "device" || !this.deviceIdByZoom) return
+    const track = this.stream?.getVideoTracks?.()?.[0]
+    const currentDeviceId = track?.getSettings?.()?.deviceId
+    if (!currentDeviceId) return
+    if (currentDeviceId === this.deviceIdByZoom["0.5"]) this.zoom = 0.5
+    else if (currentDeviceId === this.deviceIdByZoom["1"]) this.zoom = 1
   }
 
   // After the probe runs on a fresh stream, push the user's last choice
@@ -196,14 +211,19 @@ export default class extends Controller {
     }, "image/jpeg", 0.9)
   }
 
-  retake() {
+  async retake() {
     this.previewTarget.removeAttribute("src")
     this.previewTarget.dataset.captured = "false"
     this.input = null
     // Re-seed desiredZoom so the next start() re-applies the saved level on
     // the fresh track (otherwise retake silently drops back to the default lens).
     this.desiredZoom = this.zoom
-    this.start()
+    try {
+      await this.start()
+    } catch (err) {
+      console.warn("Camera restart after retake failed:", err)
+      this._setState("idle")
+    }
   }
 
   setZoomHalf() { this._setZoom(0.5) }
@@ -212,10 +232,22 @@ export default class extends Controller {
   async _setZoom(value) {
     if (this.zoom === value) return
     if (!this.zoomMethod) return
-    this.zoom = value
-    try { localStorage.setItem("catchCameraZoom", String(value)) } catch (_) {}
-    this._updateZoomButtons()
-    await this._applyZoom(value)
+    // Serialize zoom changes. Rapid 0.5x↔1x taps used to interleave two
+    // stop()/start() pairs, leaving this.stream pointing at the losing track
+    // while the visible video was the winner's. Worse, the losing start()'s
+    // _waitForFirstFrame would time out (its stream was killed by the second
+    // tap's stop()) and the catch path would permanently blocklist the wide
+    // deviceId — turning a transient race into permanent loss of 0.5x.
+    if (this._zoomBusy) return
+    this._zoomBusy = true
+    try {
+      this.zoom = value
+      try { localStorage.setItem("catchCameraZoom", String(value)) } catch (_) {}
+      this._updateZoomButtons()
+      await this._applyZoom(value)
+    } finally {
+      this._zoomBusy = false
+    }
   }
 
   async _applyZoom(value) {
