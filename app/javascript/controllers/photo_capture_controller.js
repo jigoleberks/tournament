@@ -14,6 +14,7 @@ export default class extends Controller {
     this.zoom = 1
     this.zoomMethod = null
     this.deviceIdByZoom = null
+    this.desiredZoom = this._readStoredZoom()
     try {
       await this.start()
     } catch (err) {
@@ -21,6 +22,13 @@ export default class extends Controller {
       // Open camera button so the user can retry with an explicit gesture.
       console.warn("Camera auto-start failed:", err)
     }
+  }
+
+  _readStoredZoom() {
+    let stored
+    try { stored = localStorage.getItem("catchCameraZoom") } catch (_) { return 1 }
+    if (stored === "0.5") return 0.5
+    return 1
   }
 
   async start({ deviceIdHint } = {}) {
@@ -36,7 +44,35 @@ export default class extends Controller {
     await this.videoTarget.play()
     this._setState("streaming")
     await this._probeZoom()
+    await this._restoreDesiredZoom()
     this._updateZoomButtons()
+  }
+
+  // After the probe runs on a fresh stream, push the user's last choice
+  // (read from localStorage in connect) into the camera if it's reachable.
+  // If 0.5x was saved but the current device can't deliver it, fall back to
+  // 1x silently and overwrite storage so we don't keep retrying.
+  async _restoreDesiredZoom() {
+    const want = this.desiredZoom
+    if (want == null) return
+    this.desiredZoom = null   // only restore once per controller lifetime
+
+    if (want === 1) { this.zoom = 1; return }   // 1x is the default — nothing to do
+
+    // want === 0.5
+    if (!this.zoomMethod) {
+      this.zoom = 1
+      try { localStorage.setItem("catchCameraZoom", "1") } catch (_) {}
+      return
+    }
+    if (this.zoomMethod === "device" && !this.deviceIdByZoom?.["0.5"]) {
+      this.zoom = 1
+      try { localStorage.setItem("catchCameraZoom", "1") } catch (_) {}
+      return
+    }
+
+    this.zoom = 0.5
+    await this._applyZoom(0.5)
   }
 
   // Determines how this device can reach 0.5x, if at all. Sets:
@@ -126,6 +162,9 @@ export default class extends Controller {
     this.previewTarget.removeAttribute("src")
     this.previewTarget.dataset.captured = "false"
     this.input = null
+    // Re-seed desiredZoom so the next start() re-applies the saved level on
+    // the fresh track (otherwise retake silently drops back to the default lens).
+    this.desiredZoom = this.zoom
     this.start()
   }
 
