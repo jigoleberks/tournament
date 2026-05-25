@@ -6,7 +6,7 @@ export default class extends Controller {
   static targets = [
     "preview", "video", "openButton", "captureButton", "retakeButton",
     "fullscreenButton", "fullscreenContainer", "fullscreenSlot", "inlineSlot",
-    "frameGuide"
+    "frameGuide", "zoomToggle", "zoomHalfButton", "zoomOneButton"
   ]
 
   async connect() {

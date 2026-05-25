@@ -72,6 +72,15 @@
            class="hidden w-full aspect-[3/4] object-cover rounded-lg bg-black"></video>
     <span data-photo-capture-target="frameGuide"
           class="hidden pointer-events-none absolute inset-[12.5%] border-2 border-white/80"></span>
+    <div data-photo-capture-target="zoomToggle"
+         class="hidden absolute bottom-4 left-1/2 -translate-x-1/2 flex rounded-full bg-slate-900/70 p-1 gap-1">
+      <button type="button" data-photo-capture-target="zoomHalfButton"
+              data-action="photo-capture#setZoomHalf"
+              class="px-3 h-10 rounded-full text-sm text-white">0.5x</button>
+      <button type="button" data-photo-capture-target="zoomOneButton"
+              data-action="photo-capture#setZoomOne"
+              class="px-3 h-10 rounded-full text-sm text-white">1x</button>
+    </div>
   </div>
   <img data-photo-capture-target="preview" alt=""
        class="hidden w-full aspect-[3/4] object-contain rounded-lg bg-black">
