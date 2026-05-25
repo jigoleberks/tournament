@@ -222,7 +222,8 @@ export default class extends Controller {
         wideLens = sorted[sorted.length - 1]
       }
 
-      if (mainLens && wideLens && mainLens.deviceId !== wideLens.deviceId) {
+      if (mainLens && wideLens && mainLens.deviceId !== wideLens.deviceId &&
+          !this._isWideLensBlocked(wideLens.deviceId)) {
         this.zoomMethod = "device"
         this.deviceIdByZoom = { "1": mainLens.deviceId, "0.5": wideLens.deviceId }
         // If the OS defaulted the stream to the wide lens (Samsung's S20
@@ -319,14 +320,80 @@ export default class extends Controller {
     if (this.zoomMethod === "device") {
       const deviceIdHint = this.deviceIdByZoom?.[String(value)]
       if (!deviceIdHint) return
+      const wideId = this.deviceIdByZoom["0.5"]
       this.stop()
       try {
         await this.start({ deviceIdHint })
+        await this._waitForFirstFrame()
       } catch (err) {
         console.warn("Lens switch failed:", err)
-        this._setState("idle")
+        // The requested lens opened (or didn't) but produces no usable
+        // video on this device. On the S25 Ultra this happens with the
+        // ultra-wide deviceId — enumerateDevices exposes it but the
+        // stream comes up blank. Blocklist the wide lens deviceId so we
+        // don't show the toggle on this device again, reset to the main
+        // lens, and bring the camera back to life.
+        if (wideId) this._blockWideLens(wideId)
+        this.zoomMethod = null
+        this.deviceIdByZoom = null
+        this.zoom = 1
+        try { localStorage.setItem("catchCameraZoom", "1") } catch (_) {}
+        this.stop()
+        try {
+          await this.start()
+        } catch (_) {
+          this._setState("idle")
+        }
+        this._updateZoomButtons()
       }
     }
+  }
+
+  // Wait until the active stream has produced at least one frame, or fail
+  // fast (within 800 ms) if it never will. Used after a deviceId-pinned
+  // start() to detect lenses that enumerate but don't actually deliver
+  // video (the S25 Ultra's "Facing back:2" via Firefox Android behaves
+  // this way). Resolves immediately if frames are already visible or the
+  // track reports usable dimensions; otherwise waits for the first
+  // loadeddata event with a timeout.
+  async _waitForFirstFrame(timeoutMs = 800) {
+    const v = this.videoTarget
+    if (v.videoWidth > 0 && v.videoHeight > 0) return
+
+    const track = this.stream?.getVideoTracks?.()?.[0]
+    if (!track || track.readyState !== "live") throw new Error("No live video track")
+    const settings = track.getSettings?.()
+    if (settings && settings.width > 0 && settings.height > 0) return
+
+    await new Promise((resolve, reject) => {
+      const onLoad = () => { cleanup(); resolve() }
+      const timer = setTimeout(() => { cleanup(); reject(new Error("Video frame timeout")) }, timeoutMs)
+      const cleanup = () => {
+        v.removeEventListener("loadeddata", onLoad)
+        clearTimeout(timer)
+      }
+      v.addEventListener("loadeddata", onLoad, { once: true })
+    })
+  }
+
+  _isWideLensBlocked(deviceId) {
+    try {
+      const raw = localStorage.getItem("catchCameraBlockedWideLens")
+      if (!raw) return false
+      const blocked = JSON.parse(raw)
+      return Array.isArray(blocked) && blocked.includes(deviceId)
+    } catch (_) { return false }
+  }
+
+  _blockWideLens(deviceId) {
+    try {
+      const raw = localStorage.getItem("catchCameraBlockedWideLens")
+      const blocked = raw ? JSON.parse(raw) : []
+      if (Array.isArray(blocked) && !blocked.includes(deviceId)) {
+        blocked.push(deviceId)
+        localStorage.setItem("catchCameraBlockedWideLens", JSON.stringify(blocked))
+      }
+    } catch (_) {}
   }
 
   enterFullscreen() {
