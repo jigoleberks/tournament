@@ -1,5 +1,17 @@
 import { Controller } from "@hotwired/stimulus"
 
+// Extract the first numeric run from a camera label so we can pair the
+// lowest-indexed back camera (the main lens) with the highest-indexed back
+// camera (typically the ultra-wide on Samsung Android). Labels without a
+// number sort last but stably. Examples:
+//   "camera 0, facing back"  -> 0
+//   "Facing back:2"          -> 2
+//   "Back Ultra Wide Camera" -> 9999  (no digit; sorts last)
+const extractCamIndex = (label) => {
+  const m = label && label.match(/(\d+)/)
+  return m ? parseInt(m[1], 10) : 9999
+}
+
 // State: "idle" (no camera, no capture), "streaming" (camera open),
 // "captured" (photo taken, camera stopped, preview shown).
 export default class extends Controller {
@@ -26,9 +38,10 @@ export default class extends Controller {
 
   _readStoredZoom() {
     let stored
-    try { stored = localStorage.getItem("catchCameraZoom") } catch (_) { return 1 }
+    try { stored = localStorage.getItem("catchCameraZoom") } catch (_) { return null }
     if (stored === "0.5") return 0.5
-    return 1
+    if (stored === "1")   return 1
+    return null
   }
 
   async start({ deviceIdHint } = {}) {
@@ -116,29 +129,29 @@ export default class extends Controller {
 
   // After the probe runs on a fresh stream, push the user's last choice
   // (read from localStorage in connect) into the camera if it's reachable.
-  // If 0.5x was saved but the current device can't deliver it, fall back to
-  // 1x silently and overwrite storage so we don't keep retrying.
+  // The probe may have already set this.zoom based on which lens the OS
+  // gave us, so we only re-apply when the saved choice differs.
+  // If the saved value can't be reached on the current device, fall back
+  // to 1x silently and overwrite storage so we don't keep retrying.
   async _restoreDesiredZoom() {
     const want = this.desiredZoom
-    if (want == null) return
     this.desiredZoom = null   // only restore once per controller lifetime
+    if (want == null) return  // no stored preference — accept the OS default
+    if (want === this.zoom) return   // already on the right lens
 
-    if (want === 1) { this.zoom = 1; return }   // 1x is the default — nothing to do
-
-    // want === 0.5
     if (!this.zoomMethod) {
       this.zoom = 1
       try { localStorage.setItem("catchCameraZoom", "1") } catch (_) {}
       return
     }
-    if (this.zoomMethod === "device" && !this.deviceIdByZoom?.["0.5"]) {
+    if (this.zoomMethod === "device" && !this.deviceIdByZoom?.[String(want)]) {
       this.zoom = 1
       try { localStorage.setItem("catchCameraZoom", "1") } catch (_) {}
       return
     }
 
-    this.zoom = 0.5
-    await this._applyZoom(0.5)
+    this.zoom = want
+    await this._applyZoom(want)
   }
 
   // Determines how this device can reach 0.5x, if at all. Sets:
@@ -155,36 +168,60 @@ export default class extends Controller {
     const track = this.stream?.getVideoTracks()?.[0]
     if (!track) return
 
-    // Path 1: W3C zoom constraint (Android Chrome + modern phones).
+    let devices = []
+    try { devices = await navigator.mediaDevices.enumerateDevices() } catch (_) {}
+    const videoInputs = devices.filter((d) => d.kind === "videoinput")
+
+    // Identify back-facing cameras by label substring. Labels are populated
+    // after getUserMedia permission is granted. We deliberately do NOT fall
+    // back to all videoinputs when no labels match — that's how the earlier
+    // probe false-matched single PC webcams whose names happened to contain
+    // "wide" or "ultra".
+    const backCams = videoInputs.filter((d) => /\bback\b|\brear\b/i.test(d.label))
+
+    // Primary path: 2+ back cameras = the phone exposes main + ultra-wide
+    // (and possibly telephoto) as separate videoinputs. Pick the pair that
+    // drives the 1x / 0.5x toggle.
+    if (backCams.length >= 2) {
+      // Prefer an explicit "Ultra Wide" label (iOS Safari pattern). Failing
+      // that, fall back to the numeric-index convention used by Samsung's
+      // Android labels: "camera 0, facing back" / "Facing back:0" — lowest
+      // index is the main lens, highest is the ultra-wide.
+      const explicitWide = backCams.find((d) => /ultra.{0,3}wide/i.test(d.label))
+      let mainLens, wideLens
+      if (explicitWide) {
+        wideLens = explicitWide
+        mainLens = backCams.find((d) =>
+          d.deviceId !== wideLens.deviceId &&
+          !/ultra.{0,3}wide|telephoto|\btele\b/i.test(d.label)
+        ) || backCams.find((d) => d.deviceId !== wideLens.deviceId)
+      } else {
+        const sorted = [...backCams].sort((a, b) => extractCamIndex(a.label) - extractCamIndex(b.label))
+        mainLens = sorted[0]
+        wideLens = sorted[sorted.length - 1]
+      }
+
+      if (mainLens && wideLens && mainLens.deviceId !== wideLens.deviceId) {
+        this.zoomMethod = "device"
+        this.deviceIdByZoom = { "1": mainLens.deviceId, "0.5": wideLens.deviceId }
+        // If the OS defaulted the stream to the wide lens (Samsung's S20
+        // Ultra does this on a facingMode: environment request), reflect
+        // that in this.zoom so the toggle highlights the right button and
+        // the restore logic doesn't think a redundant switch is needed.
+        const currentDeviceId = track.getSettings?.().deviceId
+        if (currentDeviceId === wideLens.deviceId) this.zoom = 0.5
+        return
+      }
+    }
+
+    // Fallback: a single back camera whose zoom range itself crosses below
+    // 1x. Rare in practice — Samsung's caps.zoom is {min:1, max:8}, digital
+    // zoom only on the active lens. Kept for any device where the constraint
+    // path is genuinely the way to reach the ultra-wide.
     const caps = typeof track.getCapabilities === "function" ? track.getCapabilities() : {}
     if (caps.zoom && caps.zoom.min <= 0.5 && caps.zoom.max >= 1) {
       this.zoomMethod = "constraint"
-      return
     }
-
-    // Path 2: enumerateDevices() ultra-wide lookup (iOS Safari).
-    let devices
-    try { devices = await navigator.mediaDevices.enumerateDevices() } catch (_) { return }
-
-    const videoInputs = devices.filter((d) => d.kind === "videoinput")
-    let backCams = videoInputs.filter((d) => /back|rear|environment/i.test(d.label))
-    if (backCams.length === 0) backCams = videoInputs   // labels empty — try them all
-
-    const ultraWide = backCams.find((d) => /ultra|wide|0\.5|0\.7/i.test(d.label))
-    if (!ultraWide) return
-
-    // The 1x lens is the first back camera that does NOT look like an ultra-wide
-    // or telephoto. If nothing clears that filter, fall back to whichever lens
-    // the current stream is using.
-    const oneX = backCams.find((d) =>
-      d.deviceId !== ultraWide.deviceId &&
-      !/ultra|wide|tele|0\.5|0\.7|2x|3x|5x/i.test(d.label)
-    ) || backCams.find((d) => d.deviceId === (track.getSettings && track.getSettings().deviceId))
-
-    if (!oneX) return
-
-    this.zoomMethod = "device"
-    this.deviceIdByZoom = { "1": oneX.deviceId, "0.5": ultraWide.deviceId }
   }
 
   // Shows/hides the toggle wrapper based on whether a zoomMethod was found,
