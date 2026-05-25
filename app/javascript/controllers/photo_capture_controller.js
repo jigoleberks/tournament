@@ -98,15 +98,28 @@ export default class extends Controller {
 
     let el = document.getElementById("camdebug-output")
     if (!el) {
+      // Floating chip in the top-left, expands to a full overlay on tap.
+      // Default-collapsed so it doesn't cover the zoom toggle at the bottom.
       el = document.createElement("div")
       el.id = "camdebug-output"
-      el.style.cssText = "position:fixed;bottom:0;left:0;right:0;background:rgba(0,0,0,0.92);color:#0f0;padding:8px;font:11px/1.3 monospace;max-height:60vh;overflow:auto;z-index:9999;white-space:pre-wrap;word-break:break-all"
+      el.style.cssText = "position:fixed;top:8px;left:8px;z-index:9999;background:rgba(0,0,0,0.85);color:#0f0;font:11px/1.3 monospace;border:1px solid #0f0;border-radius:6px;max-width:calc(100vw - 16px)"
+
+      const header = document.createElement("div")
+      header.id = "camdebug-header"
+      header.style.cssText = "padding:6px 10px;cursor:pointer;user-select:none;white-space:nowrap"
+      header.textContent = "▶ camdebug"
+      el.appendChild(header)
+
+      const body = document.createElement("div")
+      body.id = "camdebug-body"
+      body.style.cssText = "display:none;padding:0 10px 10px 10px;max-height:60vh;overflow:auto;word-break:break-all"
 
       const copyBtn = document.createElement("button")
       copyBtn.type = "button"
       copyBtn.textContent = "Copy JSON"
-      copyBtn.style.cssText = "position:sticky;top:0;float:right;background:#222;color:#fff;border:1px solid #444;padding:4px 8px;font:12px sans-serif;border-radius:4px;cursor:pointer"
-      copyBtn.addEventListener("click", async () => {
+      copyBtn.style.cssText = "background:#222;color:#fff;border:1px solid #444;padding:4px 8px;font:12px sans-serif;border-radius:4px;cursor:pointer;margin-bottom:6px"
+      copyBtn.addEventListener("click", async (event) => {
+        event.stopPropagation()
         try {
           await navigator.clipboard.writeText(el.dataset.json || "")
           copyBtn.textContent = "Copied!"
@@ -115,12 +128,20 @@ export default class extends Controller {
           copyBtn.textContent = "Copy failed"
         }
       })
-      el.appendChild(copyBtn)
+      body.appendChild(copyBtn)
 
       const pre = document.createElement("pre")
       pre.id = "camdebug-pre"
-      pre.style.cssText = "margin:0;padding-top:4px;font:inherit;color:inherit;white-space:pre-wrap;word-break:break-all"
-      el.appendChild(pre)
+      pre.style.cssText = "margin:0;font:inherit;color:inherit;white-space:pre-wrap;word-break:break-all"
+      body.appendChild(pre)
+      el.appendChild(body)
+
+      header.addEventListener("click", () => {
+        const expanded = body.style.display !== "none"
+        body.style.display = expanded ? "none" : "block"
+        header.textContent = expanded ? "▶ camdebug" : "▼ camdebug (tap to collapse)"
+      })
+
       document.body.appendChild(el)
     }
     el.dataset.json = json
