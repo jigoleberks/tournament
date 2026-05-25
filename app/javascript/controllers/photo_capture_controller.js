@@ -138,7 +138,20 @@ export default class extends Controller {
     this.zoom = value
     try { localStorage.setItem("catchCameraZoom", String(value)) } catch (_) {}
     this._updateZoomButtons()
-    // Actual zoom application is added in Task 3 (constraint) and Task 4 (device).
+    await this._applyZoom(value)
+  }
+
+  async _applyZoom(value) {
+    if (this.zoomMethod === "constraint") {
+      const track = this.stream?.getVideoTracks()?.[0]
+      if (!track) return
+      try {
+        await track.applyConstraints({ advanced: [{ zoom: value }] })
+      } catch (err) {
+        console.warn("Zoom constraint rejected:", err)
+      }
+    }
+    // "device" branch lands in Task 4.
   }
 
   enterFullscreen() {
