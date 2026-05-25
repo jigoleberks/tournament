@@ -23,13 +23,13 @@ export default class extends Controller {
     }
   }
 
-  async start() {
+  async start({ deviceIdHint } = {}) {
+    const videoConstraints = deviceIdHint
+      ? { deviceId: { exact: deviceIdHint }, width: { ideal: 4032 }, height: { ideal: 3024 } }
+      : { facingMode: "environment", width: { ideal: 4032 }, height: { ideal: 3024 } }
+
     this.stream = await navigator.mediaDevices.getUserMedia({
-      video: {
-        facingMode: "environment",
-        width: { ideal: 4032 },
-        height: { ideal: 3024 }
-      },
+      video: videoConstraints,
       audio: false
     })
     this.videoTarget.srcObject = this.stream
@@ -150,8 +150,20 @@ export default class extends Controller {
       } catch (err) {
         console.warn("Zoom constraint rejected:", err)
       }
+      return
     }
-    // "device" branch lands in Task 4.
+
+    if (this.zoomMethod === "device") {
+      const deviceIdHint = this.deviceIdByZoom?.[String(value)]
+      if (!deviceIdHint) return
+      this.stop()
+      try {
+        await this.start({ deviceIdHint })
+      } catch (err) {
+        console.warn("Lens switch failed:", err)
+        this._setState("idle")
+      }
+    }
   }
 
   enterFullscreen() {
