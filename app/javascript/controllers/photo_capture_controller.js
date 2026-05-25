@@ -46,6 +46,72 @@ export default class extends Controller {
     await this._probeZoom()
     await this._restoreDesiredZoom()
     this._updateZoomButtons()
+    if (this._cameraDebugEnabled()) await this._renderCameraDebug()
+  }
+
+  // Temporary diagnostic: visit /catches/new?camdebug=1 to see what
+  // getUserMedia + enumerateDevices report on this device. Used to tune the
+  // capability probe against real hardware. Safe to leave in normal use — the
+  // overlay only renders when the query param is present.
+  _cameraDebugEnabled() {
+    try { return new URLSearchParams(location.search).get("camdebug") === "1" }
+    catch (_) { return false }
+  }
+
+  async _renderCameraDebug() {
+    const track = this.stream?.getVideoTracks?.()?.[0]
+    const caps = track && typeof track.getCapabilities === "function" ? track.getCapabilities() : null
+    const settings = track && typeof track.getSettings === "function" ? track.getSettings() : null
+    let devices = []
+    try { devices = await navigator.mediaDevices.enumerateDevices() } catch (_) {}
+    const videoInputs = devices.filter((d) => d.kind === "videoinput").map((d) => ({
+      label:    d.label || "(empty)",
+      deviceId: d.deviceId ? d.deviceId.slice(0, 12) + "…" : "(empty)",
+      groupId:  d.groupId  ? d.groupId.slice(0, 12)  + "…" : "(empty)"
+    }))
+
+    const info = {
+      userAgent:         navigator.userAgent,
+      standaloneDisplay: matchMedia("(display-mode: standalone)").matches,
+      probeResult: {
+        zoomMethod:     this.zoomMethod,
+        deviceIdByZoom: this.deviceIdByZoom
+      },
+      trackSettings:     settings,
+      trackCapabilities: caps,
+      videoInputs
+    }
+    const json = JSON.stringify(info, null, 2)
+
+    let el = document.getElementById("camdebug-output")
+    if (!el) {
+      el = document.createElement("div")
+      el.id = "camdebug-output"
+      el.style.cssText = "position:fixed;bottom:0;left:0;right:0;background:rgba(0,0,0,0.92);color:#0f0;padding:8px;font:11px/1.3 monospace;max-height:60vh;overflow:auto;z-index:9999;white-space:pre-wrap;word-break:break-all"
+
+      const copyBtn = document.createElement("button")
+      copyBtn.type = "button"
+      copyBtn.textContent = "Copy JSON"
+      copyBtn.style.cssText = "position:sticky;top:0;float:right;background:#222;color:#fff;border:1px solid #444;padding:4px 8px;font:12px sans-serif;border-radius:4px;cursor:pointer"
+      copyBtn.addEventListener("click", async () => {
+        try {
+          await navigator.clipboard.writeText(el.dataset.json || "")
+          copyBtn.textContent = "Copied!"
+          setTimeout(() => { copyBtn.textContent = "Copy JSON" }, 1500)
+        } catch (_) {
+          copyBtn.textContent = "Copy failed"
+        }
+      })
+      el.appendChild(copyBtn)
+
+      const pre = document.createElement("pre")
+      pre.id = "camdebug-pre"
+      pre.style.cssText = "margin:0;padding-top:4px;font:inherit;color:inherit;white-space:pre-wrap;word-break:break-all"
+      el.appendChild(pre)
+      document.body.appendChild(el)
+    }
+    el.dataset.json = json
+    document.getElementById("camdebug-pre").textContent = json
   }
 
   // After the probe runs on a fresh stream, push the user's last choice
