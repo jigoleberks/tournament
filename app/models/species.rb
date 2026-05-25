@@ -3,7 +3,7 @@ class Species < ApplicationRecord
 
   # Display order for the catch-logging dropdown only (catches/new).
   # Species not listed here fall to the end, ordered alphabetically.
-  LOG_ORDER = ["Walleye", "Perch", "Pike", "Stocked Trout", "Lake Trout", "Bass", "Other"].freeze
+  LOG_ORDER = ["Walleye", "Perch", "Pike", "Stocked Trout", "Lake Trout", "Bass", "Tagged Walleye", "Other"].freeze
 
   has_many :scoring_slots, dependent: :restrict_with_error
   has_many :catch_placements, dependent: :restrict_with_error
