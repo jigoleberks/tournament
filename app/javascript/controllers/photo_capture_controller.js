@@ -209,6 +209,7 @@ export default class extends Controller {
     if (!this.stream || !this.hasFullscreenContainerTarget) return
     this.fullscreenSlotTarget.appendChild(this.videoTarget)
     if (this.hasFrameGuideTarget) this.fullscreenSlotTarget.appendChild(this.frameGuideTarget)
+    if (this.hasZoomToggleTarget) this.fullscreenSlotTarget.appendChild(this.zoomToggleTarget)
     this.videoTarget.classList.remove("aspect-[3/4]", "rounded-lg")
     this.videoTarget.classList.add("w-full", "h-full")
     this.fullscreenContainerTarget.classList.remove("hidden")
@@ -259,6 +260,7 @@ export default class extends Controller {
     if (!this.hasFullscreenContainerTarget) return
     this.inlineSlotTarget.appendChild(this.videoTarget)
     if (this.hasFrameGuideTarget) this.inlineSlotTarget.appendChild(this.frameGuideTarget)
+    if (this.hasZoomToggleTarget) this.inlineSlotTarget.appendChild(this.zoomToggleTarget)
     this.videoTarget.classList.remove("w-full", "h-full")
     this.videoTarget.classList.add("aspect-[3/4]", "rounded-lg")
     this.fullscreenContainerTarget.classList.add("hidden")
