@@ -38,21 +38,21 @@ module Tournaments
       end
     end
 
-    test "raises if tournament format is not tagged" do
+    test "raises WrongFormatError if tournament format is not tagged" do
       standard = create(:tournament, club: @club, format: :standard, mode: :solo,
                         starts_at: 2.hours.ago, ends_at: 1.hour.ago)
-      assert_raises(ArgumentError) do
+      assert_raises(Tournaments::DrawTaggedWinner::WrongFormatError) do
         Tournaments::DrawTaggedWinner.call(tournament: standard, drawn_by: @organizer)
       end
     end
 
-    test "raises if tournament has not yet ended" do
+    test "raises NotEndedError if tournament has not yet ended" do
       @t.update_columns(starts_at: 1.hour.ago, ends_at: 1.hour.from_now)
       Catches::PlaceInSlots.call(
         catch: create(:catch, user: @user, species: @tagged, length_inches: 18.0,
                       tag_number: "A001", captured_at_device: 30.minutes.ago)
       )
-      assert_raises(ArgumentError) do
+      assert_raises(Tournaments::DrawTaggedWinner::NotEndedError) do
         Tournaments::DrawTaggedWinner.call(tournament: @t, drawn_by: @organizer)
       end
     end
@@ -63,7 +63,7 @@ module Tournaments
                       tag_number: "A001", captured_at_device: 90.minutes.ago)
       )
       Tournaments::DrawTaggedWinner.call(tournament: @t, drawn_by: @organizer)
-      assert_raises(ArgumentError) do
+      assert_raises(Tournaments::DrawTaggedWinner::AlreadyDrawnError) do
         Tournaments::DrawTaggedWinner.call(tournament: @t, drawn_by: @organizer)
       end
     end

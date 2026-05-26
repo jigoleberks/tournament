@@ -68,7 +68,7 @@ class CatchesController < ApplicationController
       cap = Catch::MAX_LENGTH_BY_SPECIES[s.name.to_s.downcase]
       h[s.id] = cap if cap
     end
-    @tagged_species_id = Species.find_by(name: "Tagged Walleye")&.id
+    @tagged_species_id = Species.tagged_walleye&.id
   end
 
   def create

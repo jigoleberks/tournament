@@ -1,8 +1,14 @@
 <%# Locals: tournament, leaderboard, viewer_scope %>
+<%
+  # Resolve winner identity once so the row loop can highlight by entry id
+  # without issuing an EXISTS-per-row, and the angler-name cell uses the
+  # entry's display_name (matches the standard leaderboard partial).
+  winner_placement = tournament.drawn_winning_placement if tournament.drawn_at.present?
+  winner_catch     = winner_placement&.catch
+  winning_entry_id = winner_placement&.tournament_entry_id
+%>
 <div id="leaderboard">
-  <% if tournament.drawn_at.present? %>
-    <% winner_placement = tournament.drawn_winning_placement %>
-    <% winner_catch = winner_placement.catch %>
+  <% if winner_catch %>
     <div class="bg-amber-900/30 border border-amber-700/40 rounded-lg p-4 mb-4">
       <p class="text-sm text-amber-200 uppercase tracking-wide">Winner</p>
       <p class="text-xl text-amber-100 font-semibold mt-1">
@@ -36,11 +42,10 @@
     </thead>
     <tbody>
       <% leaderboard.each_with_index do |row, i| %>
-        <% is_winner = tournament.drawn_winning_placement &&
-                       row[:entry].tournament_entry_members.exists?(user_id: tournament.drawn_winning_placement.catch.user_id) %>
+        <% is_winner = winning_entry_id && row[:entry].id == winning_entry_id %>
         <tr class="<%= 'bg-amber-900/20' if is_winner %> border-b border-slate-800">
           <td class="py-2"><%= i + 1 %></td>
-          <td class="py-2"><%= row[:entry].tournament_entry_members.map { |m| m.user.name }.join(", ") %></td>
+          <td class="py-2"><%= row[:entry].display_name %></td>
           <td class="py-2 text-right font-mono"><%= row[:total] %></td>
           <td class="py-2 pl-4 text-slate-400 text-xs"><%= row[:fish].map { |f| f[:tag_number] || "?" }.join(", ") %></td>
         </tr>

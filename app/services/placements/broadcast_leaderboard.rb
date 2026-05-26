@@ -18,11 +18,15 @@ module Placements
       end
     end
 
+    def self.partial_for(tournament)
+      tournament.format_tagged? ? "tournaments/tagged_leaderboard" : "tournaments/leaderboard"
+    end
+
     def self.broadcast_full(tournament, leaderboard)
       Turbo::StreamsChannel.broadcast_replace_to(
         "tournament:#{tournament.id}:leaderboard:full",
         target: "leaderboard",
-        partial: tournament.format_tagged? ? "tournaments/tagged_leaderboard" : "tournaments/leaderboard",
+        partial: partial_for(tournament),
         locals: {
           leaderboard: leaderboard,
           tournament: tournament,
@@ -35,7 +39,7 @@ module Placements
       Turbo::StreamsChannel.broadcast_replace_to(
         "tournament:#{tournament.id}:leaderboard:entry:#{entry_id}",
         target: "leaderboard",
-        partial: tournament.format_tagged? ? "tournaments/tagged_leaderboard" : "tournaments/leaderboard",
+        partial: partial_for(tournament),
         locals: {
           leaderboard: leaderboard,
           tournament: tournament,
@@ -48,7 +52,7 @@ module Placements
       Turbo::StreamsChannel.broadcast_replace_to(
         "tournament:#{tournament.id}:leaderboard:reveal",
         target: "leaderboard",
-        partial: tournament.format_tagged? ? "tournaments/tagged_leaderboard" : "tournaments/leaderboard",
+        partial: partial_for(tournament),
         locals: {
           leaderboard: leaderboard,
           tournament: tournament,

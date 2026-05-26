@@ -1,9 +1,14 @@
 class Species < ApplicationRecord
   self.table_name = "species"
 
+  # Canonical name for the Tagged Walleye species row. Centralized here so
+  # Tournament/Catch validations and view lookups don't all hard-code the
+  # string in different places.
+  TAGGED_WALLEYE_NAME = "Tagged Walleye".freeze
+
   # Display order for the catch-logging dropdown only (catches/new).
   # Species not listed here fall to the end, ordered alphabetically.
-  LOG_ORDER = ["Walleye", "Perch", "Pike", "Stocked Trout", "Lake Trout", "Bass", "Tagged Walleye", "Other"].freeze
+  LOG_ORDER = ["Walleye", "Perch", "Pike", "Stocked Trout", "Lake Trout", "Bass", TAGGED_WALLEYE_NAME, "Other"].freeze
 
   has_many :scoring_slots, dependent: :restrict_with_error
   has_many :catch_placements, dependent: :restrict_with_error
@@ -14,5 +19,13 @@ class Species < ApplicationRecord
       rank = LOG_ORDER.index { |name| name.casecmp?(species.name) } || LOG_ORDER.size
       [rank, species.name.downcase]
     end
+  end
+
+  def self.tagged_walleye
+    find_by("lower(name) = ?", TAGGED_WALLEYE_NAME.downcase)
+  end
+
+  def tagged_walleye?
+    name.to_s.casecmp?(TAGGED_WALLEYE_NAME)
   end
 end

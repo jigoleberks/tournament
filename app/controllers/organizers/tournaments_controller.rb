@@ -47,7 +47,7 @@ class Organizers::TournamentsController < Organizers::BaseController
     redirect_to organizers_tournaments_path, notice: "Winner drawn."
   rescue Tournaments::DrawTaggedWinner::NoEligibleCatchesError
     redirect_to organizers_tournaments_path, alert: "No tagged catches to draw from."
-  rescue ArgumentError => e
+  rescue Tournaments::DrawTaggedWinner::PreconditionError => e
     redirect_to organizers_tournaments_path, alert: e.message
   end
 

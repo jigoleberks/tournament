@@ -1,6 +1,13 @@
 module Tournaments
   class DrawTaggedWinner
-    class NoEligibleCatchesError < StandardError; end
+    # All draw failures inherit from PreconditionError so the controller can
+    # rescue exactly the right things and a future bug (typo'd kwarg, etc.)
+    # won't be silently shown to organizers as a flash message.
+    class PreconditionError      < StandardError; end
+    class WrongFormatError       < PreconditionError; end
+    class NotEndedError          < PreconditionError; end
+    class AlreadyDrawnError      < PreconditionError; end
+    class NoEligibleCatchesError < PreconditionError; end
 
     def self.call(tournament:, drawn_by:, force: false)
       new(tournament: tournament, drawn_by: drawn_by, force: force).call
@@ -15,9 +22,9 @@ module Tournaments
     def call
       winning_placement = ActiveRecord::Base.transaction do
         @tournament.lock!
-        raise ArgumentError, "tournament format is not 'tagged'"  unless @tournament.format_tagged?
-        raise ArgumentError, "tournament has not yet ended"        unless @tournament.ended?
-        raise ArgumentError, "already drawn (pass force: true to redraw)" if @tournament.drawn_at.present? && !@force
+        raise WrongFormatError, "tournament format is not 'tagged'"                  unless @tournament.format_tagged?
+        raise NotEndedError,    "tournament has not yet ended"                       unless @tournament.ended?
+        raise AlreadyDrawnError, "already drawn (pass force: true to redraw)" if @tournament.drawn_at.present? && !@force
 
         eligible = @tournament.catch_placements
                               .where(active: true)

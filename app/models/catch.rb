@@ -58,7 +58,7 @@ class Catch < ApplicationRecord
 
   def tag_number_required_for_tagged_walleye
     return if species.nil?
-    return unless species.name.to_s.casecmp?("Tagged Walleye")
+    return unless species.tagged_walleye?
     return if tag_number.present?
     errors.add(:tag_number, "is required for Tagged Walleye catches")
   end
