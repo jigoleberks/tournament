@@ -148,4 +148,43 @@ class CatchTest < ActiveSupport::TestCase
     create(:judge_action, catch: catch_record, judge_user: judge, action: :disqualify, note: "stale")
     assert_nil catch_record.disqualification_note
   end
+
+  test "tag_number is normalized to uppercase before validation" do
+    user = create(:user)
+    tagged = Species.find_or_create_by!(name: "Tagged Walleye")
+    c = build(:catch, user: user, species: tagged, tag_number: "a1234", length_inches: 18.0)
+    c.valid?
+    assert_equal "A1234", c.tag_number
+  end
+
+  test "tag_number is required when species is Tagged Walleye" do
+    user = create(:user)
+    tagged = Species.find_or_create_by!(name: "Tagged Walleye")
+    c = build(:catch, user: user, species: tagged, tag_number: nil, length_inches: 18.0)
+    assert_not c.valid?
+    assert_includes c.errors[:tag_number], "is required for Tagged Walleye catches"
+  end
+
+  test "tag_number is not required when species is not Tagged Walleye" do
+    user = create(:user)
+    walleye = create(:species, name: "Walleye Test #{SecureRandom.hex(2)}")
+    c = build(:catch, user: user, species: walleye, tag_number: nil, length_inches: 18.0)
+    assert c.valid?, c.errors.full_messages.to_sentence
+  end
+
+  test "tag_number must match [A-Z0-9-] format" do
+    user = create(:user)
+    tagged = Species.find_or_create_by!(name: "Tagged Walleye")
+    c = build(:catch, user: user, species: tagged, tag_number: "abc 123!", length_inches: 18.0)
+    assert_not c.valid?
+    assert_includes c.errors[:tag_number], "may only contain letters, numbers, and dashes"
+  end
+
+  test "tag_number max length is 16" do
+    user = create(:user)
+    tagged = Species.find_or_create_by!(name: "Tagged Walleye")
+    c = build(:catch, user: user, species: tagged, tag_number: "A" * 17, length_inches: 18.0)
+    assert_not c.valid?
+    assert(c.errors[:tag_number].any? { |m| m.include?("16") })
+  end
 end

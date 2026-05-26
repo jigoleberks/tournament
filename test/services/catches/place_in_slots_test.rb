@@ -817,5 +817,59 @@ module Catches
     assert_equal [10, 30], active.map { |p| p.catch.length_inches.to_i }
   end
 
+  test "tagged: every catch with a tag creates a fresh placement, no bumping" do
+    club = create(:club)
+    tagged = Species.find_or_create_by!(name: "Tagged Walleye")
+    user = create(:user, club: club)
+    t = build(:tournament, club: club, format: :tagged, mode: :solo,
+              kind: :event, starts_at: 1.hour.ago, ends_at: 1.hour.from_now)
+    t.scoring_slots.build(species: tagged, slot_count: 1)
+    t.save!
+    entry = create(:tournament_entry, tournament: t)
+    create(:tournament_entry_member, tournament_entry: entry, user: user)
+
+    %w[A0001 A0002 A0003].each do |tag|
+      Catches::PlaceInSlots.call(
+        catch: create(:catch, user: user, species: tagged, length_inches: 18.0,
+                      tag_number: tag, captured_at_device: 30.minutes.ago)
+      )
+    end
+
+    placements = CatchPlacement.where(tournament: t, active: true).order(:slot_index)
+    assert_equal 3, placements.count
+    assert_equal [0, 1, 2], placements.map(&:slot_index)
+  end
+
+  test "tagged: new catch after a placement is deactivated does not collide on slot_index" do
+    club = create(:club)
+    tagged = Species.find_or_create_by!(name: "Tagged Walleye")
+    user = create(:user, club: club)
+    t = build(:tournament, club: club, format: :tagged, mode: :solo,
+              kind: :event, starts_at: 1.hour.ago, ends_at: 1.hour.from_now)
+    t.scoring_slots.build(species: tagged, slot_count: 1)
+    t.save!
+    entry = create(:tournament_entry, tournament: t)
+    create(:tournament_entry_member, tournament_entry: entry, user: user)
+
+    %w[A0001 A0002].each do |tag|
+      Catches::PlaceInSlots.call(
+        catch: create(:catch, user: user, species: tagged, length_inches: 18.0,
+                      tag_number: tag, captured_at_device: 30.minutes.ago)
+      )
+    end
+
+    # Judge DQ on slot_index 0:
+    CatchPlacement.where(tournament: t, slot_index: 0).update_all(active: false)
+
+    Catches::PlaceInSlots.call(
+      catch: create(:catch, user: user, species: tagged, length_inches: 18.0,
+                    tag_number: "A0003", captured_at_device: 5.minutes.ago)
+    )
+
+    # The new placement must take slot_index 2 (max+1), not 0 (which would
+    # violate idx_active_placements_uniq_per_slot once the DQ is reversed).
+    assert_equal [1, 2], CatchPlacement.where(tournament: t, active: true).pluck(:slot_index).sort
+  end
+
   end
 end

@@ -35,6 +35,9 @@
     <% end %>
     <div><dt class="inline text-slate-500">Species:</dt> <dd class="inline"><%= @catch.species.name %></dd></div>
     <div><dt class="inline text-slate-500">Length:</dt> <dd class="inline"><%= format_length_dual(@catch.length_inches) %></dd></div>
+    <% if @catch.tag_number.present? %>
+      <div><dt class="inline text-slate-500">Tag #:</dt> <dd class="inline text-amber-300 font-mono"><%= @catch.tag_number %></dd></div>
+    <% end %>
     <div><dt class="inline text-slate-500">Captured:</dt> <dd class="inline"><%= @catch.captured_at_device.strftime("%b %d %Y · %l:%M:%S %p %Z") %></dd></div>
     <% if @catch.latitude.present? %>
       <div><dt class="inline text-slate-500">GPS:</dt> <dd class="inline">~<%= @catch.latitude.to_f.round(2) %>, <%= @catch.longitude.to_f.round(2) %></dd></div>

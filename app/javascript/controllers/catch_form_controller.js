@@ -2,8 +2,8 @@ import { Controller } from "@hotwired/stimulus"
 import { enqueueCatch } from "offline/db"
 
 export default class extends Controller {
-  static targets = ["speciesSelect", "lengthInput", "lengthLabel", "noteInput", "submitButton", "status"]
-  static values = { csrfToken: String, capsBySpeciesId: Object, teammateUserId: String }
+  static targets = ["speciesSelect", "lengthInput", "lengthLabel", "noteInput", "submitButton", "status", "tagWrapper", "tagInput"]
+  static values = { csrfToken: String, capsBySpeciesId: Object, teammateUserId: String, taggedSpeciesId: String }
 
   connect() {
     this.photoBlob = null
@@ -32,6 +32,10 @@ export default class extends Controller {
   onVideoFailed()        { this.videoBlob = null; this.videoFailed = true; this.refresh() }
 
   refresh() {
+    const isTagged = this.hasTaggedSpeciesIdValue
+                  && this.taggedSpeciesIdValue !== ""
+                  && String(this.speciesSelectTarget.value) === String(this.taggedSpeciesIdValue)
+    if (this.hasTagWrapperTarget) this.tagWrapperTarget.classList.toggle("hidden", !isTagged)
     this.statusTarget.textContent = this._missingFieldMessage() ?? ""
   }
 
@@ -43,6 +47,12 @@ export default class extends Controller {
     if (cap && inches > cap) {
       const speciesName = this.speciesSelectTarget.selectedOptions[0]?.text ?? "this species"
       return `${speciesName} can't exceed ${cap}″.`
+    }
+    const isTagged = this.hasTaggedSpeciesIdValue
+                  && this.taggedSpeciesIdValue !== ""
+                  && String(this.speciesSelectTarget.value) === String(this.taggedSpeciesIdValue)
+    if (isTagged && this.hasTagInputTarget && !this.tagInputTarget.value.trim()) {
+      return "Enter the tag number on the fish."
     }
     if (!this.photoBlob) return "Take a photo first."
     return null
@@ -67,6 +77,7 @@ export default class extends Controller {
         gps_accuracy_m: position?.coords?.accuracy ?? null,
         app_build: document.documentElement.dataset.appBuild,
         note: this.noteInputTarget.value,
+        tag_number: (this.hasTagInputTarget ? this.tagInputTarget.value : "").trim().toUpperCase() || null,
         photo: this.photoBlob,
         video: this.videoBlob,
         video_failed: this.videoFailed,
@@ -138,6 +149,11 @@ export default class extends Controller {
     }).catch(() => {})
 
     this.refresh()
+  }
+
+  uppercaseTag() {
+    if (!this.hasTagInputTarget) return
+    this.tagInputTarget.value = this.tagInputTarget.value.toUpperCase()
   }
 
   _toInches(rawValue) {

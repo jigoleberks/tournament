@@ -2,9 +2,10 @@ class Admin::TournamentsController < Admin::BaseController
   before_action :set_tournament, only: [:edit, :update, :destroy]
 
   def index
-    scope = current_club.tournaments.order(starts_at: :desc)
+    scope = current_club.tournaments
     now = Time.current
-    @active_tournaments = scope.where("ends_at IS NULL OR ends_at >= ?", now)
+    @active_tournaments = scope.where("ends_at IS NULL OR ends_at >= ?", now).order(starts_at: :desc)
+    @past_tournaments   = scope.where("ends_at IS NOT NULL AND ends_at < ?", now).order(ends_at: :desc)
   end
 
   def new

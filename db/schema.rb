@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_05_24_000000) do
+ActiveRecord::Schema[8.1].define(version: 2026_05_25_211646) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -90,6 +90,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_05_24_000000) do
     t.bigint "species_id", null: false
     t.integer "status", default: 1, null: false
     t.datetime "synced_at"
+    t.string "tag_number", limit: 16
     t.decimal "temperature_c", precision: 5, scale: 2
     t.datetime "updated_at", null: false
     t.bigint "user_id", null: false
@@ -390,6 +391,9 @@ ActiveRecord::Schema[8.1].define(version: 2026_05_24_000000) do
     t.boolean "blind_leaderboard", default: false, null: false
     t.bigint "club_id", null: false
     t.datetime "created_at", null: false
+    t.datetime "drawn_at"
+    t.bigint "drawn_by_user_id"
+    t.bigint "drawn_winning_placement_id"
     t.datetime "ends_at"
     t.boolean "entrants_only_leaderboard", default: false, null: false
     t.integer "format", default: 0, null: false
@@ -408,6 +412,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_05_24_000000) do
     t.datetime "updated_at", null: false
     t.index ["club_id", "starts_at", "ends_at"], name: "index_tournaments_on_club_id_and_starts_at_and_ends_at"
     t.index ["club_id"], name: "index_tournaments_on_club_id"
+    t.index ["drawn_by_user_id"], name: "index_tournaments_on_drawn_by_user_id"
+    t.index ["drawn_winning_placement_id"], name: "index_tournaments_on_drawn_winning_placement_id"
   end
 
   create_table "users", force: :cascade do |t|
@@ -458,5 +464,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_05_24_000000) do
   add_foreign_key "tournament_template_scoring_slots", "species"
   add_foreign_key "tournament_template_scoring_slots", "tournament_templates"
   add_foreign_key "tournament_templates", "clubs"
+  add_foreign_key "tournaments", "catch_placements", column: "drawn_winning_placement_id"
   add_foreign_key "tournaments", "clubs"
+  add_foreign_key "tournaments", "users", column: "drawn_by_user_id"
 end

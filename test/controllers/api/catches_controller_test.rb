@@ -235,6 +235,26 @@ class Api::CatchesControllerTest < ActionDispatch::IntegrationTest
     assert_equal "tobin", Catch.find_by(client_uuid: "uuid-lake-tobin").lake
   end
 
+  test "persists tag_number on a Tagged Walleye catch" do
+    tagged = Species.find_or_create_by!(name: "Tagged Walleye")
+    uuid = SecureRandom.uuid
+
+    post "/api/catches", params: {
+      catch: {
+        species_id: tagged.id,
+        length_inches: 18.5,
+        captured_at_device: 1.minute.ago.iso8601,
+        client_uuid: uuid,
+        tag_number: "a1234",
+        photo: fixture_file_upload("sample_walleye.jpg", "image/jpeg")
+      }
+    }, headers: { "Accept" => "application/json" }
+
+    assert_response :created
+    catch_record = Catch.find_by(client_uuid: JSON.parse(response.body).fetch("client_uuid"))
+    assert_equal "A1234", catch_record.tag_number
+  end
+
   private
 
   def sign_in_as(user)

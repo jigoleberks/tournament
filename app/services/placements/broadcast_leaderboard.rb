@@ -22,7 +22,7 @@ module Placements
       Turbo::StreamsChannel.broadcast_replace_to(
         "tournament:#{tournament.id}:leaderboard:full",
         target: "leaderboard",
-        partial: "tournaments/leaderboard",
+        partial: tournament.format_tagged? ? "tournaments/tagged_leaderboard" : "tournaments/leaderboard",
         locals: {
           leaderboard: leaderboard,
           tournament: tournament,
@@ -35,7 +35,7 @@ module Placements
       Turbo::StreamsChannel.broadcast_replace_to(
         "tournament:#{tournament.id}:leaderboard:entry:#{entry_id}",
         target: "leaderboard",
-        partial: "tournaments/leaderboard",
+        partial: tournament.format_tagged? ? "tournaments/tagged_leaderboard" : "tournaments/leaderboard",
         locals: {
           leaderboard: leaderboard,
           tournament: tournament,
@@ -48,7 +48,7 @@ module Placements
       Turbo::StreamsChannel.broadcast_replace_to(
         "tournament:#{tournament.id}:leaderboard:reveal",
         target: "leaderboard",
-        partial: "tournaments/leaderboard",
+        partial: tournament.format_tagged? ? "tournaments/tagged_leaderboard" : "tournaments/leaderboard",
         locals: {
           leaderboard: leaderboard,
           tournament: tournament,

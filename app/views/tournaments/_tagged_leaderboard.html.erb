@@ -1,0 +1,50 @@
+<%# Locals: tournament, leaderboard, viewer_scope %>
+<div id="leaderboard">
+  <% if tournament.drawn_at.present? %>
+    <% winner_placement = tournament.drawn_winning_placement %>
+    <% winner_catch = winner_placement.catch %>
+    <div class="bg-amber-900/30 border border-amber-700/40 rounded-lg p-4 mb-4">
+      <p class="text-sm text-amber-200 uppercase tracking-wide">Winner</p>
+      <p class="text-xl text-amber-100 font-semibold mt-1">
+        <%= winner_catch.user.name %> &mdash; tag <%= winner_catch.tag_number %>
+      </p>
+      <p class="text-xs text-amber-200/80 mt-1">
+        Caught <%= l(winner_catch.captured_at_device, format: :short) %> &middot;
+        drawn <%= l(tournament.drawn_at, format: :short) %>
+      </p>
+    </div>
+  <% elsif tournament.ended? %>
+    <div class="bg-slate-800 border border-slate-700 rounded-lg p-3 mb-4 text-sm text-slate-300">
+      Tournament ended — awaiting draw.
+    </div>
+  <% end %>
+
+  <% if current_user&.organizer_in?(tournament.club) && tournament.ended? && tournament.drawn_at.nil? %>
+    <%= button_to "Draw winner", draw_organizers_tournament_path(tournament),
+                  method: :post, data: { turbo_confirm: "Run the draw now?" },
+                  class: "mb-4 inline-flex h-10 px-4 items-center justify-center rounded-lg bg-amber-600 hover:bg-amber-500 text-white font-semibold" %>
+  <% end %>
+
+  <table class="w-full text-sm">
+    <thead class="text-slate-400 border-b border-slate-700">
+      <tr>
+        <th class="text-left py-2 w-10">#</th>
+        <th class="text-left py-2">Angler</th>
+        <th class="text-right py-2 w-20">Tickets</th>
+        <th class="text-left py-2 pl-4">Tags</th>
+      </tr>
+    </thead>
+    <tbody>
+      <% leaderboard.each_with_index do |row, i| %>
+        <% is_winner = tournament.drawn_winning_placement &&
+                       row[:entry].tournament_entry_members.exists?(user_id: tournament.drawn_winning_placement.catch.user_id) %>
+        <tr class="<%= 'bg-amber-900/20' if is_winner %> border-b border-slate-800">
+          <td class="py-2"><%= i + 1 %></td>
+          <td class="py-2"><%= row[:entry].tournament_entry_members.map { |m| m.user.name }.join(", ") %></td>
+          <td class="py-2 text-right font-mono"><%= row[:total] %></td>
+          <td class="py-2 pl-4 text-slate-400 text-xs"><%= row[:fish].map { |f| f[:tag_number] || "?" }.join(", ") %></td>
+        </tr>
+      <% end %>
+    </tbody>
+  </table>
+</div>

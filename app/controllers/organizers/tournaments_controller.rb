@@ -1,5 +1,5 @@
 class Organizers::TournamentsController < Organizers::BaseController
-  before_action :set_tournament, only: [:edit, :update, :destroy]
+  before_action :set_tournament, only: [:edit, :update, :destroy, :draw]
 
   def index
     scope = current_club.tournaments.order(starts_at: :desc)
@@ -36,6 +36,19 @@ class Organizers::TournamentsController < Organizers::BaseController
     else
       render :edit, status: :unprocessable_entity
     end
+  end
+
+  def draw
+    Tournaments::DrawTaggedWinner.call(
+      tournament: @tournament,
+      drawn_by: current_user,
+      force: params[:force].present?
+    )
+    redirect_to organizers_tournaments_path, notice: "Winner drawn."
+  rescue Tournaments::DrawTaggedWinner::NoEligibleCatchesError
+    redirect_to organizers_tournaments_path, alert: "No tagged catches to draw from."
+  rescue ArgumentError => e
+    redirect_to organizers_tournaments_path, alert: e.message
   end
 
   private

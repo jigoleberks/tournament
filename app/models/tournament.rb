@@ -1,5 +1,7 @@
 class Tournament < ApplicationRecord
   belongs_to :club
+  belongs_to :drawn_winning_placement, class_name: "CatchPlacement", optional: true
+  belongs_to :drawn_by_user,           class_name: "User",           optional: true
   has_many :scoring_slots, dependent: :destroy
   accepts_nested_attributes_for :scoring_slots, allow_destroy: true,
                                 reject_if: ->(attrs) { attrs["species_id"].blank? }
@@ -9,7 +11,7 @@ class Tournament < ApplicationRecord
   has_many :judge_users, through: :tournament_judges, source: :user
   enum :kind, { event: 0, ongoing: 1 }
   enum :mode, { solo: 0, team: 1 }, prefix: true
-  enum :format, { standard: 0, big_fish_season: 1, hidden_length: 2, biggest_vs_smallest: 3, fish_train: 4 }, prefix: true
+  enum :format, { standard: 0, big_fish_season: 1, hidden_length: 2, biggest_vs_smallest: 3, fish_train: 4, tagged: 5 }, prefix: true
 
   validates :name, :kind, :mode, :starts_at, presence: true
   validate :blind_leaderboard_requires_end_time
@@ -28,6 +30,9 @@ class Tournament < ApplicationRecord
   validate :fish_train_pool_size_between_1_and_3
   validate :fish_train_train_cars_length_between_3_and_6
   validate :fish_train_train_cars_species_in_pool
+  validate :tagged_requires_event_kind_with_end_time
+  validate :tagged_requires_solo
+  validate :tagged_requires_one_tagged_walleye_scoring_slot
 
   scope :active_at, ->(time) {
     where("starts_at <= ?", time).where("ends_at IS NULL OR ends_at >= ?", time)
@@ -176,5 +181,31 @@ class Tournament < ApplicationRecord
     return if cars.empty?
     return if cars.all? { |sp_id| pool_species_ids.include?(sp_id) }
     errors.add(:train_cars, "Fish Train cars must reference species in the pool")
+  end
+
+  def tagged_requires_event_kind_with_end_time
+    return unless format_tagged?
+    return if event? && ends_at.present?
+    errors.add(:format, "Tagged Walleye tournaments must be event kind with an end time")
+  end
+
+  def tagged_requires_solo
+    return unless format_tagged?
+    return if mode_solo?
+    errors.add(:format, "Tagged Walleye tournaments must be solo")
+  end
+
+  def tagged_requires_one_tagged_walleye_scoring_slot
+    return unless format_tagged?
+    remaining = scoring_slots.reject(&:marked_for_destruction?)
+    tagged_species = ::Species.find_by(name: "Tagged Walleye")
+    if tagged_species.nil?
+      errors.add(:scoring_slots, "Tagged Walleye species is missing from the database — re-run seeds")
+      return
+    end
+    unless remaining.size == 1 && remaining.first.species_id == tagged_species.id
+      errors.add(:scoring_slots,
+                 "Tagged Walleye tournaments must have exactly one scoring slot for the Tagged Walleye species")
+    end
   end
 end

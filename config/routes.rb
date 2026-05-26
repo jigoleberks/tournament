@@ -22,6 +22,7 @@ Rails.application.routes.draw do
 
   namespace :organizers do
     resources :tournaments do
+      member { post :draw }
       resources :tournament_entries, only: [:create, :update, :destroy] do
         resources :tournament_entry_members, only: [:create, :destroy]
       end

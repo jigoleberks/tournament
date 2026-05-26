@@ -85,5 +85,11 @@
 <% when :entries_only %>
   <%= turbo_stream_from "tournament:#{@tournament.id}:leaderboard:reveal" %>
 <% end %>
-<%= render "tournaments/leaderboard", leaderboard: @leaderboard, tournament: @tournament, viewer_scope: @viewer_scope %>
+<% if @tournament.format_tagged? %>
+  <%= render "tournaments/tagged_leaderboard",
+             tournament: @tournament, leaderboard: @leaderboard, viewer_scope: @viewer_scope %>
+<% else %>
+  <%= render "tournaments/leaderboard",
+             leaderboard: @leaderboard, tournament: @tournament, viewer_scope: @viewer_scope %>
+<% end %>
 <%= turbo_frame_tag "catch_photo_modal" %>

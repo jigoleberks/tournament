@@ -328,5 +328,39 @@ module Leaderboards
 
       assert_equal [:fish_train], called
     end
+
+    test "dispatches to Rankers::Tagged for tagged tournaments and ranks by ticket count" do
+      club = create(:club)
+      tagged = Species.find_or_create_by!(name: "Tagged Walleye")
+      user_a = create(:user, club: club, name: "Aaron")
+      user_b = create(:user, club: club, name: "Bea")
+
+      t = build(:tournament, club: club, format: :tagged, mode: :solo,
+                kind: :event, starts_at: 1.hour.ago, ends_at: 1.hour.from_now)
+      t.scoring_slots.build(species: tagged, slot_count: 1)
+      t.save!
+
+      entry_a = create(:tournament_entry, tournament: t)
+      create(:tournament_entry_member, tournament_entry: entry_a, user: user_a)
+      entry_b = create(:tournament_entry, tournament: t)
+      create(:tournament_entry_member, tournament_entry: entry_b, user: user_b)
+
+      # Bea catches 2, Aaron catches 1 — Bea should rank first.
+      2.times do |i|
+        Catches::PlaceInSlots.call(
+          catch: create(:catch, user: user_b, species: tagged, length_inches: 18.0,
+                        tag_number: "B#{i}", captured_at_device: 30.minutes.ago)
+        )
+      end
+      Catches::PlaceInSlots.call(
+        catch: create(:catch, user: user_a, species: tagged, length_inches: 18.0,
+                      tag_number: "A1", captured_at_device: 30.minutes.ago)
+      )
+
+      result = Leaderboards::Build.call(tournament: t)
+      assert_equal [entry_b.id, entry_a.id], result.map { |r| r[:entry].id }
+      assert_equal 2, result.first[:total]   # Total = ticket count for tagged
+      assert_equal 1, result.last[:total]
+    end
   end
 end

@@ -7,6 +7,7 @@ module Leaderboards
       when "big_fish_season"     then Leaderboards::Rankers::BigFishSeason.call(rows)
       when "biggest_vs_smallest" then Leaderboards::Rankers::BiggestVsSmallest.call(rows)
       when "fish_train"          then Leaderboards::Rankers::FishTrain.call(rows)
+      when "tagged"              then Leaderboards::Rankers::Tagged.call(rows)
       else                            Leaderboards::Rankers::Standard.call(rows)
       end
     end
@@ -29,6 +30,7 @@ module Leaderboards
               length_inches: p.catch.length_inches,
               captured_at_device: p.catch.captured_at_device,
               species_name: p.catch.species.name,
+              tag_number: p.catch.tag_number,
               angler_name: p.catch.user.name,
               logged_by_name: p.catch.logged_by_user&.name,
               approver_name: p.catch.latest_approver&.name,

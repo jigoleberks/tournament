@@ -25,6 +25,7 @@ async function drain() {
         if (rec.gps_accuracy_m != null) fd.append("catch[gps_accuracy_m]", rec.gps_accuracy_m)
         if (rec.app_build) fd.append("catch[app_build]", rec.app_build)
         if (rec.note) fd.append("catch[note]", rec.note)
+        if (rec.tag_number) fd.append("catch[tag_number]", rec.tag_number)
         if (rec.photo) fd.append("catch[photo]", rec.photo, "photo.jpg")
         if (rec.video) {
           const ext = (rec.video.type || "").includes("mp4") ? "mp4" : "webm"
