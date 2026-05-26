@@ -187,4 +187,42 @@ class CatchTest < ActiveSupport::TestCase
     assert_not c.valid?
     assert(c.errors[:tag_number].any? { |m| m.include?("16") })
   end
+
+  test "weight_text is optional even for Tagged Walleye" do
+    user = create(:user)
+    tagged = Species.find_or_create_by!(name: "Tagged Walleye")
+    c = build(:catch, user: user, species: tagged, tag_number: "A1", weight_text: nil, length_inches: 18.0)
+    assert c.valid?, c.errors.full_messages.to_sentence
+  end
+
+  test "weight_text accepts freeform values verbatim" do
+    user = create(:user)
+    tagged = Species.find_or_create_by!(name: "Tagged Walleye")
+    ["4 lbs 3oz", "2.1kg", "approx 2kg!?", "3 pounds"].each do |value|
+      c = build(:catch, user: user, species: tagged, tag_number: "A1", weight_text: value, length_inches: 18.0)
+      assert c.valid?, "expected #{value.inspect} to be valid: #{c.errors.full_messages.to_sentence}"
+      assert_equal value, c.weight_text
+    end
+  end
+
+  test "weight_text max length is 32" do
+    user = create(:user)
+    tagged = Species.find_or_create_by!(name: "Tagged Walleye")
+    c = build(:catch, user: user, species: tagged, tag_number: "A1", weight_text: "x" * 33, length_inches: 18.0)
+    assert_not c.valid?
+    assert(c.errors[:weight_text].any? { |m| m.include?("32") })
+  end
+
+  test "weight_text is trimmed and whitespace-only becomes nil" do
+    user = create(:user)
+    tagged = Species.find_or_create_by!(name: "Tagged Walleye")
+
+    c1 = build(:catch, user: user, species: tagged, tag_number: "A1", weight_text: "  4 lbs 3oz  ", length_inches: 18.0)
+    c1.valid?
+    assert_equal "4 lbs 3oz", c1.weight_text
+
+    c2 = build(:catch, user: user, species: tagged, tag_number: "A1", weight_text: "   ", length_inches: 18.0)
+    c2.valid?
+    assert_nil c2.weight_text
+  end
 end

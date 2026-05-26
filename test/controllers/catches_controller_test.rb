@@ -1042,4 +1042,47 @@ class CatchesControllerTest < ActionDispatch::IntegrationTest
     rec.save!
     rec
   end
+
+  test "persists weight_text on a Tagged Walleye catch" do
+    user = create(:user, club: @club)
+    sign_in_as(user)
+    tagged = Species.find_or_create_by!(name: "Tagged Walleye")
+
+    assert_difference -> { Catch.count }, 1 do
+      post catches_path, params: {
+        catch: {
+          species_id: tagged.id,
+          length_inches: 18.5,
+          captured_at_device: 1.minute.ago.iso8601,
+          client_uuid: SecureRandom.uuid,
+          tag_number: "A1234",
+          weight_text: "4 lbs 3oz",
+          photo: fixture_file_upload("sample_walleye.jpg", "image/jpeg")
+        }
+      }
+    end
+
+    assert_equal "4 lbs 3oz", Catch.last.weight_text
+  end
+
+  test "accepts blank weight_text on a Tagged Walleye catch" do
+    user = create(:user, club: @club)
+    sign_in_as(user)
+    tagged = Species.find_or_create_by!(name: "Tagged Walleye")
+
+    assert_difference -> { Catch.count }, 1 do
+      post catches_path, params: {
+        catch: {
+          species_id: tagged.id,
+          length_inches: 18.5,
+          captured_at_device: 1.minute.ago.iso8601,
+          client_uuid: SecureRandom.uuid,
+          tag_number: "A1234",
+          photo: fixture_file_upload("sample_walleye.jpg", "image/jpeg")
+        }
+      }
+    end
+
+    assert_nil Catch.last.weight_text
+  end
 end

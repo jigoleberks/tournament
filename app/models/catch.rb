@@ -37,6 +37,9 @@ class Catch < ApplicationRecord
             length: { maximum: 16 },
             allow_blank: true
 
+  before_validation :normalize_weight_text
+  validates :weight_text, length: { maximum: 32 }, allow_blank: true
+
   def latest_approver
     # max_by walks the in-memory array so an eager-loaded :judge_actions stays
     # consumed; .order(:created_at).last would re-query Postgres per row and
@@ -54,6 +57,11 @@ class Catch < ApplicationRecord
 
   def normalize_tag_number
     self.tag_number = tag_number.to_s.strip.upcase if tag_number.present?
+  end
+
+  def normalize_weight_text
+    trimmed = weight_text.to_s.strip
+    self.weight_text = trimmed.presence
   end
 
   def tag_number_required_for_tagged_walleye
