@@ -39,6 +39,10 @@ module Leaderboards
           }
         fish = if tournament.format_fish_train?
           fish.sort_by { |f| f[:slot_index] }                # train order
+        elsif tournament.format_tagged?
+          # Tickets in the order they were earned — matches the angler's mental
+          # model and the way tags are read off the row in the partial.
+          fish.sort_by { |f| f[:captured_at_device] || Time.at(0) }
         else
           fish.sort_by { |f| -f[:length_inches] }            # biggest-first (default)
         end

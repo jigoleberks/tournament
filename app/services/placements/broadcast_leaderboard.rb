@@ -4,6 +4,9 @@ module Placements
     # log a catch in one — the other's leaderboard should update without reload.
     # For a blind tournament, only the broadcaster's own team's row should update on the
     # other browser; the broadcaster's screen should show their own row updated.
+    # For a tagged tournament, partial_for routes to tagged_leaderboard so the
+    # broadcast carries the ticket-count UI; DrawTaggedWinner also re-broadcasts
+    # after a draw so the winner banner appears live.
     def self.call(tournament:)
       leaderboard = Leaderboards::Build.call(tournament: tournament)
 

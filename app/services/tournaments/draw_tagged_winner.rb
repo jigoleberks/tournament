@@ -32,7 +32,9 @@ module Tournaments
                               .to_a
         raise NoEligibleCatchesError, "no tagged catches to draw from" if eligible.empty?
 
-        winner = eligible.sample
+        # SecureRandom (CSPRNG) rather than Array#sample (MT19937) so the draw
+        # outcome can't be predicted by anyone who's seen previous Ruby PRNG output.
+        winner = eligible[SecureRandom.random_number(eligible.size)]
         @tournament.update!(
           drawn_winning_placement_id: winner.id,
           drawn_at: Time.current,

@@ -198,12 +198,7 @@ class Tournament < ApplicationRecord
   def tagged_requires_one_tagged_walleye_scoring_slot
     return unless format_tagged?
     remaining = scoring_slots.reject(&:marked_for_destruction?)
-    tagged_species = ::Species.tagged_walleye
-    if tagged_species.nil?
-      errors.add(:scoring_slots, "Tagged Walleye species is missing from the database — re-run seeds")
-      return
-    end
-    unless remaining.size == 1 && remaining.first.species_id == tagged_species.id
+    unless remaining.size == 1 && remaining.first.species&.tagged_walleye?
       errors.add(:scoring_slots,
                  "Tagged Walleye tournaments must have exactly one scoring slot for the Tagged Walleye species")
     end
