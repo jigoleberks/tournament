@@ -12,7 +12,15 @@
     <div class="bg-amber-900/30 border border-amber-700/40 rounded-lg p-4 mb-4">
       <p class="text-sm text-amber-200 uppercase tracking-wide">Winner</p>
       <p class="text-xl text-amber-100 font-semibold mt-1">
-        <%= winner_catch.user.name %> &mdash; tag <%= winner_catch.tag_number %>
+        <%= winner_catch.user.name %> &mdash; tag
+        <% winner_url, winner_frame = catch_link_target(tournament: tournament, catch_id: winner_catch.id) %>
+        <% if winner_url %>
+          <%= link_to winner_catch.tag_number, winner_url,
+                      data: ({ turbo_frame: winner_frame } if winner_frame),
+                      class: "underline underline-offset-2 hover:text-amber-50" %>
+        <% else %>
+          <%= winner_catch.tag_number %>
+        <% end %>
       </p>
       <p class="text-xs text-amber-200/80 mt-1">
         Caught <%= l(winner_catch.captured_at_device, format: :short) %> &middot;
@@ -47,7 +55,23 @@
           <td class="py-2"><%= i + 1 %></td>
           <td class="py-2"><%= row[:entry].display_name %></td>
           <td class="py-2 text-right font-mono"><%= row[:total] %></td>
-          <td class="py-2 pl-4 text-slate-400 text-xs"><%= row[:fish].map { |f| f[:tag_number] || "?" }.join(", ") %></td>
+          <td class="py-2 pl-4 text-slate-400 text-xs">
+            <% links = row[:fish].map do |f|
+                 if f[:tag_number].blank?
+                   "?"
+                 else
+                   url, frame = catch_link_target(tournament: tournament, catch_id: f[:id])
+                   if url
+                     link_to(f[:tag_number], url,
+                             data: ({ turbo_frame: frame } if frame),
+                             class: "text-blue-300 underline-offset-2 hover:underline")
+                   else
+                     f[:tag_number]
+                   end
+                 end
+               end %>
+            <%= safe_join(links, ", ") %>
+          </td>
         </tr>
       <% end %>
     </tbody>
