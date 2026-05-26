@@ -7,6 +7,7 @@ module Leaderboards
       when "big_fish_season"     then Leaderboards::Rankers::BigFishSeason.call(rows)
       when "biggest_vs_smallest" then Leaderboards::Rankers::BiggestVsSmallest.call(rows)
       when "fish_train"          then Leaderboards::Rankers::FishTrain.call(rows)
+      when "tagged"              then Leaderboards::Rankers::Tagged.call(rows)
       else                            Leaderboards::Rankers::Standard.call(rows)
       end
     end
@@ -29,6 +30,7 @@ module Leaderboards
               length_inches: p.catch.length_inches,
               captured_at_device: p.catch.captured_at_device,
               species_name: p.catch.species.name,
+              tag_number: p.catch.tag_number,
               angler_name: p.catch.user.name,
               logged_by_name: p.catch.logged_by_user&.name,
               approver_name: p.catch.latest_approver&.name,
@@ -37,6 +39,10 @@ module Leaderboards
           }
         fish = if tournament.format_fish_train?
           fish.sort_by { |f| f[:slot_index] }                # train order
+        elsif tournament.format_tagged?
+          # Tickets in the order they were earned — matches the angler's mental
+          # model and the way tags are read off the row in the partial.
+          fish.sort_by { |f| f[:captured_at_device] || Time.at(0) }
         else
           fish.sort_by { |f| -f[:length_inches] }            # biggest-first (default)
         end

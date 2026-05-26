@@ -19,6 +19,7 @@
 <div data-controller="catch-form photo-capture video-capture"
      data-catch-form-csrf-token-value="<%= form_authenticity_token %>"
      data-catch-form-caps-by-species-id-value="<%= @length_caps.to_json %>"
+     data-catch-form-tagged-species-id-value="<%= @tagged_species_id %>"
      data-catch-form-teammate-user-id-value="<%= @teammate&.id %>"
      data-action="photo-capture:captured->catch-form#onPhotoCaptured
                   video-capture:captured->catch-form#onVideoCaptured
@@ -38,7 +39,7 @@
     <%= current_user.metric? ? "Length (cm)" : "Length (in)" %>
   </label>
   <input id="catch_length_inches" type="number"
-         step="<%= current_user.metric? ? "0.5" : "0.25" %>"
+         step="0.25"
          min="0"
          data-catch-form-target="lengthInput"
          data-catch-form-unit="<%= current_user.length_unit %>"
@@ -60,6 +61,16 @@
     <% end %>
   </div>
 
+  <div data-catch-form-target="tagWrapper" class="hidden">
+    <label for="catch_tag_number" class="block text-sm font-medium text-slate-300 mt-4 mb-1">Science tag #</label>
+    <input id="catch_tag_number" type="text" maxlength="16"
+           autocapitalize="characters" autocomplete="off"
+           data-catch-form-target="tagInput"
+           data-action="input->catch-form#refresh blur->catch-form#uppercaseTag"
+           placeholder="e.g. A1234"
+           class="w-full h-12 px-3 rounded-lg bg-slate-800 border border-slate-700 text-base text-slate-100 uppercase">
+  </div>
+
   <label for="catch_note" class="block text-sm font-medium text-slate-300 mt-4 mb-1">Notes (private)</label>
   <textarea id="catch_note" name="catch[note]" maxlength="500" rows="4"
             data-catch-form-target="noteInput"
@@ -72,6 +83,15 @@
            class="hidden w-full aspect-[3/4] object-cover rounded-lg bg-black"></video>
     <span data-photo-capture-target="frameGuide"
           class="hidden pointer-events-none absolute inset-[12.5%] border-2 border-white/80"></span>
+    <div data-photo-capture-target="zoomToggle"
+         class="hidden absolute bottom-4 left-1/2 -translate-x-1/2 flex rounded-full bg-slate-900/70 p-1 gap-1">
+      <button type="button" data-photo-capture-target="zoomHalfButton"
+              data-action="photo-capture#setZoomHalf"
+              class="px-3 h-10 rounded-full text-sm text-white">0.5x</button>
+      <button type="button" data-photo-capture-target="zoomOneButton"
+              data-action="photo-capture#setZoomOne"
+              class="px-3 h-10 rounded-full text-sm text-white">1x</button>
+    </div>
   </div>
   <img data-photo-capture-target="preview" alt=""
        class="hidden w-full aspect-[3/4] object-contain rounded-lg bg-black">

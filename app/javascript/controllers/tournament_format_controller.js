@@ -16,12 +16,16 @@ export default class extends Controller {
     "format", "formatDescription",
     "mode", "modeNote",
     "slotsHeading", "slotsHelp", "slotRow", "slotCountLabel",
-    "trainBuilder"
+    "trainBuilder",
+    "localCheckbox"
   ]
 
   connect() {
     if (this.hasModeTarget) this._priorMode = this.modeTarget.value
     this.sync()
+    // Marks subsequent sync() calls as user-initiated. Used by _applyTagged
+    // so we don't clobber a saved `local: true` on edit-form load.
+    this._initialized = true
   }
 
   sync() {
@@ -33,6 +37,8 @@ export default class extends Controller {
       this._applyBiggestVsSmallest()
     } else if (this.formatTarget.value === "fish_train") {
       this._applyFishTrain()
+    } else if (this.formatTarget.value === "tagged") {
+      this._applyTagged()
     } else {
       this._applyStandard()
     }
@@ -65,6 +71,42 @@ export default class extends Controller {
     }
 
     if (this.hasTrainBuilderTarget) this.trainBuilderTarget.classList.add("hidden")
+  }
+
+  _applyTagged() {
+    if (this.hasFormatDescriptionTarget) {
+      this.formatDescriptionTarget.textContent = this.formatDescriptionTarget.dataset.taggedText
+    }
+    if (this.hasModeTarget) {
+      if (this.modeTarget.value !== "solo") this._priorMode = this.modeTarget.value
+      this.modeTarget.value = "solo"
+      this.modeTarget.classList.add("opacity-60", "pointer-events-none")
+    }
+    if (this.hasModeNoteTarget) this.modeNoteTarget.classList.remove("hidden")
+
+    if (this.hasSlotsHeadingTarget) this.slotsHeadingTarget.textContent = "Species configuration"
+    if (this.hasSlotsHelpTarget) {
+      this.slotsHelpTarget.textContent = "Locked to Tagged Walleye. Each catch is one ticket in the end-of-tournament draw."
+    }
+    if (this.hasSlotCountLabelTarget) {
+      this.slotCountLabelTargets.forEach((el) => { el.textContent = "Slots (ignored)" })
+    }
+
+    if (this.hasSlotRowTarget) {
+      this.slotRowTargets.forEach((el, i) => {
+        el.classList.toggle("hidden", i > 0)
+        if (i > 0) this._suppressRow(el)
+      })
+    }
+
+    if (this.hasTrainBuilderTarget) this.trainBuilderTarget.classList.add("hidden")
+
+    // Tagged walleye raffles are typically province-wide (the science-tag
+    // program isn't lake-restricted). Default `local` off on user-initiated
+    // format change; preserve saved value on initial edit-form load.
+    if (this.hasLocalCheckboxTarget && this._initialized) {
+      this.localCheckboxTarget.checked = false
+    }
   }
 
   _applyHiddenLength() {

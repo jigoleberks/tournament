@@ -68,6 +68,7 @@ class CatchesController < ApplicationController
       cap = Catch::MAX_LENGTH_BY_SPECIES[s.name.to_s.downcase]
       h[s.id] = cap if cap
     end
+    @tagged_species_id = Species.tagged_walleye&.id
   end
 
   def create
@@ -166,7 +167,8 @@ class CatchesController < ApplicationController
   def catch_params
     params.require(:catch).permit(
       :species_id, :length_inches, :captured_at_device, :captured_at_gps,
-      :latitude, :longitude, :gps_accuracy_m, :app_build, :client_uuid, :photo, :note
+      :latitude, :longitude, :gps_accuracy_m, :app_build, :client_uuid, :photo, :note,
+      :tag_number
     )
   end
 

@@ -66,7 +66,8 @@ class Api::CatchesController < Api::BaseController
   def catch_params
     params.require(:catch).permit(
       :species_id, :length_inches, :captured_at_device, :captured_at_gps,
-      :latitude, :longitude, :gps_accuracy_m, :app_build, :client_uuid, :photo, :video, :note
+      :latitude, :longitude, :gps_accuracy_m, :app_build, :client_uuid, :photo, :video, :note,
+      :tag_number
     )
   end
 

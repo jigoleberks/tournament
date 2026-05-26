@@ -219,6 +219,32 @@ module Catches
       assert_equal walleye_backup.id, promoted.catch_id
     end
 
+    test "manual_override species can be changed repeatedly, including back to a prior species" do
+      create(:scoring_slot, tournament: @t, species: @pike, slot_count: 1)
+
+      ApplyJudgeAction.call(
+        tournament: @t, catch: @catch, judge: @judge, action: :manual_override,
+        note: "misidentified", species_id: @pike.id
+      )
+      assert_equal @pike.id, @catch.reload.species_id
+
+      # Undo a misclick: change it straight back to the original species.
+      ApplyJudgeAction.call(
+        tournament: @t, catch: @catch, judge: @judge, action: :manual_override,
+        note: "actually a walleye", species_id: @walleye.id
+      )
+      assert_equal @walleye.id, @catch.reload.species_id
+      assert @t.catch_placements.where(catch_id: @catch.id, species_id: @walleye.id, active: true).exists?,
+        "expected an active walleye placement after changing the species back"
+
+      # And once more, to confirm there is no limit on the number of changes.
+      ApplyJudgeAction.call(
+        tournament: @t, catch: @catch, judge: @judge, action: :manual_override,
+        note: "no, pike", species_id: @pike.id
+      )
+      assert_equal @pike.id, @catch.reload.species_id
+    end
+
     test "manual_override species change to a species without a scoring slot leaves the catch unplaced" do
       walleye_backup = create(:catch, user: @user, species: @walleye, length_inches: 16,
                                        captured_at_device: 30.minutes.ago)

@@ -28,6 +28,15 @@ class Catch < ApplicationRecord
   validate :length_within_species_cap
   validates :note, length: { maximum: 500 }, allow_blank: true
 
+  TAG_NUMBER_FORMAT = /\A[A-Z0-9-]+\z/.freeze
+
+  before_validation :normalize_tag_number
+  validate :tag_number_required_for_tagged_walleye
+  validates :tag_number,
+            format: { with: TAG_NUMBER_FORMAT, message: "may only contain letters, numbers, and dashes" },
+            length: { maximum: 16 },
+            allow_blank: true
+
   def latest_approver
     # max_by walks the in-memory array so an eager-loaded :judge_actions stays
     # consumed; .order(:created_at).last would re-query Postgres per row and
@@ -42,6 +51,17 @@ class Catch < ApplicationRecord
   end
 
   private
+
+  def normalize_tag_number
+    self.tag_number = tag_number.to_s.strip.upcase if tag_number.present?
+  end
+
+  def tag_number_required_for_tagged_walleye
+    return if species.nil?
+    return unless species.tagged_walleye?
+    return if tag_number.present?
+    errors.add(:tag_number, "is required for Tagged Walleye catches")
+  end
 
   def photo_must_be_attached
     errors.add(:photo, "is required") unless photo.attached?

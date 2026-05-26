@@ -231,4 +231,37 @@ class TournamentTemplateTest < ActiveSupport::TestCase
     [s1, s2].each { |sp| tpl.tournament_template_scoring_slots.build(species: sp, slot_count: 1) }
     assert tpl.valid?, tpl.errors.full_messages.inspect
   end
+
+  test "tagged template requires solo mode" do
+    tagged = Species.find_or_create_by!(name: "Tagged Walleye")
+    tpl = build(:tournament_template, club: @club, format: :tagged, mode: :team)
+    tpl.tournament_template_scoring_slots.build(species: tagged, slot_count: 1)
+    assert_not tpl.valid?
+    assert_includes tpl.errors[:format], "Tagged Walleye tournaments must be solo"
+  end
+
+  test "tagged template errors when scoring slot references a non-Tagged-Walleye species" do
+    Species.find_or_create_by!(name: "Tagged Walleye")
+    other = create(:species, name: "Walleye Test #{SecureRandom.hex(2)}")
+    tpl = build(:tournament_template, club: @club, format: :tagged, mode: :solo)
+    tpl.tournament_template_scoring_slots.build(species: other, slot_count: 1)
+    assert_not tpl.valid?
+    assert_includes tpl.errors[:tournament_template_scoring_slots],
+                    "Tagged Walleye tournaments must have exactly one scoring slot for the Tagged Walleye species"
+  end
+
+  test "tagged template errors when no scoring slot is configured" do
+    Species.find_or_create_by!(name: "Tagged Walleye")
+    tpl = build(:tournament_template, club: @club, format: :tagged, mode: :solo)
+    assert_not tpl.valid?
+    assert_includes tpl.errors[:tournament_template_scoring_slots],
+                    "Tagged Walleye tournaments must have exactly one scoring slot for the Tagged Walleye species"
+  end
+
+  test "tagged template accepts a single Tagged Walleye scoring slot in solo mode" do
+    tagged = Species.find_or_create_by!(name: "Tagged Walleye")
+    tpl = build(:tournament_template, club: @club, format: :tagged, mode: :solo)
+    tpl.tournament_template_scoring_slots.build(species: tagged, slot_count: 1)
+    assert tpl.valid?, tpl.errors.full_messages.to_sentence
+  end
 end

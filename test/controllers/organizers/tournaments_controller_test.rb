@@ -292,6 +292,70 @@ class Organizers::TournamentsControllerTest < ActionDispatch::IntegrationTest
     assert_equal [perch.id, pike.id, perch.id], created.train_cars
   end
 
+  test "draw: organizer can trigger the tagged draw and is redirected with notice" do
+    club = create(:club)
+    organizer = create(:user, club: club, role: :organizer)
+    user = create(:user, club: club)
+    tagged = Species.find_or_create_by!(name: "Tagged Walleye")
+    t = build(:tournament, club: club, format: :tagged, mode: :solo,
+              kind: :event, starts_at: 2.hours.ago, ends_at: 1.hour.ago)
+    t.scoring_slots.build(species: tagged, slot_count: 1)
+    t.save!
+    entry = create(:tournament_entry, tournament: t)
+    create(:tournament_entry_member, tournament_entry: entry, user: user)
+    Catches::PlaceInSlots.call(
+      catch: create(:catch, user: user, species: tagged, length_inches: 18.0,
+                    tag_number: "A001", captured_at_device: 90.minutes.ago)
+    )
+
+    sign_in_as organizer
+    post draw_organizers_tournament_url(t)
+
+    assert_redirected_to organizers_tournaments_url
+    assert_not_nil t.reload.drawn_at
+  end
+
+  test "draw: non-organizer member is blocked" do
+    club = create(:club)
+    member = create(:user, club: club, role: :member)
+    tagged = Species.find_or_create_by!(name: "Tagged Walleye")
+    t = build(:tournament, club: club, format: :tagged, mode: :solo,
+              kind: :event, starts_at: 2.hours.ago, ends_at: 1.hour.ago)
+    t.scoring_slots.build(species: tagged, slot_count: 1)
+    t.save!
+
+    sign_in_as member
+    post draw_organizers_tournament_url(t)
+    assert_response :forbidden
+    assert_nil t.reload.drawn_at
+  end
+
+  test "draw: force=true triggers a re-draw" do
+    club = create(:club)
+    organizer = create(:user, club: club, role: :organizer)
+    user = create(:user, club: club)
+    tagged = Species.find_or_create_by!(name: "Tagged Walleye")
+    t = build(:tournament, club: club, format: :tagged, mode: :solo,
+              kind: :event, starts_at: 2.hours.ago, ends_at: 1.hour.ago)
+    t.scoring_slots.build(species: tagged, slot_count: 1)
+    t.save!
+    entry = create(:tournament_entry, tournament: t)
+    create(:tournament_entry_member, tournament_entry: entry, user: user)
+    Catches::PlaceInSlots.call(
+      catch: create(:catch, user: user, species: tagged, length_inches: 18.0,
+                    tag_number: "A001", captured_at_device: 90.minutes.ago)
+    )
+
+    sign_in_as organizer
+    post draw_organizers_tournament_url(t)
+    first_drawn_at = t.reload.drawn_at
+
+    travel 1.second do
+      post draw_organizers_tournament_url(t), params: { force: "1" }
+      assert_not_equal first_drawn_at, t.reload.drawn_at
+    end
+  end
+
   private
 
   def sign_in_as(user)

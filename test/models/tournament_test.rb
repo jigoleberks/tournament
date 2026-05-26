@@ -494,4 +494,48 @@ class TournamentTest < ActiveSupport::TestCase
     t.train_cars = [s.id, s.id, s.id, s.id]
     assert t.valid?, t.errors.full_messages.to_sentence
   end
+
+  test "tagged format requires event kind with end time" do
+    club = create(:club)
+    tagged_species = Species.find_or_create_by!(name: "Tagged Walleye")
+
+    t = build(:tournament, club: club, format: :tagged, mode: :solo, kind: :ongoing, ends_at: nil)
+    t.scoring_slots.build(species: tagged_species, slot_count: 1)
+    assert_not t.valid?
+    assert_includes t.errors[:format], "Tagged Walleye tournaments must be event kind with an end time"
+  end
+
+  test "tagged format requires solo mode" do
+    club = create(:club)
+    tagged_species = Species.find_or_create_by!(name: "Tagged Walleye")
+
+    t = build(:tournament, club: club, format: :tagged, mode: :team, kind: :event,
+              starts_at: 1.hour.ago, ends_at: 1.hour.from_now)
+    t.scoring_slots.build(species: tagged_species, slot_count: 1)
+    assert_not t.valid?
+    assert_includes t.errors[:format], "Tagged Walleye tournaments must be solo"
+  end
+
+  test "tagged format requires exactly one scoring slot referencing Tagged Walleye" do
+    club = create(:club)
+    Species.find_or_create_by!(name: "Tagged Walleye")
+    walleye = create(:species, name: "Walleye Test #{SecureRandom.hex(2)}")
+
+    t = build(:tournament, club: club, format: :tagged, mode: :solo, kind: :event,
+              starts_at: 1.hour.ago, ends_at: 1.hour.from_now)
+    t.scoring_slots.build(species: walleye, slot_count: 1)
+    assert_not t.valid?
+    assert_includes t.errors[:scoring_slots],
+                    "Tagged Walleye tournaments must have exactly one scoring slot for the Tagged Walleye species"
+  end
+
+  test "tagged format accepts a single Tagged Walleye scoring slot" do
+    club = create(:club)
+    tagged_species = Species.find_or_create_by!(name: "Tagged Walleye")
+
+    t = build(:tournament, club: club, format: :tagged, mode: :solo, kind: :event,
+              starts_at: 1.hour.ago, ends_at: 1.hour.from_now)
+    t.scoring_slots.build(species: tagged_species, slot_count: 1)
+    assert t.valid?, t.errors.full_messages.to_sentence
+  end
 end

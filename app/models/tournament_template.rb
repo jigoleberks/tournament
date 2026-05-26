@@ -4,7 +4,7 @@ class TournamentTemplate < ApplicationRecord
   accepts_nested_attributes_for :tournament_template_scoring_slots, allow_destroy: true,
                                 reject_if: ->(attrs) { attrs["species_id"].blank? }
   enum :mode, { solo: 0, team: 1 }, prefix: true
-  enum :format, { standard: 0, big_fish_season: 1, hidden_length: 2, biggest_vs_smallest: 3, fish_train: 4 }, prefix: true
+  enum :format, { standard: 0, big_fish_season: 1, hidden_length: 2, biggest_vs_smallest: 3, fish_train: 4, tagged: 5 }, prefix: true
   validates :name, presence: true
   validates :default_weekday, inclusion: { in: 0..6 }, allow_nil: true
   validate :default_schedule_all_or_nothing
@@ -16,6 +16,8 @@ class TournamentTemplate < ApplicationRecord
   validate :fish_train_pool_size_between_1_and_3
   validate :fish_train_train_cars_length_between_3_and_6
   validate :fish_train_train_cars_species_in_pool
+  validate :tagged_requires_solo
+  validate :tagged_requires_one_tagged_walleye_scoring_slot
 
   def scheduled?
     default_weekday.present? && default_start_time.present? && default_end_time.present?
@@ -109,5 +111,20 @@ class TournamentTemplate < ApplicationRecord
     return if remaining.size == 1
     errors.add(:tournament_template_scoring_slots,
                "Biggest vs Smallest tournaments must have exactly one species configured")
+  end
+
+  def tagged_requires_solo
+    return unless format_tagged?
+    return if mode_solo?
+    errors.add(:format, "Tagged Walleye tournaments must be solo")
+  end
+
+  def tagged_requires_one_tagged_walleye_scoring_slot
+    return unless format_tagged?
+    remaining = tournament_template_scoring_slots.reject(&:marked_for_destruction?)
+    unless remaining.size == 1 && remaining.first.species&.tagged_walleye?
+      errors.add(:tournament_template_scoring_slots,
+                 "Tagged Walleye tournaments must have exactly one scoring slot for the Tagged Walleye species")
+    end
   end
 end

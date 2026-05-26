@@ -31,9 +31,12 @@ class CatchesFilteringTest < ApplicationSystemTestCase
     # Tapping the active chip clears it; the param is dropped entirely
     # (not just emptied), so the URL has no `wind_dir=` key at all.
     find("[data-test='chip-wind_dir-ne']").click
-    assert_no_match(/wind_dir=/, current_url)
-    assert_selector "a[href='#{catch_path(ne.id)}']"
+    # Wait for the cleared-filter page to render before checking the URL --
+    # assert_no_match against current_url doesn't auto-retry, but
+    # assert_selector does, so let it gate on the SW catch reappearing.
     assert_selector "a[href='#{catch_path(sw.id)}']"
+    assert_selector "a[href='#{catch_path(ne.id)}']"
+    assert_no_match(/wind_dir=/, current_url)
   end
 
   test "min-length input narrows the grid to longer catches" do

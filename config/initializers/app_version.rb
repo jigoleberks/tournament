@@ -10,8 +10,16 @@
 # Prefers ENV["APP_VERSION"], then the working tree's git SHA, then a
 # process-stable fallback so the SW response never crashes on a missing .git.
 module AppVersion
+  # Computed once at module load so every request in this process returns the
+  # same value. Under Puma's default single-mode (no `workers` directive in
+  # config/puma.rb) there's one process, so this is stable across requests.
+  # If a future deploy enables WEB_CONCURRENCY > 1, also enable preload_app!
+  # in puma.rb so workers inherit this constant from the master, otherwise
+  # each worker computes a different timestamp and the SW cache key thrashes.
+  BOOT_FALLBACK = Time.current.to_i.to_s
+
   def self.current
-    ENV["APP_VERSION"].presence || git_sha || boot_fallback
+    ENV["APP_VERSION"].presence || git_sha || BOOT_FALLBACK
   end
 
   # The first 12 chars of the checked-out commit SHA, or nil if it can't be
@@ -40,11 +48,9 @@ module AppVersion
     nil
   end
 
-  # Last resort when there is no APP_VERSION and no .git directory (e.g. a
-  # baked image that .dockerignores .git). Memoized so it stays fixed for the
-  # life of the process -- it has nothing to re-resolve, and recomputing it
-  # would churn the SW cache key on every request.
+  # Public accessor for the boot fallback. Kept for the test suite, which
+  # verifies the value stays fixed for the life of the process.
   def self.boot_fallback
-    @boot_fallback ||= Time.current.to_i.to_s
+    BOOT_FALLBACK
   end
 end

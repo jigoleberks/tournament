@@ -56,6 +56,19 @@ module Catches
               species: @catch.species, slot_index: next_index, active: true
             )
             affected_tournaments << tournament
+          elsif tournament.format_tagged?
+            # Tagged: every catch with a tag earns a fresh placement (= one ticket in
+            # the draw). Mirrors Hidden Length — no bumping, slot_count irrelevant.
+            # Belt-and-suspenders skip if tag_number is blank; the Catch model
+            # validates presence for Tagged Walleye, so this only fires if a non-
+            # Tagged-Walleye species somehow slots into a tagged tournament.
+            next if @catch.tag_number.blank?
+            next_index = active_placements.empty? ? 0 : active_placements.map(&:slot_index).max + 1
+            created << CatchPlacement.create!(
+              catch: @catch, tournament: tournament, tournament_entry: entry,
+              species: @catch.species, slot_index: next_index, active: true
+            )
+            affected_tournaments << tournament
           elsif tournament.format_biggest_vs_smallest?
             # Biggest vs Smallest: keep at most 2 placements per (entry, species) — the
             # current biggest and current smallest. A new catch only matters if it's

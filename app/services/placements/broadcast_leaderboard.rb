@@ -4,6 +4,9 @@ module Placements
     # log a catch in one — the other's leaderboard should update without reload.
     # For a blind tournament, only the broadcaster's own team's row should update on the
     # other browser; the broadcaster's screen should show their own row updated.
+    # For a tagged tournament, partial_for routes to tagged_leaderboard so the
+    # broadcast carries the ticket-count UI; DrawTaggedWinner also re-broadcasts
+    # after a draw so the winner banner appears live.
     def self.call(tournament:)
       leaderboard = Leaderboards::Build.call(tournament: tournament)
 
@@ -18,11 +21,15 @@ module Placements
       end
     end
 
+    def self.partial_for(tournament)
+      tournament.format_tagged? ? "tournaments/tagged_leaderboard" : "tournaments/leaderboard"
+    end
+
     def self.broadcast_full(tournament, leaderboard)
       Turbo::StreamsChannel.broadcast_replace_to(
         "tournament:#{tournament.id}:leaderboard:full",
         target: "leaderboard",
-        partial: "tournaments/leaderboard",
+        partial: partial_for(tournament),
         locals: {
           leaderboard: leaderboard,
           tournament: tournament,
@@ -35,7 +42,7 @@ module Placements
       Turbo::StreamsChannel.broadcast_replace_to(
         "tournament:#{tournament.id}:leaderboard:entry:#{entry_id}",
         target: "leaderboard",
-        partial: "tournaments/leaderboard",
+        partial: partial_for(tournament),
         locals: {
           leaderboard: leaderboard,
           tournament: tournament,
@@ -48,7 +55,7 @@ module Placements
       Turbo::StreamsChannel.broadcast_replace_to(
         "tournament:#{tournament.id}:leaderboard:reveal",
         target: "leaderboard",
-        partial: "tournaments/leaderboard",
+        partial: partial_for(tournament),
         locals: {
           leaderboard: leaderboard,
           tournament: tournament,
