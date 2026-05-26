@@ -2,7 +2,7 @@ import { Controller } from "@hotwired/stimulus"
 import { enqueueCatch } from "offline/db"
 
 export default class extends Controller {
-  static targets = ["speciesSelect", "lengthInput", "lengthLabel", "noteInput", "submitButton", "status", "tagWrapper", "tagInput"]
+  static targets = ["speciesSelect", "lengthInput", "lengthLabel", "noteInput", "submitButton", "status", "tagWrapper", "tagInput", "weightInput"]
   static values = { csrfToken: String, capsBySpeciesId: Object, teammateUserId: String, taggedSpeciesId: String }
 
   connect() {
@@ -78,6 +78,7 @@ export default class extends Controller {
         app_build: document.documentElement.dataset.appBuild,
         note: this.noteInputTarget.value,
         tag_number: (this.hasTagInputTarget ? this.tagInputTarget.value : "").trim().toUpperCase() || null,
+        weight_text: (this.hasWeightInputTarget ? this.weightInputTarget.value : "").trim() || null,
         photo: this.photoBlob,
         video: this.videoBlob,
         video_failed: this.videoFailed,

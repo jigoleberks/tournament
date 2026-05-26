@@ -255,6 +255,46 @@ class Api::CatchesControllerTest < ActionDispatch::IntegrationTest
     assert_equal "A1234", catch_record.tag_number
   end
 
+  test "persists weight_text on a Tagged Walleye catch" do
+    tagged = Species.find_or_create_by!(name: "Tagged Walleye")
+    uuid = SecureRandom.uuid
+
+    post "/api/catches", params: {
+      catch: {
+        species_id: tagged.id,
+        length_inches: 18.5,
+        captured_at_device: 1.minute.ago.iso8601,
+        client_uuid: uuid,
+        tag_number: "A1234",
+        weight_text: "4 lbs 3oz",
+        photo: fixture_file_upload("sample_walleye.jpg", "image/jpeg")
+      }
+    }, headers: { "Accept" => "application/json" }
+
+    assert_response :created
+    catch_record = Catch.find_by(client_uuid: JSON.parse(response.body).fetch("client_uuid"))
+    assert_equal "4 lbs 3oz", catch_record.weight_text
+  end
+
+  test "accepts blank weight_text on a Tagged Walleye catch" do
+    tagged = Species.find_or_create_by!(name: "Tagged Walleye")
+    uuid = SecureRandom.uuid
+
+    post "/api/catches", params: {
+      catch: {
+        species_id: tagged.id,
+        length_inches: 18.5,
+        captured_at_device: 1.minute.ago.iso8601,
+        client_uuid: uuid,
+        tag_number: "A1234",
+        photo: fixture_file_upload("sample_walleye.jpg", "image/jpeg")
+      }
+    }, headers: { "Accept" => "application/json" }
+
+    assert_response :created
+    assert_nil Catch.find_by(client_uuid: uuid).weight_text
+  end
+
   private
 
   def sign_in_as(user)
