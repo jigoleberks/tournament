@@ -51,6 +51,18 @@ class TaggedWalleyeTournamentTest < ApplicationSystemTestCase
     assert_match "A0002", rows.first.text
   end
 
+  test "leaderboard tag numbers link to the catch photo modal for members" do
+    Catches::PlaceInSlots.call(
+      catch: create(:catch, user: @angler, species: @tagged, length_inches: 18.0,
+                    tag_number: "A0001", captured_at_device: 30.minutes.ago)
+    )
+
+    sign_in_as(@angler)
+    visit tournament_path(@t)
+
+    assert_selector "#leaderboard a[data-turbo-frame='catch_photo_modal']", text: "A0001"
+  end
+
   test "organizer can draw a winner after tournament ends" do
     Catches::PlaceInSlots.call(
       catch: create(:catch, user: @angler, species: @tagged, length_inches: 18.0,
