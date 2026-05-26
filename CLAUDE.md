@@ -117,6 +117,7 @@ Day-to-day development happens on the shared `jig_dev` branch — both maintaine
 
 - **Pull before you push.** `git pull --rebase origin jig_dev` before starting work and before pushing. Small frequent conflicts are easier to resolve than one big one at PR-merge time.
 - **One PR per release cut**, not per commit. When `jig_dev` is in a shippable state, open a PR `jig_dev → main`. Squash-merge to `main` is fine — jig_dev's commit history doesn't need to survive.
-- **Dependabot still targets `main`.** After a bump merges to main, fast-forward into jig_dev (`git checkout jig_dev && git merge --ff-only main && git push`).
-- **Prod hotfixes** branch off `main` directly. After merging to main, fast-forward main into jig_dev.
+- **Dependabot still targets `main`.** After each bump merges to main, resync jig_dev right away — don't let several stack up: `git checkout jig_dev && git merge main && git push` (use a real merge, not `--ff-only`, since jig_dev usually has commits ahead). If a bump touches `Gemfile.lock`, also `docker compose build web` so the running container has the new gems before the next test run. Run the full suite (`bin/rails test` *and* `bin/rails test:system`) before pushing — `test` alone misses system tests, which CI does run.
+- **Drain open dependabot PRs before opening a release `jig_dev → main` PR.** Either merge them to main and resync jig_dev first, or roll the bumps into jig_dev as part of the release commits. If they sit open during the release, the squash-merge of the release creates a divergence: main has the dependabot bumps (and the squashed release commit), jig_dev still has its individual release commits, and `jig_dev → main` ends up conflicting on every file both sides touched.
+- **Prod hotfixes** branch off `main` directly. After merging to main, merge main into jig_dev.
 - The `jig_dev` branch has GitHub branch protection enabled to prevent accidental deletion. Force-push is allowed for history cleanup.
