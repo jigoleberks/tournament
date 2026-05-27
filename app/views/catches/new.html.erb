@@ -69,6 +69,15 @@
            data-action="input->catch-form#refresh blur->catch-form#uppercaseTag"
            placeholder="e.g. A1234"
            class="w-full h-12 px-3 rounded-lg bg-slate-800 border border-slate-700 text-base text-slate-100 uppercase">
+
+    <label for="catch_weight_text" class="block text-sm font-medium text-slate-300 mt-3 mb-1">
+      Weight <span class="text-slate-500">(recommended)</span>
+    </label>
+    <input id="catch_weight_text" type="text" maxlength="32"
+           autocomplete="off"
+           data-catch-form-target="weightInput"
+           placeholder="e.g. 4 lbs 3oz"
+           class="w-full h-12 px-3 rounded-lg bg-slate-800 border border-slate-700 text-base text-slate-100">
   </div>
 
   <label for="catch_note" class="block text-sm font-medium text-slate-300 mt-4 mb-1">Notes (private)</label>

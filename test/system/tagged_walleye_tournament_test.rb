@@ -32,6 +32,27 @@ class TaggedWalleyeTournamentTest < ApplicationSystemTestCase
     assert_no_selector "#catch_tag_number", visible: true
   end
 
+  test "weight input appears with tag input, persists, and renders on show page" do
+    sign_in_as(@angler)
+    visit new_catch_path
+
+    # Initially Walleye is the default; weight input hidden along with the tag input.
+    assert_no_selector "#catch_weight_text", visible: true
+
+    select "Tagged Walleye", from: "catch_species_id"
+    assert_selector "#catch_weight_text", visible: true
+
+    # Direct-create the Catch since the form's submit flow uses the camera API,
+    # which the existing tag-related tests in this file deliberately avoid.
+    # The system-test value here is verifying the form reveal AND the show-page render.
+    c = create(:catch, user: @angler, species: @tagged, length_inches: 18.0,
+               tag_number: "A0001", weight_text: "4 lbs 3oz")
+
+    visit catch_path(c)
+    assert_text "Weight:"
+    assert_text "4 lbs 3oz"
+  end
+
   test "leaderboard shows ticket count per angler" do
     %w[A0001 A0002].each do |tag|
       Catches::PlaceInSlots.call(
