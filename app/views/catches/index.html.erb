@@ -34,7 +34,7 @@
           <% end %>
           <div class="text-xs text-slate-300 mt-2 leading-snug">
             <div class="font-medium text-slate-100"><%= c.species.name %></div>
-            <div><%= format_length_dual(c.length_inches) %></div>
+            <div><%= format_length_dual(c.length_inches, c.length_unit) %></div>
             <% if c.tag_number.present? %>
               <div class="text-amber-300 font-mono">tag <%= c.tag_number %></div>
             <% end %>

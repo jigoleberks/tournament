@@ -20,7 +20,7 @@
             <div class="absolute bottom-0 inset-x-0 p-3 bg-gradient-to-t from-black/80 to-transparent">
               <div class="flex items-center justify-between">
                 <span class="text-xs font-bold text-white"><%= c.user.name %></span>
-                <span class="text-xs font-bold text-blue-400"><%= format_length_dual(c.length_inches) %></span>
+                <span class="text-xs font-bold text-blue-400"><%= format_length_dual(c.length_inches, c.length_unit) %></span>
               </div>
             </div>
           </div>

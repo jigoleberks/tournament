@@ -3,7 +3,7 @@
     <%= thumb catch.photo, class: "w-full h-32 object-cover rounded bg-black mb-2" %>
   <% end %>
   <div class="font-bold"><%= catch.species.name %></div>
-  <div><%= format_length_dual(catch.length_inches) %></div>
+  <div><%= format_length_dual(catch.length_inches, catch.length_unit) %></div>
   <% if catch.tag_number.present? %>
     <div class="text-amber-700 font-mono">tag <%= catch.tag_number %></div>
   <% end %>
