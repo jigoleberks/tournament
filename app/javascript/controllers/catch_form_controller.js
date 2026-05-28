@@ -70,6 +70,7 @@ export default class extends Controller {
         client_uuid: this.clientUuid,
         species_id: this.speciesSelectTarget.value,
         length_inches: this._toInches(this.lengthInputTarget.value),
+        length_unit: this.lengthInputTarget.dataset.catchFormUnit,
         captured_at_device: new Date().toISOString(),
         captured_at_gps: position?.gpsTime ?? null,
         latitude: position?.coords?.latitude ?? null,
@@ -160,8 +161,11 @@ export default class extends Controller {
   _toInches(rawValue) {
     const v = parseFloat(rawValue)
     if (Number.isNaN(v)) return rawValue
+    // Snap to the 0.25 grid of the currently selected unit, then convert.
+    // This makes the quarter-increment rule real rather than advisory.
+    const snapped = Math.round(v / 0.25) * 0.25
     const unit = this.lengthInputTarget.dataset.catchFormUnit
-    return unit === "centimeters" ? (v / 2.54).toFixed(2) : v.toFixed(2)
+    return unit === "centimeters" ? (snapped / 2.54).toFixed(2) : snapped.toFixed(2)
   }
 
   async tryGeolocate() {
