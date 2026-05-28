@@ -47,13 +47,13 @@ class BigFishSeasonTournamentTest < ApplicationSystemTestCase
     rows = page.all("#leaderboard tbody tr").map(&:text)
     assert_equal 4, rows.size
     assert_includes rows[0], "Galen Patterson"
-    assert_includes rows[0], "25.0\""
+    assert_includes rows[0], "25.00\""
     assert_includes rows[1], "Galen PC"
-    assert_includes rows[1], "22.0\""
+    assert_includes rows[1], "22.00\""
     assert_includes rows[2], "Galen Patterson"
-    assert_includes rows[2], "21.0\""
+    assert_includes rows[2], "21.00\""
     assert_includes rows[3], "Galen Patterson"
-    assert_includes rows[3], "18.0\""
+    assert_includes rows[3], "18.00\""
   end
 
   test "switching a draft tournament to Big Fish Season removes extra persisted slots" do

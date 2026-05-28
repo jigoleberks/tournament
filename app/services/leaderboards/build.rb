@@ -28,6 +28,7 @@ module Leaderboards
             {
               id: p.catch.id,
               length_inches: p.catch.length_inches,
+              length_unit: p.catch.length_unit,
               captured_at_device: p.catch.captured_at_device,
               species_name: p.catch.species.name,
               tag_number: p.catch.tag_number,

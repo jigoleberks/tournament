@@ -393,6 +393,21 @@ module Leaderboards
       assert_equal [entry_a.id, entry_b.id], result.map { |r| r[:entry].id }
     end
 
+    test "fish rows carry the catch's length_unit" do
+      user  = create(:user, club: @club)
+      entry = create(:tournament_entry, tournament: @tournament)
+      create(:tournament_entry_member, tournament_entry: entry, user: user)
+
+      Catches::PlaceInSlots.call(
+        catch: create(:catch, user: user, species: @walleye, length_inches: 14.47,
+                      length_unit: "centimeters", captured_at_device: 10.minutes.ago)
+      )
+
+      rows = Leaderboards::Build.call(tournament: @tournament)
+      fish = rows.flat_map { |r| r[:fish] }
+      assert_equal "centimeters", fish.first[:length_unit]
+    end
+
     test "tagged fish list is ordered chronologically (oldest ticket first)" do
       club = create(:club)
       tagged = Species.find_or_create_by!(name: "Tagged Walleye")

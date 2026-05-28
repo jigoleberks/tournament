@@ -83,8 +83,8 @@ class TournamentCatchPhotoTest < ApplicationSystemTestCase
 
     # The angler's own fish row IS visible (label rendered) but should not be a link
     # under the new `catch_link_target` rule for blind tournaments.
-    assert_text(/Walleye.*19\.0/)
-    assert_no_selector "a", text: /Walleye.*19\.0/
+    assert_text(/Walleye.*19"/)
+    assert_no_selector "a", text: /Walleye.*19"/
   end
 
   test "member can open a photo modal on a blind tournament that has ended" do

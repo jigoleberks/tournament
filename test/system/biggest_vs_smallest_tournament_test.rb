@@ -59,8 +59,8 @@ class BiggestVsSmallestTournamentTest < ApplicationSystemTestCase
     # Top row should show Biggest 22.00" and Smallest 12.00"
     assert_match "Biggest", rows.first.text
     assert_match "Smallest", rows.first.text
-    assert_match format_length_dual(22), rows.first.text
-    assert_match format_length_dual(12), rows.first.text
+    assert_match format_length_dual(22, "inches"), rows.first.text
+    assert_match format_length_dual(12, "inches"), rows.first.text
   end
 
   test "Biggest vs Smallest tournament: complete entry with spread 0 renders 0.00\", not the dash placeholder" do
