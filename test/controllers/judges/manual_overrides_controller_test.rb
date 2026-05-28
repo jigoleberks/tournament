@@ -37,6 +37,32 @@ class Judges::ManualOverridesControllerTest < ActionDispatch::IntegrationTest
     assert_in_delta 19.685, @catch.reload.length_inches.to_f, 0.01
   end
 
+  test "POST with cm length records the centimeters unit" do
+    post judges_tournament_catch_manual_override_path(tournament_id: @t.id, catch_id: @catch.id),
+         params: { length: "50", length_unit: "centimeters", note: "remeasured" }
+    assert_equal "centimeters", @catch.reload.length_unit
+  end
+
+  test "POST with inch length records the inches unit" do
+    post judges_tournament_catch_manual_override_path(tournament_id: @t.id, catch_id: @catch.id),
+         params: { length: "19.5", length_unit: "inches", note: "remeasured" }
+    assert_equal "inches", @catch.reload.length_unit
+  end
+
+  test "POST snaps an off-grid override to the quarter grid before converting" do
+    post judges_tournament_catch_manual_override_path(tournament_id: @t.id, catch_id: @catch.id),
+         params: { length: "50.1", length_unit: "centimeters", note: "remeasured" }
+    # 50.1 cm snaps to 50.0 cm (nearest 0.25), then 50 / 2.54 = 19.685 in.
+    # Without the snap it would store 50.1 / 2.54 = 19.72.
+    assert_in_delta 19.685, @catch.reload.length_inches.to_f, 0.01
+  end
+
+  test "POST with inches snaps an off-grid value to the quarter grid" do
+    post judges_tournament_catch_manual_override_path(tournament_id: @t.id, catch_id: @catch.id),
+         params: { length: "19.8", length_unit: "inches", note: "remeasured" }
+    assert_equal 19.75, @catch.reload.length_inches.to_f
+  end
+
   test "GET new on a catch from another tournament is not found" do
     foreign_catch = build_foreign_catch
     get new_judges_tournament_catch_manual_override_path(tournament_id: @t.id, catch_id: foreign_catch.id)
