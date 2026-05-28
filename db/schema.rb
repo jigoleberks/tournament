@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_05_26_185958) do
+ActiveRecord::Schema[8.1].define(version: 2026_05_28_173741) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -81,6 +81,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_05_26_185958) do
     t.string "lake", limit: 64
     t.decimal "latitude", precision: 9, scale: 6
     t.decimal "length_inches", precision: 5, scale: 2, null: false
+    t.string "length_unit", null: false
     t.bigint "logged_by_user_id"
     t.decimal "longitude", precision: 9, scale: 6
     t.string "moon_phase"

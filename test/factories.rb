@@ -67,6 +67,7 @@ FactoryBot.define do
     association :user
     association :species
     length_inches { 18.5 }
+    length_unit { "inches" }
     captured_at_device { Time.current }
     status { :synced }
     sequence(:client_uuid) { |n| "client-uuid-#{n}" }
