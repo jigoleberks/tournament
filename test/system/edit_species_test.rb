@@ -32,6 +32,11 @@ class EditSpeciesTest < ApplicationSystemTestCase
     select "Pike", from: "species_id"
     click_button "Save"
 
+    # Wait for the (local) form's POST + redirect to land before reading the DB —
+    # reload alone doesn't wait on Capybara navigation, so on a busy machine it
+    # can fire before the override commits.
+    assert_current_path(%r{/judges/tournaments/#{tournament.id}/catches/#{catch_record.id}})
+
     # Returns to the judges catch path; verify the catch's species changed.
     catch_record.reload
     assert_equal pike.id, catch_record.species_id

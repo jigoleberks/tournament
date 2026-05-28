@@ -20,13 +20,13 @@ class LakeFilterTest < ApplicationSystemTestCase
     visit catches_path(start: "", end: "")
 
     assert_text "My catches"
-    assert_text "22.5"
-    assert_text "18.0"
+    assert_text '22.5"'
+    assert_text '18"'
 
     find("select[name='lake']").find("option", text: "Tobin Lake").select_option
 
-    assert_no_text "18.0"
-    assert_text "22.5"
+    assert_no_text '18"'
+    assert_text '22.5"'
     assert_match(/lake=tobin/, current_url)
   end
 
@@ -37,8 +37,8 @@ class LakeFilterTest < ApplicationSystemTestCase
 
     find("select[name='lake']").find("option", text: "Other (no lake match)").select_option
 
-    assert_no_text "22.5"
-    assert_text "18.0"
+    assert_no_text '22.5"'
+    assert_text '18"'
     assert_match(/lake=other/, current_url)
   end
 end
