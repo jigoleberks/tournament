@@ -120,6 +120,7 @@ class BiggestVsSmallestTournamentTest < ApplicationSystemTestCase
     visit new_session_path
     fill_in "Email", with: user.email
     click_button "Send sign-in link"
+    assert_text "Check your email"  # wait for the POST to commit the token before reading it
     visit consume_session_path(token: SignInToken.last.token)
   end
 end
