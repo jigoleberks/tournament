@@ -422,6 +422,21 @@ class TournamentsControllerTest < ActionDispatch::IntegrationTest
     assert_no_match "anglers", response.body
   end
 
+  test "show: ended team tournament lists member names under a custom team name" do
+    t = create(:tournament, club: @club, mode: :team,
+               starts_at: 2.hours.ago, ends_at: 1.hour.ago)
+    entry = create(:tournament_entry, tournament: t, name: "Reel Deal")
+    create(:tournament_entry_member, tournament_entry: entry,
+                                      user: create(:user, club: @club, name: "Alice Angler"))
+    create(:tournament_entry_member, tournament_entry: entry,
+                                      user: create(:user, club: @club, name: "Bob Bobber"))
+
+    get tournament_path(t)
+    assert_response :success
+    assert_match "Reel Deal", response.body
+    assert_match "Alice Angler + Bob Bobber", response.body
+  end
+
   test "show: ended tournament with zero entries does not render participation footer" do
     species = create(:species, club: @club)
     t = create(:tournament, club: @club, mode: :solo,
