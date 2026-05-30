@@ -15,4 +15,11 @@ class PwaController < ApplicationController
     response.headers["Cache-Control"] = "no-cache, max-age=0, must-revalidate"
     render template: "pwa/service_worker", formats: [:js], content_type: "text/javascript"
   end
+
+  # The offline shell is intentionally renderable without a signed-in user and
+  # contains no personalized data, so the service worker can precache it and
+  # serve it to anyone on a shared device without leaking another user's HTML.
+  def offline
+    render template: "pwa/offline", layout: "offline"
+  end
 end

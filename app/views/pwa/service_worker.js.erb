@@ -1,5 +1,16 @@
+<%#
+  Precache the /offline shell *and* the assets it needs to function. The shell is
+  inert HTML without its stylesheet and Stimulus/Turbo modules, and `activate`
+  purges the previous deploy's runtime cache — so without this, a cold launch
+  with no signal right after a deploy would render the catch form with nothing
+  wired up. Only same-origin asset paths are precachable: cache.addAll rejects
+  atomically, so a cross-origin pin (the leaflet CDN) would brick the install.
+%>
+<% import_paths = JSON.parse(Rails.application.importmap.to_json(resolver: self))["imports"].values %>
+<% precache = ["/offline", "/manifest.webmanifest", "/icon.png", asset_path("tailwind.css")] +
+              import_paths.select { |p| p.start_with?("/") } %>
 const CACHE = <%= ("shell-" + ::AppVersion.current).to_json.html_safe %>;
-const SHELL = ["/manifest.webmanifest", "/icon.png"];
+const SHELL = <%= precache.to_json.html_safe %>;
 
 self.addEventListener("install", (event) => {
   event.waitUntil(caches.open(CACHE).then((c) => c.addAll(SHELL)));
@@ -33,15 +44,20 @@ self.addEventListener("fetch", (event) => {
     return;
   }
 
-  // Network-first for everything else, and DO NOT cache the responses. They
-  // may contain authenticated/personalized HTML; serving a cached copy after
-  // sign-out (or to another user on a shared device) would leak data. We
-  // intentionally don't fall back to caches.match here for the same reason —
-  // the static shell branch above is the only path that populates the cache.
-  // Truly-offline navigation gets the bare 503 response and the page-level
-  // pending-catches widget keeps working from IndexedDB.
+  // Network-first for everything else, and DO NOT cache the responses at
+  // runtime: they may contain authenticated/personalized HTML, and serving a
+  // cached copy after sign-out (or to another user on a shared device) would
+  // leak data. The only offline fallback is the static, user-agnostic /offline
+  // shell precached at install — served for genuine top-level navigations
+  // (request.mode === "navigate") so a cold launch with no signal still reaches
+  // the catch form, which keeps working from IndexedDB. Failed sub-resource and
+  // fetch/XHR requests get a bare 503; they're never served the shell.
   event.respondWith(
-    fetch(event.request).catch(() => new Response("offline", { status: 503 }))
+    fetch(event.request).catch(() =>
+      event.request.mode === "navigate"
+        ? caches.match("/offline").then((c) => c || new Response("offline", { status: 503 }))
+        : new Response("offline", { status: 503 })
+    )
   );
 });
 
