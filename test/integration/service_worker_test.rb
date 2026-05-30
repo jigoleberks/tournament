@@ -17,4 +17,16 @@ class ServiceWorkerTest < ActionDispatch::IntegrationTest
     get "/service-worker.js", headers: { "HTTP_USER_AGENT" => IPHONE_UA }
     assert_includes response.headers["Cache-Control"].to_s, "no-cache"
   end
+
+  test "service worker precaches the offline shell" do
+    get "/service-worker.js", headers: { "HTTP_USER_AGENT" => IPHONE_UA }
+    assert_response :success
+    assert_match %r{const SHELL = \[[^\]]*"/offline"}, response.body
+  end
+
+  test "service worker falls back to the offline shell on failed navigation" do
+    get "/service-worker.js", headers: { "HTTP_USER_AGENT" => IPHONE_UA }
+    assert_match(/request\.mode === "navigate"/, response.body)
+    assert_match(%r{caches\.match\("/offline"\)}, response.body)
+  end
 end
