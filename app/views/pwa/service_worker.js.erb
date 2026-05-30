@@ -1,5 +1,16 @@
+<%#
+  Precache the /offline shell *and* the assets it needs to function. The shell is
+  inert HTML without its stylesheet and Stimulus/Turbo modules, and `activate`
+  purges the previous deploy's runtime cache — so without this, a cold launch
+  with no signal right after a deploy would render the catch form with nothing
+  wired up. Only same-origin asset paths are precachable: cache.addAll rejects
+  atomically, so a cross-origin pin (the leaflet CDN) would brick the install.
+%>
+<% import_paths = JSON.parse(Rails.application.importmap.to_json(resolver: self))["imports"].values %>
+<% precache = ["/offline", "/manifest.webmanifest", "/icon.png", asset_path("tailwind.css")] +
+              import_paths.select { |p| p.start_with?("/") } %>
 const CACHE = <%= ("shell-" + ::AppVersion.current).to_json.html_safe %>;
-const SHELL = ["/offline", "/manifest.webmanifest", "/icon.png"];
+const SHELL = <%= precache.to_json.html_safe %>;
 
 self.addEventListener("install", (event) => {
   event.waitUntil(caches.open(CACHE).then((c) => c.addAll(SHELL)));

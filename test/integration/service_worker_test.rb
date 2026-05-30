@@ -29,4 +29,23 @@ class ServiceWorkerTest < ActionDispatch::IntegrationTest
     assert_match(/request\.mode === "navigate"/, response.body)
     assert_match(%r{caches\.match\("/offline"\)}, response.body)
   end
+
+  # The offline shell is inert without its CSS/JS. activate purges the prior
+  # deploy's runtime cache, so a cold launch with no signal right after a deploy
+  # would otherwise render the form with no controllers wired up. Precaching the
+  # shell's assets alongside its HTML makes them install atomically.
+  test "service worker precaches the offline shell's stylesheet and javascript" do
+    get "/service-worker.js", headers: { "HTTP_USER_AGENT" => IPHONE_UA }
+    assert_response :success
+    assert_match %r{const SHELL = \[[^\]]*"/assets/tailwind-\w+\.css"}, response.body
+    assert_match %r{"/assets/application-\w+\.js"}, response.body
+    assert_match %r{"/assets/controllers/catch_form_controller-\w+\.js"}, response.body
+  end
+
+  # Cross-origin modules (the leaflet CDN pin) can't be precached: cache.addAll
+  # rejects atomically if any entry fails, which would brick the whole install.
+  test "service worker does not precache cross-origin modules" do
+    get "/service-worker.js", headers: { "HTTP_USER_AGENT" => IPHONE_UA }
+    assert_no_match %r{ga\.jspm\.io}, response.body
+  end
 end
