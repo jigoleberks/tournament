@@ -34,6 +34,32 @@ class Api::CatchesControllerTest < ActionDispatch::IntegrationTest
     assert_equal 1, body["placements"].size
   end
 
+  test "POST /api/catches persists logbook fields from the sync payload" do
+    photo = fixture_file_upload("sample_walleye.jpg", "image/jpeg")
+    bait = create(:bait, user: @user)
+    post "/api/catches", params: {
+      catch: { species_id: @walleye.id, length_inches: 18, captured_at_device: Time.current.iso8601,
+               client_uuid: "uuid-LOGBOOK", photo: photo,
+               bait_id: bait.id, water_depth_feet: "22.5", water_temperature_c: "18.5", structure: "saddle" }
+    }, headers: { "Accept" => "application/json" }
+    persisted = Catch.find_by(client_uuid: "uuid-LOGBOOK")
+    assert_equal bait, persisted.bait
+    assert_equal BigDecimal("22.50"), persisted.water_depth_feet
+    assert_equal "saddle", persisted.structure
+  end
+
+  test "POST /api/catches drops bait_id belonging to another user" do
+    photo = fixture_file_upload("sample_walleye.jpg", "image/jpeg")
+    other = create(:user, club: @club)
+    others_bait = create(:bait, user: other)
+    post "/api/catches", params: {
+      catch: { species_id: @walleye.id, length_inches: 18, captured_at_device: Time.current.iso8601,
+               client_uuid: "uuid-STOLEN-BAIT", photo: photo, bait_id: others_bait.id }
+    }, headers: { "Accept" => "application/json" }
+    persisted = Catch.find_by(client_uuid: "uuid-STOLEN-BAIT")
+    assert_nil persisted.bait_id
+  end
+
   test "POST /api/catches is idempotent on client_uuid" do
     photo = fixture_file_upload("sample_walleye.jpg", "image/jpeg")
     payload = lambda {

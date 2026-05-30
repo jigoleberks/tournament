@@ -5,6 +5,7 @@ class User < ApplicationRecord
   has_many :tournament_entries, through: :tournament_entry_members
   has_many :tournament_judges, dependent: :destroy
   has_many :catches, dependent: :restrict_with_error
+  has_many :baits, dependent: :restrict_with_error
   has_many :push_subscriptions, dependent: :destroy
   has_many :judge_actions, foreign_key: :judge_user_id, dependent: :destroy
 

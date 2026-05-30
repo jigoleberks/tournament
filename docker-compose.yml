@@ -30,6 +30,7 @@ services:
       SEED_DEMO_DATA: ${SEED_DEMO_DATA:-}
       GEOFENCE_MAP_URL: ${GEOFENCE_MAP_URL:-}
       MERCH_URL: ${MERCH_URL:-}
+      LOGBOOK_ENABLED: ${LOGBOOK_ENABLED:-}
       SOLID_QUEUE_IN_PUMA: "1"
     volumes: [".:/app"]
     ports: ["127.0.0.1:3000:3000"]

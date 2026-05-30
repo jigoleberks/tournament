@@ -28,6 +28,10 @@ async function drain() {
         if (rec.note) fd.append("catch[note]", rec.note)
         if (rec.tag_number) fd.append("catch[tag_number]", rec.tag_number)
         if (rec.weight_text) fd.append("catch[weight_text]", rec.weight_text)
+        if (rec.bait_id != null) fd.append("catch[bait_id]", rec.bait_id)
+        if (rec.water_depth_feet != null) fd.append("catch[water_depth_feet]", rec.water_depth_feet)
+        if (rec.water_temperature_c != null) fd.append("catch[water_temperature_c]", rec.water_temperature_c)
+        if (rec.structure) fd.append("catch[structure]", rec.structure)
         if (rec.photo) fd.append("catch[photo]", rec.photo, "photo.jpg")
         if (rec.video) {
           const ext = (rec.video.type || "").includes("mp4") ? "mp4" : "webm"

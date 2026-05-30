@@ -188,6 +188,43 @@ class CatchTest < ActiveSupport::TestCase
     assert(c.errors[:tag_number].any? { |m| m.include?("16") })
   end
 
+  test "bait is optional" do
+    c = build(:catch, user: @user, species: @walleye)
+    assert c.valid?
+    assert_nil c.bait
+  end
+
+  test "can be associated with a bait" do
+    bait = create(:bait, user: @user)
+    c = create(:catch, user: @user, species: @walleye, bait: bait)
+    assert_equal bait, c.reload.bait
+  end
+
+  test "structure enum supports all six values" do
+    %i[drop_off saddle hump flat weed_edge rocks].each do |sym|
+      c = build(:catch, user: @user, species: @walleye, structure: sym)
+      assert c.valid?, "structure=#{sym} should be valid: #{c.errors.full_messages}"
+    end
+  end
+
+  test "structure predicate methods are prefixed" do
+    c = build(:catch, user: @user, species: @walleye, structure: :drop_off)
+    assert c.structure_drop_off?
+    assert_not c.structure_hump?
+  end
+
+  test "water_depth_feet and water_temperature_c are optional" do
+    c = build(:catch, user: @user, species: @walleye, water_depth_feet: nil, water_temperature_c: nil)
+    assert c.valid?
+  end
+
+  test "stores water_depth_feet and water_temperature_c with two decimal precision" do
+    c = create(:catch, user: @user, species: @walleye, water_depth_feet: 22.5, water_temperature_c: 18.75)
+    c.reload
+    assert_equal BigDecimal("22.50"), c.water_depth_feet
+    assert_equal BigDecimal("18.75"), c.water_temperature_c
+  end
+
   test "weight_text is optional even for Tagged Walleye" do
     user = create(:user)
     tagged = Species.find_or_create_by!(name: "Tagged Walleye")

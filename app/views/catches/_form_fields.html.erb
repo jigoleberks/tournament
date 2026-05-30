@@ -3,10 +3,13 @@
     csrf_token: String  - authenticity token ("" on the offline shell)
     teammate:   User?    - present only when logging for a teammate (online)
     offline:    Boolean  - true on the cached /offline shell; suppresses the
-                           release-video block, which needs live tournament data
+                           release-video block (needs live tournament data)
+                           AND the logbook two-step flow (needs server-rendered baits)
 %>
 <% offline   = local_assigns.fetch(:offline, false) %>
 <% teammate  = local_assigns.fetch(:teammate, nil) %>
+<% logbook   = !offline && logbook_enabled? %>
+<% available_baits = (logbook && current_user) ? current_user.baits.active.order(:created_at) : [] %>
 <% all_species = Species.in_log_order %>
 <% default_species = all_species.find { |s| s.name.casecmp?("walleye") } || all_species.first %>
 <% length_caps = Species.order(:name).each_with_object({}) do |s, h|
@@ -24,132 +27,202 @@
                   video-capture:captured->catch-form#onVideoCaptured
                   video-capture:failed->catch-form#onVideoFailed">
 
-  <label for="catch_species_id" class="block text-sm font-medium text-slate-300 mt-4 mb-1">Species</label>
-  <select id="catch_species_id" data-catch-form-target="speciesSelect" data-action="change->catch-form#refresh"
-          class="w-full h-12 px-3 rounded-lg bg-slate-800 border border-slate-700 text-base text-slate-100">
-    <% all_species.each do |s| %>
-      <option value="<%= s.id %>"<%= " selected" if s == default_species %>><%= s.name %></option>
-    <% end %>
-  </select>
+  <div<%= " data-catch-form-target=\"step1\"".html_safe if logbook %>>
 
-  <label for="catch_length_inches" data-catch-form-target="lengthLabel" class="block text-sm font-medium text-slate-300 mt-4 mb-1">
-    <%= current_user&.metric? ? "Length (cm)" : "Length (in)" %>
-  </label>
-  <input id="catch_length_inches" type="number"
-         step="0.25"
-         min="0"
-         data-catch-form-target="lengthInput"
-         data-catch-form-unit="<%= current_user&.length_unit || "inches" %>"
-         data-action="input->catch-form#refresh"
-         class="w-full h-12 px-3 rounded-lg bg-slate-800 border border-slate-700 text-base text-slate-100">
+    <label for="catch_species_id" class="block text-sm font-medium text-slate-300 mt-4 mb-1">Species</label>
+    <select id="catch_species_id" data-catch-form-target="speciesSelect" data-action="change->catch-form#refresh"
+            class="w-full h-12 px-3 rounded-lg bg-slate-800 border border-slate-700 text-base text-slate-100">
+      <% all_species.each do |s| %>
+        <option value="<%= s.id %>"<%= " selected" if s == default_species %>><%= s.name %></option>
+      <% end %>
+    </select>
 
-  <label class="block text-sm font-medium text-slate-300 mt-4 mb-1">Length unit</label>
-  <div class="flex gap-2">
-    <% User::LENGTH_UNITS.each do |unit| %>
-      <label class="flex-1">
-        <input type="radio" name="length_unit_toggle" value="<%= unit %>"
-               <%= "checked" if (current_user&.length_unit || "inches") == unit %>
-               data-action="change->catch-form#setUnit"
-               class="sr-only peer">
-        <span class="block w-full h-12 leading-[3rem] text-center rounded-lg bg-slate-700 peer-checked:bg-blue-600 text-slate-100 peer-checked:text-white cursor-pointer">
-          <%= unit == "inches" ? "Inches" : "Centimeters" %>
-        </span>
-      </label>
-    <% end %>
-  </div>
-
-  <div data-catch-form-target="tagWrapper" class="hidden">
-    <label for="catch_tag_number" class="block text-sm font-medium text-slate-300 mt-4 mb-1">Science tag #</label>
-    <input id="catch_tag_number" type="text" maxlength="16"
-           autocapitalize="characters" autocomplete="off"
-           data-catch-form-target="tagInput"
-           data-action="input->catch-form#refresh blur->catch-form#uppercaseTag"
-           placeholder="e.g. A1234"
-           class="w-full h-12 px-3 rounded-lg bg-slate-800 border border-slate-700 text-base text-slate-100 uppercase">
-
-    <label for="catch_weight_text" class="block text-sm font-medium text-slate-300 mt-3 mb-1">
-      Weight <span class="text-slate-500">(recommended)</span>
+    <label for="catch_length_inches" data-catch-form-target="lengthLabel" class="block text-sm font-medium text-slate-300 mt-4 mb-1">
+      <%= current_user&.metric? ? "Length (cm)" : "Length (in)" %>
     </label>
-    <input id="catch_weight_text" type="text" maxlength="32"
-           autocomplete="off"
-           data-catch-form-target="weightInput"
-           placeholder="e.g. 4 lbs 3oz"
+    <input id="catch_length_inches" type="number"
+           step="0.25"
+           min="0"
+           data-catch-form-target="lengthInput"
+           data-catch-form-unit="<%= current_user&.length_unit || "inches" %>"
+           data-action="input->catch-form#refresh"
            class="w-full h-12 px-3 rounded-lg bg-slate-800 border border-slate-700 text-base text-slate-100">
-  </div>
 
-  <label for="catch_note" class="block text-sm font-medium text-slate-300 mt-4 mb-1">Notes (private)</label>
-  <textarea id="catch_note" name="catch[note]" maxlength="500" rows="4"
-            data-catch-form-target="noteInput"
-            placeholder="Only you will see these notes."
-            class="w-full px-3 py-2 rounded-lg bg-slate-800 border border-slate-700 text-base text-slate-100"></textarea>
-
-  <h3 class="text-lg font-semibold mt-6 mb-2">Photo</h3>
-  <div data-photo-capture-target="inlineSlot" class="relative">
-    <video data-photo-capture-target="video" autoplay muted playsinline
-           class="hidden w-full aspect-[3/4] object-cover rounded-lg bg-black"></video>
-    <span data-photo-capture-target="frameGuide"
-          class="hidden pointer-events-none absolute inset-[12.5%] border-2 border-white/80"></span>
-    <div data-photo-capture-target="zoomToggle"
-         class="hidden absolute bottom-4 left-1/2 -translate-x-1/2 flex rounded-full bg-slate-900/70 p-1 gap-1">
-      <button type="button" data-photo-capture-target="zoomHalfButton"
-              data-action="photo-capture#setZoomHalf"
-              class="px-3 h-10 rounded-full text-sm text-white">0.5x</button>
-      <button type="button" data-photo-capture-target="zoomOneButton"
-              data-action="photo-capture#setZoomOne"
-              class="px-3 h-10 rounded-full text-sm text-white">1x</button>
+    <label class="block text-sm font-medium text-slate-300 mt-4 mb-1">Length unit</label>
+    <div class="flex gap-2">
+      <% User::LENGTH_UNITS.each do |unit| %>
+        <label class="flex-1">
+          <input type="radio" name="length_unit_toggle" value="<%= unit %>"
+                 <%= "checked" if (current_user&.length_unit || "inches") == unit %>
+                 data-action="change->catch-form#setUnit"
+                 class="sr-only peer">
+          <span class="block w-full h-12 leading-[3rem] text-center rounded-lg bg-slate-700 peer-checked:bg-blue-600 text-slate-100 peer-checked:text-white cursor-pointer">
+            <%= unit == "inches" ? "Inches" : "Centimeters" %>
+          </span>
+        </label>
+      <% end %>
     </div>
-  </div>
-  <img data-photo-capture-target="preview" alt=""
-       class="hidden w-full aspect-[3/4] object-contain rounded-lg bg-black">
-  <div class="flex gap-2 mt-2">
-    <button type="button" data-photo-capture-target="openButton"
-            data-action="photo-capture#start"
-            class="flex-1 h-12 px-4 rounded-lg bg-slate-700 active:bg-slate-600 text-slate-100">Open camera</button>
-    <button type="button" data-photo-capture-target="captureButton"
-            data-action="photo-capture#capture"
-            class="hidden flex-1 h-14 px-4 rounded-lg bg-blue-600 active:bg-blue-700 text-white font-semibold">Capture</button>
-    <button type="button" data-photo-capture-target="fullscreenButton"
-            data-action="photo-capture#enterFullscreen"
-            aria-label="Fullscreen camera"
-            class="hidden h-14 w-14 rounded-lg bg-slate-700 active:bg-slate-600 text-slate-100 text-xl">⛶</button>
-    <button type="button" data-photo-capture-target="retakeButton"
-            data-action="photo-capture#retake"
-            class="hidden flex-1 h-12 px-4 rounded-lg bg-slate-700 active:bg-slate-600 text-slate-100">Retake</button>
-  </div>
 
-  <div data-photo-capture-target="fullscreenContainer"
-       class="hidden fixed inset-0 z-50 bg-black">
-    <div data-photo-capture-target="fullscreenSlot" class="absolute inset-0 flex items-center justify-center"></div>
-    <button type="button" data-action="photo-capture#exitFullscreen"
-            aria-label="Close fullscreen"
-            class="absolute top-4 left-4 w-12 h-12 rounded-full bg-slate-900/70 text-white text-xl flex items-center justify-center">✕</button>
-    <button type="button" data-action="photo-capture#capture"
-            aria-label="Capture photo"
-            class="absolute right-6 top-1/2 -translate-y-1/2 w-20 h-20 rounded-full bg-white border-4 border-slate-300 active:bg-slate-200"></button>
-  </div>
+    <div data-catch-form-target="tagWrapper" class="hidden">
+      <label for="catch_tag_number" class="block text-sm font-medium text-slate-300 mt-4 mb-1">Science tag #</label>
+      <input id="catch_tag_number" type="text" maxlength="16"
+             autocapitalize="characters" autocomplete="off"
+             data-catch-form-target="tagInput"
+             data-action="input->catch-form#refresh blur->catch-form#uppercaseTag"
+             placeholder="e.g. A1234"
+             class="w-full h-12 px-3 rounded-lg bg-slate-800 border border-slate-700 text-base text-slate-100 uppercase">
 
-  <% unless offline %>
-    <% video_required = Tournaments::ActiveForUser.call(user: current_user).any?(&:requires_release_video) %>
-    <% if video_required %>
-      <h3 class="text-lg font-semibold mt-6 mb-2">Release video</h3>
-      <video data-video-capture-target="video" autoplay muted playsinline
-             class="w-full max-h-80 object-cover rounded-lg bg-black"></video>
-      <div class="flex gap-2 mt-2">
-        <button type="button" data-action="video-capture#start"
-                class="flex-1 h-12 px-4 rounded-lg bg-slate-700 active:bg-slate-600 text-slate-100">Start recording</button>
-        <button type="button" data-action="video-capture#stop"
-                class="flex-1 h-12 px-4 rounded-lg bg-slate-700 active:bg-slate-600 text-slate-100">Stop</button>
-      </div>
-      <button type="button" data-action="video-capture#markFailed"
-              class="w-full h-12 px-4 rounded-lg bg-slate-700 active:bg-slate-600 text-slate-100 mt-2">Mark video failed and submit anyway</button>
-      <video data-video-capture-target="preview" controls
-             class="w-full max-h-80 object-contain rounded-lg bg-black mt-2"></video>
+      <label for="catch_weight_text" class="block text-sm font-medium text-slate-300 mt-3 mb-1">
+        Weight <span class="text-slate-500">(recommended)</span>
+      </label>
+      <input id="catch_weight_text" type="text" maxlength="32"
+             autocomplete="off"
+             data-catch-form-target="weightInput"
+             placeholder="e.g. 4 lbs 3oz"
+             class="w-full h-12 px-3 rounded-lg bg-slate-800 border border-slate-700 text-base text-slate-100">
+    </div>
+
+    <% unless logbook %>
+      <label for="catch_note" class="block text-sm font-medium text-slate-300 mt-4 mb-1">Notes (private)</label>
+      <textarea id="catch_note" name="catch[note]" maxlength="500" rows="4"
+                data-catch-form-target="noteInput"
+                placeholder="Only you will see these notes."
+                class="w-full px-3 py-2 rounded-lg bg-slate-800 border border-slate-700 text-base text-slate-100"></textarea>
     <% end %>
+
+    <h3 class="text-lg font-semibold mt-6 mb-2">Photo</h3>
+    <div data-photo-capture-target="inlineSlot" class="relative">
+      <video data-photo-capture-target="video" autoplay muted playsinline
+             class="hidden w-full aspect-[3/4] object-cover rounded-lg bg-black"></video>
+      <span data-photo-capture-target="frameGuide"
+            class="hidden pointer-events-none absolute inset-[12.5%] border-2 border-white/80"></span>
+      <div data-photo-capture-target="zoomToggle"
+           class="hidden absolute bottom-4 left-1/2 -translate-x-1/2 flex rounded-full bg-slate-900/70 p-1 gap-1">
+        <button type="button" data-photo-capture-target="zoomHalfButton"
+                data-action="photo-capture#setZoomHalf"
+                class="px-3 h-10 rounded-full text-sm text-white">0.5x</button>
+        <button type="button" data-photo-capture-target="zoomOneButton"
+                data-action="photo-capture#setZoomOne"
+                class="px-3 h-10 rounded-full text-sm text-white">1x</button>
+      </div>
+    </div>
+    <img data-photo-capture-target="preview" alt=""
+         class="hidden w-full aspect-[3/4] object-contain rounded-lg bg-black">
+    <div class="flex gap-2 mt-2">
+      <button type="button" data-photo-capture-target="openButton"
+              data-action="photo-capture#start"
+              class="flex-1 h-12 px-4 rounded-lg bg-slate-700 active:bg-slate-600 text-slate-100">Open camera</button>
+      <button type="button" data-photo-capture-target="captureButton"
+              data-action="photo-capture#capture"
+              class="hidden flex-1 h-14 px-4 rounded-lg bg-blue-600 active:bg-blue-700 text-white font-semibold">Capture</button>
+      <button type="button" data-photo-capture-target="fullscreenButton"
+              data-action="photo-capture#enterFullscreen"
+              aria-label="Fullscreen camera"
+              class="hidden h-14 w-14 rounded-lg bg-slate-700 active:bg-slate-600 text-slate-100 text-xl">⛶</button>
+      <button type="button" data-photo-capture-target="retakeButton"
+              data-action="photo-capture#retake"
+              class="hidden flex-1 h-12 px-4 rounded-lg bg-slate-700 active:bg-slate-600 text-slate-100">Retake</button>
+    </div>
+
+    <div data-photo-capture-target="fullscreenContainer"
+         class="hidden fixed inset-0 z-50 bg-black">
+      <div data-photo-capture-target="fullscreenSlot" class="absolute inset-0 flex items-center justify-center"></div>
+      <button type="button" data-action="photo-capture#exitFullscreen"
+              aria-label="Close fullscreen"
+              class="absolute top-4 left-4 w-12 h-12 rounded-full bg-slate-900/70 text-white text-xl flex items-center justify-center">✕</button>
+      <button type="button" data-action="photo-capture#capture"
+              aria-label="Capture photo"
+              class="absolute right-6 top-1/2 -translate-y-1/2 w-20 h-20 rounded-full bg-white border-4 border-slate-300 active:bg-slate-200"></button>
+    </div>
+
+    <% unless offline %>
+      <% video_required = Tournaments::ActiveForUser.call(user: current_user).any?(&:requires_release_video) %>
+      <% if video_required %>
+        <h3 class="text-lg font-semibold mt-6 mb-2">Release video</h3>
+        <video data-video-capture-target="video" autoplay muted playsinline
+               class="w-full max-h-80 object-cover rounded-lg bg-black"></video>
+        <div class="flex gap-2 mt-2">
+          <button type="button" data-action="video-capture#start"
+                  class="flex-1 h-12 px-4 rounded-lg bg-slate-700 active:bg-slate-600 text-slate-100">Start recording</button>
+          <button type="button" data-action="video-capture#stop"
+                  class="flex-1 h-12 px-4 rounded-lg bg-slate-700 active:bg-slate-600 text-slate-100">Stop</button>
+        </div>
+        <button type="button" data-action="video-capture#markFailed"
+                class="w-full h-12 px-4 rounded-lg bg-slate-700 active:bg-slate-600 text-slate-100 mt-2">Mark video failed and submit anyway</button>
+        <video data-video-capture-target="preview" controls
+               class="w-full max-h-80 object-contain rounded-lg bg-black mt-2"></video>
+      <% end %>
+    <% end %>
+
+    <% if logbook %>
+      <button type="button"
+              data-action="catch-form#next"
+              data-test="next-button"
+              class="w-full h-14 px-6 text-lg font-semibold rounded-lg bg-blue-600 active:bg-blue-700 text-white mt-4">Next</button>
+    <% end %>
+  </div>
+
+  <% if logbook %>
+    <div data-catch-form-target="step2" hidden class="mt-2">
+      <h2 class="text-xl font-semibold mt-2 mb-2">Trip details</h2>
+      <p class="text-sm text-slate-400 mb-4">All fields optional — fill in what you know.</p>
+
+      <div class="flex items-end gap-2">
+        <div class="flex-1">
+          <label for="catch_bait_id" class="block text-sm font-medium text-slate-300 mb-1">Bait</label>
+          <select id="catch_bait_id" data-catch-form-target="baitSelect"
+                  class="w-full h-12 px-3 rounded-lg bg-slate-800 border border-slate-700 text-base text-slate-100">
+            <option value="">No bait selected</option>
+            <% available_baits.each do |b| %>
+              <option value="<%= b.id %>"><%= b.display_name %></option>
+            <% end %>
+          </select>
+        </div>
+        <%= link_to "+ Add", new_logbook_bait_path, target: "_blank",
+                    class: "h-12 px-3 rounded-lg bg-slate-700 active:bg-slate-600 text-slate-100 text-sm leading-[3rem] whitespace-nowrap" %>
+      </div>
+
+      <label for="catch_water_depth_feet" class="block text-sm font-medium text-slate-300 mt-4 mb-1">Water depth (ft)</label>
+      <input id="catch_water_depth_feet" type="number" step="0.5" min="0"
+             data-catch-form-target="waterDepthInput"
+             placeholder="e.g. 22"
+             class="w-full h-12 px-3 rounded-lg bg-slate-800 border border-slate-700 text-base text-slate-100">
+
+      <label for="catch_water_temperature_c" class="block text-sm font-medium text-slate-300 mt-4 mb-1">Water temp (°C)</label>
+      <input id="catch_water_temperature_c" type="number" step="0.1"
+             data-catch-form-target="waterTempInput"
+             placeholder="e.g. 18.5"
+             class="w-full h-12 px-3 rounded-lg bg-slate-800 border border-slate-700 text-base text-slate-100">
+
+      <label for="catch_structure" class="block text-sm font-medium text-slate-300 mt-4 mb-1">Structure</label>
+      <select id="catch_structure" data-catch-form-target="structureSelect"
+              class="w-full h-12 px-3 rounded-lg bg-slate-800 border border-slate-700 text-base text-slate-100">
+        <option value="">No structure noted</option>
+        <% Catch.structures.keys.each do |key| %>
+          <option value="<%= key %>"><%= key.humanize %></option>
+        <% end %>
+      </select>
+
+      <label for="catch_note" class="block text-sm font-medium text-slate-300 mt-4 mb-1">Notes (private)</label>
+      <textarea id="catch_note" name="catch[note]" maxlength="500" rows="4"
+                data-catch-form-target="noteInput"
+                placeholder="Only you will see these notes."
+                class="w-full px-3 py-2 rounded-lg bg-slate-800 border border-slate-700 text-base text-slate-100"></textarea>
+
+      <div class="flex gap-2 mt-4">
+        <button type="button" data-action="catch-form#back"
+                data-test="back-button"
+                class="flex-1 h-12 px-4 rounded-lg bg-slate-700 active:bg-slate-600 text-slate-100">Back</button>
+        <button data-catch-form-target="submitButton"
+                data-action="catch-form#submit"
+                class="flex-1 h-14 px-6 text-lg font-semibold rounded-lg bg-blue-600 active:bg-blue-700 text-white disabled:opacity-60 disabled:cursor-not-allowed">Submit</button>
+      </div>
+    </div>
+  <% else %>
+    <button data-catch-form-target="submitButton"
+            data-action="catch-form#submit"
+            class="w-full h-14 px-6 text-lg font-semibold rounded-lg bg-blue-600 active:bg-blue-700 text-white mt-2 disabled:opacity-60 disabled:cursor-not-allowed">Submit</button>
   <% end %>
 
   <p data-catch-form-target="status" class="text-amber-300 text-sm mb-2 mt-4"></p>
-
-  <button data-catch-form-target="submitButton"
-          data-action="catch-form#submit"
-          class="w-full h-14 px-6 text-lg font-semibold rounded-lg bg-blue-600 active:bg-blue-700 text-white mt-2 disabled:opacity-60 disabled:cursor-not-allowed">Submit</button>
 </div>

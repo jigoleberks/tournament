@@ -3,7 +3,13 @@ class ApplicationController < ActionController::Base
   allow_browser versions: :modern
 
   before_action :touch_last_seen
-  helper_method :tournament_leaderboard_visible?
+  helper_method :tournament_leaderboard_visible?, :logbook_enabled?
+
+  LOGBOOK_ENABLED_VALUES = %w[1 true yes on].freeze
+
+  def logbook_enabled?
+    LOGBOOK_ENABLED_VALUES.include?(ENV["LOGBOOK_ENABLED"].to_s.strip.downcase)
+  end
 
   private
 

@@ -1,8 +1,8 @@
-<%# locals: path_helper:, available_species:, species_filter_id:, lake_filter_key:, sort: nil, show_sort: true %>
+<%# locals: path_helper:, available_species:, species_filter_id:, lake_filter_key:, sort: nil, show_sort: true, available_baits: nil, structure_filter: nil, bait_filter_id: nil %>
 <%= form_with url: public_send(path_helper), method: :get, local: true,
               data: { controller: "auto-submit", action: "change->auto-submit#submit" },
               class: "flex flex-wrap items-center gap-3 mt-3 mb-3 text-sm" do %>
-  <% request.query_parameters.except(:species, :sort, :lake, :start, :end, :min_length, :controller, :action).each do |k, v| %>
+  <% request.query_parameters.except(:species, :sort, :lake, :start, :end, :min_length, :structure, :bait_id, :controller, :action).each do |k, v| %>
     <%= hidden_field_tag k, v %>
   <% end %>
   <%# Preserve :start/:end across auto-submit of the species/lake/sort %>
@@ -52,4 +52,24 @@
                        min: 0, step: "0.5", placeholder: "in",
                        "data-test": "min-length",
                        class: "h-10 w-20 px-2 rounded-lg bg-slate-800 border border-slate-700 text-slate-100" %>
+
+  <% if local_assigns[:available_baits] %>
+    <label class="text-slate-300">Structure</label>
+    <%= select_tag :structure,
+                   options_for_select(
+                     [["Any structure", ""]] + Catch.structures.keys.map { |k| [k.humanize, k] },
+                     local_assigns[:structure_filter].to_s
+                   ),
+                   "data-test": "structure-filter",
+                   class: "h-10 px-2 rounded-lg bg-slate-800 border border-slate-700 text-slate-100" %>
+
+    <label class="text-slate-300">Bait</label>
+    <%= select_tag :bait_id,
+                   options_for_select(
+                     [["Any bait", ""]] + local_assigns[:available_baits].map { |b| [b.display_name, b.id] },
+                     local_assigns[:bait_filter_id].to_s
+                   ),
+                   "data-test": "bait-filter",
+                   class: "h-10 px-2 rounded-lg bg-slate-800 border border-slate-700 text-slate-100" %>
+  <% end %>
 <% end %>

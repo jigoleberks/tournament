@@ -3,6 +3,7 @@ class Catch < ApplicationRecord
   belongs_to :user
   belongs_to :species
   belongs_to :logged_by_user, class_name: "User", optional: true
+  belongs_to :bait, optional: true
   has_one_attached :photo
   has_one_attached :video                 # not used in Phase 1; reserved for Phase 2
   has_many :catch_placements, dependent: :destroy
@@ -15,6 +16,15 @@ class Catch < ApplicationRecord
     disputed:     3,
     disqualified: 4
   }
+
+  enum :structure, {
+    drop_off:  0,
+    saddle:    1,
+    hump:      2,
+    flat:      3,
+    weed_edge: 4,
+    rocks:     5
+  }, prefix: true
 
   MAX_LENGTH_BY_SPECIES = { "perch" => 20, "walleye" => 50, "pike" => 70 }.freeze
   PHOTO_CONTENT_TYPES = %w[image/jpeg image/png image/heic image/heif image/webp].freeze

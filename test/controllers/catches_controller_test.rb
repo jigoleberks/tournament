@@ -32,6 +32,38 @@ class CatchesControllerTest < ActionDispatch::IntegrationTest
     assert_equal 0, placement.slot_index
   end
 
+  test "POST /catches persists logbook fields when supplied" do
+    photo = fixture_file_upload("sample_walleye.jpg", "image/jpeg")
+    bait = create(:bait, user: @user)
+    post catches_path, params: {
+      catch: {
+        species_id: @walleye.id, length_inches: 18.5, captured_at_device: Time.current,
+        client_uuid: "client-logbook", photo: photo,
+        bait_id: bait.id, water_depth_feet: 22.5, water_temperature_c: 18.5, structure: "hump"
+      }
+    }
+    persisted = Catch.find_by(client_uuid: "client-logbook")
+    assert_equal bait, persisted.bait
+    assert_equal BigDecimal("22.50"), persisted.water_depth_feet
+    assert_equal BigDecimal("18.50"), persisted.water_temperature_c
+    assert_equal "hump", persisted.structure
+  end
+
+  test "POST /catches drops bait_id when it points to another user's bait" do
+    photo = fixture_file_upload("sample_walleye.jpg", "image/jpeg")
+    other = create(:user, club: @club)
+    others_bait = create(:bait, user: other)
+    post catches_path, params: {
+      catch: {
+        species_id: @walleye.id, length_inches: 18.5, captured_at_device: Time.current,
+        client_uuid: "client-stolen-bait", photo: photo,
+        bait_id: others_bait.id
+      }
+    }
+    persisted = Catch.find_by(client_uuid: "client-stolen-bait")
+    assert_nil persisted.bait_id
+  end
+
   test "POST /catches persists flags and sets needs_review when GPS missing" do
     photo = fixture_file_upload("sample_walleye.jpg", "image/jpeg")
     post catches_path, params: {

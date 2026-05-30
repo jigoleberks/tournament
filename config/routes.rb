@@ -98,6 +98,11 @@ Rails.application.routes.draw do
     end
   end
 
+  get "/logbook", to: "logbook#index", as: :logbook
+  namespace :logbook do
+    resources :baits, only: [:index, :new, :create, :edit, :update, :destroy]
+  end
+
   namespace :judges do
     resources :tournaments, only: [] do
       resources :catches, only: [:index, :show] do

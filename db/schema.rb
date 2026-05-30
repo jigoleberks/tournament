@@ -52,6 +52,18 @@ ActiveRecord::Schema[8.1].define(version: 2026_05_28_173741) do
     t.index ["blob_id", "variation_digest"], name: "index_active_storage_variant_records_uniqueness", unique: true
   end
 
+  create_table "baits", force: :cascade do |t|
+    t.datetime "archived_at"
+    t.string "bait_type"
+    t.string "color"
+    t.datetime "created_at", null: false
+    t.string "lure_type"
+    t.datetime "updated_at", null: false
+    t.bigint "user_id", null: false
+    t.string "weight"
+    t.index ["user_id", "archived_at"], name: "index_baits_on_user_id_and_archived_at"
+  end
+
   create_table "catch_placements", force: :cascade do |t|
     t.boolean "active", default: true, null: false
     t.bigint "catch_id", null: false
@@ -71,6 +83,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_05_28_173741) do
 
   create_table "catches", force: :cascade do |t|
     t.string "app_build"
+    t.bigint "bait_id"
     t.decimal "barometric_pressure_hpa", precision: 7, scale: 2
     t.datetime "captured_at_device", null: false
     t.datetime "captured_at_gps"
@@ -90,14 +103,18 @@ ActiveRecord::Schema[8.1].define(version: 2026_05_28_173741) do
     t.decimal "pressure_trend_24h_hpa", precision: 5, scale: 2
     t.bigint "species_id", null: false
     t.integer "status", default: 1, null: false
+    t.integer "structure"
     t.datetime "synced_at"
     t.string "tag_number", limit: 16
     t.decimal "temperature_c", precision: 5, scale: 2
     t.datetime "updated_at", null: false
     t.bigint "user_id", null: false
+    t.decimal "water_depth_feet", precision: 5, scale: 2
+    t.decimal "water_temperature_c", precision: 5, scale: 2
     t.string "weight_text", limit: 32
     t.decimal "wind_direction_deg", precision: 5, scale: 1
     t.decimal "wind_speed_kph", precision: 5, scale: 1
+    t.index ["bait_id"], name: "index_catches_on_bait_id"
     t.index ["client_uuid"], name: "index_catches_on_client_uuid", unique: true
     t.index ["lake"], name: "index_catches_on_lake"
     t.index ["logged_by_user_id"], name: "index_catches_on_logged_by_user_id"
@@ -433,10 +450,12 @@ ActiveRecord::Schema[8.1].define(version: 2026_05_28_173741) do
 
   add_foreign_key "active_storage_attachments", "active_storage_blobs", column: "blob_id"
   add_foreign_key "active_storage_variant_records", "active_storage_blobs", column: "blob_id"
+  add_foreign_key "baits", "users"
   add_foreign_key "catch_placements", "catches"
   add_foreign_key "catch_placements", "species"
   add_foreign_key "catch_placements", "tournament_entries"
   add_foreign_key "catch_placements", "tournaments"
+  add_foreign_key "catches", "baits"
   add_foreign_key "catches", "species"
   add_foreign_key "catches", "users"
   add_foreign_key "catches", "users", column: "logged_by_user_id"

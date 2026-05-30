@@ -117,6 +117,14 @@ FactoryBot.define do
     role { :member }
   end
 
+  factory :bait do
+    association :user
+    color { "orange" }
+    weight { "3/8 oz" }
+    lure_type { "fireball" }
+    bait_type { "minnow" }
+  end
+
   factory :club_rules_revision do
     association :club
     association :edited_by_user, factory: :user

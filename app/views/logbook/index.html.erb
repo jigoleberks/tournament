@@ -1,0 +1,69 @@
+<div class="flex items-center justify-between mt-4 mb-3">
+  <h1 class="text-2xl font-semibold">Logbook</h1>
+  <%= link_to "Manage baits", logbook_baits_path, class: "text-blue-400 font-medium" %>
+</div>
+
+<%= link_to "Log catch", new_catch_path,
+            class: "block w-full h-14 px-6 mb-4 text-lg font-semibold rounded-lg bg-blue-600 active:bg-blue-700 text-white text-center leading-[3.5rem]" %>
+
+<%= render "shared/catch_calendar",
+           month_start: @month_start,
+           current_start: @selected_start,
+           current_end: @selected_end,
+           counts_by_date: @counts_by_date,
+           path_helper: :logbook_path,
+           params: request.query_parameters,
+           month_of_year_active: @month_of_year_active %>
+
+<%= render "catches/filter_bar",
+           path_helper: :logbook_path,
+           available_species: @available_species,
+           species_filter_id: @species_filter_id,
+           lake_filter_key: @lake_filter_key,
+           sort: @sort,
+           show_sort: true,
+           available_baits: @available_baits,
+           structure_filter: @structure_filter,
+           bait_filter_id: @bait_filter_id %>
+
+<%= render "catches/match_conditions", path_helper: :logbook_path %>
+
+<div class="relative w-full aspect-[3/4] rounded-xl overflow-hidden shadow-xl border border-slate-700 mt-3"
+     data-controller="map"
+     data-map-points-value="<%= @map_points.to_json %>">
+  <div class="absolute inset-0 bg-slate-800 flex items-center justify-center text-slate-500 italic">
+    Loading map...
+  </div>
+</div>
+
+<div class="mt-6">
+  <h2 class="text-lg font-semibold mb-3">Catches</h2>
+  <% if @catches.any? %>
+    <ul class="grid grid-cols-2 gap-2">
+      <% @catches.each do |c| %>
+        <li class="bg-slate-800 rounded-lg p-2 active:bg-slate-700">
+          <%= link_to catch_path(c.id), class: "block" do %>
+            <% if c.photo.attached? %>
+              <%= thumb c.photo, class: "w-full h-32 object-cover rounded bg-black" %>
+            <% else %>
+              <div class="w-full h-32 rounded bg-black flex items-center justify-center text-slate-500 text-sm">no photo</div>
+            <% end %>
+            <div class="text-xs text-slate-300 mt-2 leading-snug">
+              <div class="font-medium text-slate-100"><%= c.species.name %></div>
+              <div><%= format_length_dual(c.length_inches) %></div>
+              <% if c.bait %>
+                <div class="text-slate-400 truncate"><%= c.bait.display_name %></div>
+              <% end %>
+              <% if c.structure.present? %>
+                <div class="text-slate-400"><%= c.structure.humanize %></div>
+              <% end %>
+              <div class="text-slate-500"><%= c.captured_at_device.strftime("%b %d %Y · %l:%M %p") %></div>
+            </div>
+          <% end %>
+        </li>
+      <% end %>
+    </ul>
+  <% else %>
+    <p class="text-slate-400 italic">No catches in this view.</p>
+  <% end %>
+</div>

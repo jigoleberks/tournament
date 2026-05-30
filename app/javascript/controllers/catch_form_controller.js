@@ -2,7 +2,8 @@ import { Controller } from "@hotwired/stimulus"
 import { enqueueCatch } from "offline/db"
 
 export default class extends Controller {
-  static targets = ["speciesSelect", "lengthInput", "lengthLabel", "noteInput", "submitButton", "status", "tagWrapper", "tagInput", "weightInput"]
+  static targets = ["speciesSelect", "lengthInput", "lengthLabel", "noteInput", "submitButton", "status", "tagWrapper", "tagInput", "weightInput",
+                    "step1", "step2", "baitSelect", "waterDepthInput", "waterTempInput", "structureSelect"]
   static values = { csrfToken: String, capsBySpeciesId: Object, teammateUserId: String, taggedSpeciesId: String }
 
   connect() {
@@ -58,6 +59,27 @@ export default class extends Controller {
     return null
   }
 
+  next(event) {
+    if (event) event.preventDefault()
+    const missing = this._missingFieldMessage()
+    if (missing) { this.statusTarget.textContent = missing; return }
+    // Stamp the catch *now* (when the fish is being released), not at submit
+    // time. The angler may spend minutes on step 2; captured_at_device and the
+    // GPS reading should reflect when the photo was taken, not when they hit
+    // save. GPS read fires in the background — submit() awaits the promise.
+    this.capturedAtDevice = new Date().toISOString()
+    this.capturedPositionPromise = this.tryGeolocate()
+    if (this.hasStep1Target) this.step1Target.hidden = true
+    if (this.hasStep2Target) this.step2Target.hidden = false
+    this.statusTarget.textContent = ""
+  }
+
+  back(event) {
+    if (event) event.preventDefault()
+    if (this.hasStep2Target) this.step2Target.hidden = true
+    if (this.hasStep1Target) this.step1Target.hidden = false
+  }
+
   async submit(event) {
     event.preventDefault()
     const missing = this._missingFieldMessage()
@@ -65,13 +87,18 @@ export default class extends Controller {
 
     this._setSubmitting(true)
     try {
-      const position = await this.tryGeolocate()
+      // In the two-step flow, next() already stamped captured_at_device and
+      // kicked off the GPS read; fall back to fresh values for the single-page
+      // flow where neither was stashed.
+      const position = this.capturedPositionPromise
+        ? await this.capturedPositionPromise
+        : await this.tryGeolocate()
       const record = {
         client_uuid: this.clientUuid,
         species_id: this.speciesSelectTarget.value,
         length_inches: this._toInches(this.lengthInputTarget.value),
         length_unit: this.lengthInputTarget.dataset.catchFormUnit,
-        captured_at_device: new Date().toISOString(),
+        captured_at_device: this.capturedAtDevice ?? new Date().toISOString(),
         captured_at_gps: position?.gpsTime ?? null,
         latitude: position?.coords?.latitude ?? null,
         longitude: position?.coords?.longitude ?? null,
@@ -83,7 +110,11 @@ export default class extends Controller {
         photo: this.photoBlob,
         video: this.videoBlob,
         video_failed: this.videoFailed,
-        teammate_user_id: this.teammateUserIdValue || null
+        teammate_user_id: this.teammateUserIdValue || null,
+        bait_id: this.hasBaitSelectTarget ? (this.baitSelectTarget.value || null) : null,
+        water_depth_feet: this.hasWaterDepthInputTarget ? (this.waterDepthInputTarget.value || null) : null,
+        water_temperature_c: this.hasWaterTempInputTarget ? (this.waterTempInputTarget.value || null) : null,
+        structure: this.hasStructureSelectTarget ? (this.structureSelectTarget.value || null) : null
       }
 
       await enqueueCatch(record)

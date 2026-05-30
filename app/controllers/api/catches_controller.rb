@@ -13,7 +13,9 @@ class Api::CatchesController < Api::BaseController
     end
 
     angler = teammate || current_user
-    catch_record = angler.catches.build(catch_params)
+    permitted = catch_params
+    permitted = permitted.except(:bait_id) unless valid_bait_id?(permitted[:bait_id])
+    catch_record = angler.catches.build(permitted)
     catch_record.logged_by_user_id = current_user.id if teammate
 
     if teammate && !shares_entry_at?(teammate, catch_record.captured_at_device)
@@ -67,8 +69,15 @@ class Api::CatchesController < Api::BaseController
     params.require(:catch).permit(
       :species_id, :length_inches, :length_unit, :captured_at_device, :captured_at_gps,
       :latitude, :longitude, :gps_accuracy_m, :app_build, :client_uuid, :photo, :video, :note,
-      :tag_number, :weight_text
+      :tag_number, :weight_text, :bait_id, :water_depth_feet, :water_temperature_c, :structure
     )
+  end
+
+  # Drop bait_id when it points to a bait not owned by current_user.
+  # Matches the server-side check in CatchesController.
+  def valid_bait_id?(id)
+    return true if id.blank?
+    current_user.baits.exists?(id: id)
   end
 
   def serialize(catch_record, placements: nil, flags: [])
