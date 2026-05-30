@@ -1,5 +1,14 @@
 <h1 class="text-2xl font-semibold mt-4 mb-4">Log Catch</h1>
 
-<p class="bg-amber-900/30 border border-amber-700/40 rounded-lg p-3 mb-4 text-sm text-amber-200">
+<div data-controller="offline-reconnect"
+     class="bg-amber-900/30 border border-amber-700/40 rounded-lg p-3 mb-4 text-sm text-amber-200">
   You're offline. Log your catch now — it'll upload automatically when you're back in service.
-</p>
+</div>
+
+<%= render "catches/form_fields", csrf_token: "", teammate: nil, offline: true %>
+
+<section data-controller="pending-catches" class="bg-slate-800 rounded-xl p-4 my-3">
+  <h2 class="text-lg font-semibold mb-2">Saved offline</h2>
+  <p data-pending-catches-target="empty" hidden class="text-slate-400 text-sm">Nothing saved yet.</p>
+  <ul data-pending-catches-target="list" class="text-sm text-slate-300"></ul>
+</section>
