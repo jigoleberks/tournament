@@ -83,8 +83,8 @@ class TournamentCatchPhotoTest < ApplicationSystemTestCase
 
     # The angler's own fish row IS visible (label rendered) but should not be a link
     # under the new `catch_link_target` rule for blind tournaments.
-    assert_text(/Walleye.*19\.0/)
-    assert_no_selector "a", text: /Walleye.*19\.0/
+    assert_text(/Walleye.*19"/)
+    assert_no_selector "a", text: /Walleye.*19"/
   end
 
   test "member can open a photo modal on a blind tournament that has ended" do
@@ -160,6 +160,7 @@ class TournamentCatchPhotoTest < ApplicationSystemTestCase
     visit new_session_path
     fill_in "Email", with: user.email
     click_button "Send sign-in link"
+    assert_text "Check your email"  # wait for the POST to commit the token before reading it
     visit consume_session_path(token: SignInToken.last.token)
   end
 end

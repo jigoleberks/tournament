@@ -51,6 +51,9 @@
           <% per_catch = tournament&.format_big_fish_season? || (tournament&.format_hidden_length? && tournament.hidden_length_target.nil?) %>
           <% if tournament&.format_fish_train? %>
             <div class="font-medium"><%= row[:entry].display_name %></div>
+            <% if (roster = team_roster_line(tournament, row[:entry])) %>
+              <div class="text-xs text-slate-500 mt-1"><%= roster %></div>
+            <% end %>
             <% if row_visible && row[:fish].present? %>
               <% last_idx = row[:fish].size - 1 %>
               <div class="text-xs text-slate-400 mt-1 flex flex-wrap items-baseline gap-x-2 gap-y-1">
@@ -59,7 +62,7 @@
                   <% car_classes = i == last_idx ? "italic text-slate-200" : "" %>
                   <span class="<%= car_classes %>">
                     <%= f[:species_name] %>
-                    <%= link_to format_length_dual(f[:length_inches]), url,
+                    <%= link_to format_length_dual(f[:length_inches], f[:length_unit]), url,
                                 class: "text-blue-300 underline-offset-2 hover:underline",
                                 data: frame ? { turbo_frame: frame } : {} %>
                     <% if i == last_idx %>
@@ -72,21 +75,24 @@
             <% end %>
           <% elsif tournament&.format_biggest_vs_smallest? %>
             <div class="font-medium"><%= row[:entry].display_name %></div>
+            <% if (roster = team_roster_line(tournament, row[:entry])) %>
+              <div class="text-xs text-slate-500 mt-1"><%= roster %></div>
+            <% end %>
             <% if row_visible %>
               <% if row[:fish].size >= 2 %>
                 <% biggest, smallest = row[:fish].first, row[:fish].last %>
                 <% url_b, frame_b = catch_link_target(tournament: tournament, catch_id: biggest[:id]) %>
                 <% url_s, frame_s = catch_link_target(tournament: tournament, catch_id: smallest[:id]) %>
                 <div class="text-xs text-slate-400 mt-1">
-                  Biggest: <%= link_to format_length_dual(biggest[:length_inches]), url_b, class: "text-blue-300 underline-offset-2 hover:underline", data: frame_b ? { turbo_frame: frame_b } : {} %>
+                  Biggest: <%= link_to format_length_dual(biggest[:length_inches], biggest[:length_unit]), url_b, class: "text-blue-300 underline-offset-2 hover:underline", data: frame_b ? { turbo_frame: frame_b } : {} %>
                   ·
-                  Smallest: <%= link_to format_length_dual(smallest[:length_inches]), url_s, class: "text-blue-300 underline-offset-2 hover:underline", data: frame_s ? { turbo_frame: frame_s } : {} %>
+                  Smallest: <%= link_to format_length_dual(smallest[:length_inches], smallest[:length_unit]), url_s, class: "text-blue-300 underline-offset-2 hover:underline", data: frame_s ? { turbo_frame: frame_s } : {} %>
                 </div>
               <% elsif row[:fish].size == 1 %>
                 <% f = row[:fish].first %>
                 <% url, frame = catch_link_target(tournament: tournament, catch_id: f[:id]) %>
                 <div class="text-xs text-slate-400 mt-1">
-                  <%= link_to format_length_dual(f[:length_inches]), url, class: "text-blue-300 underline-offset-2 hover:underline", data: frame ? { turbo_frame: frame } : {} %>
+                  <%= link_to format_length_dual(f[:length_inches], f[:length_unit]), url, class: "text-blue-300 underline-offset-2 hover:underline", data: frame ? { turbo_frame: frame } : {} %>
                   — need 1 more catch
                 </div>
               <% end %>
@@ -106,16 +112,22 @@
                 <span data-test="approved-check" class="text-green-400 ml-1" aria-label="approved">✓</span>
               <% end %>
             </div>
+            <% if (roster = team_roster_line(tournament, row[:entry])) %>
+              <div class="text-xs text-slate-500 mt-1"><%= roster %></div>
+            <% end %>
             <% if row_visible && f[:logged_by_name] %>
               <div class="text-xs text-slate-500 mt-1">logged by <%= f[:logged_by_name] %></div>
             <% end %>
           <% else %>
             <div class="font-medium"><%= row[:entry].display_name %></div>
+            <% if (roster = team_roster_line(tournament, row[:entry])) %>
+              <div class="text-xs text-slate-500 mt-1"><%= roster %></div>
+            <% end %>
             <% if row_visible && row[:fish].present? %>
               <div class="text-xs text-slate-400 mt-1 space-y-2">
                 <% row[:fish].each do |f| %>
                   <div>
-                    <% label = "#{f[:species_name]} · #{format_length_dual(f[:length_inches])}" %>
+                    <% label = "#{f[:species_name]} · #{format_length_dual(f[:length_inches], f[:length_unit])}" %>
                     <% url, frame = catch_link_target(tournament: tournament, catch_id: f[:id]) %>
                     <% if url %>
                       <%= link_to label, url,

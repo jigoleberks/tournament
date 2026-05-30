@@ -1043,6 +1043,19 @@ class CatchesControllerTest < ActionDispatch::IntegrationTest
     rec
   end
 
+  test "catch index shows a cm-logged length as the exact quarter-cm value" do
+    cm_user = create(:user, club: @club, length_unit: "centimeters")
+    create(:catch, user: cm_user, species: @walleye, length_inches: 6.99,
+                   length_unit: "centimeters", captured_at_device: Time.current)
+    sign_in_as(cm_user)
+
+    get catches_path
+
+    assert_response :success
+    assert_includes response.body, "17.75 cm"
+    assert_not_includes response.body, "17.8 cm"
+  end
+
   test "persists weight_text on a Tagged Walleye catch" do
     user = create(:user, club: @club)
     sign_in_as(user)

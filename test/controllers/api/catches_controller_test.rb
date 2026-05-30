@@ -93,6 +93,25 @@ class Api::CatchesControllerTest < ActionDispatch::IntegrationTest
     assert_not_includes response.body, "note"
   end
 
+  test "POST /api/catches persists the logged length_unit" do
+    photo = fixture_file_upload("sample_walleye.jpg", "image/jpeg")
+    post "/api/catches", params: {
+      catch: {
+        species_id: @walleye.id,
+        length_inches: 14.47,
+        length_unit: "centimeters",
+        captured_at_device: Time.current.iso8601,
+        latitude: 49.0, longitude: -98.0, gps_accuracy_m: 5,
+        client_uuid: "uuid-CM",
+        photo: photo
+      }
+    }, headers: { "Accept" => "application/json" }
+
+    assert_response :created
+    persisted = Catch.find_by(client_uuid: "uuid-CM")
+    assert_equal "centimeters", persisted.length_unit
+  end
+
   test "POST /api/catches persists flags on the catch record" do
     photo = fixture_file_upload("sample_walleye.jpg", "image/jpeg")
     post "/api/catches", params: {

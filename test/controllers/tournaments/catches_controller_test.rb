@@ -80,7 +80,7 @@ class Tournaments::CatchesControllerTest < ActionDispatch::IntegrationTest
     body = @response.body
     assert_match %r{<img[^>]*src=["'][^"']*active_storage[^"']*}, body, "should include the photo"
     assert_match @walleye.name, body
-    assert_match "19.0", body
+    assert_match "19&quot; / 48.26 cm", body
     assert_match @other.name, body
   end
 

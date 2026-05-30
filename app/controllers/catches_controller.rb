@@ -166,7 +166,7 @@ class CatchesController < ApplicationController
 
   def catch_params
     params.require(:catch).permit(
-      :species_id, :length_inches, :captured_at_device, :captured_at_gps,
+      :species_id, :length_inches, :length_unit, :captured_at_device, :captured_at_gps,
       :latitude, :longitude, :gps_accuracy_m, :app_build, :client_uuid, :photo, :note,
       :tag_number, :weight_text
     )

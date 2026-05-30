@@ -4,15 +4,16 @@ module Catches
     class DisqualifyNoteRequired < StandardError; end
 
     def self.call(tournament:, catch:, judge:, action:, note: nil,
-                  length_inches: nil, species_id: nil, slot_index: nil, entry_id: nil)
+                  length_inches: nil, length_unit: nil, species_id: nil, slot_index: nil, entry_id: nil)
       new(tournament: tournament, catch: catch, judge: judge, action: action, note: note,
-          length_inches: length_inches, species_id: species_id,
+          length_inches: length_inches, length_unit: length_unit, species_id: species_id,
           slot_index: slot_index, entry_id: entry_id).call
     end
 
-    def initialize(tournament:, catch:, judge:, action:, note:, length_inches:, species_id:, slot_index:, entry_id:)
+    def initialize(tournament:, catch:, judge:, action:, note:, length_inches:, length_unit:, species_id:, slot_index:, entry_id:)
       @tournament, @catch, @judge, @action, @note = tournament, catch, judge, action.to_sym, note
-      @length_inches, @species_id, @slot_index, @entry_id = length_inches, species_id, slot_index, entry_id
+      @length_inches, @length_unit = length_inches, length_unit
+      @species_id, @slot_index, @entry_id = species_id, slot_index, entry_id
     end
 
     def call
@@ -49,7 +50,7 @@ module Catches
           # Order: length first, then species, then slot-force / length-shrink rebalance.
           # Length must update before the species-change block so PlaceInSlots ranks the
           # catch with its NEW length when looking for slots in the new species.
-          @catch.update!(length_inches: @length_inches) if @length_inches
+          @catch.update!({ length_inches: @length_inches, length_unit: @length_unit }.compact) if @length_inches
 
           if @species_id && @species_id != prior_species
             # Lock the union of (entries currently holding placements for this
@@ -148,6 +149,7 @@ module Catches
       {
         "status"            => @catch.status,
         "length_inches"     => @catch.length_inches.to_s,
+        "length_unit"       => @catch.length_unit,
         "species_id"        => @catch.species_id,
         "species_name"      => species&.name,
         "active_placements" => @catch.catch_placements.where(active: true).pluck(:tournament_entry_id, :slot_index)

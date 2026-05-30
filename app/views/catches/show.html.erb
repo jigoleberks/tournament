@@ -34,7 +34,7 @@
       <div><dt class="inline text-slate-500">Logged by:</dt> <dd class="inline text-slate-100"><%= @catch.logged_by_user.name %></dd></div>
     <% end %>
     <div><dt class="inline text-slate-500">Species:</dt> <dd class="inline"><%= @catch.species.name %></dd></div>
-    <div><dt class="inline text-slate-500">Length:</dt> <dd class="inline"><%= format_length_dual(@catch.length_inches) %></dd></div>
+    <div><dt class="inline text-slate-500">Length:</dt> <dd class="inline"><%= format_length_dual(@catch.length_inches, @catch.length_unit) %></dd></div>
     <% if @catch.tag_number.present? %>
       <div><dt class="inline text-slate-500">Tag #:</dt> <dd class="inline text-amber-300 font-mono"><%= @catch.tag_number %></dd></div>
     <% end %>
@@ -147,7 +147,8 @@
                   local: true, class: "space-y-3", data: { controller: "length-edit" } do |f| %>
       <%
         unit = current_user.length_unit
-        prefill = unit == "centimeters" ? (@catch.length_inches.to_f * LengthHelper::CM_PER_INCH).round(1) : @catch.length_inches
+        cm = @catch.length_inches.to_f * LengthHelper::CM_PER_INCH
+        prefill = unit == "centimeters" ? (cm / 0.25).round * 0.25 : @catch.length_inches
         step    = 0.25
         species_options = Species.order(:name).pluck(:name, :id)
       %>

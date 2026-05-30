@@ -18,6 +18,7 @@ async function drain() {
         fd.append("catch[client_uuid]", rec.client_uuid)
         fd.append("catch[species_id]", rec.species_id)
         fd.append("catch[length_inches]", rec.length_inches)
+        if (rec.length_unit) fd.append("catch[length_unit]", rec.length_unit)
         fd.append("catch[captured_at_device]", rec.captured_at_device)
         if (rec.captured_at_gps) fd.append("catch[captured_at_gps]", rec.captured_at_gps)
         if (rec.latitude != null) fd.append("catch[latitude]", rec.latitude)

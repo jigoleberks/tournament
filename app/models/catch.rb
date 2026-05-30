@@ -21,6 +21,7 @@ class Catch < ApplicationRecord
   PHOTO_MAX_BYTES = 25.megabytes
 
   validates :length_inches, numericality: { greater_than: 0 }
+  validates :length_unit, inclusion: { in: %w[inches centimeters] }
   validates :captured_at_device, presence: true
   validates :client_uuid, presence: true, uniqueness: true
   validate :photo_must_be_attached
@@ -31,6 +32,7 @@ class Catch < ApplicationRecord
   TAG_NUMBER_FORMAT = /\A[A-Z0-9-]+\z/.freeze
 
   before_validation :normalize_tag_number
+  before_validation :default_length_unit
   validate :tag_number_required_for_tagged_walleye
   validates :tag_number,
             format: { with: TAG_NUMBER_FORMAT, message: "may only contain letters, numbers, and dashes" },
@@ -57,6 +59,14 @@ class Catch < ApplicationRecord
 
   def normalize_tag_number
     self.tag_number = tag_number.to_s.strip.upcase if tag_number.present?
+  end
+
+  def default_length_unit
+    return if length_unit.present?
+    self.length_unit = Catches::InferLoggedUnit.call(
+      length_inches: length_inches,
+      user_length_unit: user&.length_unit
+    )
   end
 
   def normalize_weight_text

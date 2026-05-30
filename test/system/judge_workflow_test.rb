@@ -37,16 +37,22 @@ class JudgeWorkflowTest < ApplicationSystemTestCase
 
     visit tournament_path(@t)
     # Use the inch-mark suffix so "22" doesn't false-match the wall-clock minute
-    # in the rendered ends_at timestamp (e.g. "3:22 AM"). format_length_parts
-    # renders 22 inches as `22.0"`.
-    assert_text '22.0"'
+    # in the rendered ends_at timestamp (e.g. "3:22 AM"). The per-fish label
+    # renders a factory-default inches catch as `22"` (native unit, no decimals).
+    assert_text '22"'
 
     visit judges_tournament_catches_path(tournament_id: @t.id)
     click_link "Open"
     fill_in "note", with: "Mouth open"
     click_button "Disqualify"
 
+    # Wait for the disqualify to commit (status + audit line render) before
+    # visiting the leaderboard, else under parallel load the visit can race the
+    # DQ request and still find the catch placed.
+    assert_text "Status: Disqualified"
+    assert_text "Mike — disqualify"
+
     visit tournament_path(@t)
-    assert_no_text '22.0"'
+    assert_no_text '22"'
   end
 end

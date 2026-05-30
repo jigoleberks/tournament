@@ -225,4 +225,22 @@ class CatchTest < ActiveSupport::TestCase
     c2.valid?
     assert_nil c2.weight_text
   end
+
+  test "length_unit must be inches or centimeters" do
+    c = build(:catch, length_unit: "furlongs")
+    assert_not c.valid?
+    assert_includes c.errors[:length_unit], "is not included in the list"
+  end
+
+  test "missing length_unit is inferred from the value on validation" do
+    c = build(:catch, length_inches: 6.99, length_unit: nil)
+    c.valid?
+    assert_equal "centimeters", c.length_unit
+  end
+
+  test "missing length_unit on an on-grid value defaults to inches" do
+    c = build(:catch, length_inches: 18.5, length_unit: nil)
+    c.valid?
+    assert_equal "inches", c.length_unit
+  end
 end

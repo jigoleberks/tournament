@@ -47,13 +47,13 @@ class BigFishSeasonTournamentTest < ApplicationSystemTestCase
     rows = page.all("#leaderboard tbody tr").map(&:text)
     assert_equal 4, rows.size
     assert_includes rows[0], "Galen Patterson"
-    assert_includes rows[0], "25.0\""
+    assert_includes rows[0], "25.00\""
     assert_includes rows[1], "Galen PC"
-    assert_includes rows[1], "22.0\""
+    assert_includes rows[1], "22.00\""
     assert_includes rows[2], "Galen Patterson"
-    assert_includes rows[2], "21.0\""
+    assert_includes rows[2], "21.00\""
     assert_includes rows[3], "Galen Patterson"
-    assert_includes rows[3], "18.0\""
+    assert_includes rows[3], "18.00\""
   end
 
   test "switching a draft tournament to Big Fish Season removes extra persisted slots" do
@@ -87,6 +87,7 @@ class BigFishSeasonTournamentTest < ApplicationSystemTestCase
     visit new_session_path
     fill_in "Email", with: user.email
     click_button "Send sign-in link"
+    assert_text "Check your email"  # wait for the POST to commit the token before reading it
     visit consume_session_path(token: SignInToken.last.token)
   end
 end
