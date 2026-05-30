@@ -46,6 +46,12 @@ class JudgeWorkflowTest < ApplicationSystemTestCase
     fill_in "note", with: "Mouth open"
     click_button "Disqualify"
 
+    # Wait for the disqualify to commit (status + audit line render) before
+    # visiting the leaderboard, else under parallel load the visit can race the
+    # DQ request and still find the catch placed.
+    assert_text "Status: Disqualified"
+    assert_text "Mike — disqualify"
+
     visit tournament_path(@t)
     assert_no_text '22"'
   end
