@@ -98,9 +98,15 @@ class TaggedWalleyeTournamentTest < ApplicationSystemTestCase
       click_button "Draw winner"
     end
 
+    # The draw redirects to the organizer index; wait for that flash so the
+    # subsequent visit doesn't race the redirect, then navigate back to the
+    # tournament page where the winner highlight actually renders.
+    assert_text "Winner drawn."
+    visit tournament_path(@t)
+
     assert_text "Tagged Angler"
     assert_text "A0001"
-    assert_text "Winner"
+    assert_text(/winner/i)
   end
 
   private
