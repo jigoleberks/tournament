@@ -80,6 +80,44 @@ class OfflineCatchFormTest < ApplicationSystemTestCase
     assert_equal 18, catch_record.length_inches.to_i
   end
 
+  # Regression: navigator.onLine only reports that a network interface is up, not
+  # that our server is reachable. On a real device the shell is shown precisely
+  # when the server is unreachable while onLine stays true (wifi up, no route to
+  # host). The controller used to redirect to "/" on onLine alone; the service
+  # worker then re-served this shell for that navigation and it redirected again
+  # — an infinite flash loop that locked the user out of the form. The shell must
+  # stay put and interactive until the origin actually answers a request.
+  test "offline shell does not redirect-loop when online but the server is unreachable" do
+    sign_in_as(@user)
+
+    page.driver.browser.page.command(
+      "Page.addScriptToEvaluateOnNewDocument",
+      source: <<~JS
+        Object.defineProperty(navigator, "onLine", { configurable: true, get: () => true });
+        const realFetch = window.fetch.bind(window);
+        window.fetch = (input, init = {}) => {
+          const method = (init.method || (input && input.method) || "GET").toUpperCase();
+          // Simulate "interface up, server unreachable": the reachability probe
+          // (a HEAD request) fails, while every other request still works.
+          if (method === "HEAD") return Promise.reject(new TypeError("unreachable"));
+          return realFetch(input, init);
+        };
+      JS
+    )
+
+    visit "/offline"
+    assert_selector "h1", text: "Log Catch"
+
+    # Give the controller ample time to (mis)fire a redirect to "/".
+    sleep 1.5
+
+    assert_current_path "/offline"
+    assert_selector "h1", text: "Log Catch"
+    # The form is still mounted and interactive — not stuck mid-navigation.
+    find("select#catch_species_id").select("Walleye")
+    assert_selector "select#catch_species_id option[selected]", text: "Walleye", visible: :all
+  end
+
   private
 
   def sign_in_as(user)
