@@ -40,7 +40,8 @@ class Admin::TournamentTemplatesController < Admin::BaseController
     TournamentTemplates::Clone.call(
       template: @template,
       starts_at: params[:starts_at],
-      ends_at: params[:ends_at]
+      ends_at: params[:ends_at],
+      season_tag: @template.season_tag
     )
     redirect_to admin_tournaments_path, notice: "Cloned."
   end
@@ -53,7 +54,7 @@ class Admin::TournamentTemplatesController < Admin::BaseController
 
   def template_params
     params.require(:tournament_template).permit(
-      :name, :mode, :default_duration_days,
+      :name, :mode, :default_duration_days, :season_tag,
       :default_weekday, :default_start_time, :default_end_time,
       :awards_season_points,
       tournament_template_scoring_slots_attributes: [:id, :species_id, :slot_count, :_destroy]

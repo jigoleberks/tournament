@@ -40,7 +40,8 @@ class Organizers::TournamentTemplatesController < Organizers::BaseController
     TournamentTemplates::Clone.call(
       template: @template,
       starts_at: params[:starts_at],
-      ends_at: params[:ends_at]
+      ends_at: params[:ends_at],
+      season_tag: @template.season_tag
     )
     redirect_to organizers_tournaments_path, notice: "Cloned."
   end
@@ -53,7 +54,7 @@ class Organizers::TournamentTemplatesController < Organizers::BaseController
 
   def template_params
     params.require(:tournament_template).permit(
-      :name, :mode, :format, :default_duration_days,
+      :name, :mode, :format, :default_duration_days, :season_tag,
       :default_weekday, :default_start_time, :default_end_time,
       :awards_season_points, :blind_leaderboard, :entrants_only_leaderboard,
       train_cars: [],

@@ -39,6 +39,13 @@
           </div>
         </label>
       </div>
+
+      <div>
+        <%= f.label :season_tag, "Season Tag", class: "block text-sm font-semibold text-slate-300 mb-1.5" %>
+        <%= f.text_field :season_tag, placeholder: "e.g. 2026",
+                         class: "w-full h-11 px-4 rounded-lg bg-slate-900 border border-slate-700 text-slate-100 focus:ring-2 focus:ring-blue-500 outline-none transition-all" %>
+        <span class="block text-xs text-slate-500 italic mt-1">Cloned tournaments default to this season's leaderboard.</span>
+      </div>
     </div>
 
     <div class="bg-slate-900/50 rounded-xl p-6 border border-slate-700 space-y-4">
