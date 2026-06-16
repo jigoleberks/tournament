@@ -13,7 +13,10 @@ export default class extends Controller {
   connect() {
     this.boundProbe = () => this.probe()
     window.addEventListener("online", this.boundProbe)
-    this.probe()
+    // navigator.onLine === false means we're definitely offline — skip the doomed
+    // probe and let the HTML's default "still offline" hint stand. The online
+    // event re-probes when connectivity returns.
+    if (navigator.onLine) this.probe()
   }
 
   disconnect() {
