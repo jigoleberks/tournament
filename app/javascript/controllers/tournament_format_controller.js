@@ -39,6 +39,8 @@ export default class extends Controller {
       this._applyFishTrain()
     } else if (this.formatTarget.value === "tagged") {
       this._applyTagged()
+    } else if (this.formatTarget.value === "smallest_fish") {
+      this._applySmallestFish()
     } else {
       this._applyStandard()
     }
@@ -238,6 +240,13 @@ export default class extends Controller {
     }
 
     if (this.hasTrainBuilderTarget) this.trainBuilderTarget.classList.add("hidden")
+  }
+
+  _applySmallestFish() {
+    this._applyStandard()
+    if (this.hasFormatDescriptionTarget) {
+      this.formatDescriptionTarget.textContent = this.formatDescriptionTarget.dataset.smallestFishText
+    }
   }
 
   _suppressRow(el) {
