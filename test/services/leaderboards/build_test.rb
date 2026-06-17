@@ -456,7 +456,7 @@ module Leaderboards
 
       assert_equal ["B", "A"], result.map { |row| row[:entry].users.first.name }, "lowest total wins"
       # Top row (B) fish ordered smallest-first.
-      assert_equal [8, 9], result.first[:fish].map { |f| f[:length_inches] }
+      assert_equal [8, 9], result.first[:fish].map { |f| f[:length_inches].to_i }
     end
   end
 end
