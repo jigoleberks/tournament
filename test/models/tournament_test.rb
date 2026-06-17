@@ -538,4 +538,16 @@ class TournamentTest < ActiveSupport::TestCase
     t.scoring_slots.build(species: tagged_species, slot_count: 1)
     assert t.valid?, t.errors.full_messages.to_sentence
   end
+
+  test "smallest_fish is a valid format with per-species scoring slots" do
+    club = create(:club)
+    walleye = create(:species, club: club)
+    t = build(:tournament, club: club, format: :smallest_fish,
+              mode: :solo, kind: :event,
+              starts_at: 1.hour.ago, ends_at: 1.hour.from_now)
+    t.scoring_slots.build(species: walleye, slot_count: 3)
+
+    assert t.valid?, t.errors.full_messages.to_sentence
+    assert t.format_smallest_fish?
+  end
 end
