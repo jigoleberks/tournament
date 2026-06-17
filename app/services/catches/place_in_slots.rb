@@ -194,6 +194,29 @@ module Catches
             end
             # else: off-train species, locked-previous-group species, or
             # skip-ahead — no-op
+          elsif tournament.format_smallest_fish?
+            # Smallest Fish: inverse of Standard. Fill empty slots the same way,
+            # but once the basket is full a new catch only matters if it's SMALLER
+            # than the current largest placement, which it then bumps.
+            if active_placements.size < slot.slot_count
+              next_index = (0...slot.slot_count).find { |i| active_placements.none? { |p| p.slot_index == i } }
+              created << CatchPlacement.create!(
+                catch: @catch, tournament: tournament, tournament_entry: entry,
+                species: @catch.species, slot_index: next_index, active: true
+              )
+              affected_tournaments << tournament
+            else
+              largest = active_placements.max_by { |p| p.catch.length_inches }
+              if @catch.length_inches < largest.catch.length_inches
+                largest.update!(active: false)
+                bumped << largest
+                created << CatchPlacement.create!(
+                  catch: @catch, tournament: tournament, tournament_entry: entry,
+                  species: @catch.species, slot_index: largest.slot_index, active: true
+                )
+                affected_tournaments << tournament
+              end
+            end
           elsif active_placements.size < slot.slot_count
             next_index = (0...slot.slot_count).find { |i| active_placements.none? { |p| p.slot_index == i } }
             created << CatchPlacement.create!(

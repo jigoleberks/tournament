@@ -871,5 +871,58 @@ module Catches
     assert_equal [1, 2], CatchPlacement.where(tournament: t, active: true).pluck(:slot_index).sort
   end
 
+  test "smallest_fish: a smaller catch bumps the largest active placement once the basket is full" do
+    t = create(:tournament, club: @club, format: :smallest_fish, mode: :solo, kind: :event,
+               starts_at: 1.hour.ago, ends_at: 1.hour.from_now)
+    create(:scoring_slot, tournament: t, species: @walleye, slot_count: 2)
+    entry = create(:tournament_entry, tournament: t)
+    angler = create(:user, club: @club)
+    create(:tournament_entry_member, tournament_entry: entry, user: angler)
+
+    # Fill the 2 slots with 14 and 12.
+    PlaceInSlots.call(catch: create(:catch, user: angler, species: @walleye, length_inches: 14))
+    PlaceInSlots.call(catch: create(:catch, user: angler, species: @walleye, length_inches: 12))
+
+    # A smaller 10 should bump the largest (14), leaving {12, 10}.
+    PlaceInSlots.call(catch: create(:catch, user: angler, species: @walleye, length_inches: 10))
+
+    active = CatchPlacement.active.where(tournament_entry: entry).includes(:catch)
+    assert_equal [10, 12], active.map { |p| p.catch.length_inches.to_i }.sort
+  end
+
+  test "smallest_fish: a larger catch is ignored once the basket is full" do
+    t = create(:tournament, club: @club, format: :smallest_fish, mode: :solo, kind: :event,
+               starts_at: 1.hour.ago, ends_at: 1.hour.from_now)
+    create(:scoring_slot, tournament: t, species: @walleye, slot_count: 2)
+    entry = create(:tournament_entry, tournament: t)
+    angler = create(:user, club: @club)
+    create(:tournament_entry_member, tournament_entry: entry, user: angler)
+
+    PlaceInSlots.call(catch: create(:catch, user: angler, species: @walleye, length_inches: 14))
+    PlaceInSlots.call(catch: create(:catch, user: angler, species: @walleye, length_inches: 12))
+
+    # A bigger 20 must not displace anything.
+    result = PlaceInSlots.call(catch: create(:catch, user: angler, species: @walleye, length_inches: 20))
+
+    assert_empty result[:created]
+    active = CatchPlacement.active.where(tournament_entry: entry).includes(:catch)
+    assert_equal [12, 14], active.map { |p| p.catch.length_inches.to_i }.sort
+  end
+
+  test "smallest_fish: fills empty slots before any bumping (same as standard)" do
+    t = create(:tournament, club: @club, format: :smallest_fish, mode: :solo, kind: :event,
+               starts_at: 1.hour.ago, ends_at: 1.hour.from_now)
+    create(:scoring_slot, tournament: t, species: @walleye, slot_count: 2)
+    entry = create(:tournament_entry, tournament: t)
+    angler = create(:user, club: @club)
+    create(:tournament_entry_member, tournament_entry: entry, user: angler)
+
+    PlaceInSlots.call(catch: create(:catch, user: angler, species: @walleye, length_inches: 18))
+    PlaceInSlots.call(catch: create(:catch, user: angler, species: @walleye, length_inches: 16))
+
+    assert_equal [0, 1],
+      CatchPlacement.where(tournament_entry: entry, active: true).order(:slot_index).pluck(:slot_index)
+  end
+
   end
 end
