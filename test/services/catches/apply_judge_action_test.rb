@@ -487,5 +487,56 @@ module Catches
       assert_equal [12.0, 14.0], active_lens,
                    "expected biggest 14 and smallest 12 after the 22 shrank to 13"
     end
+
+    # --- Smallest Fish reconciliation paths -----------------------------------
+    #
+    # PromoteBackup / RebalanceSlots assume "promote the largest," which corrupts
+    # a Smallest Fish basket toward larger fish. ApplyJudgeAction has to route
+    # Smallest Fish placements through Catches::ReconcileSmallestFish, which
+    # re-derives the N smallest from the whole eligible set.
+
+    def make_smallest_fish_setup
+      sf_user = create(:user, club: @club)
+      sf = build(:tournament, club: @club, format: :smallest_fish, mode: :solo,
+                 kind: :event, starts_at: 1.hour.ago, ends_at: 1.hour.from_now)
+      sf.scoring_slots.build(species: @walleye, slot_count: 2)
+      sf.save!
+      sf_entry = create(:tournament_entry, tournament: sf)
+      create(:tournament_entry_member, tournament_entry: sf_entry, user: sf_user)
+      [sf, sf_entry, sf_user]
+    end
+
+    test "smallest_fish: DQ promotes the smallest eligible replacement, not the largest" do
+      t, entry, owner = make_smallest_fish_setup
+
+      c8  = create(:catch, user: owner, species: @walleye, length_inches: 8,  captured_at_device: 40.minutes.ago)
+      c9  = create(:catch, user: owner, species: @walleye, length_inches: 9,  captured_at_device: 30.minutes.ago)
+      c14 = create(:catch, user: owner, species: @walleye, length_inches: 14, captured_at_device: 20.minutes.ago)
+      c20 = create(:catch, user: owner, species: @walleye, length_inches: 20, captured_at_device: 10.minutes.ago)
+      [c8, c9, c14, c20].each { |c| Catches::PlaceInSlots.call(catch: c) }
+      # basket {8,9}; 14 and 20 bumped (>= largest). DQ the 9.
+
+      Catches::ApplyJudgeAction.call(tournament: t, catch: c9, judge: @judge, action: :disqualify, note: "test")
+
+      active = entry.catch_placements.where(active: true).includes(:catch).map { |p| p.catch.length_inches.to_i }.sort
+      # eligible now {8,14,20}; two smallest = {8,14}. NOT {8,20} (which the buggy promote-largest path would pick).
+      assert_equal [8, 14], active
+    end
+
+    test "smallest_fish: growing a placed catch yields its slot to a smaller unplaced catch" do
+      t, entry, owner = make_smallest_fish_setup
+
+      c8  = create(:catch, user: owner, species: @walleye, length_inches: 8,  captured_at_device: 40.minutes.ago)
+      c9  = create(:catch, user: owner, species: @walleye, length_inches: 9,  captured_at_device: 30.minutes.ago)
+      c14 = create(:catch, user: owner, species: @walleye, length_inches: 14, captured_at_device: 20.minutes.ago)
+      [c8, c9, c14].each { |c| Catches::PlaceInSlots.call(catch: c) }
+      # basket {8,9}; 14 unplaced. Grow the 8 to 18.
+
+      Catches::ApplyJudgeAction.call(tournament: t, catch: c8, judge: @judge, action: :manual_override, note: "test", length_inches: 18)
+
+      active = entry.catch_placements.where(active: true).includes(:catch).map { |p| p.catch.length_inches.to_i }.sort
+      # eligible {18,9,14}; two smallest = {9,14}; grown catch (18) drops out.
+      assert_equal [9, 14], active
+    end
   end
 end

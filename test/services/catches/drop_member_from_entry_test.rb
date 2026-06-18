@@ -84,6 +84,33 @@ module Catches
                    "expected biggest 22 and actual smallest 12 — not next-largest 16"
     end
 
+    test "smallest_fish: dropping a member re-derives the smallest from remaining members' catches" do
+      # Team Smallest Fish entry. @removed holds the two smallest (6, 7); @kept
+      # has larger catches (10, 12). Basket {6,7}. Drop @removed. PromoteBackup
+      # would fill the freed slots with the largest unplaced. Correct Smallest
+      # Fish: only @kept's catches remain eligible; two smallest = {10, 12}.
+      sf = build(:tournament, club: @club, mode: :team, format: :smallest_fish,
+                 kind: :event, starts_at: 1.hour.ago, ends_at: 1.hour.from_now)
+      sf.scoring_slots.build(species: @walleye, slot_count: 2)
+      sf.save!
+      sf_entry = create(:tournament_entry, tournament: sf)
+      create(:tournament_entry_member, tournament_entry: sf_entry, user: @kept)
+      create(:tournament_entry_member, tournament_entry: sf_entry, user: @removed)
+
+      cb1 = create(:catch, user: @removed, species: @walleye, length_inches: 6,  captured_at_device: 40.minutes.ago)
+      cb2 = create(:catch, user: @removed, species: @walleye, length_inches: 7,  captured_at_device: 35.minutes.ago)
+      ca1 = create(:catch, user: @kept,    species: @walleye, length_inches: 10, captured_at_device: 30.minutes.ago)
+      ca2 = create(:catch, user: @kept,    species: @walleye, length_inches: 12, captured_at_device: 25.minutes.ago)
+      [cb1, cb2, ca1, ca2].each { |c| Catches::PlaceInSlots.call(catch: c) }
+      # basket {6,7}. Drop member @removed.
+
+      Catches::DropMemberFromEntry.call(entry: sf_entry, user: @removed)
+
+      active = sf_entry.catch_placements.where(active: true).includes(:catch).map { |p| p.catch.length_inches.to_i }.sort
+      # only @kept's catches remain eligible; two smallest = {10,12}.
+      assert_equal [10, 12], active
+    end
+
     test "does not promote a backup catch from the removed user" do
       slot1 = create(:catch, user: @kept,    species: @walleye, length_inches: 22, captured_at_device: 30.minutes.ago)
       slot2 = create(:catch, user: @removed, species: @walleye, length_inches: 20, captured_at_device: 25.minutes.ago)

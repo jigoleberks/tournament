@@ -97,14 +97,21 @@ module Catches
               catch: @catch, tournament: @tournament, tournament_entry: entry,
               species: @catch.species, slot_index: @slot_index, active: true
             )
-          elsif @length_inches && prior_length && @length_inches.to_f < prior_length.to_f
-            # Length shrank — re-evaluate every (entry, species) pair this catch
-            # is currently placed in; a previously-unplaced larger catch should
-            # take its slot. Sort by entry id for stable lock order.
+          elsif @length_inches && prior_length && @length_inches.to_f != prior_length.to_f
+            shrank = @length_inches.to_f < prior_length.to_f
+            # A length edit can change which catches fill a basket. Re-evaluate
+            # every (entry, species) pair this catch is currently placed in.
+            # Standard/BvS only need this when the length SHRANK (a previously-
+            # unplaced larger catch should take the slot). Smallest Fish is the
+            # mirror: a GROW can push this catch out in favour of a smaller one,
+            # so it reconciles in either direction. Sort by entry id for stable
+            # lock order.
             @catch.catch_placements.active.includes(:tournament, :tournament_entry).order(:tournament_entry_id).each do |p|
-              if p.tournament.format_biggest_vs_smallest?
+              if p.tournament.format_smallest_fish?
+                Catches::ReconcileSmallestFish.call(tournament: p.tournament, entry: p.tournament_entry, species: @catch.species)
+              elsif shrank && p.tournament.format_biggest_vs_smallest?
                 Catches::ReconcileBvsExtremes.call(tournament: p.tournament, entry: p.tournament_entry, species: @catch.species)
-              else
+              elsif shrank
                 Catches::RebalanceSlots.call(tournament: p.tournament, entry: p.tournament_entry, species: @catch.species)
               end
             end
@@ -135,6 +142,12 @@ module Catches
     def reconcile_freed(placement)
       if placement.tournament.format_biggest_vs_smallest?
         Catches::ReconcileBvsExtremes.call(
+          tournament: placement.tournament,
+          entry: placement.tournament_entry,
+          species: placement.species
+        )
+      elsif placement.tournament.format_smallest_fish?
+        Catches::ReconcileSmallestFish.call(
           tournament: placement.tournament,
           entry: placement.tournament_entry,
           species: placement.species

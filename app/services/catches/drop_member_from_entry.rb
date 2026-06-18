@@ -25,6 +25,10 @@ module Catches
               ::Catches::ReconcileBvsExtremes.call(
                 tournament: p.tournament, entry: p.tournament_entry, species: p.species
               )
+            elsif p.tournament.format_smallest_fish?
+              ::Catches::ReconcileSmallestFish.call(
+                tournament: p.tournament, entry: p.tournament_entry, species: p.species
+              )
             else
               ::Catches::PromoteBackup.call(freed_placement: p)
             end
