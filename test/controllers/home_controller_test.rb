@@ -92,11 +92,49 @@ class HomeControllerTest < ActionDispatch::IntegrationTest
     assert_not_includes @response.body, "Ask an organizer to add you to see the leaderboard."
   end
 
+  test "home links 'Log for teammate' straight to the picker with one active team tournament" do
+    t = team_tournament_with_mate_for(@member, name: "Team Cup")
+    sign_in_as(@member)
+    get root_path
+    assert_response :success
+    assert_select "a[href=?]", select_teammate_catches_path(tournament_id: t.id),
+                  text: "Log for teammate"
+  end
+
+  test "home links 'Log for teammate' to the aggregated picker with multiple active team tournaments" do
+    team_tournament_with_mate_for(@member, name: "Team Cup")
+    team_tournament_with_mate_for(@member, name: "Second Cup")
+    sign_in_as(@member)
+    get root_path
+    assert_response :success
+    assert_select "a[href=?]", select_teammate_catches_path, text: "Log for teammate"
+  end
+
+  test "home hides 'Log for teammate' for a solo-only member" do
+    t = create(:tournament, club: @club, mode: :solo,
+                            starts_at: 1.hour.ago, ends_at: 1.hour.from_now)
+    entry = create(:tournament_entry, tournament: t)
+    create(:tournament_entry_member, tournament_entry: entry, user: @member)
+    sign_in_as(@member)
+    get root_path
+    assert_response :success
+    assert_no_match "Log for teammate", response.body
+  end
+
   private
 
   def sign_in_as(user)
     token = SignInToken.issue!(user: user)
     get consume_session_path(token: token.token)
+  end
+
+  def team_tournament_with_mate_for(user, name:)
+    t = create(:tournament, club: @club, name: name, mode: :team,
+                            starts_at: 1.hour.ago, ends_at: 1.hour.from_now)
+    entry = create(:tournament_entry, tournament: t)
+    create(:tournament_entry_member, tournament_entry: entry, user: user)
+    create(:tournament_entry_member, tournament_entry: entry, user: create(:user, club: @club))
+    t
   end
 
   def setup
