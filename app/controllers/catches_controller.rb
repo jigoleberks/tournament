@@ -52,9 +52,16 @@ class CatchesController < ApplicationController
   end
 
   def select_teammate
-    @tournament = current_club.tournaments.find(params[:tournament_id])
-    redirect_to(@tournament) and return unless @tournament.mode_team?
-    @teammates = Tournaments::TeammatesFor.call(user: current_user, tournament: @tournament)
+    if params[:tournament_id].present?
+      @tournament = current_club.tournaments.find(params[:tournament_id])
+      redirect_to(@tournament) and return unless @tournament.mode_team?
+      @teammates = Tournaments::TeammatesFor.call(user: current_user, tournament: @tournament)
+    else
+      @grouped_teammates = Tournaments::TeammateLogTournamentsFor.call(user: current_user).map do |t|
+        [t, Tournaments::TeammatesFor.call(user: current_user, tournament: t)]
+      end
+      redirect_to(new_catch_path) and return if @grouped_teammates.empty?
+    end
   end
 
   def new

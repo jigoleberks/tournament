@@ -647,6 +647,32 @@ class CatchesControllerTest < ActionDispatch::IntegrationTest
     assert_redirected_to tournament_path(@tournament)
   end
 
+  test "GET /catches/select_teammate without tournament_id aggregates teammates across active team tournaments" do
+    @tournament.update!(mode: :team)
+    mate1 = create(:user, club: @club, name: "Boatmate One")
+    create(:tournament_entry_member, tournament_entry: @entry, user: mate1)
+
+    t2 = create(:tournament, club: @club, name: "Second Cup", mode: :team,
+                             starts_at: 1.hour.ago, ends_at: 1.hour.from_now)
+    entry2 = create(:tournament_entry, tournament: t2)
+    create(:tournament_entry_member, tournament_entry: entry2, user: @user)
+    mate2 = create(:user, club: @club, name: "Boatmate Two")
+    create(:tournament_entry_member, tournament_entry: entry2, user: mate2)
+
+    get select_teammate_catches_path
+    assert_response :success
+    assert_match "Boatmate One", response.body
+    assert_match "Boatmate Two", response.body
+    assert_match @tournament.name, response.body
+    assert_match "Second Cup", response.body
+  end
+
+  test "GET /catches/select_teammate without tournament_id redirects to new catch when no teammates" do
+    # @tournament is solo by default, so the user has no team teammates.
+    get select_teammate_catches_path
+    assert_redirected_to new_catch_path
+  end
+
   test "tournament show hides 'Log for teammate' for solo tournaments" do
     get tournament_path(@tournament)
     assert_response :success
