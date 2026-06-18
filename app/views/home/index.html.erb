@@ -13,7 +13,7 @@
   <h1 class="text-2xl font-bold mb-1"><%= ENV.fetch("APP_NAME", "Tournament") %></h1>
   <p class="text-slate-400 mb-4">Hello, <%= current_user.name %>.</p>
   <%= link_to "Log Catch", new_catch_path, class: "block w-full h-14 px-6 text-lg font-semibold rounded-lg bg-blue-600 active:bg-blue-700 text-white text-center leading-[3.5rem]" %>
-  <% teammate_tournaments = Tournaments::TeammateLogTournamentsFor.call(user: current_user) %>
+  <% teammate_tournaments = Tournaments::TeammateLogTournamentsFor.call(user: current_user, club: current_club) %>
   <% if teammate_tournaments.any? %>
     <%= link_to "Log for teammate",
                 (teammate_tournaments.one? ? select_teammate_catches_path(tournament_id: teammate_tournaments.first.id) : select_teammate_catches_path),

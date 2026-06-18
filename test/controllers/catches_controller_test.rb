@@ -673,6 +673,31 @@ class CatchesControllerTest < ActionDispatch::IntegrationTest
     assert_redirected_to new_catch_path
   end
 
+  test "GET /catches/select_teammate without tournament_id shows only current-club teammates, not another club's" do
+    # Set up an active team tournament + teammate in the current club (@club).
+    @tournament.update!(mode: :team)
+    club_a_mate = create(:user, club: @club, name: "Club A Mate")
+    create(:tournament_entry_member, tournament_entry: @entry, user: club_a_mate)
+
+    # Set up a second club with its own active team tournament + teammate.
+    other_club = create(:club)
+    create(:club_membership, user: @user, club: other_club)
+    other_t = create(:tournament, club: other_club, name: "Other Club Cup", mode: :team,
+                                  starts_at: 1.hour.ago, ends_at: 1.hour.from_now)
+    other_entry = create(:tournament_entry, tournament: other_t)
+    create(:tournament_entry_member, tournament_entry: other_entry, user: @user)
+    other_mate = create(:user, club: other_club, name: "Other Club Mate")
+    create(:tournament_entry_member, tournament_entry: other_entry, user: other_mate)
+
+    # Sign in as @user — their current_club is @club (the first/oldest membership).
+    sign_in_as(@user)
+
+    get select_teammate_catches_path
+    assert_response :success
+    assert_match "Club A Mate", response.body
+    assert_no_match "Other Club Mate", response.body
+  end
+
   test "tournament show hides 'Log for teammate' for solo tournaments" do
     get tournament_path(@tournament)
     assert_response :success
