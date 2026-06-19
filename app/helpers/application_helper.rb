@@ -1,4 +1,11 @@
 module ApplicationHelper
+  # The species list (alphabetical), loaded once per request. Use in views that
+  # render species in a loop (scoring-slot rows, fish-train cars) so each row
+  # reuses one query instead of re-running Species.order(:name).
+  def ordered_species
+    @ordered_species ||= Species.order(:name).to_a
+  end
+
   def tournament_window(tournament)
     starts_at = tournament.starts_at
     ends_at   = tournament.ends_at

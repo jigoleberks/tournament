@@ -65,4 +65,11 @@ class ApplicationHelperTest < ActionView::TestCase
   test "format_season_points renders bare half" do
     assert_equal "0.5", format_season_points(0.5)
   end
+
+  test "ordered_species returns species alphabetically and memoizes the load" do
+    club = create(:club)
+    %w[Zander Bass Walleye].each { |n| create(:species, club: club, name: n) }
+    assert_equal %w[Bass Walleye Zander], ordered_species.map(&:name)
+    assert_same ordered_species, ordered_species, "should reuse the memoized array"
+  end
 end

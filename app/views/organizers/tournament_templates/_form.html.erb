@@ -98,7 +98,7 @@
       <div class="bg-slate-900 rounded-lg p-3 space-y-2 border border-slate-700"
            data-tournament-format-target="slotRow">
         <label class="block text-sm text-slate-400">Species</label>
-        <%= sf.collection_select :species_id, Species.order(:name), :id, :name,
+        <%= sf.collection_select :species_id, ordered_species, :id, :name,
                                  { include_blank: "—" },
                                  class: "w-full h-12 px-3 rounded-lg bg-slate-900 border border-slate-700 text-base" %>
 

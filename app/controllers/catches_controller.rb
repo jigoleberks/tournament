@@ -70,12 +70,9 @@ class CatchesController < ApplicationController
     angler = @teammate || current_user
     @catch = angler.catches.build(captured_at_device: Time.current,
                                   client_uuid: SecureRandom.uuid)
-    @species = Species.order(:name)
-    @length_caps = @species.each_with_object({}) do |s, h|
-      cap = Catch.length_cap_for(s)
-      h[s.id] = cap if cap
-    end
-    @tagged_species_id = Species.tagged_walleye&.id
+    # Species list, caps, and the tagged-species id are derived in the shared
+    # _form_fields partial (so the offline shell, which renders it with no
+    # controller, stays self-contained).
   end
 
   def create
@@ -88,7 +85,6 @@ class CatchesController < ApplicationController
     if teammate && !shares_entry_at?(teammate, @catch.captured_at_device)
       @catch.errors.add(:base, "You and this teammate aren't on the same entry in any active tournament.")
       @teammate = teammate
-      @species = Species.order(:name)
       render :new, status: :unprocessable_entity
       return
     end
@@ -106,7 +102,6 @@ class CatchesController < ApplicationController
     else
       @catch.errors.add(:photo, "is required") unless @catch.photo.attached?
       @teammate = teammate
-      @species = Species.order(:name)
       render :new, status: :unprocessable_entity
     end
   end
