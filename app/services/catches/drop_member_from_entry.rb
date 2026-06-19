@@ -29,6 +29,9 @@ module Catches
               ::Catches::ReconcileSmallestFish.call(
                 tournament: p.tournament, entry: p.tournament_entry, species: p.species
               )
+            elsif p.tournament.format_fish_train?
+              # Append-only: the dropped member's car stays a permanent hole.
+              nil
             else
               ::Catches::PromoteBackup.call(freed_placement: p)
             end

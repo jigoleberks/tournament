@@ -109,6 +109,9 @@ module Catches
             @catch.catch_placements.active.includes(:tournament, :tournament_entry).order(:tournament_entry_id).each do |p|
               if p.tournament.format_smallest_fish?
                 Catches::ReconcileSmallestFish.call(tournament: p.tournament, entry: p.tournament_entry, species: @catch.species)
+              elsif p.tournament.format_fish_train?
+                # Append-only: the edited catch keeps its car; no rebalance.
+                next
               elsif shrank && p.tournament.format_biggest_vs_smallest?
                 Catches::ReconcileBvsExtremes.call(tournament: p.tournament, entry: p.tournament_entry, species: @catch.species)
               elsif shrank
@@ -152,6 +155,10 @@ module Catches
           entry: placement.tournament_entry,
           species: placement.species
         )
+      elsif placement.tournament.format_fish_train?
+        # Fish Train is append-only: a freed car stays a permanent hole. The
+        # angler recovers by catching forward, not by promoting a backup.
+        nil
       else
         Catches::PromoteBackup.call(freed_placement: placement)
       end

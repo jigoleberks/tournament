@@ -7,7 +7,7 @@
         <td><%= c.id %></td>
         <td><%= c.user.name %></td>
         <td><%= c.species.name %></td>
-        <td><%= c.length_inches %>"</td>
+        <td><%= format_length_dual(c.length_inches, c.length_unit) %></td>
         <td>
           <% if c.flags.any? %>
             <%= render "catches/flag_badges", catch_record: c %>

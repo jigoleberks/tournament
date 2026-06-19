@@ -5,7 +5,7 @@
     <%
       filename_segments = [
         @catch.species&.name,
-        (@catch.length_inches.present? ? "#{@catch.length_inches} in" : nil),
+        length_token(@catch.length_inches, @catch.length_unit),
         @catch.captured_at_device&.strftime("%Y-%m-%d %H%M")
       ].compact
       download_filename = "#{filename_segments.join(' - ')}.jpg"

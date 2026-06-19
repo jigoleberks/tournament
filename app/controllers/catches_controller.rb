@@ -72,7 +72,7 @@ class CatchesController < ApplicationController
                                   client_uuid: SecureRandom.uuid)
     @species = Species.order(:name)
     @length_caps = @species.each_with_object({}) do |s, h|
-      cap = Catch::MAX_LENGTH_BY_SPECIES[s.name.to_s.downcase]
+      cap = Catch.length_cap_for(s)
       h[s.id] = cap if cap
     end
     @tagged_species_id = Species.tagged_walleye&.id

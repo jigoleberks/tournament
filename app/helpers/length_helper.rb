@@ -24,6 +24,18 @@ module LengthHelper
     "#{inches_part} / #{cm_part}"
   end
 
+  # A filename-safe single token in the logged unit, e.g. "50 in" or "50 cm".
+  # No quote/slash characters, unlike format_length_dual.
+  def length_token(inches, unit)
+    return nil if inches.nil?
+    i = inches.to_f
+    if unit == "centimeters"
+      "#{trim_measure(snap_quarter(i * CM_PER_INCH))} cm"
+    else
+      "#{trim_measure(i)} in"
+    end
+  end
+
   private
 
   def snap_quarter(value)

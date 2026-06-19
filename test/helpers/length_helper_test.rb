@@ -25,4 +25,11 @@ class LengthHelperTest < ActionView::TestCase
   test "format_length_parts returns the two parts separately" do
     assert_equal ["14.47\"", "36.75 cm"], format_length_parts(14.47, "centimeters")
   end
+
+  test "length_token is a filename-safe single token in the logged unit" do
+    assert_equal "50 in", length_token(50, "inches")
+    assert_equal "14.5 in", length_token(14.5, "inches")
+    assert_equal "50 cm", length_token(19.69, "centimeters")
+    assert_nil length_token(nil, "inches")
+  end
 end
