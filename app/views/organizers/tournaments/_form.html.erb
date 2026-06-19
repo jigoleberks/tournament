@@ -21,12 +21,6 @@
     <%= render "organizers/shared/format_select", f: f, record: @tournament %>
 
     <div>
-      <%= f.label :kind, class: "block text-sm font-medium text-slate-300 mb-1" %>
-      <%= f.select :kind, Tournament.kinds.keys, {},
-                   class: "w-full h-12 px-3 rounded-lg bg-slate-900 border border-slate-700 text-base" %>
-    </div>
-
-    <div>
       <%= f.label :mode, class: "block text-sm font-medium text-slate-300 mb-1" %>
       <%= f.select :mode, Tournament.modes.keys, {},
                    class: "w-full h-12 px-3 rounded-lg bg-slate-900 border border-slate-700 text-base",

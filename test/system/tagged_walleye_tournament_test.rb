@@ -9,7 +9,7 @@ class TaggedWalleyeTournamentTest < ApplicationSystemTestCase
     Species.find_or_create_by!(name: "Walleye") # so the species dropdown has another option
 
     @t = build(:tournament, club: @club, format: :tagged, mode: :solo,
-               kind: :event, starts_at: 1.hour.ago, ends_at: 1.hour.from_now,
+               starts_at: 1.hour.ago, ends_at: 1.hour.from_now,
                name: "Test Tagged")
     @t.scoring_slots.build(species: @tagged, slot_count: 1)
     @t.save!

@@ -396,7 +396,7 @@ module Catches
     def make_bvs_setup
       bvs_user = create(:user, club: @club)
       bvs = build(:tournament, club: @club, format: :biggest_vs_smallest, mode: :solo,
-                  kind: :event, starts_at: 1.hour.ago, ends_at: 1.hour.from_now)
+                  starts_at: 1.hour.ago, ends_at: 1.hour.from_now)
       bvs.scoring_slots.build(species: @walleye, slot_count: 1)
       bvs.save!
       bvs_entry = create(:tournament_entry, tournament: bvs)
@@ -498,7 +498,7 @@ module Catches
     def make_smallest_fish_setup
       sf_user = create(:user, club: @club)
       sf = build(:tournament, club: @club, format: :smallest_fish, mode: :solo,
-                 kind: :event, starts_at: 1.hour.ago, ends_at: 1.hour.from_now)
+                 starts_at: 1.hour.ago, ends_at: 1.hour.from_now)
       sf.scoring_slots.build(species: @walleye, slot_count: 2)
       sf.save!
       sf_entry = create(:tournament_entry, tournament: sf)

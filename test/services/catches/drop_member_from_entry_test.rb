@@ -56,7 +56,7 @@ module Catches
       # (16) into the freed slot → [22, 16] (spread 6). Correct BvS: eligible
       # is now {22, 16, 12} → [22, 12] (spread 10).
       bvs = build(:tournament, club: @club, mode: :team, format: :biggest_vs_smallest,
-                  kind: :event, starts_at: 1.hour.ago, ends_at: 1.hour.from_now)
+                  starts_at: 1.hour.ago, ends_at: 1.hour.from_now)
       bvs.scoring_slots.build(species: @walleye, slot_count: 1)
       bvs.save!
       bvs_entry = create(:tournament_entry, tournament: bvs)
@@ -90,7 +90,7 @@ module Catches
       # would fill the freed slots with the largest unplaced. Correct Smallest
       # Fish: only @kept's catches remain eligible; two smallest = {10, 12}.
       sf = build(:tournament, club: @club, mode: :team, format: :smallest_fish,
-                 kind: :event, starts_at: 1.hour.ago, ends_at: 1.hour.from_now)
+                 starts_at: 1.hour.ago, ends_at: 1.hour.from_now)
       sf.scoring_slots.build(species: @walleye, slot_count: 2)
       sf.save!
       sf_entry = create(:tournament_entry, tournament: sf)

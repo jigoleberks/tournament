@@ -7,7 +7,7 @@ module Catches
       @walleye = create(:species, club: @club)
       @user = create(:user, club: @club)
       @t = build(:tournament, club: @club, format: :biggest_vs_smallest, mode: :solo,
-                 kind: :event, starts_at: 1.hour.ago, ends_at: 1.hour.from_now)
+                 starts_at: 1.hour.ago, ends_at: 1.hour.from_now)
       @t.scoring_slots.build(species: @walleye, slot_count: 1)
       @t.save!
       @entry = create(:tournament_entry, tournament: @t)

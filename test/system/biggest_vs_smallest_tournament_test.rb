@@ -13,8 +13,7 @@ class BiggestVsSmallestTournamentTest < ApplicationSystemTestCase
 
   test "Biggest vs Smallest tournament: leaderboard ranks by spread, biggest-first per row" do
     t = build(:tournament, club: @club, name: "BvS Wed",
-              format: :biggest_vs_smallest, mode: :solo, kind: :event,
-              starts_at: 30.minutes.ago, ends_at: 30.minutes.from_now)
+              format: :biggest_vs_smallest, mode: :solo, starts_at: 30.minutes.ago, ends_at: 30.minutes.from_now)
     t.scoring_slots.build(species: @walleye, slot_count: 1)
     t.save!
 
@@ -65,8 +64,7 @@ class BiggestVsSmallestTournamentTest < ApplicationSystemTestCase
 
   test "Biggest vs Smallest tournament: complete entry with spread 0 renders 0.00\", not the dash placeholder" do
     t = build(:tournament, club: @club, name: "BvS Tied",
-              format: :biggest_vs_smallest, mode: :solo, kind: :event,
-              starts_at: 30.minutes.ago, ends_at: 30.minutes.from_now)
+              format: :biggest_vs_smallest, mode: :solo, starts_at: 30.minutes.ago, ends_at: 30.minutes.from_now)
     t.scoring_slots.build(species: @walleye, slot_count: 1)
     t.save!
 
@@ -95,8 +93,7 @@ class BiggestVsSmallestTournamentTest < ApplicationSystemTestCase
     pike = create(:species, club: @club, name: "Pike")
 
     tournament = create(:tournament, club: @club, name: "BvS Draft",
-                                     mode: :solo, format: :standard, kind: :event,
-                                     starts_at: 1.day.from_now, ends_at: 2.days.from_now)
+                                     mode: :solo, format: :standard, starts_at: 1.day.from_now, ends_at: 2.days.from_now)
     create(:scoring_slot, tournament: tournament, species: @walleye, slot_count: 2)
     create(:scoring_slot, tournament: tournament, species: pike,     slot_count: 1)
 

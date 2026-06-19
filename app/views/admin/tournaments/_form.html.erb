@@ -16,17 +16,10 @@
                          class: "w-full h-11 px-4 rounded-lg bg-slate-900 border border-slate-700 text-slate-100 focus:ring-2 focus:ring-blue-500 outline-none transition-all" %>
       </div>
 
-      <div class="grid grid-cols-2 gap-4">
-        <div>
-          <%= f.label :kind, class: "block text-sm font-semibold text-slate-300 mb-1.5" %>
-          <%= f.select :kind, Tournament.kinds.keys, {},
-                       class: "w-full h-11 px-3 rounded-lg bg-slate-900 border border-slate-700 text-slate-100 focus:ring-2 focus:ring-blue-500 outline-none transition-all" %>
-        </div>
-        <div>
-          <%= f.label :mode, class: "block text-sm font-semibold text-slate-300 mb-1.5" %>
-          <%= f.select :mode, Tournament.modes.keys, {},
-                       class: "w-full h-11 px-3 rounded-lg bg-slate-900 border border-slate-700 text-slate-100 focus:ring-2 focus:ring-blue-500 outline-none transition-all" %>
-        </div>
+      <div>
+        <%= f.label :mode, class: "block text-sm font-semibold text-slate-300 mb-1.5" %>
+        <%= f.select :mode, Tournament.modes.keys, {},
+                     class: "w-full h-11 px-3 rounded-lg bg-slate-900 border border-slate-700 text-slate-100 focus:ring-2 focus:ring-blue-500 outline-none transition-all" %>
       </div>
 
       <div class="grid grid-cols-2 gap-4">

@@ -109,7 +109,7 @@ module Catches
     walleye = create(:species, club: club)
     user = create(:user, club: club)
     t = build(:tournament, club: club, format: :hidden_length, mode: :solo,
-              kind: :event, starts_at: 1.hour.ago, ends_at: 1.hour.from_now)
+              starts_at: 1.hour.ago, ends_at: 1.hour.from_now)
     t.scoring_slots.build(species: walleye, slot_count: 1)
     t.save!
     entry = create(:tournament_entry, tournament: t)
@@ -134,7 +134,7 @@ module Catches
     walleye = create(:species, club: club)
     user = create(:user, club: club)
     t = build(:tournament, club: club, format: :hidden_length, mode: :solo,
-              kind: :event, starts_at: 1.hour.ago, ends_at: 1.hour.from_now)
+              starts_at: 1.hour.ago, ends_at: 1.hour.from_now)
     t.scoring_slots.build(species: walleye, slot_count: 1)
     t.save!
     entry = create(:tournament_entry, tournament: t)
@@ -172,7 +172,7 @@ module Catches
     walleye = create(:species, club: club)
     user = create(:user, club: club)
     t = build(:tournament, club: club, format: :biggest_vs_smallest, mode: :solo,
-              kind: :event, starts_at: 1.hour.ago, ends_at: 1.hour.from_now)
+              starts_at: 1.hour.ago, ends_at: 1.hour.from_now)
     t.scoring_slots.build(species: walleye, slot_count: 1)
     t.save!
     entry = create(:tournament_entry, tournament: t)
@@ -193,7 +193,7 @@ module Catches
     walleye = create(:species, club: club)
     user = create(:user, club: club)
     t = build(:tournament, club: club, format: :biggest_vs_smallest, mode: :solo,
-              kind: :event, starts_at: 1.hour.ago, ends_at: 1.hour.from_now)
+              starts_at: 1.hour.ago, ends_at: 1.hour.from_now)
     t.scoring_slots.build(species: walleye, slot_count: 1)
     t.save!
     entry = create(:tournament_entry, tournament: t)
@@ -216,7 +216,7 @@ module Catches
     walleye = create(:species, club: club)
     user = create(:user, club: club)
     t = build(:tournament, club: club, format: :biggest_vs_smallest, mode: :solo,
-              kind: :event, starts_at: 1.hour.ago, ends_at: 1.hour.from_now)
+              starts_at: 1.hour.ago, ends_at: 1.hour.from_now)
     t.scoring_slots.build(species: walleye, slot_count: 1)
     t.save!
     entry = create(:tournament_entry, tournament: t)
@@ -245,7 +245,7 @@ module Catches
     walleye = create(:species, club: club)
     user = create(:user, club: club)
     t = build(:tournament, club: club, format: :biggest_vs_smallest, mode: :solo,
-              kind: :event, starts_at: 1.hour.ago, ends_at: 1.hour.from_now)
+              starts_at: 1.hour.ago, ends_at: 1.hour.from_now)
     t.scoring_slots.build(species: walleye, slot_count: 1)
     t.save!
     entry = create(:tournament_entry, tournament: t)
@@ -273,7 +273,7 @@ module Catches
     walleye = create(:species, club: club)
     user = create(:user, club: club)
     t = build(:tournament, club: club, format: :biggest_vs_smallest, mode: :solo,
-              kind: :event, starts_at: 1.hour.ago, ends_at: 1.hour.from_now)
+              starts_at: 1.hour.ago, ends_at: 1.hour.from_now)
     t.scoring_slots.build(species: walleye, slot_count: 1)
     t.save!
     entry = create(:tournament_entry, tournament: t)
@@ -301,7 +301,7 @@ module Catches
     walleye = create(:species, club: club)
     user = create(:user, club: club)
     t = build(:tournament, club: club, format: :biggest_vs_smallest, mode: :solo,
-              kind: :event, starts_at: 1.hour.ago, ends_at: 1.hour.from_now)
+              starts_at: 1.hour.ago, ends_at: 1.hour.from_now)
     t.scoring_slots.build(species: walleye, slot_count: 1)
     t.save!
     entry = create(:tournament_entry, tournament: t)
@@ -338,7 +338,7 @@ module Catches
     walleye = create(:species, club: club)
     user = create(:user, club: club)
     t = build(:tournament, club: club, format: :biggest_vs_smallest, mode: :solo,
-              kind: :event, starts_at: 1.hour.ago, ends_at: 1.hour.from_now)
+              starts_at: 1.hour.ago, ends_at: 1.hour.from_now)
     t.scoring_slots.build(species: walleye, slot_count: 1)
     t.save!
     entry = create(:tournament_entry, tournament: t)
@@ -372,7 +372,7 @@ module Catches
     pike  = create(:species, club: club, name: "Pike")
     user  = create(:user, club: club)
     t = build(:tournament, club: club, format: :fish_train, mode: :solo,
-              kind: :event, starts_at: 1.hour.ago, ends_at: 1.hour.from_now,
+              starts_at: 1.hour.ago, ends_at: 1.hour.from_now,
               train_cars: [perch.id, pike.id, perch.id])
     [perch, pike].each { |s| t.scoring_slots.build(species: s, slot_count: 1) }
     t.save!
@@ -396,7 +396,7 @@ module Catches
     pike  = create(:species, club: club)
     user  = create(:user, club: club)
     t = build(:tournament, club: club, format: :fish_train, mode: :solo,
-              kind: :event, starts_at: 1.hour.ago, ends_at: 1.hour.from_now,
+              starts_at: 1.hour.ago, ends_at: 1.hour.from_now,
               train_cars: [perch.id, pike.id, perch.id])
     [perch, pike].each { |s| t.scoring_slots.build(species: s, slot_count: 1) }
     t.save!
@@ -423,7 +423,7 @@ module Catches
     pike  = create(:species, club: club)
     user  = create(:user, club: club)
     t = build(:tournament, club: club, format: :fish_train, mode: :solo,
-              kind: :event, starts_at: 1.hour.ago, ends_at: 1.hour.from_now,
+              starts_at: 1.hour.ago, ends_at: 1.hour.from_now,
               train_cars: [perch.id, pike.id, perch.id])
     [perch, pike].each { |s| t.scoring_slots.build(species: s, slot_count: 1) }
     t.save!
@@ -452,7 +452,7 @@ module Catches
     walleye = create(:species, club: club)
     user  = create(:user, club: club)
     t = build(:tournament, club: club, format: :fish_train, mode: :solo,
-              kind: :event, starts_at: 1.hour.ago, ends_at: 1.hour.from_now,
+              starts_at: 1.hour.ago, ends_at: 1.hour.from_now,
               train_cars: [perch.id, pike.id, walleye.id])
     [perch, pike, walleye].each { |s| t.scoring_slots.build(species: s, slot_count: 1) }
     t.save!
@@ -479,7 +479,7 @@ module Catches
     walleye = create(:species, club: club)
     user  = create(:user, club: club)
     t = build(:tournament, club: club, format: :fish_train, mode: :solo,
-              kind: :event, starts_at: 1.hour.ago, ends_at: 1.hour.from_now,
+              starts_at: 1.hour.ago, ends_at: 1.hour.from_now,
               train_cars: [perch.id, pike.id, walleye.id])
     [perch, pike, walleye].each { |s| t.scoring_slots.build(species: s, slot_count: 1) }
     t.save!
@@ -508,7 +508,7 @@ module Catches
     walleye = create(:species, club: club)
     user    = create(:user, club: club)
     t = build(:tournament, club: club, format: :fish_train, mode: :solo,
-              kind: :event, starts_at: 1.hour.ago, ends_at: 1.hour.from_now,
+              starts_at: 1.hour.ago, ends_at: 1.hour.from_now,
               train_cars: [perch.id, pike.id, walleye.id, perch.id])
     [perch, pike, walleye].each { |s| t.scoring_slots.build(species: s, slot_count: 1) }
     t.save!
@@ -537,7 +537,7 @@ module Catches
     off_pool = create(:species, club: club)
     user  = create(:user, club: club)
     t = build(:tournament, club: club, format: :fish_train, mode: :solo,
-              kind: :event, starts_at: 1.hour.ago, ends_at: 1.hour.from_now,
+              starts_at: 1.hour.ago, ends_at: 1.hour.from_now,
               train_cars: [perch.id, pike.id, perch.id])
     [perch, pike].each { |s| t.scoring_slots.build(species: s, slot_count: 1) }
     t.save!
@@ -558,7 +558,7 @@ module Catches
     pike  = create(:species, club: club)
     user  = create(:user, club: club)
     t = build(:tournament, club: club, format: :fish_train, mode: :solo,
-              kind: :event, starts_at: 1.hour.ago, ends_at: 1.hour.from_now,
+              starts_at: 1.hour.ago, ends_at: 1.hour.from_now,
               train_cars: [perch.id, pike.id, perch.id])
     [perch, pike].each { |s| t.scoring_slots.build(species: s, slot_count: 1) }
     t.save!
@@ -587,7 +587,7 @@ module Catches
     walleye = create(:species, club: club)
     user    = create(:user, club: club)
     t = build(:tournament, club: club, format: :fish_train, mode: :solo,
-              kind: :event, starts_at: 1.hour.ago, ends_at: 1.hour.from_now,
+              starts_at: 1.hour.ago, ends_at: 1.hour.from_now,
               train_cars: [perch.id, walleye.id, walleye.id])
     [perch, walleye].each { |s| t.scoring_slots.build(species: s, slot_count: 1) }
     t.save!
@@ -617,7 +617,7 @@ module Catches
     walleye = create(:species, club: club)
     user    = create(:user, club: club)
     t = build(:tournament, club: club, format: :fish_train, mode: :solo,
-              kind: :event, starts_at: 1.hour.ago, ends_at: 1.hour.from_now,
+              starts_at: 1.hour.ago, ends_at: 1.hour.from_now,
               train_cars: [perch.id, walleye.id, walleye.id])
     [perch, walleye].each { |s| t.scoring_slots.build(species: s, slot_count: 1) }
     t.save!
@@ -657,7 +657,7 @@ module Catches
     pike    = create(:species, club: club)
     user    = create(:user, club: club)
     t = build(:tournament, club: club, format: :fish_train, mode: :solo,
-              kind: :event, starts_at: 1.hour.ago, ends_at: 1.hour.from_now,
+              starts_at: 1.hour.ago, ends_at: 1.hour.from_now,
               train_cars: [perch.id, walleye.id, walleye.id, pike.id])
     [perch, walleye, pike].each { |s| t.scoring_slots.build(species: s, slot_count: 1) }
     t.save!
@@ -693,7 +693,7 @@ module Catches
     walleye = create(:species, club: club)
     user    = create(:user, club: club)
     t = build(:tournament, club: club, format: :fish_train, mode: :solo,
-              kind: :event, starts_at: 1.hour.ago, ends_at: 1.hour.from_now,
+              starts_at: 1.hour.ago, ends_at: 1.hour.from_now,
               train_cars: [perch.id, walleye.id, pike.id, walleye.id, walleye.id])
     [perch, pike, walleye].each { |s| t.scoring_slots.build(species: s, slot_count: 1) }
     t.save!
@@ -734,7 +734,7 @@ module Catches
     walleye = create(:species, club: club)
     user    = create(:user, club: club)
     t = build(:tournament, club: club, format: :fish_train, mode: :solo,
-              kind: :event, starts_at: 1.hour.ago, ends_at: 1.hour.from_now,
+              starts_at: 1.hour.ago, ends_at: 1.hour.from_now,
               train_cars: [walleye.id, walleye.id, walleye.id])
     t.scoring_slots.build(species: walleye, slot_count: 1)
     t.save!
@@ -789,7 +789,7 @@ module Catches
     pike    = create(:species, club: club)
     user    = create(:user, club: club)
     t = build(:tournament, club: club, format: :fish_train, mode: :solo,
-              kind: :event, starts_at: 1.hour.ago, ends_at: 1.hour.from_now,
+              starts_at: 1.hour.ago, ends_at: 1.hour.from_now,
               train_cars: [perch.id, walleye.id, pike.id])
     [perch, walleye, pike].each { |s| t.scoring_slots.build(species: s, slot_count: 1) }
     t.save!
@@ -822,7 +822,7 @@ module Catches
     tagged = Species.find_or_create_by!(name: "Tagged Walleye")
     user = create(:user, club: club)
     t = build(:tournament, club: club, format: :tagged, mode: :solo,
-              kind: :event, starts_at: 1.hour.ago, ends_at: 1.hour.from_now)
+              starts_at: 1.hour.ago, ends_at: 1.hour.from_now)
     t.scoring_slots.build(species: tagged, slot_count: 1)
     t.save!
     entry = create(:tournament_entry, tournament: t)
@@ -845,7 +845,7 @@ module Catches
     tagged = Species.find_or_create_by!(name: "Tagged Walleye")
     user = create(:user, club: club)
     t = build(:tournament, club: club, format: :tagged, mode: :solo,
-              kind: :event, starts_at: 1.hour.ago, ends_at: 1.hour.from_now)
+              starts_at: 1.hour.ago, ends_at: 1.hour.from_now)
     t.scoring_slots.build(species: tagged, slot_count: 1)
     t.save!
     entry = create(:tournament_entry, tournament: t)
@@ -872,8 +872,7 @@ module Catches
   end
 
   test "smallest_fish: a smaller catch bumps the largest active placement once the basket is full" do
-    t = create(:tournament, club: @club, format: :smallest_fish, mode: :solo, kind: :event,
-               starts_at: 1.hour.ago, ends_at: 1.hour.from_now)
+    t = create(:tournament, club: @club, format: :smallest_fish, mode: :solo, starts_at: 1.hour.ago, ends_at: 1.hour.from_now)
     create(:scoring_slot, tournament: t, species: @walleye, slot_count: 2)
     entry = create(:tournament_entry, tournament: t)
     angler = create(:user, club: @club)
@@ -891,8 +890,7 @@ module Catches
   end
 
   test "smallest_fish: a larger catch is ignored once the basket is full" do
-    t = create(:tournament, club: @club, format: :smallest_fish, mode: :solo, kind: :event,
-               starts_at: 1.hour.ago, ends_at: 1.hour.from_now)
+    t = create(:tournament, club: @club, format: :smallest_fish, mode: :solo, starts_at: 1.hour.ago, ends_at: 1.hour.from_now)
     create(:scoring_slot, tournament: t, species: @walleye, slot_count: 2)
     entry = create(:tournament_entry, tournament: t)
     angler = create(:user, club: @club)
@@ -910,8 +908,7 @@ module Catches
   end
 
   test "smallest_fish: fills empty slots before any bumping (same as standard)" do
-    t = create(:tournament, club: @club, format: :smallest_fish, mode: :solo, kind: :event,
-               starts_at: 1.hour.ago, ends_at: 1.hour.from_now)
+    t = create(:tournament, club: @club, format: :smallest_fish, mode: :solo, starts_at: 1.hour.ago, ends_at: 1.hour.from_now)
     create(:scoring_slot, tournament: t, species: @walleye, slot_count: 2)
     entry = create(:tournament_entry, tournament: t)
     angler = create(:user, club: @club)
@@ -925,8 +922,7 @@ module Catches
   end
 
   test "smallest_fish: a catch tying the largest is a no-op once the basket is full (first to set wins)" do
-    t = create(:tournament, club: @club, format: :smallest_fish, mode: :solo, kind: :event,
-               starts_at: 1.hour.ago, ends_at: 1.hour.from_now)
+    t = create(:tournament, club: @club, format: :smallest_fish, mode: :solo, starts_at: 1.hour.ago, ends_at: 1.hour.from_now)
     create(:scoring_slot, tournament: t, species: @walleye, slot_count: 2)
     entry = create(:tournament_entry, tournament: t)
     angler = create(:user, club: @club)

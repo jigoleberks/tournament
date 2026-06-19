@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_06_04_000000) do
+ActiveRecord::Schema[8.1].define(version: 2026_06_18_000000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -402,7 +402,6 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_04_000000) do
     t.integer "format", default: 0, null: false
     t.decimal "hidden_length_target", precision: 5, scale: 2
     t.boolean "judged", default: false, null: false
-    t.integer "kind", default: 0, null: false
     t.datetime "lifecycle_ended_announced_at"
     t.boolean "local", default: true, null: false
     t.integer "mode", default: 0, null: false

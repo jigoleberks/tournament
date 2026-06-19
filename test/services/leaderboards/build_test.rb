@@ -273,7 +273,7 @@ module Leaderboards
     test "dispatches to Rankers::HiddenLength for hidden_length tournaments" do
       walleye = create(:species)
       t = build(:tournament, club: @club, format: :hidden_length, mode: :solo,
-                kind: :event, starts_at: 1.hour.ago, ends_at: 1.hour.from_now)
+                starts_at: 1.hour.ago, ends_at: 1.hour.from_now)
       t.save!(validate: false)
       create(:scoring_slot, tournament: t, species: walleye, slot_count: 1)
       t.reload
@@ -293,7 +293,7 @@ module Leaderboards
     test "dispatches to Rankers::BiggestVsSmallest for biggest_vs_smallest tournaments" do
       walleye = create(:species)
       t = build(:tournament, club: @club, format: :biggest_vs_smallest, mode: :solo,
-                kind: :event, starts_at: 1.hour.ago, ends_at: 1.hour.from_now)
+                starts_at: 1.hour.ago, ends_at: 1.hour.from_now)
       t.save!(validate: false)
       create(:scoring_slot, tournament: t, species: walleye, slot_count: 1)
       t.reload
@@ -315,7 +315,7 @@ module Leaderboards
     test "dispatches to Rankers::FishTrain for fish_train tournaments" do
       walleye = create(:species)
       t = build(:tournament, club: @club, format: :fish_train, mode: :solo,
-                kind: :event, starts_at: 1.hour.ago, ends_at: 1.hour.from_now,
+                starts_at: 1.hour.ago, ends_at: 1.hour.from_now,
                 train_cars: [walleye.id, walleye.id, walleye.id])
       t.save!(validate: false)
       create(:scoring_slot, tournament: t, species: walleye, slot_count: 1)
@@ -336,7 +336,7 @@ module Leaderboards
       user_b = create(:user, club: club, name: "Bea")
 
       t = build(:tournament, club: club, format: :tagged, mode: :solo,
-                kind: :event, starts_at: 1.hour.ago, ends_at: 1.hour.from_now)
+                starts_at: 1.hour.ago, ends_at: 1.hour.from_now)
       t.scoring_slots.build(species: tagged, slot_count: 1)
       t.save!
 
@@ -370,7 +370,7 @@ module Leaderboards
       user_b = create(:user, club: club, name: "Bea")
 
       t = build(:tournament, club: club, format: :tagged, mode: :solo,
-                kind: :event, starts_at: 2.hours.ago, ends_at: 1.hour.from_now)
+                starts_at: 2.hours.ago, ends_at: 1.hour.from_now)
       t.scoring_slots.build(species: tagged, slot_count: 1)
       t.save!
 
@@ -414,7 +414,7 @@ module Leaderboards
       user = create(:user, club: club, name: "Aaron")
 
       t = build(:tournament, club: club, format: :tagged, mode: :solo,
-                kind: :event, starts_at: 2.hours.ago, ends_at: 1.hour.from_now)
+                starts_at: 2.hours.ago, ends_at: 1.hour.from_now)
       t.scoring_slots.build(species: tagged, slot_count: 1)
       t.save!
 
@@ -435,8 +435,7 @@ module Leaderboards
     end
 
     test "smallest_fish ranks complete entries by lowest total and orders row fish smallest-first" do
-      t = create(:tournament, club: @club, format: :smallest_fish, mode: :solo, kind: :event,
-                 starts_at: 1.hour.ago, ends_at: 1.hour.from_now)
+      t = create(:tournament, club: @club, format: :smallest_fish, mode: :solo, starts_at: 1.hour.ago, ends_at: 1.hour.from_now)
       create(:scoring_slot, tournament: t, species: @walleye, slot_count: 2)
 
       a = create(:user, club: @club, name: "A")
