@@ -155,6 +155,9 @@
             <% bvs_complete_zero = tournament&.format_biggest_vs_smallest? && row[:complete] && scoring_value == 0 %>
             <% if scoring_value.nil? || (scoring_value.zero? && !bvs_complete_zero) %>
               <div>—</div>
+            <% elsif tournament&.format_tagged? %>
+              <%# Tagged's "total" is a ticket count, not a length — no inch/cm rendering. %>
+              <div><%= scoring_value %> <%= "ticket".pluralize(scoring_value) %></div>
             <% else %>
               <% inches_part, = format_length_parts(scoring_value) %>
               <% cm_total = total_display_cm(row[:fish], biggest_vs_smallest: tournament&.format_biggest_vs_smallest?) %>
