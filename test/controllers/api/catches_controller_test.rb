@@ -151,6 +151,16 @@ class Api::CatchesControllerTest < ActionDispatch::IntegrationTest
     assert_response :unauthorized
   end
 
+  test "POST /api/catches clears the stale session when the user is deactivated" do
+    @user.update!(deactivated_at: Time.current)
+    post "/api/catches", params: {
+      catch: { species_id: @walleye.id, length_inches: 19.5,
+               captured_at_device: Time.current.iso8601, client_uuid: "uuid-DEACT2" }
+    }, headers: { "Accept" => "application/json" }
+    assert_response :unauthorized
+    assert_nil session[:user_id], "deactivated user's session should be cleared, not left poisoned"
+  end
+
   test "POST /api/catches with valid teammate files catch under teammate and stamps logger" do
     @tournament.update!(mode: :team)
     teammate = create(:user, club: @club, name: "Boatmate")

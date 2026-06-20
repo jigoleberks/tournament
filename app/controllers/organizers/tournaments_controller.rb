@@ -1,4 +1,6 @@
 class Organizers::TournamentsController < Organizers::BaseController
+  include TournamentParams
+
   before_action :set_tournament, only: [:edit, :update, :destroy, :draw]
 
   def index
@@ -55,14 +57,5 @@ class Organizers::TournamentsController < Organizers::BaseController
 
   def set_tournament
     @tournament = current_club.tournaments.find(params[:id])
-  end
-
-  def tournament_params
-    params.require(:tournament).permit(
-      :name, :mode, :format, :starts_at, :ends_at, :season_tag, :requires_release_video, :judged, :local,
-      :awards_season_points, :blind_leaderboard, :entrants_only_leaderboard,
-      train_cars: [],
-      scoring_slots_attributes: [:id, :species_id, :slot_count, :_destroy]
-    )
   end
 end

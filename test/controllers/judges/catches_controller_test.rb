@@ -31,6 +31,27 @@ class Judges::CatchesControllerTest < ActionDispatch::IntegrationTest
            "needs_review should come before synced in the listing"
   end
 
+  test "index eager-loads judge_actions instead of N+1 per row" do
+    # Several approved catches, each carrying a judge_action the index renders
+    # via latest_approver in the flag_badges partial.
+    angler = create(:user, club: @club)
+    entry = create(:tournament_entry, tournament: @t)
+    create(:tournament_entry_member, tournament_entry: entry, user: angler)
+    3.times do |i|
+      c = create(:catch, user: angler, species: @walleye, length_inches: 15 + i,
+                         status: :synced, flags: ["clock_skew"])
+      Catches::PlaceInSlots.call(catch: c)
+      create(:judge_action, catch: c, judge_user: @judge, action: :approve)
+    end
+
+    judge_action_queries = count_queries(/\bfrom\s+"?judge_actions"?/i) do
+      get judges_tournament_catches_path(tournament_id: @t.id)
+    end
+    assert_response :success
+    assert_operator judge_action_queries, :<=, 1,
+                    "expected judge_actions to be eager-loaded in one query, got #{judge_action_queries}"
+  end
+
   test "non-judge sees forbidden" do
     other = create(:user, club: @club)
     sign_in_as(other)

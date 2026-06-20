@@ -11,7 +11,6 @@ module Leaderboards
       # progress so a 1-fish entry can't outrank a 2-fish entry on lower sum alone.
       def self.call(rows)
         max_fish = rows.map { |r| r[:fish].size }.max || 0
-        far_future = ::Time.zone.at(0) + 100.years
         rows.sort_by do |r|
           fish_asc = r[:fish].map { |f| f[:length_inches] }.sort
           fish_padded = fish_asc + [::Float::INFINITY] * (max_fish - fish_asc.size)
@@ -20,7 +19,7 @@ module Leaderboards
             -r[:fish].size,
             r[:total],
             *fish_padded,
-            r[:earliest_catch_at] || far_future,
+            r[:earliest_catch_at] || FAR_FUTURE,
             r[:entry].id
           ]
         end

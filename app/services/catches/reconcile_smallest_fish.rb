@@ -6,6 +6,8 @@ module Catches
     # manual length/species edit, member drop. PromoteBackup/RebalanceSlots assume
     # "promote the largest" semantics, which is wrong for Smallest Fish — we
     # re-pick the N smallest from the whole eligible set instead.
+    include SlotPlacement
+
     def self.call(tournament:, entry:, species:)
       new(tournament: tournament, entry: entry, species: species).call
     end
@@ -40,43 +42,9 @@ module Catches
           .first(n)
 
         smallest.each_with_index do |catch_record, slot_index|
-          place!(catch_record, slot_index: slot_index)
+          activate_placement!(catch_record, slot_index: slot_index)
         end
       end
-    end
-
-    private
-
-    def place!(catch_record, slot_index:)
-      existing = ::CatchPlacement.find_by(
-        catch_id: catch_record.id, tournament_entry_id: @entry.id,
-        species_id: @species.id, slot_index: slot_index
-      )
-      if existing
-        existing.update!(active: true)
-      else
-        ::CatchPlacement.create!(
-          catch: catch_record, tournament: @tournament, tournament_entry: @entry,
-          species: @species, slot_index: slot_index, active: true
-        )
-      end
-    end
-
-    def eligible_catches
-      window = (@tournament.starts_at..(@tournament.ends_at || Time.current))
-      member_ids = @entry.tournament_entry_members.pluck(:user_id)
-      ::Catch.where(user_id: member_ids,
-                    species_id: @species.id,
-                    captured_at_device: window)
-             .where.not(status: ::Catch.statuses[:disqualified])
-             .select { |c| eligible?(c) }
-    end
-
-    def eligible?(c)
-      return true if c.latitude.nil?
-      return false unless ::Geofence.includes?(:sask, c.latitude, c.longitude)
-      return true unless @tournament.local?
-      ::Geofence.includes?(:lake, c.latitude, c.longitude)
     end
   end
 end

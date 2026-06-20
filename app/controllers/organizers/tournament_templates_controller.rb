@@ -1,4 +1,6 @@
 class Organizers::TournamentTemplatesController < Organizers::BaseController
+  include TemplateParams
+
   before_action :load_template, only: [:edit, :update, :destroy, :clone]
 
   def index
@@ -50,15 +52,5 @@ class Organizers::TournamentTemplatesController < Organizers::BaseController
 
   def load_template
     @template = current_club.tournament_templates.find(params[:id])
-  end
-
-  def template_params
-    params.require(:tournament_template).permit(
-      :name, :mode, :format, :default_duration_days, :season_tag,
-      :default_weekday, :default_start_time, :default_end_time,
-      :awards_season_points, :blind_leaderboard, :entrants_only_leaderboard,
-      train_cars: [],
-      tournament_template_scoring_slots_attributes: [:id, :species_id, :slot_count, :_destroy]
-    )
   end
 end

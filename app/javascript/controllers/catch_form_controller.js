@@ -1,5 +1,6 @@
 import { Controller } from "@hotwired/stimulus"
 import { enqueueCatch } from "offline/db"
+import { convertLength, snapToGrid } from "lib/length_convert"
 
 export default class extends Controller {
   static targets = ["speciesSelect", "lengthInput", "lengthLabel", "noteInput", "submitButton", "status", "tagWrapper", "tagInput", "weightInput"]
@@ -126,10 +127,7 @@ export default class extends Controller {
 
     const v = parseFloat(this.lengthInputTarget.value)
     if (!Number.isNaN(v)) {
-      const factor = oldUnit === "inches" && newUnit === "centimeters" ? 2.54
-                   : oldUnit === "centimeters" && newUnit === "inches" ? 1 / 2.54
-                   : 1
-      this.lengthInputTarget.value = (v * factor).toFixed(2)
+      this.lengthInputTarget.value = convertLength(v, oldUnit, newUnit).toFixed(2)
     }
 
     this.lengthInputTarget.dataset.catchFormUnit = newUnit
@@ -163,9 +161,9 @@ export default class extends Controller {
     if (Number.isNaN(v)) return rawValue
     // Snap to the 0.25 grid of the currently selected unit, then convert.
     // This makes the quarter-increment rule real rather than advisory.
-    const snapped = Math.round(v / 0.25) * 0.25
+    const snapped = snapToGrid(v)
     const unit = this.lengthInputTarget.dataset.catchFormUnit
-    return unit === "centimeters" ? (snapped / 2.54).toFixed(2) : snapped.toFixed(2)
+    return convertLength(snapped, unit, "inches").toFixed(2)
   }
 
   async tryGeolocate() {

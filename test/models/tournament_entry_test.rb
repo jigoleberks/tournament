@@ -40,4 +40,17 @@ class TournamentEntryTest < ActiveSupport::TestCase
     duplicate = entry_b.tournament_entry_members.build(user: @users[0])
     assert_not duplicate.valid?
   end
+
+  test "display_name consumes eager-loaded users without re-querying" do
+    entry = TournamentEntry.create!(tournament: @team_t, name: nil)
+    entry.tournament_entry_members.create!(user: @users[0])
+    entry.tournament_entry_members.create!(user: @users[1])
+
+    loaded = TournamentEntry.where(id: entry.id).includes(:users).to_a
+    user_queries = count_queries(/\bfrom\s+"?users"?/i) do
+      loaded.each(&:display_name)
+    end
+    assert_equal 0, user_queries,
+                 "display_name should read the preloaded :users association, not re-query"
+  end
 end

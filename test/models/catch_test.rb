@@ -187,6 +187,32 @@ class CatchTest < ActiveSupport::TestCase
     assert_equal "actual reason", catch_record.disqualification_note
   end
 
+  test "disqualification_note breaks created_at ties deterministically by highest id" do
+    judge = create(:user, club: @club, role: :organizer)
+    catch_record = create(:catch, user: @user, species: @walleye, status: :disqualified)
+    same_time = 1.minute.ago
+    create(:judge_action, catch: catch_record, judge_user: judge, action: :disqualify,
+                          note: "earlier row", created_at: same_time)
+    create(:judge_action, catch: catch_record, judge_user: judge, action: :disqualify,
+                          note: "later row", created_at: same_time)
+    assert_equal "later row", catch_record.disqualification_note
+  end
+
+  test "disqualification_note consumes eager-loaded judge_actions without re-querying" do
+    judge = create(:user, club: @club, role: :organizer)
+    2.times do
+      c = create(:catch, user: @user, species: @walleye, status: :disqualified)
+      create(:judge_action, catch: c, judge_user: judge, action: :disqualify, note: "bad")
+    end
+
+    loaded = Catch.where(status: :disqualified).includes(:judge_actions).to_a
+    judge_action_queries = count_queries(/\bfrom\s+"?judge_actions"?/i) do
+      loaded.each(&:disqualification_note)
+    end
+    assert_equal 0, judge_action_queries,
+                 "disqualification_note should read the preloaded association, not re-query per row"
+  end
+
   test "disqualification_note returns nil when catch is not disqualified" do
     judge = create(:user, club: @club, role: :organizer)
     catch_record = create(:catch, user: @user, species: @walleye, status: :needs_review)

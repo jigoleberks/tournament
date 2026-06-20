@@ -13,7 +13,9 @@ class CatchesController < ApplicationController
     # :catch_placements is preloaded so visible_flags_for -> can_review_catch?
     # (which walks placements to find tournament_ids) doesn't N+1 for staff
     # viewers when any rendered catch carries the possible_duplicate flag.
-    base = current_user.catches.includes(:species, :catch_placements, photo_attachment: :blob)
+    # :judge_actions is preloaded so latest_approver (called per row to decide
+    # the status badge) consumes the eager-load instead of re-querying per catch.
+    base = current_user.catches.includes(:species, :catch_placements, :judge_actions, photo_attachment: :blob)
     filter_params = effective_filter_params
     filtered = Catches::ApplyFilters.call(scope: base, params: filter_params)
     @catches = sort_catches(filtered)

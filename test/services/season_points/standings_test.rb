@@ -37,6 +37,40 @@ module SeasonPoints
       user
     end
 
+    # Seeds a fresh club with `tournaments` finished, points-eligible events in
+    # one season, each with three solo anglers. Returns the club.
+    def seed_season(tournaments:)
+      club = create(:club)
+      walleye = create(:species, club: club)
+      tournaments.times do |i|
+        ends_at = (i + 1).weeks.ago
+        t = create(:tournament, club: club, mode: :solo, awards_season_points: true,
+                                season_tag: "S", starts_at: ends_at - 4.hours, ends_at: ends_at)
+        create(:scoring_slot, tournament: t, species: walleye, slot_count: 2)
+        in_window = ends_at - 1.hour
+        %w[Alpha Bravo Charlie].each_with_index do |nm, j|
+          name = "#{nm}-#{club.id}"
+          user = ::User.find_by(name: name) || create(:user, club: club, name: name)
+          entry = create(:tournament_entry, tournament: t)
+          create(:tournament_entry_member, tournament_entry: entry, user: user)
+          Catches::PlaceInSlots.call(catch: create(:catch, user: user, species: walleye,
+                                                           length_inches: 25 - (j * 5), captured_at_device: in_window))
+        end
+      end
+      club
+    end
+
+    test "query count does not grow per tournament (no N+1 across the season)" do
+      one = seed_season(tournaments: 1)
+      many = seed_season(tournaments: 4)
+
+      q1 = count_queries(/./) { Standings.call(club: one, season_tag: "S") }
+      q4 = count_queries(/./) { Standings.call(club: many, season_tag: "S") }
+
+      assert_operator q4, :<=, q1 + 1,
+                      "standings query count grew with tournament count (#{q1} -> #{q4}): N+1 over tournaments"
+    end
+
     test "returns [] for nil season_tag" do
       assert_equal [], Standings.call(club: @club, season_tag: nil)
     end

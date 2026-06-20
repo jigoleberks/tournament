@@ -39,10 +39,9 @@ module Catches
           freed = @catch.catch_placements.active.to_a
           @catch.catch_placements.active.update_all(active: false)
           @catch.update!(status: :disqualified)
-          freed.each do |p|
-            p.reload
-            reconcile_freed(p)
-          end
+          # No p.reload: the reconcile services re-query placements from the DB
+          # (which already reflects the update_all above) and never read p.active.
+          freed.each { |p| Catches::ReconcileFreedSlot.call(placement: p) }
         when :manual_override
           prior_length  = @catch.length_inches
           prior_species = @catch.species_id
@@ -70,10 +69,7 @@ module Catches
             freed = @catch.catch_placements.active.to_a
             @catch.catch_placements.active.update_all(active: false)
             @catch.update!(species_id: @species_id)
-            freed.each do |p|
-              p.reload
-              reconcile_freed(p)
-            end
+            freed.each { |p| Catches::ReconcileFreedSlot.call(placement: p) }
 
             # Re-place the catch under the new species. PlaceInSlots will only
             # place in tournaments where the user has an entry at captured_at_device
@@ -139,39 +135,16 @@ module Catches
 
     private
 
-    # PromoteBackup picks the largest non-placed catch — correct for Standard
-    # but wrong for BvS when the freed slot held the smaller extreme. BvS
-    # re-derives both extremes from the eligible catch set instead.
-    def reconcile_freed(placement)
-      if placement.tournament.format_biggest_vs_smallest?
-        Catches::ReconcileBvsExtremes.call(
-          tournament: placement.tournament,
-          entry: placement.tournament_entry,
-          species: placement.species
-        )
-      elsif placement.tournament.format_smallest_fish?
-        Catches::ReconcileSmallestFish.call(
-          tournament: placement.tournament,
-          entry: placement.tournament_entry,
-          species: placement.species
-        )
-      elsif placement.tournament.format_fish_train?
-        # Fish Train is append-only: a freed car stays a permanent hole. The
-        # angler recovers by catching forward, not by promoting a backup.
-        nil
-      else
-        Catches::PromoteBackup.call(freed_placement: placement)
-      end
-    end
-
     def snapshot
-      species = Species.find_by(id: @catch.species_id)
+      # Use the loaded association rather than a fresh find_by: snapshot runs for
+      # both before/after states, and Rails resets @catch.species when species_id
+      # changes, so this still reflects the right species on each side of an edit.
       {
         "status"            => @catch.status,
         "length_inches"     => @catch.length_inches.to_s,
         "length_unit"       => @catch.length_unit,
         "species_id"        => @catch.species_id,
-        "species_name"      => species&.name,
+        "species_name"      => @catch.species&.name,
         "active_placements" => @catch.catch_placements.where(active: true).pluck(:tournament_entry_id, :slot_index)
       }
     end

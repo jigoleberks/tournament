@@ -251,9 +251,13 @@ module Catches
       result = { created: created, bumped: bumped, affected_tournaments: affected_tournaments.to_a, submitter: @catch.user }
 
       if @broadcast
-        affected_tournaments.each { |t| Placements::BroadcastLeaderboard.call(tournament: t) }
+        # Build each affected leaderboard once and share it with both the
+        # broadcast and the took-the-lead detection, which otherwise each rebuild
+        # the same (expensive) leaderboard per affected tournament.
+        leaderboards = affected_tournaments.to_h { |t| [t.id, Leaderboards::Build.call(tournament: t)] }
+        affected_tournaments.each { |t| Placements::BroadcastLeaderboard.call(tournament: t, leaderboard: leaderboards[t.id]) }
 
-        Placements::DetectNotifications.call(result: result).each do |n|
+        Placements::DetectNotifications.call(result: result, leaderboards: leaderboards).each do |n|
           DeliverPushNotificationJob.perform_later(
             user_id: n[:user].id,
             title: n[:title],

@@ -5,7 +5,6 @@ module Leaderboards
       # by the same angler each get their own row. Sort by length desc, then by
       # earliest captured_at_device, then entry.id, then catch.id for stability.
       def self.call(entry_rows)
-        far_future = ::Time.zone.at(0) + 100.years
         per_catch_rows = entry_rows.flat_map do |row|
           row[:fish].map do |f|
             {
@@ -21,7 +20,7 @@ module Leaderboards
         per_catch_rows.sort_by do |r|
           [
             -r[:total],
-            r[:earliest_catch_at] || far_future,
+            r[:earliest_catch_at] || FAR_FUTURE,
             r[:entry].id,
             r[:fish].first[:id]
           ]

@@ -16,6 +16,18 @@ module Catches
       Catches::PlaceInSlots.call(catch: @catch)
     end
 
+    test "snapshot reuses the loaded species across before/after instead of re-querying" do
+      # The before/after snapshots should share one species read (the memoized
+      # association) rather than each issuing its own Species.find_by. The lone
+      # remaining species query here is the leaderboard rebuild's own preload.
+      species_queries = count_queries(/\bfrom\s+"?species"?/i) do
+        ApplyJudgeAction.call(tournament: @t, catch: @catch, judge: @judge,
+                              action: :manual_override, length_inches: 20, note: "no change")
+      end
+      assert_operator species_queries, :<=, 2,
+                      "snapshot should not double-query species, got #{species_queries} queries"
+    end
+
     test "approve transitions needs_review -> synced and writes an audit row" do
       assert_difference "JudgeAction.count", 1 do
         ApplyJudgeAction.call(tournament: @t, catch: @catch, judge: @judge, action: :approve, note: "ok")

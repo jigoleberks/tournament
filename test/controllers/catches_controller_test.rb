@@ -1094,6 +1094,22 @@ class CatchesControllerTest < ActionDispatch::IntegrationTest
     rec
   end
 
+  test "catch index eager-loads judge_actions instead of N+1 per row" do
+    judge = create(:user, club: @club, role: :organizer)
+    3.times do |i|
+      c = create(:catch, user: @user, species: @walleye, length_inches: 15 + i,
+                         captured_at_device: Time.current)
+      create(:judge_action, catch: c, judge_user: judge, action: :approve)
+    end
+
+    judge_action_queries = count_queries(/\bfrom\s+"?judge_actions"?/i) do
+      get catches_path
+    end
+    assert_response :success
+    assert_operator judge_action_queries, :<=, 1,
+                    "expected judge_actions to be eager-loaded in one query, got #{judge_action_queries}"
+  end
+
   test "catch index shows a cm-logged length as the exact quarter-cm value" do
     cm_user = create(:user, club: @club, length_unit: "centimeters")
     create(:catch, user: cm_user, species: @walleye, length_inches: 6.99,

@@ -5,7 +5,10 @@ module Leaderboards
       Turbo::StreamsChannel.broadcast_replace_to(
         "tournament:#{tournament.id}:leaderboard:reveal",
         target: "leaderboard",
-        partial: "tournaments/leaderboard",
+        # Route through the same partial selector BroadcastLeaderboard uses so a
+        # Tagged tournament's reveal renders the ticket-count board, not the
+        # standard length leaderboard.
+        partial: Placements::BroadcastLeaderboard.partial_for(tournament),
         locals: {
           leaderboard: leaderboard,
           tournament: tournament,

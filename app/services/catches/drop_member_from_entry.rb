@@ -19,23 +19,9 @@ module Catches
         membership&.destroy
         if freed.any?
           ::CatchPlacement.where(id: freed.map(&:id)).update_all(active: false)
-          freed.each do |p|
-            p.reload
-            if p.tournament.format_biggest_vs_smallest?
-              ::Catches::ReconcileBvsExtremes.call(
-                tournament: p.tournament, entry: p.tournament_entry, species: p.species
-              )
-            elsif p.tournament.format_smallest_fish?
-              ::Catches::ReconcileSmallestFish.call(
-                tournament: p.tournament, entry: p.tournament_entry, species: p.species
-              )
-            elsif p.tournament.format_fish_train?
-              # Append-only: the dropped member's car stays a permanent hole.
-              nil
-            else
-              ::Catches::PromoteBackup.call(freed_placement: p)
-            end
-          end
+          # No p.reload: the reconcile services re-query placements from the DB
+          # (already updated above) and never read the in-memory p.active.
+          freed.each { |p| ::Catches::ReconcileFreedSlot.call(placement: p) }
         end
       end
       ::Placements::BroadcastLeaderboard.call(tournament: tournament)

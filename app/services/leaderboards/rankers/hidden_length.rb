@@ -14,7 +14,6 @@ module Leaderboards
       end
 
       def self.pre_reveal(entry_rows)
-        far_future = ::Time.zone.at(0) + 100.years
         per_catch_rows = entry_rows.flat_map do |row|
           row[:fish].map do |f|
             {
@@ -30,7 +29,7 @@ module Leaderboards
         per_catch_rows.sort_by do |r|
           [
             -r[:total],
-            r[:earliest_catch_at] || far_future,
+            r[:earliest_catch_at] || FAR_FUTURE,
             r[:entry].id,
             r[:fish].first[:id]
           ]
@@ -38,7 +37,6 @@ module Leaderboards
       end
 
       def self.post_reveal(entry_rows, target)
-        far_future = ::Time.zone.at(0) + 100.years
         target_d = target.to_d
         rows = entry_rows.map do |row|
           if row[:fish].empty?
@@ -61,7 +59,7 @@ module Leaderboards
           [
             r[:_distance].nil? ? 1 : 0,
             r[:_distance] || 0,
-            r[:earliest_catch_at] || far_future,
+            r[:earliest_catch_at] || FAR_FUTURE,
             r[:entry].id
           ]
         end.each { |r| r.delete(:_distance) }

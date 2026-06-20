@@ -33,6 +33,24 @@ module Catches
       assert_equal [0, 1], CatchPlacement.where(tournament_entry: @entry, active: true).order(:slot_index).pluck(:slot_index)
     end
 
+    test "broadcast path builds each affected leaderboard once, not twice" do
+      catch_record = create(:catch, user: @user, species: @walleye, length_inches: 20)
+      build_calls = []
+      original = Leaderboards::Build.method(:call)
+      Leaderboards::Build.define_singleton_method(:call) do |tournament:, **kwargs|
+        build_calls << tournament.id
+        original.call(tournament: tournament, **kwargs)
+      end
+      begin
+        PlaceInSlots.call(catch: catch_record)
+      ensure
+        Leaderboards::Build.define_singleton_method(:call, original)
+      end
+
+      assert_equal 1, build_calls.count { |id| id == @tournament.id },
+                   "leaderboard should be built once per affected tournament on the broadcast path"
+    end
+
     test "ignores tournaments that don't score this species" do
       perch = create(:species, club: @club, name: "Perch")
       catch_record = create(:catch, user: @user, species: perch, length_inches: 10)

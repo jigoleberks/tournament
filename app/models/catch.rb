@@ -58,7 +58,11 @@ class Catch < ApplicationRecord
 
   def disqualification_note
     return nil unless disqualified?
-    judge_actions.where(action: :disqualify).order(:created_at).last&.note
+    # Walk the in-memory association (like latest_approver) so an eager-loaded
+    # :judge_actions stays consumed instead of re-querying Postgres per row.
+    # Tie-break on id so two disqualifies at the same created_at are
+    # deterministic (latest timestamp, then highest id = most recently created).
+    judge_actions.select(&:disqualify?).max_by { |a| [a.created_at, a.id] }&.note
   end
 
   private
