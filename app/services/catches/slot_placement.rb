@@ -28,12 +28,15 @@ module Catches
     end
 
     # Non-DQ, in-window catches of @species by @entry's members that pass the
-    # geofence check.
+    # geofence check. A length is required to rank a catch (a NULL would sort as
+    # the smallest/extreme and wrongly claim a slot), so we exclude length-less
+    # rows here — defensive, since Catch validates length presence.
     def eligible_catches
       ::Catch.where(user_id: entry_member_ids,
                     species_id: @species.id,
                     captured_at_device: tournament_window)
              .where.not(status: ::Catch.statuses[:disqualified])
+             .where.not(length_inches: nil)
              .select { |c| slot_eligible?(c) }
     end
 

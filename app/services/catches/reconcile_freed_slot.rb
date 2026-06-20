@@ -10,8 +10,8 @@ module Catches
       species    = placement.species
 
       # PromoteBackup picks the largest non-placed catch — correct for Standard
-      # but wrong for BvS/Smallest Fish, which re-derive their extremes from the
-      # whole eligible set instead.
+      # but wrong for BvS/Smallest Fish (which re-derive their extremes from the
+      # whole eligible set) and for Fish Train (append-only, never refilled).
       if tournament.format_biggest_vs_smallest?
         ReconcileBvsExtremes.call(tournament: tournament, entry: entry, species: species)
       elsif tournament.format_smallest_fish?

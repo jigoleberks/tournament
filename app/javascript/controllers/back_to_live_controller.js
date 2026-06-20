@@ -12,7 +12,11 @@ export default class extends Controller {
 
   connect() {
     this.boundProbe = () => this.probe()
+    this.boundOffline = () => this.markOffline()
     window.addEventListener("online", this.boundProbe)
+    // If the browser later reports it dropped offline, revert the hint so a
+    // stale 🟢 ("Back online") can't linger after the connection is gone.
+    window.addEventListener("offline", this.boundOffline)
     // navigator.onLine === false means we're definitely offline — skip the doomed
     // probe and let the HTML's default "still offline" hint stand. The online
     // event re-probes when connectivity returns.
@@ -22,6 +26,12 @@ export default class extends Controller {
   disconnect() {
     this._stopped = true
     window.removeEventListener("online", this.boundProbe)
+    window.removeEventListener("offline", this.boundOffline)
+  }
+
+  markOffline() {
+    if (this._stopped || !this.hasStatusTarget) return
+    this.statusTarget.textContent = "🔴 Still offline — your catches are saved"
   }
 
   back() {
