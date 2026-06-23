@@ -24,6 +24,15 @@ class Judges::ManualOverridesControllerTest < ActionDispatch::IntegrationTest
     assert_equal 19.75, @catch.reload.length_inches.to_f
   end
 
+  test "GET new prefills cm length snapped to the quarter grid like the show page" do
+    @judge.update!(length_unit: "centimeters")
+    get new_judges_tournament_catch_manual_override_path(tournament_id: @t.id, catch_id: @catch.id)
+    assert_response :success
+    # 20 in = 50.8 cm, which snaps to the 0.25 grid as 50.75 — the same value the
+    # catch show page prefills. (A plain .round(1) would give 50.8.)
+    assert_select "input#length[value=?]", "50.75"
+  end
+
   test "POST with length and length_unit=inches stores inches as-is" do
     post judges_tournament_catch_manual_override_path(tournament_id: @t.id, catch_id: @catch.id),
          params: { length: "19.5", length_unit: "inches", note: "remeasured" }
@@ -61,6 +70,15 @@ class Judges::ManualOverridesControllerTest < ActionDispatch::IntegrationTest
     post judges_tournament_catch_manual_override_path(tournament_id: @t.id, catch_id: @catch.id),
          params: { length: "19.8", length_unit: "inches", note: "remeasured" }
     assert_equal 19.75, @catch.reload.length_inches.to_f
+  end
+
+  test "POST with an invalid length redirects with an alert instead of 500" do
+    post judges_tournament_catch_manual_override_path(tournament_id: @t.id, catch_id: @catch.id),
+         params: { length_inches: "-5", note: "typo" }
+
+    assert_redirected_to judges_tournament_catch_path(tournament_id: @t.id, id: @catch.id)
+    assert_not_nil flash[:alert]
+    assert_equal 20, @catch.reload.length_inches.to_f, "invalid override should not persist"
   end
 
   test "GET new on a catch from another tournament is not found" do

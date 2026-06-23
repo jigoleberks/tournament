@@ -7,7 +7,6 @@ module TournamentTemplates
         end
         tournament = template.club.tournaments.create!(
           name: name || template.name,
-          kind: :event,
           mode: template.mode,
           format: template.format,
           train_cars: template.train_cars,

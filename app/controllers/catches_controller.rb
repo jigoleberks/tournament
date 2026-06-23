@@ -13,7 +13,9 @@ class CatchesController < ApplicationController
     # :catch_placements is preloaded so visible_flags_for -> can_review_catch?
     # (which walks placements to find tournament_ids) doesn't N+1 for staff
     # viewers when any rendered catch carries the possible_duplicate flag.
-    base = current_user.catches.includes(:species, :catch_placements, photo_attachment: :blob)
+    # :judge_actions is preloaded so latest_approver (called per row to decide
+    # the status badge) consumes the eager-load instead of re-querying per catch.
+    base = current_user.catches.includes(:species, :catch_placements, :judge_actions, photo_attachment: :blob)
     filter_params = effective_filter_params
     filtered = Catches::ApplyFilters.call(scope: base, params: filter_params)
     @catches = sort_catches(filtered)
@@ -52,9 +54,16 @@ class CatchesController < ApplicationController
   end
 
   def select_teammate
-    @tournament = current_club.tournaments.find(params[:tournament_id])
-    redirect_to(@tournament) and return unless @tournament.mode_team?
-    @teammates = Tournaments::TeammatesFor.call(user: current_user, tournament: @tournament)
+    if params[:tournament_id].present?
+      @tournament = current_club.tournaments.find(params[:tournament_id])
+      redirect_to(@tournament) and return unless @tournament.mode_team?
+      @teammates = Tournaments::TeammatesFor.call(user: current_user, tournament: @tournament)
+    else
+      @grouped_teammates = Tournaments::TeammateLogTournamentsFor.call(user: current_user, club: current_club).map do |t|
+        [t, Tournaments::TeammatesFor.call(user: current_user, tournament: t)]
+      end
+      redirect_to(new_catch_path) and return if @grouped_teammates.empty?
+    end
   end
 
   def new
@@ -63,12 +72,9 @@ class CatchesController < ApplicationController
     angler = @teammate || current_user
     @catch = angler.catches.build(captured_at_device: Time.current,
                                   client_uuid: SecureRandom.uuid)
-    @species = Species.order(:name)
-    @length_caps = @species.each_with_object({}) do |s, h|
-      cap = Catch::MAX_LENGTH_BY_SPECIES[s.name.to_s.downcase]
-      h[s.id] = cap if cap
-    end
-    @tagged_species_id = Species.tagged_walleye&.id
+    # Species list, caps, and the tagged-species id are derived in the shared
+    # _form_fields partial (so the offline shell, which renders it with no
+    # controller, stays self-contained).
   end
 
   def create
@@ -81,7 +87,6 @@ class CatchesController < ApplicationController
     if teammate && !shares_entry_at?(teammate, @catch.captured_at_device)
       @catch.errors.add(:base, "You and this teammate aren't on the same entry in any active tournament.")
       @teammate = teammate
-      @species = Species.order(:name)
       render :new, status: :unprocessable_entity
       return
     end
@@ -99,7 +104,6 @@ class CatchesController < ApplicationController
     else
       @catch.errors.add(:photo, "is required") unless @catch.photo.attached?
       @teammate = teammate
-      @species = Species.order(:name)
       render :new, status: :unprocessable_entity
     end
   end

@@ -9,11 +9,11 @@
 <% teammate  = local_assigns.fetch(:teammate, nil) %>
 <% all_species = Species.in_log_order %>
 <% default_species = all_species.find { |s| s.name.casecmp?("walleye") } || all_species.first %>
-<% length_caps = Species.order(:name).each_with_object({}) do |s, h|
-     cap = Catch::MAX_LENGTH_BY_SPECIES[s.name.to_s.downcase]
+<% length_caps = all_species.each_with_object({}) do |s, h|
+     cap = Catch.length_cap_for(s)
      h[s.id] = cap if cap
    end %>
-<% tagged_species_id = Species.tagged_walleye&.id %>
+<% tagged_species_id = all_species.find(&:tagged_walleye?)&.id %>
 
 <div data-controller="catch-form photo-capture video-capture"
      data-catch-form-csrf-token-value="<%= local_assigns.fetch(:csrf_token, "") %>"

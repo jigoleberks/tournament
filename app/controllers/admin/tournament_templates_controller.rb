@@ -1,4 +1,6 @@
 class Admin::TournamentTemplatesController < Admin::BaseController
+  include TemplateParams
+
   before_action :load_template, only: [:edit, :update, :destroy, :clone]
 
   def index
@@ -40,7 +42,8 @@ class Admin::TournamentTemplatesController < Admin::BaseController
     TournamentTemplates::Clone.call(
       template: @template,
       starts_at: params[:starts_at],
-      ends_at: params[:ends_at]
+      ends_at: params[:ends_at],
+      season_tag: @template.season_tag
     )
     redirect_to admin_tournaments_path, notice: "Cloned."
   end
@@ -49,14 +52,5 @@ class Admin::TournamentTemplatesController < Admin::BaseController
 
   def load_template
     @template = current_club.tournament_templates.find(params[:id])
-  end
-
-  def template_params
-    params.require(:tournament_template).permit(
-      :name, :mode, :default_duration_days,
-      :default_weekday, :default_start_time, :default_end_time,
-      :awards_season_points,
-      tournament_template_scoring_slots_attributes: [:id, :species_id, :slot_count, :_destroy]
-    )
   end
 end

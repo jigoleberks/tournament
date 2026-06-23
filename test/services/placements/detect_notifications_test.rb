@@ -45,7 +45,7 @@ module Placements
 
     test "does not notify the submitter when biggest_vs_smallest bumps the submitter's own previous extreme" do
       bvs = build(:tournament, club: @club, format: :biggest_vs_smallest, mode: :solo,
-                  kind: :event, starts_at: 1.hour.ago, ends_at: 1.hour.from_now)
+                  starts_at: 1.hour.ago, ends_at: 1.hour.from_now)
       bvs.scoring_slots.build(species: @walleye, slot_count: 1)
       bvs.save!
       entry = create(:tournament_entry, tournament: bvs)
@@ -135,7 +135,7 @@ module Placements
       walleye = create(:species, club: club)
       user = create(:user, club: club)
       t = build(:tournament, club: club, format: :hidden_length, mode: :solo,
-                kind: :event, starts_at: 1.hour.ago, ends_at: 1.hour.from_now)
+                starts_at: 1.hour.ago, ends_at: 1.hour.from_now)
       t.scoring_slots.build(species: walleye, slot_count: 1)
       t.save!
       entry = create(:tournament_entry, tournament: t)
@@ -158,7 +158,7 @@ module Placements
       walleye = create(:species, club: club)
       user = create(:user, club: club)
       t = build(:tournament, club: club, format: :hidden_length, mode: :solo,
-                kind: :event, starts_at: 2.hours.ago, ends_at: 1.minute.ago)
+                starts_at: 2.hours.ago, ends_at: 1.minute.ago)
       t.scoring_slots.build(species: walleye, slot_count: 1)
       t.save!
       t.update!(hidden_length_target: BigDecimal("17.00"))

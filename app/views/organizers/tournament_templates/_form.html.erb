@@ -38,6 +38,13 @@
     </label>
     <p class="text-xs text-slate-500 -mt-2">When on, tournaments cloned from this template are points-eligible by default.</p>
 
+    <div>
+      <%= f.label :season_tag, "Season tag", class: "block text-sm font-medium text-slate-300 mb-1" %>
+      <%= f.text_field :season_tag, placeholder: "e.g. 2026",
+                       class: "w-full h-12 px-3 rounded-lg bg-slate-900 border border-slate-700 text-base" %>
+      <p class="text-xs text-slate-500 mt-1">Cloned tournaments default to this season's leaderboard.</p>
+    </div>
+
     <label class="flex items-center gap-3 mt-2">
       <%= f.check_box :blind_leaderboard, class: "h-5 w-5" %>
       <span class="text-slate-200">Blind leaderboard</span>
@@ -91,7 +98,7 @@
       <div class="bg-slate-900 rounded-lg p-3 space-y-2 border border-slate-700"
            data-tournament-format-target="slotRow">
         <label class="block text-sm text-slate-400">Species</label>
-        <%= sf.collection_select :species_id, Species.order(:name), :id, :name,
+        <%= sf.collection_select :species_id, ordered_species, :id, :name,
                                  { include_blank: "—" },
                                  class: "w-full h-12 px-3 rounded-lg bg-slate-900 border border-slate-700 text-base" %>
 

@@ -37,7 +37,9 @@ module Tournaments
     end
 
     test "open-ended tournament (ends_at nil) counts as still active" do
-      t = create(:tournament, club: @club, mode: :team, starts_at: 1.day.ago, ends_at: nil)
+      # Legacy NULL-ends_at row: bypass the now-required ends_at validation.
+      t = build(:tournament, club: @club, mode: :team, starts_at: 1.day.ago, ends_at: nil)
+      t.save!(validate: false)
       entry = create(:tournament_entry, tournament: t)
       create(:tournament_entry_member, tournament_entry: entry, user: @a)
       create(:tournament_entry_member, tournament_entry: entry, user: @b)

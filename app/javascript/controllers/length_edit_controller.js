@@ -1,4 +1,5 @@
 import { Controller } from "@hotwired/stimulus"
+import { convertLength, snapToGrid } from "lib/length_convert"
 
 // Live-converts the bound number input between inches and centimeters when
 // a sibling unit radio changes. Used on the catch show page's edit-length
@@ -13,18 +14,14 @@ export default class extends Controller {
     const oldUnit = this.inputTarget.dataset.lengthEditUnit
     if (oldUnit === newUnit) return
 
-    const stepSize = 0.25
     const v = parseFloat(this.inputTarget.value)
     if (!Number.isNaN(v)) {
-      const factor = oldUnit === "inches" && newUnit === "centimeters" ? 2.54
-                   : oldUnit === "centimeters" && newUnit === "inches" ? 1 / 2.54
-                   : 1
-      // Snap to the new unit's step grid so the form passes HTML5
-      // stepMismatch validation on submit (the form is local: true).
-      this.inputTarget.value = (Math.round(v * factor / stepSize) * stepSize).toFixed(2)
+      // Snap to the new unit's 0.25 grid so the form passes HTML5 stepMismatch
+      // validation on submit (the form is local: true).
+      this.inputTarget.value = snapToGrid(convertLength(v, oldUnit, newUnit)).toFixed(2)
     }
 
     this.inputTarget.dataset.lengthEditUnit = newUnit
-    this.inputTarget.step = String(stepSize)
+    this.inputTarget.step = "0.25"
   }
 }

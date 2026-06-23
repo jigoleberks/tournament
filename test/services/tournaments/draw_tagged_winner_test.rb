@@ -10,7 +10,7 @@ module Tournaments
       @user = create(:user, club: @club)
       @organizer = create(:user, club: @club, role: :organizer)
       @t = build(:tournament, club: @club, format: :tagged, mode: :solo,
-                 kind: :event, starts_at: 2.hours.ago, ends_at: 1.hour.ago)
+                 starts_at: 2.hours.ago, ends_at: 1.hour.ago)
       @t.scoring_slots.build(species: @tagged, slot_count: 1)
       @t.save!
       @entry = create(:tournament_entry, tournament: @t)

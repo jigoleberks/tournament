@@ -2,6 +2,7 @@
 
 pin "application"
 pin "sw_register", to: "sw_register.js"
+pin "lib/length_convert", to: "lib/length_convert.js"
 pin "offline/sync", to: "offline/sync.js"
 pin "offline/db", to: "offline/db.js"
 pin "@hotwired/stimulus", to: "stimulus.min.js"

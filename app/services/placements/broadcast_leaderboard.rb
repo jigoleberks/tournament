@@ -7,8 +7,8 @@ module Placements
     # For a tagged tournament, partial_for routes to tagged_leaderboard so the
     # broadcast carries the ticket-count UI; DrawTaggedWinner also re-broadcasts
     # after a draw so the winner banner appears live.
-    def self.call(tournament:)
-      leaderboard = Leaderboards::Build.call(tournament: tournament)
+    def self.call(tournament:, leaderboard: nil)
+      leaderboard ||= Leaderboards::Build.call(tournament: tournament)
 
       if tournament.blind?(at: Time.current)
         broadcast_full(tournament, leaderboard)

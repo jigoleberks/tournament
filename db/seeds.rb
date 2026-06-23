@@ -30,7 +30,6 @@ if ENV["SEED_DEMO_DATA"] == "true"
   perch   = Species.find_by!(name: "Perch")
 
   Tournament.find_or_create_by!(club: club, name: "Sample Event Tournament") do |t|
-    t.kind = :event
     t.mode = :solo
     t.starts_at = 1.hour.ago
     t.ends_at   = 4.hours.from_now
@@ -40,11 +39,10 @@ if ENV["SEED_DEMO_DATA"] == "true"
     t.scoring_slots.find_or_create_by!(species: perch)   { |s| s.slot_count = 1 }
   end
 
-  Tournament.find_or_create_by!(club: club, name: "Sample Ongoing: Biggest Walleye") do |t|
-    t.kind = :ongoing
+  Tournament.find_or_create_by!(club: club, name: "Sample Season: Biggest Walleye") do |t|
     t.mode = :solo
     t.starts_at = 1.month.ago
-    t.ends_at   = nil
+    t.ends_at   = 5.months.from_now
     t.season_tag = "Open Water 2026"
   end.tap do |t|
     t.scoring_slots.find_or_create_by!(species: walleye) { |s| s.slot_count = 1 }

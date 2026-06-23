@@ -83,10 +83,55 @@ class CatchTest < ActiveSupport::TestCase
     assert_not too_big.valid?
   end
 
-  test "uncapped species accept any positive length" do
+  test "bass over 35 inches is invalid" do
+    bass = create(:species, club: @club, name: "Bass")
+    too_big = build(:catch, user: @user, species: bass, length_inches: 35.25)
+    assert_not too_big.valid?
+    assert_includes too_big.errors[:length_inches].join, "Bass"
+  end
+
+  test "lake trout over 55 inches is invalid" do
     trout = create(:species, club: @club, name: "Lake Trout")
-    big = build(:catch, user: @user, species: trout, length_inches: 200)
+    too_big = build(:catch, user: @user, species: trout, length_inches: 55.5)
+    assert_not too_big.valid?
+  end
+
+  test "stocked trout over 35 inches is invalid" do
+    trout = create(:species, club: @club, name: "Stocked Trout")
+    too_big = build(:catch, user: @user, species: trout, length_inches: 35.25)
+    assert_not too_big.valid?
+  end
+
+  test "tagged walleye over 50 inches is invalid" do
+    tagged = create(:species, club: @club, name: "Tagged Walleye")
+    too_big = build(:catch, user: @user, species: tagged, length_inches: 50.5,
+                    tag_number: "A1")
+    assert_not too_big.valid?
+  end
+
+  test "other over 200 inches is invalid" do
+    other = create(:species, club: @club, name: "Other")
+    too_big = build(:catch, user: @user, species: other, length_inches: 200.25)
+    assert_not too_big.valid?
+  end
+
+  test "other at exactly 200 inches is valid" do
+    other = create(:species, club: @club, name: "Other")
+    boundary = build(:catch, user: @user, species: other, length_inches: 200)
+    assert boundary.valid?
+  end
+
+  test "a species not in the cap table accepts any positive length" do
+    crappie = create(:species, club: @club, name: "Crappie")
+    big = build(:catch, user: @user, species: crappie, length_inches: 500)
     assert big.valid?
+  end
+
+  test "length_cap_for looks up the cap by species name, case-insensitive" do
+    assert_equal 50, Catch.length_cap_for(@walleye)
+    assert_equal 35, Catch.length_cap_for(create(:species, club: @club, name: "Bass"))
+    assert_nil Catch.length_cap_for(create(:species, club: @club, name: "Crappie"))
+    assert_nil Catch.length_cap_for(nil)
   end
 
   test "note up to 500 chars is valid" do
@@ -140,6 +185,32 @@ class CatchTest < ActiveSupport::TestCase
     create(:judge_action, catch: catch_record, judge_user: judge, action: :disqualify,
                           note: "actual reason", created_at: 1.minute.ago)
     assert_equal "actual reason", catch_record.disqualification_note
+  end
+
+  test "disqualification_note breaks created_at ties deterministically by highest id" do
+    judge = create(:user, club: @club, role: :organizer)
+    catch_record = create(:catch, user: @user, species: @walleye, status: :disqualified)
+    same_time = 1.minute.ago
+    create(:judge_action, catch: catch_record, judge_user: judge, action: :disqualify,
+                          note: "earlier row", created_at: same_time)
+    create(:judge_action, catch: catch_record, judge_user: judge, action: :disqualify,
+                          note: "later row", created_at: same_time)
+    assert_equal "later row", catch_record.disqualification_note
+  end
+
+  test "disqualification_note consumes eager-loaded judge_actions without re-querying" do
+    judge = create(:user, club: @club, role: :organizer)
+    2.times do
+      c = create(:catch, user: @user, species: @walleye, status: :disqualified)
+      create(:judge_action, catch: c, judge_user: judge, action: :disqualify, note: "bad")
+    end
+
+    loaded = Catch.where(status: :disqualified).includes(:judge_actions).to_a
+    judge_action_queries = count_queries(/\bfrom\s+"?judge_actions"?/i) do
+      loaded.each(&:disqualification_note)
+    end
+    assert_equal 0, judge_action_queries,
+                 "disqualification_note should read the preloaded association, not re-query per row"
   end
 
   test "disqualification_note returns nil when catch is not disqualified" do

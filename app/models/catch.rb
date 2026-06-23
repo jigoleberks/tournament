@@ -16,7 +16,13 @@ class Catch < ApplicationRecord
     disqualified: 4
   }
 
-  MAX_LENGTH_BY_SPECIES = { "perch" => 20, "walleye" => 50, "pike" => 70 }.freeze
+  # Hard upper bounds (inches) per species, to catch fat-finger length entries.
+  # Keyed by downcased species name. Species not listed are unbounded.
+  MAX_LENGTH_BY_SPECIES = {
+    "perch" => 20, "walleye" => 50, "pike" => 70, "bass" => 35,
+    "lake trout" => 55, "stocked trout" => 35, "tagged walleye" => 50,
+    "other" => 200
+  }.freeze
   PHOTO_CONTENT_TYPES = %w[image/jpeg image/png image/heic image/heif image/webp].freeze
   PHOTO_MAX_BYTES = 25.megabytes
 
@@ -52,7 +58,11 @@ class Catch < ApplicationRecord
 
   def disqualification_note
     return nil unless disqualified?
-    judge_actions.where(action: :disqualify).order(:created_at).last&.note
+    # Walk the in-memory association (like latest_approver) so an eager-loaded
+    # :judge_actions stays consumed instead of re-querying Postgres per row.
+    # Tie-break on id so two disqualifies at the same created_at are
+    # deterministic (latest timestamp, then highest id = most recently created).
+    judge_actions.select(&:disqualify?).max_by { |a| [a.created_at, a.id] }&.note
   end
 
   private
@@ -95,9 +105,16 @@ class Catch < ApplicationRecord
     end
   end
 
+  # Max length (inches) for a species, or nil if the species is unbounded.
+  # Single source of truth for the cap lookup (validation, controller, views).
+  def self.length_cap_for(species)
+    return nil if species.nil?
+    MAX_LENGTH_BY_SPECIES[species.name.to_s.downcase]
+  end
+
   def length_within_species_cap
     return if species.nil? || length_inches.nil?
-    cap = MAX_LENGTH_BY_SPECIES[species.name.to_s.downcase]
+    cap = Catch.length_cap_for(species)
     return if cap.nil? || length_inches <= cap
     errors.add(:length_inches, "for #{species.name} can't exceed #{cap}\"")
   end

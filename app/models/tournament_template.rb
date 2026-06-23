@@ -4,7 +4,7 @@ class TournamentTemplate < ApplicationRecord
   accepts_nested_attributes_for :tournament_template_scoring_slots, allow_destroy: true,
                                 reject_if: ->(attrs) { attrs["species_id"].blank? }
   enum :mode, { solo: 0, team: 1 }, prefix: true
-  enum :format, { standard: 0, big_fish_season: 1, hidden_length: 2, biggest_vs_smallest: 3, fish_train: 4, tagged: 5 }, prefix: true
+  enum :format, { standard: 0, big_fish_season: 1, hidden_length: 2, biggest_vs_smallest: 3, fish_train: 4, tagged: 5, smallest_fish: 6 }, prefix: true
   validates :name, presence: true
   validates :default_weekday, inclusion: { in: 0..6 }, allow_nil: true
   validate :default_schedule_all_or_nothing
