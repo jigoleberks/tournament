@@ -649,7 +649,7 @@ class CatchesControllerTest < ActionDispatch::IntegrationTest
   # --- Teammate catch logging --------------------------------------------------
   # @tournament defaults to solo (one angler per entry); these tests need team mode.
 
-  test "GET /catches/select_teammate lists same-entry teammates" do
+  test "GET /catches/select_teammate lists teammates plus a Myself option" do
     @tournament.update!(mode: :team)
     teammate = create(:user, club: @club, name: "Boatmate")
     create(:tournament_entry_member, tournament_entry: @entry, user: teammate)
@@ -657,25 +657,20 @@ class CatchesControllerTest < ActionDispatch::IntegrationTest
     other_entry = create(:tournament_entry, tournament: @tournament)
     create(:tournament_entry_member, tournament_entry: other_entry, user: other)
 
-    get select_teammate_catches_path(tournament_id: @tournament.id)
+    get select_teammate_catches_path
     assert_response :success
-    assert_match "Boatmate", response.body
+    assert_select "a[href=?]", new_catch_path, text: "Myself"
+    assert_select "a[href=?]", new_catch_path(teammate_user_id: teammate.id), text: "Boatmate"
     assert_no_match "Other Boat", response.body
   end
 
-  test "GET /catches/select_teammate returns empty list when user has no entry" do
-    other_tournament = create(:tournament, club: @club, name: "Other", mode: :team)
-    get select_teammate_catches_path(tournament_id: other_tournament.id)
-    assert_response :success
-    assert_match "No teammates on your entry", response.body
+  test "GET /catches/select_teammate redirects to new catch when the user has no teammates" do
+    # @tournament is solo by default, so the user has no team teammates.
+    get select_teammate_catches_path
+    assert_redirected_to new_catch_path
   end
 
-  test "GET /catches/select_teammate redirects for a solo tournament" do
-    get select_teammate_catches_path(tournament_id: @tournament.id)
-    assert_redirected_to tournament_path(@tournament)
-  end
-
-  test "GET /catches/select_teammate without tournament_id aggregates teammates across active team tournaments" do
+  test "GET /catches/select_teammate aggregates teammates flat, with no tournament grouping" do
     @tournament.update!(mode: :team)
     mate1 = create(:user, club: @club, name: "Boatmate One")
     create(:tournament_entry_member, tournament_entry: @entry, user: mate1)
@@ -691,23 +686,30 @@ class CatchesControllerTest < ActionDispatch::IntegrationTest
     assert_response :success
     assert_match "Boatmate One", response.body
     assert_match "Boatmate Two", response.body
-    assert_match @tournament.name, response.body
-    assert_match "Second Cup", response.body
+    assert_no_match "Second Cup", response.body
   end
 
-  test "GET /catches/select_teammate without tournament_id redirects to new catch when no teammates" do
-    # @tournament is solo by default, so the user has no team teammates.
+  test "GET /catches/select_teammate lists a shared teammate once" do
+    @tournament.update!(mode: :team)
+    mate = create(:user, club: @club, name: "Boatmate")
+    create(:tournament_entry_member, tournament_entry: @entry, user: mate)
+
+    t2 = create(:tournament, club: @club, name: "Second Cup", mode: :team,
+                             starts_at: 1.hour.ago, ends_at: 1.hour.from_now)
+    entry2 = create(:tournament_entry, tournament: t2)
+    create(:tournament_entry_member, tournament_entry: entry2, user: @user)
+    create(:tournament_entry_member, tournament_entry: entry2, user: mate)
+
     get select_teammate_catches_path
-    assert_redirected_to new_catch_path
+    assert_response :success
+    assert_select "a[href=?]", new_catch_path(teammate_user_id: mate.id), count: 1
   end
 
-  test "GET /catches/select_teammate without tournament_id shows only current-club teammates, not another club's" do
-    # Set up an active team tournament + teammate in the current club (@club).
+  test "GET /catches/select_teammate shows only current-club teammates, not another club's" do
     @tournament.update!(mode: :team)
     club_a_mate = create(:user, club: @club, name: "Club A Mate")
     create(:tournament_entry_member, tournament_entry: @entry, user: club_a_mate)
 
-    # Set up a second club with its own active team tournament + teammate.
     other_club = create(:club)
     create(:club_membership, user: @user, club: other_club)
     other_t = create(:tournament, club: other_club, name: "Other Club Cup", mode: :team,
@@ -717,7 +719,6 @@ class CatchesControllerTest < ActionDispatch::IntegrationTest
     other_mate = create(:user, club: other_club, name: "Other Club Mate")
     create(:tournament_entry_member, tournament_entry: other_entry, user: other_mate)
 
-    # Sign in as @user — their current_club is @club (the first/oldest membership).
     sign_in_as(@user)
 
     get select_teammate_catches_path
@@ -726,18 +727,48 @@ class CatchesControllerTest < ActionDispatch::IntegrationTest
     assert_no_match "Other Club Mate", response.body
   end
 
-  test "tournament show hides 'Log for teammate' for solo tournaments" do
+  test "tournament show routes 'Log Catch' to the form for a solo tournament" do
     get tournament_path(@tournament)
     assert_response :success
-    assert_match "Log Catch", response.body
+    assert_select "a[href=?]", new_catch_path, text: "Log Catch"
     assert_no_match "Log for teammate", response.body
   end
 
-  test "tournament show shows 'Log for teammate' for team tournaments" do
+  test "tournament show routes 'Log Catch' to the chooser for a team tournament with teammates" do
+    @tournament.update!(mode: :team)
+    create(:tournament_entry_member, tournament_entry: @entry,
+                                     user: create(:user, club: @club, name: "Boatmate"))
+    get tournament_path(@tournament)
+    assert_response :success
+    assert_select "a[href=?]", select_teammate_catches_path, text: "Log Catch"
+    assert_no_match "Log for teammate", response.body
+  end
+
+  test "tournament show routes 'Log Catch' to the form for a team tournament with no teammates" do
     @tournament.update!(mode: :team)
     get tournament_path(@tournament)
     assert_response :success
-    assert_match "Log for teammate", response.body
+    assert_select "a[href=?]", new_catch_path, text: "Log Catch"
+    assert_no_match "Log for teammate", response.body
+  end
+
+  # The tournament page gates on THIS tournament's teammates (per-tournament
+  # TeammatesFor.exists?), not club-wide. A teammate in a different tournament
+  # must not route this page's button to the chooser.
+  test "tournament show routes 'Log Catch' to the form when the user's only teammate is in another tournament" do
+    @tournament.update!(mode: :team)
+
+    other = create(:tournament, club: @club, name: "Other Cup", mode: :team,
+                                starts_at: 1.hour.ago, ends_at: 1.hour.from_now)
+    other_entry = create(:tournament_entry, tournament: other)
+    create(:tournament_entry_member, tournament_entry: other_entry, user: @user)
+    create(:tournament_entry_member, tournament_entry: other_entry,
+                                     user: create(:user, club: @club, name: "Boatmate"))
+
+    get tournament_path(@tournament)
+    assert_response :success
+    assert_select "a[href=?]", new_catch_path, text: "Log Catch"
+    assert_no_match "Log for teammate", response.body
   end
 
   test "GET /catches/new with valid teammate_user_id assigns @teammate and shows banner" do
