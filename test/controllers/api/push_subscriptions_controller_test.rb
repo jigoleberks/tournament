@@ -32,6 +32,41 @@ class Api::PushSubscriptionsControllerTest < ActionDispatch::IntegrationTest
     assert_nil PushSubscription.find_by(endpoint: "https://e/3")
   end
 
+  test "creating a subscription records push_subscribed with endpoint host" do
+    user = create(:user)
+    sign_in_as(user)
+
+    assert_difference -> { user.user_events.push_subscribed.count }, 1 do
+      post "/api/push_subscriptions", params: {
+        subscription: { endpoint: "https://fcm.googleapis.com/abc", keys: { p256dh: "k", auth: "a" } }
+      }, headers: { "Accept" => "application/json" }
+    end
+    assert_equal "fcm.googleapis.com", user.user_events.push_subscribed.last.metadata["endpoint_host"]
+  end
+
+  test "idempotent re-save does not record a second push_subscribed" do
+    user = create(:user)
+    sign_in_as(user)
+    create(:push_subscription, user: user, endpoint: "https://fcm.googleapis.com/abc")
+
+    assert_no_difference -> { user.user_events.push_subscribed.count } do
+      post "/api/push_subscriptions", params: {
+        subscription: { endpoint: "https://fcm.googleapis.com/abc", keys: { p256dh: "k2", auth: "a2" } }
+      }, headers: { "Accept" => "application/json" }
+    end
+  end
+
+  test "destroying a subscription records push_unsubscribed" do
+    user = create(:user)
+    sign_in_as(user)
+    user.push_subscriptions.create!(endpoint: "https://fcm.googleapis.com/abc", p256dh: "k", auth: "a")
+
+    assert_difference -> { user.user_events.push_unsubscribed.count }, 1 do
+      delete "/api/push_subscriptions", params: { endpoint: "https://fcm.googleapis.com/abc" },
+             headers: { "Accept" => "application/json" }
+    end
+  end
+
   private
 
   def sign_in_as(user)

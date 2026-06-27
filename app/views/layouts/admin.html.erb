@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html>
+<html data-app-build="<%= ::AppVersion.current %>">
   <head>
     <title><%= content_for(:title) || "Admin Dashboard - " + ENV.fetch("APP_NAME", "Tournament") %></title>
     <meta name="viewport" content="width=device-width,initial-scale=1">
@@ -12,11 +12,16 @@
   </head>
 
   <body class="bg-slate-900 text-slate-100 min-h-screen">
+    <script>
+      // Mirror the build the browser actually ran into a cookie so the server can
+      // detect a stale PWA shell (a cached shell carries an old data-app-build).
+      document.cookie = "app_build=" + encodeURIComponent(document.documentElement.dataset.appBuild || "") + "; path=/; max-age=31536000; samesite=lax";
+    </script>
     <header class="bg-slate-800 border-b border-slate-700 sticky top-0 z-30">
       <nav class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div class="flex justify-between h-16">
           <div class="flex items-center gap-8">
-            <%= link_to root_path, class: "text-xl font-bold text-white flex items-center gap-2" do %>
+            <%= link_to admin_root_path, class: "text-xl font-bold text-white flex items-center gap-2" do %>
               <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-6 h-6 text-blue-500">
                 <path d="M11.47 3.84a.75.75 0 011.06 0l8.69 8.69a.75.75 0 101.06-1.06l-8.69-8.69a2.25 2.25 0 00-3.18 0l-8.69 8.69a.75.75 0 101.06 1.06l8.69-8.69z" />
                 <path d="M12 5.43l7.5 7.5v6.32a2.25 2.25 0 01-2.25 2.25H15a.75.75 0 01-.75-.75v-4.5a.75.75 0 00-.75-.75h-3a.75.75 0 00-.75.75V21a.75.75 0 01-.75.75H6.75A2.25 2.25 0 014.5 19.5v-6.32l7.5-7.5z" />

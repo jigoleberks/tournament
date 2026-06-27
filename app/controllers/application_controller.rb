@@ -39,6 +39,10 @@ class ApplicationController < ActionController::Base
   end
 
   def touch_last_seen
-    current_user&.touch_last_seen!
+    Diagnostics::RecordVisit.call(
+      user:       current_user,
+      user_agent: request.user_agent,
+      app_build:  cookies[:app_build]
+    )
   end
 end

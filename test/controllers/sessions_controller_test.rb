@@ -118,4 +118,34 @@ class SessionsControllerTest < ActionDispatch::IntegrationTest
     post code_session_path, params: { email: @user.email, code: code.token }
     assert_equal club_a.id, session[:current_club_id]
   end
+
+  # --- UserEvent capture ---
+
+  test "successful magic-link sign-in records a sign_in_succeeded event" do
+    token = SignInToken.issue!(user: @user)
+
+    assert_difference -> { @user.user_events.sign_in_succeeded.count }, 1 do
+      get consume_session_path(token: token.token)
+    end
+  end
+
+  test "successful code sign-in records a sign_in_succeeded event" do
+    code = SignInToken.issue_code!(user: @user)
+
+    assert_difference -> { @user.user_events.sign_in_succeeded.count }, 1 do
+      post code_session_path, params: { email: @user.email, code: code.token }
+    end
+  end
+
+  test "failed code sign-in records a sign_in_failed event for a known email" do
+    assert_difference -> { @user.user_events.sign_in_failed.count }, 1 do
+      post code_session_path, params: { email: @user.email, code: "00000000" }
+    end
+  end
+
+  test "failed code sign-in for an unknown email records nothing" do
+    assert_no_difference -> { UserEvent.count } do
+      post code_session_path, params: { email: "nobody@example.com", code: "00000000" }
+    end
+  end
 end

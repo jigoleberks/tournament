@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html>
+<html data-app-build="<%= ::AppVersion.current %>">
   <head>
     <title><%= ENV.fetch("APP_NAME", "Tournament") %></title>
     <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
@@ -16,6 +16,11 @@
   </head>
 
   <body class="bg-slate-900 text-slate-100 min-h-screen">
+    <script>
+      // Mirror the build the browser actually ran into a cookie so the server can
+      // detect a stale PWA shell (a cached shell carries an old data-app-build).
+      document.cookie = "app_build=" + encodeURIComponent(document.documentElement.dataset.appBuild || "") + "; path=/; max-age=31536000; samesite=lax";
+    </script>
     <main class="max-w-md mx-auto px-4 pb-24">
       <%= yield %>
     </main>

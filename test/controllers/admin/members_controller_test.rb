@@ -141,6 +141,18 @@ class Admin::MembersControllerTest < ActionDispatch::IntegrationTest
     end
   end
 
+  test "member edit page renders the diagnostics card" do
+    @member.user_events.create!(kind: :device_changed, user_agent:
+      "Mozilla/5.0 (iPhone; CPU iPhone OS 17_4 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.4 Mobile/15E148 Safari/604.1")
+
+    sign_in_as(@admin)
+    get edit_admin_member_path(@member)
+
+    assert_response :success
+    assert_select "h2", text: /Diagnostics/
+    assert_match "Safari", response.body
+  end
+
   private
 
   def sign_in_as(user)

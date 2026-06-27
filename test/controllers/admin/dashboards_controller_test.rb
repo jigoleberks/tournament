@@ -41,6 +41,16 @@ class Admin::DashboardsControllerTest < ActionDispatch::IntegrationTest
     assert_select "div.p-5", text: /Total clubs\s*2/
   end
 
+  test "site admin sees the server status card" do
+    sign_in_as(@admin)
+
+    get admin_root_path
+
+    assert_response :success
+    assert_select "h2", text: /Server status/
+    assert_match ::AppVersion.current, response.body
+  end
+
   private
 
   def sign_in_as(user)
