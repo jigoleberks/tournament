@@ -1,7 +1,7 @@
 import { Controller } from "@hotwired/stimulus"
 
 export default class extends Controller {
-  static targets = ["session", "tournaments", "camera", "microphone", "gps", "clock", "notifications", "network"]
+  static targets = ["session", "tournaments", "camera", "microphone", "gps", "clock", "notifications", "network", "troubleshootStatus"]
   static values = { activeTournaments: Number }
 
   connect() { this.runAll() }
@@ -82,5 +82,41 @@ export default class extends Controller {
     if (Notification.permission === "granted") return this.set("notifications", "✓")
     if (Notification.permission === "denied")  return this.set("notifications", "⚠ denied")
     return this.set("notifications", "⚠ not requested yet")
+  }
+
+  // Clears the persisted camera lens state so the next time the camera opens it
+  // re-probes from scratch. Fixes a device wedged on the wrong zoom (e.g. stuck
+  // on 0.5x) and revives an ultra-wide that was wrongly blocklisted after one
+  // blank-frame event. No live camera on this page — just wipe the keys.
+  resetCameraZoom() {
+    try { localStorage.removeItem("catchCameraZoom") } catch (_) {}
+    try { localStorage.removeItem("catchCameraBlockedWideLens") } catch (_) {}
+    this._troubleshoot("Camera zoom reset — reopen the camera on the log page.")
+  }
+
+  // Forces a fresh copy of the app: unregister the service worker and drop every
+  // Cache Storage entry (the precached shell + fingerprinted assets), then reload
+  // so a clean worker reinstalls. Recovers a phone stuck on an old deploy or a
+  // broken offline shell. The offline catch queue lives in IndexedDB, which we
+  // deliberately leave untouched — pending catches survive the reset.
+  async updateApp() {
+    this._troubleshoot("Updating…")
+    try {
+      if ("serviceWorker" in navigator) {
+        const regs = await navigator.serviceWorker.getRegistrations()
+        await Promise.all(regs.map((r) => r.unregister()))
+      }
+      if ("caches" in window) {
+        const keys = await caches.keys()
+        await Promise.all(keys.map((k) => caches.delete(k)))
+      }
+    } catch (e) {
+      console.warn("App update/clear-cache failed:", e)
+    }
+    location.reload()
+  }
+
+  _troubleshoot(text) {
+    if (this.hasTroubleshootStatusTarget) this.troubleshootStatusTarget.textContent = text
   }
 }

@@ -112,4 +112,18 @@ class Catches::ComputeFlagsTest < ActiveSupport::TestCase
     assert_includes flags, "out_of_bounds"
     assert_includes flags, "out_of_province"
   end
+
+  test "out_of_bounds suppressed when override_in_lake is set" do
+    catch_record = build(:catch, user: @user, species: @walleye,
+                                 latitude: 50.45, longitude: -104.61, # Regina: in SK, outside lake
+                                 override_in_lake: true)
+    assert_not_includes Catches::ComputeFlags.call(catch_record), "out_of_bounds"
+  end
+
+  test "out_of_province suppressed when override_in_sask is set" do
+    catch_record = build(:catch, user: @user, species: @walleye,
+                                 latitude: 49.9, longitude: -97.1, # Winnipeg: outside SK
+                                 override_in_sask: true)
+    assert_not_includes Catches::ComputeFlags.call(catch_record), "out_of_province"
+  end
 end

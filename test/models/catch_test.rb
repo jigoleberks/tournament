@@ -38,6 +38,30 @@ class CatchTest < ActiveSupport::TestCase
     assert catch_record.photo.attached?
   end
 
+  test "display_photo returns the original photo when no reference photo is attached" do
+    catch_record = build(:catch, user: @user, species: @walleye)
+    catch_record.photo.attach(
+      io: File.open(Rails.root.join("test/fixtures/files/sample_walleye.jpg")),
+      filename: "original.jpg", content_type: "image/jpeg"
+    )
+    catch_record.save!
+    assert_equal catch_record.photo.blob, catch_record.display_photo.blob
+  end
+
+  test "display_photo returns the reference photo when one is attached" do
+    catch_record = build(:catch, user: @user, species: @walleye)
+    catch_record.photo.attach(
+      io: File.open(Rails.root.join("test/fixtures/files/sample_walleye.jpg")),
+      filename: "original.jpg", content_type: "image/jpeg"
+    )
+    catch_record.reference_photo.attach(
+      io: File.open(Rails.root.join("test/fixtures/files/sample_walleye.jpg")),
+      filename: "reference.jpg", content_type: "image/jpeg"
+    )
+    catch_record.save!
+    assert_equal "reference.jpg", catch_record.display_photo.blob.filename.to_s
+  end
+
   test "rejects a non-image photo content_type" do
     catch_record = build(:catch, user: @user, species: @walleye)
     catch_record.photo.attach(
@@ -313,5 +337,11 @@ class CatchTest < ActiveSupport::TestCase
     c = build(:catch, length_inches: 18.5, length_unit: nil)
     c.valid?
     assert_equal "inches", c.length_unit
+  end
+
+  test "geofence override columns default to false" do
+    c = create(:catch)
+    assert_equal false, c.override_in_lake
+    assert_equal false, c.override_in_sask
   end
 end

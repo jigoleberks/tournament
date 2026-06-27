@@ -25,6 +25,8 @@
             </div>
           </div>
           <div class="flex items-center gap-4">
+            <%= link_to "Print results", results_admin_tournament_path(t),
+                        class: "px-4 py-2 rounded-lg border border-slate-500/50 text-slate-300 hover:bg-slate-600 hover:text-white transition-all text-sm font-medium" %>
             <%= button_to "Delete", admin_tournament_path(t),
                           method: :delete,
                           data: { turbo_confirm: "Delete '#{t.name}'? This removes the tournament, its entries, and all placements. This cannot be undone." },
@@ -64,6 +66,8 @@
             </div>
           </div>
           <div class="flex items-center gap-4">
+            <%= link_to "Print results", results_admin_tournament_path(t),
+                        class: "px-4 py-2 rounded-lg border border-slate-500/50 text-slate-300 hover:bg-slate-600 hover:text-white transition-all text-sm font-medium" %>
             <%= button_to "Delete", admin_tournament_path(t),
                           method: :delete,
                           data: { turbo_confirm: "Delete '#{t.name}'? This removes the tournament, its entries, and all placements. This cannot be undone." },

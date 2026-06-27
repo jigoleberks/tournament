@@ -1,25 +1,33 @@
 <h1 class="text-2xl font-semibold mt-4 mb-4">Catch</h1>
 
 <div class="bg-slate-800 rounded-xl p-4 space-y-4">
-  <% if @catch.photo.attached? %>
+  <% photos = catch_detail_photos(@catch) %>
+  <% if photos.any? %>
     <%
-      filename_segments = [
+      base_filename = [
         @catch.species&.name,
         length_token(@catch.length_inches, @catch.length_unit),
         @catch.captured_at_device&.strftime("%Y-%m-%d %H%M")
-      ].compact
-      download_filename = "#{filename_segments.join(' - ')}.jpg"
+      ].compact.join(" - ")
     %>
-    <div data-controller="photo-save"
-         data-photo-save-url-value="<%= url_for(@catch.photo) %>"
-         data-photo-save-filename-value="<%= download_filename %>">
-      <%= thumb @catch.photo, size: [1200, 1200], class: "w-full max-h-96 object-contain rounded-lg bg-black" %>
-      <button type="button"
-              data-action="photo-save#save"
-              class="mt-3 h-12 px-4 rounded-lg bg-blue-600 active:bg-blue-700 text-white font-semibold w-full">
-        Save photo
-      </button>
-    </div>
+    <% photos.each do |p| %>
+      <% download_filename = "#{[base_filename, p[:label]].compact.join(' - ')}.jpg" %>
+      <div>
+        <% if p[:label] %>
+          <p class="text-xs text-slate-400 mb-1"><%= p[:label] %></p>
+        <% end %>
+        <div data-controller="photo-save"
+             data-photo-save-url-value="<%= url_for(p[:attachment]) %>"
+             data-photo-save-filename-value="<%= download_filename %>">
+          <%= thumb p[:attachment], size: [1200, 1200], class: "w-full max-h-96 object-contain rounded-lg bg-black" %>
+          <button type="button"
+                  data-action="photo-save#save"
+                  class="mt-3 h-12 px-4 rounded-lg bg-blue-600 active:bg-blue-700 text-white font-semibold w-full">
+            Save photo
+          </button>
+        </div>
+      </div>
+    <% end %>
   <% else %>
     <div class="w-full h-64 rounded-lg bg-black flex items-center justify-center text-slate-500">no photo</div>
   <% end %>

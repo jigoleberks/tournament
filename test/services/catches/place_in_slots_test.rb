@@ -957,5 +957,21 @@ module Catches
     assert_equal [12, 14], active.map { |p| p.catch.length_inches.to_i }.sort
   end
 
+  test "override_in_sask lets an out-of-province catch place" do
+    club = create(:club)
+    walleye = create(:species, club: club)
+    t = create(:tournament, club: club, local: true, starts_at: 1.hour.ago, ends_at: 1.hour.from_now)
+    create(:scoring_slot, tournament: t, species: walleye, slot_count: 1)
+    angler = create(:user, club: club)
+    entry = create(:tournament_entry, tournament: t)
+    create(:tournament_entry_member, tournament_entry: entry, user: angler)
+
+    c = create(:catch, user: angler, species: walleye, length_inches: 22,
+                       latitude: 49.9, longitude: -97.1, # outside SK and lake
+                       override_in_sask: true, override_in_lake: true)
+    Catches::PlaceInSlots.call(catch: c)
+    assert_equal 1, c.catch_placements.active.count
+  end
+
   end
 end

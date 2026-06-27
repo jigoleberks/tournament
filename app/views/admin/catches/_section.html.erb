@@ -11,8 +11,8 @@
       <div class="bg-slate-900 border border-slate-700 rounded-xl overflow-hidden hover:border-slate-500 transition-colors flex flex-col">
         <% body = capture do %>
           <div class="aspect-video bg-black relative">
-            <% if c.photo.attached? %>
-              <%= thumb c.photo, class: "w-full h-full object-cover" %>
+            <% if c.display_photo.attached? %>
+              <%= thumb c.display_photo, class: "w-full h-full object-cover" %>
             <% else %>
               <div class="w-full h-full flex items-center justify-center text-slate-500 text-sm italic">No photo</div>
             <% end %>

@@ -1,13 +1,136 @@
 <h1 class="text-2xl font-semibold mt-4 mb-3">Catch <%= @catch.id %></h1>
 
-<% if @catch.photo.attached? %>
-  <%= image_tag url_for(@catch.photo), class: "w-full rounded-lg bg-black mb-3" %>
+<% catch_detail_photos(@catch).each do |p| %>
+  <% if p[:label] %>
+    <p class="text-xs text-slate-400 mb-1"><%= p[:label] %></p>
+  <% end %>
+  <%= image_tag url_for(p[:attachment]), class: "w-full rounded-lg bg-black mb-3" %>
 <% end %>
 <% if @catch.video.attached? %>
   <%= video_tag url_for(@catch.video), controls: true, class: "w-full rounded-lg bg-black mb-3" %>
 <% end %>
 
 <p class="text-slate-300 mb-4">Status: <span class="text-slate-100 font-medium"><%= @catch.status.to_s.humanize %></span></p>
+
+<section class="bg-slate-800 rounded-xl p-4 mb-4">
+  <dl class="text-slate-300 text-sm space-y-1">
+    <div><dt class="inline text-slate-500">Angler:</dt> <dd class="inline text-slate-100"><%= @catch.user.name %></dd></div>
+    <div><dt class="inline text-slate-500">Species:</dt> <dd class="inline"><%= @catch.species.name %></dd></div>
+    <div><dt class="inline text-slate-500">Length:</dt> <dd class="inline"><%= format_length_dual(@catch.length_inches, @catch.length_unit) %></dd></div>
+    <% if @catch.tag_number.present? %>
+      <div><dt class="inline text-slate-500">Tag #:</dt> <dd class="inline text-amber-300 font-mono"><%= @catch.tag_number %></dd></div>
+    <% end %>
+    <% if @catch.weight_text.present? %>
+      <div><dt class="inline text-slate-500">Weight:</dt> <dd class="inline text-slate-100"><%= @catch.weight_text %></dd></div>
+    <% end %>
+    <div><dt class="inline text-slate-500">Captured:</dt> <dd class="inline"><%= @catch.captured_at_device.strftime("%b %d %Y · %l:%M:%S %p %Z") %></dd></div>
+    <% if @catch.latitude.present? %>
+      <div><dt class="inline text-slate-500">GPS:</dt> <dd class="inline">~<%= @catch.latitude.to_f.round(2) %>, <%= @catch.longitude.to_f.round(2) %></dd></div>
+    <% end %>
+  </dl>
+</section>
+
+<% if @catch.temperature_c.present? || @catch.moon_phase.present? %>
+  <section class="bg-slate-800 rounded-xl p-4 mb-4">
+    <h2 class="text-sm font-semibold text-slate-400 mb-2">Conditions at catch</h2>
+    <dl class="text-slate-300 text-sm space-y-1">
+      <% if @catch.temperature_c.present? %>
+        <div><dt class="inline text-slate-500">Temp:</dt> <dd class="inline"><%= format_temperature_dual(@catch.temperature_c) %></dd></div>
+      <% end %>
+      <% if @catch.barometric_pressure_hpa.present? %>
+        <div>
+          <dt class="inline text-slate-500">Pressure:</dt>
+          <dd class="inline"><%= (@catch.barometric_pressure_hpa.to_f / 10).round(1) %> kPa</dd>
+          <% trend = format_pressure_trend(@catch.pressure_trend_24h_hpa) %>
+          <% if trend %>
+            <span class="text-slate-500">(<%= trend %>)</span>
+          <% end %>
+        </div>
+      <% end %>
+      <% if @catch.wind_speed_kph.present? %>
+        <%
+          wind_text = format_wind_dual(@catch.wind_speed_kph)
+          compass   = format_wind_compass(@catch.wind_direction_deg)
+          wind_text = "#{wind_text} #{compass}" if compass
+        %>
+        <div><dt class="inline text-slate-500">Wind:</dt> <dd class="inline"><%= wind_text %></dd></div>
+      <% end %>
+      <% if @catch.moon_phase.present? %>
+        <div><dt class="inline text-slate-500">Moon:</dt> <dd class="inline"><%= @catch.moon_phase %></dd></div>
+      <% end %>
+    </dl>
+  </section>
+<% end %>
+
+<% if current_user.admin? %>
+<section class="bg-slate-800 rounded-xl p-4 mb-4">
+  <h2 class="text-sm uppercase tracking-wide text-slate-400 mb-3">Admin reference photo</h2>
+  <%= form_with url: add_reference_photo_judges_tournament_catch_path(tournament_id: @tournament.id, id: @catch.id),
+                method: :patch, local: true, multipart: true,
+                data: { turbo_confirm: "Add this reference photo? It will be shown to everyone alongside the angler's original." } do |f| %>
+    <div class="space-y-3">
+      <%= f.label :photo, "Reference photo", class: "block text-xs text-slate-400" %>
+      <%= f.file_field :photo, accept: "image/jpeg,image/png,image/webp", required: true,
+                        class: "text-sm text-slate-300 file:mr-3 file:py-2 file:px-4 file:rounded-lg file:border-0 file:bg-blue-600 file:text-white file:font-semibold file:cursor-pointer" %>
+      <%= f.text_area :note, placeholder: "Optional note", rows: 2, maxlength: 500,
+                      class: "w-full px-3 py-2 rounded-lg bg-slate-900 border border-slate-700 text-base text-slate-100" %>
+      <%= f.submit "Add reference photo",
+                    class: "h-12 px-4 rounded-lg bg-amber-600 active:bg-amber-700 text-white font-semibold w-full" %>
+    </div>
+  <% end %>
+</section>
+
+<section class="bg-slate-800 rounded-xl p-4 mb-4"
+         data-controller="location-edit"
+         data-location-edit-lat-value="<%= @catch.latitude || 52.9 %>"
+         data-location-edit-lng-value="<%= @catch.longitude || -106.0 %>"
+         data-location-edit-has-point-value="<%= @catch.latitude.present? %>">
+  <h2 class="text-sm uppercase tracking-wide text-slate-400 mb-3">Correct GPS location</h2>
+  <div data-location-edit-target="map" class="w-full aspect-square rounded-xl overflow-hidden border border-slate-700 mb-3"></div>
+  <%= form_with url: correct_location_judges_tournament_catch_path(tournament_id: @tournament.id, id: @catch.id),
+                method: :patch, local: true do %>
+    <%= hidden_field_tag :latitude, @catch.latitude, data: { "location-edit-target": "lat" } %>
+    <%= hidden_field_tag :longitude, @catch.longitude, data: { "location-edit-target": "lng" } %>
+    <p class="text-xs text-slate-400 mb-3" data-location-edit-target="readout">Drag the pin (or tap the map) to set the corrected location.</p>
+    <%= submit_tag "Save corrected location",
+                   class: "h-12 px-4 rounded-lg bg-blue-600 active:bg-blue-700 text-white font-semibold w-full" %>
+  <% end %>
+</section>
+<% end %>
+
+<section class="bg-slate-800 rounded-xl p-4 mb-4">
+  <h2 class="text-sm uppercase tracking-wide text-slate-400 mb-3">Geofence eligibility</h2>
+  <%= form_with url: geofence_override_judges_tournament_catch_path(tournament_id: @tournament.id, id: @catch.id),
+                method: :patch, local: true do %>
+    <label class="flex items-center gap-3 mb-2">
+      <%= check_box_tag :override_in_lake, "1", @catch.override_in_lake, class: "h-5 w-5" %>
+      <span class="text-slate-200">Count as inside the lake (local)</span>
+    </label>
+    <label class="flex items-center gap-3 mb-3">
+      <%= check_box_tag :override_in_sask, "1", @catch.override_in_sask, class: "h-5 w-5" %>
+      <span class="text-slate-200">Count as inside Saskatchewan</span>
+    </label>
+    <%= text_area_tag :note, nil, id: "note_geofence", rows: 2, placeholder: "Optional note", maxlength: 500,
+                      class: "w-full px-3 py-2 rounded-lg bg-slate-900 border border-slate-700 text-base text-slate-100 mb-3" %>
+    <%= submit_tag "Save eligibility override",
+                   class: "h-12 px-4 rounded-lg bg-amber-600 active:bg-amber-700 text-white font-semibold w-full" %>
+  <% end %>
+  <p class="text-xs text-slate-500 mt-2">Overrides decide whether this catch counts despite its GPS. Unchecking both lets GPS decide again.</p>
+</section>
+
+<% if @catch.disqualified? %>
+<section class="bg-slate-800 rounded-xl p-4 mb-4">
+  <h2 class="text-sm uppercase tracking-wide text-slate-400 mb-3">Reinstate</h2>
+  <%= form_with url: reinstate_judges_tournament_catch_path(tournament_id: @tournament.id, id: @catch.id),
+                method: :patch, local: true,
+                data: { turbo_confirm: "Reinstate this disqualified catch and re-place it?" } do %>
+    <%= text_area_tag :note, nil, id: "note_reinstate", rows: 2, placeholder: "Optional note", maxlength: 500,
+                      class: "w-full px-3 py-2 rounded-lg bg-slate-900 border border-slate-700 text-base text-slate-100 mb-3" %>
+    <%= submit_tag "Reinstate catch",
+                   class: "h-12 px-4 rounded-lg bg-emerald-600 active:bg-emerald-700 text-white font-semibold w-full" %>
+  <% end %>
+</section>
+<% end %>
 
 <section class="bg-slate-800 rounded-xl p-4 mb-4">
   <%= render "judges/reviews/actions", catch: @catch, tournament: @tournament %>

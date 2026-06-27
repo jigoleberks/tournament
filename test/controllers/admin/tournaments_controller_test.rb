@@ -28,6 +28,29 @@ class Admin::TournamentsControllerTest < ActionDispatch::IntegrationTest
     assert t.blind_leaderboard?, "blind_leaderboard param should be permitted and persisted"
   end
 
+  test "results renders the standings sheet for an organizer" do
+    t = create(:tournament, club: @club, starts_at: 2.hours.ago, ends_at: 1.hour.ago)
+    create(:scoring_slot, tournament: t, species: @walleye, slot_count: 1)
+    angler = create(:user, club: @club, name: "Reel Biggun")
+    entry = create(:tournament_entry, tournament: t)
+    create(:tournament_entry_member, tournament_entry: entry, user: angler)
+    create(:catch, user: angler, species: @walleye, length_inches: 21,
+                   captured_at_device: 90.minutes.ago).tap { |c| Catches::PlaceInSlots.call(catch: c) }
+
+    get results_admin_tournament_path(t)
+    assert_response :success
+    assert_select "table"
+    assert_includes @response.body, "Reel Biggun"
+  end
+
+  test "results is forbidden for a non-organizer member" do
+    member = create(:user, club: @club, role: :member)
+    t = create(:tournament, club: @club, starts_at: 2.hours.ago, ends_at: 1.hour.ago)
+    sign_in_as(member)
+    get results_admin_tournament_path(t)
+    assert_response :forbidden
+  end
+
   private
 
   def sign_in_as(user)

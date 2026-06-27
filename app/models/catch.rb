@@ -4,9 +4,17 @@ class Catch < ApplicationRecord
   belongs_to :species
   belongs_to :logged_by_user, class_name: "User", optional: true
   has_one_attached :photo
+  has_one_attached :reference_photo       # admin-added photo that supersedes the original for display
   has_one_attached :video                 # not used in Phase 1; reserved for Phase 2
   has_many :catch_placements, dependent: :destroy
   has_many :judge_actions, dependent: :destroy
+
+  # The photo shown to viewers. An admin-added reference photo supersedes the
+  # angler's original submission for display; the original stays visible to
+  # staff on the judge review page.
+  def display_photo
+    reference_photo.attached? ? reference_photo : photo
+  end
 
   enum :status, {
     pending_sync: 0,

@@ -67,6 +67,19 @@ class CatchesControllerTest < ActionDispatch::IntegrationTest
     assert_match "outside local", response.body
   end
 
+  test "show: displays both the reference photo and the angler's original, labelled" do
+    own = create(:catch, user: @user, species: @walleye, length_inches: 18.5, status: :synced)
+    own.reference_photo.attach(
+      io: File.open(Rails.root.join("test/fixtures/files/sample_walleye.jpg")),
+      filename: "reference.jpg", content_type: "image/jpeg"
+    )
+    get catch_path(own.id)
+    assert_response :success
+    assert_select "img", minimum: 2
+    assert_match "Reference photo", response.body
+    assert_match "Angler photo", response.body
+  end
+
   test "show: hides possible-duplicate badge from member viewing own catch" do
     own = create(:catch, user: @user, species: @walleye, length_inches: 18.5,
                          flags: ["missing_gps", "possible_duplicate"], status: :needs_review)
@@ -125,6 +138,21 @@ class CatchesControllerTest < ActionDispatch::IntegrationTest
                    container["data-photo-save-filename-value"]
     end
     assert_select "button[data-action=?]", "photo-save#save", text: "Save photo"
+  end
+
+  test "show: a reference photo supersedes the original for the public viewer" do
+    own = create(:catch, user: @user, species: @walleye, length_inches: 18.5,
+                         captured_at_device: Time.zone.local(2026, 4, 30, 14, 35))
+    own.reference_photo.attach(
+      io: File.open(Rails.root.join("test/fixtures/files/sample_walleye.jpg")),
+      filename: "reference.jpg", content_type: "image/jpeg"
+    )
+    get catch_path(own.id)
+    assert_response :success
+    assert_select "[data-controller~=?]", "photo-save" do |containers|
+      assert_match %r{reference\.jpg}, containers.first["data-photo-save-url-value"],
+                   "expected the public photo to be the reference image"
+    end
   end
 
   test "show: member cannot view another member's catch detail" do

@@ -61,6 +61,7 @@ Rails.application.routes.draw do
       end
     end
     resources :tournaments do
+      member { get :results }
       resources :tournament_entries, only: [:create, :update, :destroy] do
         resources :tournament_entry_members, only: [:create, :destroy]
       end
@@ -103,6 +104,12 @@ Rails.application.routes.draw do
       resources :catches, only: [:index, :show] do
         resource :review,          only: [:create]
         resource :manual_override, only: [:new, :create]
+        member do
+          patch :add_reference_photo
+          patch :geofence_override
+          patch :correct_location
+          patch :reinstate
+        end
       end
     end
   end

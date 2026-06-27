@@ -7,6 +7,27 @@ module CatchesHelper
     image_tag attachment.variant(resize_to_limit: size), loading: "lazy", **html_options
   end
 
+  # The photo(s) to show on a single-catch detail/modal page, as an ordered list
+  # of { label:, attachment: } hashes. When an organizer has added a reference
+  # photo, both it and the angler's original are shown — each labelled, and both
+  # visible to every viewer (not staff-only). The reference comes first because
+  # it supersedes the original for display. With a single photo attached, it's
+  # shown unlabelled (the common case).
+  def catch_detail_photos(catch_record)
+    reference = catch_record.reference_photo
+    original  = catch_record.photo
+    if reference.attached? && original.attached?
+      [{ label: "Reference photo", attachment: reference },
+       { label: "Angler photo",    attachment: original }]
+    elsif reference.attached?
+      [{ label: nil, attachment: reference }]
+    elsif original.attached?
+      [{ label: nil, attachment: original }]
+    else
+      []
+    end
+  end
+
   # An organizer of the club, or a judge of any tournament where this catch
   # is placed, may open the catch detail page (photo, video, GPS, etc.).
   # Regular members can see catches on the leaderboard but not the detail.

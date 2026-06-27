@@ -23,13 +23,13 @@
     <ul class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
       <% @catches.each do |c| %>
         <li class="bg-slate-800 rounded-xl border border-slate-700 overflow-hidden hover:border-slate-500 transition-colors flex flex-col">
-          <% if c.photo.attached? %>
+          <% if c.display_photo.attached? %>
             <button type="button"
                     data-action="lightbox#open"
-                    data-lightbox-src="<%= url_for(c.photo) %>"
+                    data-lightbox-src="<%= url_for(c.display_photo) %>"
                     data-lightbox-alt="<%= "#{c.species.name} caught by #{c.user.name}" %>"
                     class="block w-full p-0 border-0 bg-black cursor-zoom-in aspect-[4/3]">
-              <%= image_tag url_for(c.photo), class: "w-full h-full object-cover" %>
+              <%= image_tag url_for(c.display_photo), class: "w-full h-full object-cover" %>
             </button>
           <% else %>
             <div class="w-full aspect-[4/3] bg-black flex items-center justify-center text-slate-500 text-sm italic">No photo attached</div>

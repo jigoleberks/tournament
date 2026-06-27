@@ -16,6 +16,90 @@ module Catches
       Catches::PlaceInSlots.call(catch: @catch)
     end
 
+    # Captures DeliverPushNotificationJob.perform_later kwargs during the block.
+    def capture_pushes
+      pushes = []
+      original = DeliverPushNotificationJob.method(:perform_later)
+      DeliverPushNotificationJob.define_singleton_method(:perform_later) { |**kw| pushes << kw }
+      yield
+      pushes
+    ensure
+      DeliverPushNotificationJob.singleton_class.send(:remove_method, :perform_later)
+      DeliverPushNotificationJob.define_singleton_method(:perform_later, original)
+    end
+
+    test "disqualify notifies the catch owner" do
+      pushes = capture_pushes do
+        ApplyJudgeAction.call(tournament: @t, catch: @catch, judge: @judge, action: :disqualify, note: "bad photo")
+      end
+      owner = pushes.find { |p| p[:user_id] == @user.id }
+      assert owner, "expected a push to the catch owner"
+      assert_equal @t.id, owner[:tournament_id]
+      assert_equal "/tournaments/#{@t.id}", owner[:url]
+      assert_match(/disqualified/i, owner[:body])
+    end
+
+    test "manual_override that changes length notifies the owner" do
+      pushes = capture_pushes do
+        ApplyJudgeAction.call(tournament: @t, catch: @catch, judge: @judge,
+                              action: :manual_override, note: "remeasured", length_inches: 18)
+      end
+      owner = pushes.find { |p| p[:user_id] == @user.id }
+      assert owner, "expected a push to the catch owner"
+      assert_match(/adjusted/i, owner[:body])
+    end
+
+    test "manual_override that changes species notifies the owner" do
+      pushes = capture_pushes do
+        ApplyJudgeAction.call(tournament: @t, catch: @catch, judge: @judge,
+                              action: :manual_override, note: "mis-id", species_id: @pike.id)
+      end
+      assert pushes.any? { |p| p[:user_id] == @user.id }, "expected a push to the catch owner"
+    end
+
+    test "no-op manual_override (length unchanged) does not notify" do
+      pushes = capture_pushes do
+        ApplyJudgeAction.call(tournament: @t, catch: @catch, judge: @judge,
+                              action: :manual_override, note: "no change", length_inches: 20)
+      end
+      assert_empty pushes.select { |p| p[:user_id] == @user.id }
+    end
+
+    test "manual_override that changes only the unit persists it and notifies the owner" do
+      @catch.update!(length_unit: "inches")
+      pushes = capture_pushes do
+        ApplyJudgeAction.call(tournament: @t, catch: @catch, judge: @judge,
+                              action: :manual_override, note: "logged in cm",
+                              length_inches: 20, length_unit: "centimeters")
+      end
+      assert_equal "centimeters", @catch.reload.length_unit
+      assert_equal 20.0, @catch.length_inches.to_f
+      assert pushes.any? { |p| p[:user_id] == @user.id }, "expected a push to the catch owner"
+    end
+
+    test "approve does not notify the owner" do
+      pushes = capture_pushes do
+        ApplyJudgeAction.call(tournament: @t, catch: @catch, judge: @judge, action: :approve, note: "ok")
+      end
+      assert_empty pushes
+    end
+
+    test "flag does not notify the owner" do
+      pushes = capture_pushes do
+        ApplyJudgeAction.call(tournament: @t, catch: @catch, judge: @judge, action: :flag, note: "look again")
+      end
+      assert_empty pushes
+    end
+
+    test "disqualifying one's own catch does not notify self" do
+      own = create(:catch, user: @judge, species: @walleye, length_inches: 19, status: :needs_review)
+      Catches::PlaceInSlots.call(catch: own)
+      pushes = capture_pushes do
+        ApplyJudgeAction.call(tournament: @t, catch: own, judge: @judge, action: :disqualify, note: "mine")
+      end
+      assert_empty pushes.select { |p| p[:user_id] == @judge.id }
+    end
+
     test "snapshot reuses the loaded species across before/after instead of re-querying" do
       # The before/after snapshots should share one species read (the memoized
       # association) rather than each issuing its own Species.find_by. The lone
@@ -549,6 +633,152 @@ module Catches
       active = entry.catch_placements.where(active: true).includes(:catch).map { |p| p.catch.length_inches.to_i }.sort
       # eligible {18,9,14}; two smallest = {9,14}; grown catch (18) drops out.
       assert_equal [9, 14], active
+    end
+
+    # --- Admin reference photo ------------------------------------------------
+    #
+    # add_reference_photo attaches an admin-only secondary photo to a catch
+    # WITHOUT touching the original submission photo, flips the catch back to
+    # needs_review, and records the change in the audit log.
+
+    def sample_upload
+      {
+        io: File.open(Rails.root.join("test/fixtures/files/sample_walleye.jpg")),
+        filename: "sample_walleye.jpg",
+        content_type: "image/jpeg"
+      }
+    end
+
+    test "add_reference_photo attaches a reference photo, preserves the original, and resets to needs_review" do
+      @catch.photo.attach(sample_upload)
+      @catch.update!(status: :synced)
+      original_blob_id = @catch.photo.blob.id
+
+      assert_difference "JudgeAction.count", 1 do
+        ApplyJudgeAction.call(tournament: @t, catch: @catch, judge: @judge,
+                              action: :add_reference_photo, note: "clearer angle", photo: sample_upload)
+      end
+
+      @catch.reload
+      assert @catch.reference_photo.attached?, "reference photo should be attached"
+      assert @catch.photo.attached?, "original submission photo should still be attached"
+      assert_equal original_blob_id, @catch.photo.blob.id, "original photo blob must be untouched"
+      assert @catch.needs_review?, "status should flip back to needs_review"
+      assert_equal "add_reference_photo", JudgeAction.last.action
+    end
+
+    test "add_reference_photo audit captures reference photo blob ids with no predecessor on first add" do
+      ApplyJudgeAction.call(tournament: @t, catch: @catch, judge: @judge,
+                            action: :add_reference_photo, note: nil, photo: sample_upload)
+      ja = JudgeAction.last
+      assert_not ja.before_state["reference_photo_attached"], "no reference photo before the action"
+      assert ja.after_state["reference_photo_attached"], "reference photo present after the action"
+      assert_not_nil ja.after_state["reference_photo_blob_id"]
+      assert_nil ja.after_state["reference_photo_prev_blob_id"], "first reference photo has no predecessor"
+    end
+
+    test "add_reference_photo replacing an existing reference photo records the prior blob id" do
+      ApplyJudgeAction.call(tournament: @t, catch: @catch, judge: @judge,
+                            action: :add_reference_photo, note: nil, photo: sample_upload)
+      first_blob_id = @catch.reload.reference_photo.blob.id
+
+      ApplyJudgeAction.call(tournament: @t, catch: @catch, judge: @judge,
+                            action: :add_reference_photo, note: nil, photo: sample_upload)
+      ja = JudgeAction.last
+      assert_equal first_blob_id, ja.after_state["reference_photo_prev_blob_id"]
+      assert_not_equal first_blob_id, ja.after_state["reference_photo_blob_id"]
+    end
+
+    # --- geofence_override action ---------------------------------------------
+
+    test "geofence_override forces an out-of-province catch to place and clears its flags" do
+      oop = create(:catch, user: @user, species: @walleye, length_inches: 25,
+                           latitude: 49.9, longitude: -97.1, status: :needs_review)
+      Catches::PlaceInSlots.call(catch: oop)
+      assert_equal 0, oop.catch_placements.active.count, "out-of-province catch should not place"
+
+      assert_difference "JudgeAction.count", 1 do
+        ApplyJudgeAction.call(tournament: @t, catch: oop, judge: @judge,
+                              action: :geofence_override, override_in_lake: true, override_in_sask: true)
+      end
+
+      oop.reload
+      assert oop.override_in_lake
+      assert oop.override_in_sask
+      assert_equal 1, oop.catch_placements.active.count, "override should place it (bumping the 20)"
+      assert_not_includes oop.flags, "out_of_province"
+      assert_not_includes oop.flags, "out_of_bounds"
+      assert_equal "geofence_override", JudgeAction.last.action
+    end
+
+    test "clearing a geofence override drops the catch back out of slots" do
+      oop = create(:catch, user: @user, species: @walleye, length_inches: 25,
+                           latitude: 49.9, longitude: -97.1, status: :needs_review,
+                           override_in_lake: true, override_in_sask: true)
+      Catches::PlaceInSlots.call(catch: oop)
+      assert_equal 1, oop.catch_placements.active.count
+
+      ApplyJudgeAction.call(tournament: @t, catch: oop, judge: @judge,
+                            action: :geofence_override, override_in_lake: false, override_in_sask: false)
+      assert_equal 0, oop.reload.catch_placements.active.count
+    end
+
+    test "snapshot records location and override state" do
+      ApplyJudgeAction.call(tournament: @t, catch: @catch, judge: @judge,
+                            action: :geofence_override, override_in_lake: true, override_in_sask: false)
+      ja = JudgeAction.last
+      assert_equal true,  ja.after_state["override_in_lake"]
+      assert_equal false, ja.after_state["override_in_sask"]
+      assert ja.before_state.key?("latitude"), "snapshot should carry a latitude key"
+    end
+
+    # --- correct_location action ----------------------------------------------
+
+    test "correct_location moves a catch into the lake, places it, and clears flags" do
+      oop = create(:catch, user: @user, species: @walleye, length_inches: 25,
+                           latitude: 49.9, longitude: -97.1, status: :needs_review, # outside SK + lake
+                           flags: ["out_of_province", "out_of_bounds"])
+      Catches::PlaceInSlots.call(catch: oop)
+      assert_equal 0, oop.catch_placements.active.count
+
+      ApplyJudgeAction.call(tournament: @t, catch: oop, judge: @judge,
+                            action: :correct_location, latitude: "49.41", longitude: "-103.62") # inside lake + SK
+
+      oop.reload
+      assert_in_delta 49.41, oop.latitude.to_f, 0.001
+      assert_in_delta(-103.62, oop.longitude.to_f, 0.001)
+      assert_equal 1, oop.catch_placements.active.count
+      assert_not_includes oop.flags, "out_of_bounds"
+      assert_not_includes oop.flags, "out_of_province"
+      assert_equal "correct_location", JudgeAction.last.action
+    end
+
+    # --- reinstate action -------------------------------------------------------
+
+    test "reinstate restores pre-DQ status and re-places, bumping the promoted backup" do
+      backup = create(:catch, user: @user, species: @walleye, length_inches: 12, status: :synced)
+      Catches::PlaceInSlots.call(catch: backup)
+      assert_equal @catch.id, @entry.catch_placements.active.first&.catch_id, "20 holds the slot"
+
+      ApplyJudgeAction.call(tournament: @t, catch: @catch, judge: @judge, action: :disqualify, note: "bad photo")
+      assert_equal backup.id, @entry.catch_placements.active.first&.catch_id, "backup promoted after DQ"
+
+      ApplyJudgeAction.call(tournament: @t, catch: @catch, judge: @judge, action: :reinstate)
+
+      @catch.reload
+      assert @catch.needs_review?, "status restored to its pre-DQ value"
+      assert_equal @catch.id, @entry.catch_placements.active.first&.catch_id, "reinstated 20 reclaims the slot"
+      assert_equal "reinstate", JudgeAction.last.action
+    end
+
+    test "reinstate notifies the catch owner" do
+      ApplyJudgeAction.call(tournament: @t, catch: @catch, judge: @judge, action: :disqualify, note: "dq")
+      pushes = capture_pushes do
+        ApplyJudgeAction.call(tournament: @t, catch: @catch, judge: @judge, action: :reinstate)
+      end
+      owner = pushes.find { |p| p[:user_id] == @user.id }
+      assert owner, "expected a push to the catch owner"
+      assert_match(/reinstat/i, owner[:body])
     end
   end
 end

@@ -5,9 +5,14 @@
             data-action="photo-modal#close"
             aria-label="Close"
             class="self-end h-12 w-12 rounded-full bg-slate-800/80 text-white text-2xl leading-none">×</button>
-    <%= image_tag url_for(@catch.photo.variant(resize_to_limit: [1200, 1200])),
-                  loading: "lazy",
-                  class: "max-w-full max-h-[70vh] object-contain mx-auto rounded-lg bg-black" %>
+    <% catch_detail_photos(@catch).each do |p| %>
+      <% if p[:label] %>
+        <p class="text-slate-300 text-xs text-center mb-1"><%= p[:label] %></p>
+      <% end %>
+      <%= image_tag url_for(p[:attachment].variant(resize_to_limit: [1200, 1200])),
+                    loading: "lazy",
+                    class: "max-w-full max-h-[70vh] object-contain mx-auto rounded-lg bg-black mb-3" %>
+    <% end %>
     <dl class="text-slate-200 text-sm mt-4 space-y-1 text-center">
       <div><span class="text-slate-400">Species:</span> <%= @catch.species.name %></div>
       <div><span class="text-slate-400">Length:</span> <%= format_length_dual(@catch.length_inches, @catch.length_unit) %></div>
