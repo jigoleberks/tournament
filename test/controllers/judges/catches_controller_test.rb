@@ -131,8 +131,8 @@ class Judges::CatchesControllerTest < ActionDispatch::IntegrationTest
     assert_response :success
     # Both photos are now shown to everyone, each labelled — not staff-only.
     assert_select "img", { minimum: 2 }
-    assert_match "Reference photo", response.body
-    assert_match "Angler photo", response.body
+    assert_match "Replacement photo", response.body
+    assert_match "Original photo", response.body
     refute_match(/staff only/i, response.body)
     refute_match(/Original submission/i, response.body)
   end

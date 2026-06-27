@@ -17,8 +17,8 @@ module CatchesHelper
     reference = catch_record.reference_photo
     original  = catch_record.photo
     if reference.attached? && original.attached?
-      [{ label: "Reference photo", attachment: reference },
-       { label: "Angler photo",    attachment: original }]
+      [{ label: "Replacement photo", attachment: reference },
+       { label: "Original photo",    attachment: original }]
     elsif reference.attached?
       [{ label: nil, attachment: reference }]
     elsif original.attached?

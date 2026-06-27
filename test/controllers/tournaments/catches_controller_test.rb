@@ -53,8 +53,8 @@ class Tournaments::CatchesControllerTest < ActionDispatch::IntegrationTest
     assert_response :ok
     body = @response.body
     assert_select "img", minimum: 2
-    assert_match "Reference photo", body, "members should see the admin reference photo labelled"
-    assert_match "Angler photo", body, "members should still see the angler's original labelled"
+    assert_match "Replacement photo", body, "members should see the admin replacement photo labelled"
+    assert_match "Original photo", body, "members should still see the angler's original labelled"
   end
 
   test "active blind tournament returns 404 even when member would otherwise have access" do

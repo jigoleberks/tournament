@@ -76,8 +76,8 @@ class CatchesControllerTest < ActionDispatch::IntegrationTest
     get catch_path(own.id)
     assert_response :success
     assert_select "img", minimum: 2
-    assert_match "Reference photo", response.body
-    assert_match "Angler photo", response.body
+    assert_match "Replacement photo", response.body
+    assert_match "Original photo", response.body
   end
 
   test "show: hides possible-duplicate badge from member viewing own catch" do
