@@ -164,7 +164,10 @@ module Catches
         Placements::BroadcastLeaderboard.call(tournament: t)
       end
 
-      if @notify_owner && @judge.id != @catch.user_id
+      # @notify_owner is only set by tournament-scoped actions (disqualify,
+      # manual_override, reinstate); the guard keeps the @tournament derefs below
+      # safe even though add_reference_photo intentionally passes tournament: nil.
+      if @notify_owner && @tournament && @judge.id != @catch.user_id
         DeliverPushNotificationJob.perform_later(
           user_id: @catch.user_id,
           title: @tournament.name,
