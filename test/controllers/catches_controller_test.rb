@@ -76,7 +76,7 @@ class CatchesControllerTest < ActionDispatch::IntegrationTest
     get catch_path(own.id)
     assert_response :success
     assert_select "img", minimum: 2
-    assert_match "Replacement photo", response.body
+    assert_match "Reference photo", response.body
     assert_match "Original photo", response.body
   end
 
@@ -89,6 +89,15 @@ class CatchesControllerTest < ActionDispatch::IntegrationTest
     refute_match "possible duplicate", response.body
   end
 
+  test "show: hides imported-photo badge from member viewing own catch" do
+    own = create(:catch, user: @user, species: @walleye, length_inches: 18.5,
+                         flags: ["missing_gps", "imported_photo"], status: :needs_review)
+    get catch_path(own.id)
+    assert_response :success
+    assert_match "no GPS", response.body
+    refute_match "imported photo", response.body
+  end
+
   test "index: hides possible-duplicate badge from member on own catches list" do
     create(:catch, user: @user, species: @walleye, length_inches: 18.5,
                    flags: ["possible_duplicate"], status: :needs_review,
@@ -96,6 +105,63 @@ class CatchesControllerTest < ActionDispatch::IntegrationTest
     get catches_path
     assert_response :success
     refute_match "possible duplicate", response.body
+  end
+
+  test "site admin can add a reference photo to a catch with no tournament from the detail page" do
+    c = create(:catch, user: @user, species: @walleye, length_inches: 18.5, status: :synced)
+    assert_equal 0, c.catch_placements.count, "this catch is unplaced — no tournament"
+    assert_not c.reference_photo.attached?
+
+    admin = create(:user, club: @club, admin: true)
+    sign_in_as(admin)
+
+    assert_difference "JudgeAction.count", 1 do
+      patch reference_photo_catch_path(c),
+            params: { photo: fixture_file_upload("sample_walleye.jpg", "image/jpeg"), note: "clearer shot" }
+    end
+    assert_redirected_to catch_path(c)
+    assert c.reload.reference_photo.attached?
+  end
+
+  test "reference_photo returns the admin to the page they came from" do
+    c = create(:catch, user: @user, species: @walleye, length_inches: 18.5, status: :synced)
+    admin = create(:user, club: @club, admin: true)
+    sign_in_as(admin)
+    referer = "http://www.example.com/judges/tournaments/9/catches/#{c.id}"
+
+    patch reference_photo_catch_path(c),
+          params: { photo: fixture_file_upload("sample_walleye.jpg", "image/jpeg") },
+          headers: { "HTTP_REFERER" => referer }
+
+    assert_redirected_to referer
+    assert c.reload.reference_photo.attached?
+  end
+
+  test "non-admin cannot add a reference photo via the catch detail route" do
+    c = create(:catch, user: @user, species: @walleye, length_inches: 18.5, status: :synced)
+    # @user (signed in by setup) is a plain member, not a site admin.
+    assert_no_difference "JudgeAction.count" do
+      patch reference_photo_catch_path(c),
+            params: { photo: fixture_file_upload("sample_walleye.jpg", "image/jpeg") }
+    end
+    assert_response :forbidden
+    assert_not c.reload.reference_photo.attached?
+  end
+
+  test "catch detail page shows the reference-photo form to a site admin only" do
+    c = create(:catch, user: @user, species: @walleye, length_inches: 18.5, status: :synced)
+
+    # Owner (plain member) viewing their own catch: no admin form.
+    get catch_path(c)
+    assert_response :success
+    assert_select "form[action=?]", reference_photo_catch_path(c), count: 0
+
+    # Site admin viewing: form present (and they can load the page at all).
+    admin = create(:user, club: @club, admin: true)
+    sign_in_as(admin)
+    get catch_path(c)
+    assert_response :success
+    assert_select "form[action=?]", reference_photo_catch_path(c), count: 1
   end
 
   test "missing photo is rejected" do

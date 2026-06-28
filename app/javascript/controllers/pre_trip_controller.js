@@ -84,16 +84,6 @@ export default class extends Controller {
     return this.set("notifications", "⚠ not requested yet")
   }
 
-  // Clears the persisted camera lens state so the next time the camera opens it
-  // re-probes from scratch. Fixes a device wedged on the wrong zoom (e.g. stuck
-  // on 0.5x) and revives an ultra-wide that was wrongly blocklisted after one
-  // blank-frame event. No live camera on this page — just wipe the keys.
-  resetCameraZoom() {
-    try { localStorage.removeItem("catchCameraZoom") } catch (_) {}
-    try { localStorage.removeItem("catchCameraBlockedWideLens") } catch (_) {}
-    this._troubleshoot("Camera zoom reset — reopen the camera on the log page.")
-  }
-
   // Forces a fresh copy of the app: unregister the service worker and drop every
   // Cache Storage entry (the precached shell + fingerprinted assets), then reload
   // so a clean worker reinstalls. Recovers a phone stuck on an old deploy or a

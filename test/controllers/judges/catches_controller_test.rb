@@ -104,19 +104,6 @@ class Judges::CatchesControllerTest < ActionDispatch::IntegrationTest
     assert_not_includes response.body, "<td>#{foreign_catch.id}</td>"
   end
 
-  test "admin judge can add a reference photo without touching the original" do
-    admin = create(:user, club: @club, admin: true)
-    create(:tournament_judge, tournament: @t, user: admin)
-    sign_in_as(admin)
-
-    assert_difference "JudgeAction.count", 1 do
-      patch add_reference_photo_judges_tournament_catch_path(tournament_id: @t.id, id: @needs_review.id),
-            params: { photo: fixture_file_upload("sample_walleye.jpg", "image/jpeg"), note: "clearer shot" }
-    end
-    assert_redirected_to judges_tournament_catch_path(tournament_id: @t.id, id: @needs_review.id)
-    assert @needs_review.reload.reference_photo.attached?
-  end
-
   test "judge page shows the reference photo and the angler's original, both labelled (no longer staff-only)" do
     @needs_review.photo.attach(
       io: File.open(Rails.root.join("test/fixtures/files/sample_walleye.jpg")),
@@ -131,35 +118,31 @@ class Judges::CatchesControllerTest < ActionDispatch::IntegrationTest
     assert_response :success
     # Both photos are now shown to everyone, each labelled — not staff-only.
     assert_select "img", { minimum: 2 }
-    assert_match "Replacement photo", response.body
+    assert_match "Reference photo", response.body
     assert_match "Original photo", response.body
     refute_match(/staff only/i, response.body)
     refute_match(/Original submission/i, response.body)
   end
 
-  test "reference photo form submits via PATCH to match the route" do
+  test "judge page reference-photo form posts to the shared catch route (admin)" do
     admin = create(:user, club: @club, admin: true)
     create(:tournament_judge, tournament: @t, user: admin)
     sign_in_as(admin)
 
     get judges_tournament_catch_path(tournament_id: @t.id, id: @needs_review.id)
     assert_response :success
-    # The route is PATCH-only; form_with without method: would POST and 404,
-    # so the form must carry a _method=patch override.
-    assert_select "form[action=?]",
-      add_reference_photo_judges_tournament_catch_path(tournament_id: @t.id, id: @needs_review.id) do
+    # Reference photos are no longer tournament-scoped: the form points at the
+    # canonical /catches/:id/reference_photo route (PATCH via _method override).
+    assert_select "form[action=?]", reference_photo_catch_path(@needs_review) do
       assert_select "input[name=_method][value=patch]", 1
     end
   end
 
-  test "non-admin judge cannot add a reference photo" do
-    # @judge is a valid judge (signed in by setup) but not a site admin.
-    assert_no_difference "JudgeAction.count" do
-      patch add_reference_photo_judges_tournament_catch_path(tournament_id: @t.id, id: @needs_review.id),
-            params: { photo: fixture_file_upload("sample_walleye.jpg", "image/jpeg") }
-    end
-    assert_response :forbidden
-    assert_not @needs_review.reload.reference_photo.attached?
+  test "non-admin judge does not see the reference-photo form" do
+    # @judge (signed in by setup) is a judge but not a site admin.
+    get judges_tournament_catch_path(tournament_id: @t.id, id: @needs_review.id)
+    assert_response :success
+    assert_select "form[action=?]", reference_photo_catch_path(@needs_review), count: 0
   end
 
   test "judge can geofence_override an out-of-province catch into the slots" do

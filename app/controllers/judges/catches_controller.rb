@@ -1,10 +1,10 @@
 class Judges::CatchesController < Judges::BaseController
-  REVIEWER_ACTIONS = %i[index show geofence_override correct_location reinstate add_reference_photo].freeze
+  REVIEWER_ACTIONS = %i[index show geofence_override correct_location reinstate].freeze
 
   skip_before_action :require_judge!, only: REVIEWER_ACTIONS
   before_action :require_reviewer!, only: REVIEWER_ACTIONS
-  before_action :load_catch!, only: %i[show geofence_override correct_location reinstate add_reference_photo]
-  before_action :require_admin!, only: %i[correct_location add_reference_photo]
+  before_action :load_catch!, only: %i[show geofence_override correct_location reinstate]
+  before_action :require_admin!, only: %i[correct_location]
 
   def index
     @catches = judgeable_catches
@@ -14,14 +14,6 @@ class Judges::CatchesController < Judges::BaseController
 
   def show
     @actions = @catch.judge_actions.order(:created_at)
-  end
-
-  def add_reference_photo
-    Catches::ApplyJudgeAction.call(
-      tournament: @tournament, catch: @catch, judge: current_user,
-      action: :add_reference_photo, note: params[:note], photo: params[:photo]
-    )
-    redirect_to_catch
   end
 
   def geofence_override

@@ -26,10 +26,10 @@
           <% if c.display_photo.attached? %>
             <button type="button"
                     data-action="lightbox#open"
-                    data-lightbox-src="<%= url_for(c.display_photo) %>"
+                    data-lightbox-src="<%= photo_src_url(c.display_photo) %>"
                     data-lightbox-alt="<%= "#{c.species.name} caught by #{c.user.name}" %>"
                     class="block w-full p-0 border-0 bg-black cursor-zoom-in aspect-[4/3]">
-              <%= image_tag url_for(c.display_photo), class: "w-full h-full object-cover" %>
+              <%= photo_full c.display_photo, class: "w-full h-full object-cover" %>
             </button>
           <% else %>
             <div class="w-full aspect-[4/3] bg-black flex items-center justify-center text-slate-500 text-sm italic">No photo attached</div>

@@ -21,7 +21,7 @@
           <% if c.display_photo.attached? %>
             <button type="button"
                     data-action="lightbox#open"
-                    data-lightbox-src="<%= url_for(c.display_photo) %>"
+                    data-lightbox-src="<%= photo_src_url(c.display_photo) %>"
                     data-lightbox-alt="<%= "#{c.species.name} caught by #{c.user.name}" %>"
                     class="block w-full p-0 border-0 bg-transparent cursor-zoom-in">
               <%= thumb c.display_photo, class: "w-full h-40 object-cover rounded bg-black" %>

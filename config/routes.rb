@@ -97,6 +97,9 @@ Rails.application.routes.draw do
       get :map
       get :select_teammate
     end
+    member do
+      patch :reference_photo
+    end
   end
 
   namespace :judges do
@@ -105,7 +108,6 @@ Rails.application.routes.draw do
         resource :review,          only: [:create]
         resource :manual_override, only: [:new, :create]
         member do
-          patch :add_reference_photo
           patch :geofence_override
           patch :correct_location
           patch :reinstate

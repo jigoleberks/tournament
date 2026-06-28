@@ -1,10 +1,33 @@
 module CatchesHelper
   # Renders a resized, lazy-loaded <img> for an Active Storage attachment.
-  # Catch photos are full-resolution phone JPEGs (multi-MB); resizing on the
-  # server keeps list pages snappy. The variant is generated on first request
-  # and cached on disk thereafter.
+  # Catch photos are full-resolution phone stills (multi-MB, HEIC on iOS); the
+  # variant resizes AND transcodes to JPEG so every browser can render it. The
+  # variant is generated on first request and cached on disk thereafter.
   def thumb(attachment, size: [400, 400], **html_options)
-    image_tag attachment.variant(resize_to_limit: size), loading: "lazy", **html_options
+    image_tag attachment.variant(resize_to_limit: size, format: :jpeg), loading: "lazy", **html_options
+  end
+
+  # <img> for a large, full-bleed display (catch detail / lightbox). JPEG so
+  # iOS HEIC originals render.
+  def photo_full(attachment, size: [2000, 2000], **html_options)
+    image_tag attachment.variant(resize_to_limit: size, format: :jpeg), **html_options
+  end
+
+  # Bare URL of a large JPEG variant — for lightbox/inline display, which must
+  # never point at a raw (possibly HEIC) original. Resized for fast loading.
+  def photo_src_url(attachment, size: [2000, 2000])
+    url_for(attachment.variant(resize_to_limit: size, format: :jpeg))
+  end
+
+  # URL for the "Save photo" download — FULL resolution, never the resized
+  # display variant. A JPEG original (Android native camera) is served as-is,
+  # so the user gets the exact full-size file with no re-encode or quality
+  # loss. A non-JPEG original (iOS HEIC, PNG, WebP) is transcoded to a
+  # full-resolution JPEG so the saved file opens anywhere and matches the
+  # .jpg download name.
+  def photo_download_url(attachment)
+    return url_for(attachment) if attachment.content_type == "image/jpeg"
+    url_for(attachment.variant(format: :jpeg))
   end
 
   # The photo(s) to show on a single-catch detail/modal page, as an ordered list
@@ -17,7 +40,7 @@ module CatchesHelper
     reference = catch_record.reference_photo
     original  = catch_record.photo
     if reference.attached? && original.attached?
-      [{ label: "Replacement photo", attachment: reference },
+      [{ label: "Reference photo", attachment: reference },
        { label: "Original photo",    attachment: original }]
     elsif reference.attached?
       [{ label: nil, attachment: reference }]
@@ -80,13 +103,18 @@ module CatchesHelper
     (judge_ids & catch_tournament_ids).any?
   end
 
-  # Member-facing flag list: drops review-only flags (e.g. possible_duplicate)
-  # unless the current viewer is staff for this catch.
+  # Flags judges/organizers see but members must not — either to avoid tipping
+  # off a cheater or falsely accusing an honest member of one.
+  REVIEW_ONLY_FLAGS = %w[possible_duplicate imported_photo].freeze
+
+  # Member-facing flag list: drops review-only flags unless the current viewer
+  # is staff for this catch. The early return keeps the common case (no
+  # review-only flag present) from issuing the can_review_catch? query.
   def visible_flags_for(catch_record)
     flags = Array(catch_record.flags)
-    return flags unless flags.include?("possible_duplicate")
+    return flags if (flags & REVIEW_ONLY_FLAGS).empty?
     return flags if can_review_catch?(catch_record)
-    flags - ["possible_duplicate"]
+    flags - REVIEW_ONLY_FLAGS
   end
 
   FLAG_LABELS = {
@@ -94,7 +122,8 @@ module CatchesHelper
     "clock_skew"         => "clock mismatch",
     "out_of_bounds"      => "outside local",
     "out_of_province"    => "outside Saskatchewan",
-    "possible_duplicate" => "possible duplicate"
+    "possible_duplicate" => "possible duplicate",
+    "imported_photo"     => "imported photo"
   }.freeze
 
   def flag_label(flag)

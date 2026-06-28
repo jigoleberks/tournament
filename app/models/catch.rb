@@ -32,7 +32,10 @@ class Catch < ApplicationRecord
     "other" => 200
   }.freeze
   PHOTO_CONTENT_TYPES = %w[image/jpeg image/png image/heic image/heif image/webp].freeze
-  PHOTO_MAX_BYTES = 25.megabytes
+  # Native full-res phone cameras can produce 100+ MP stills; a single
+  # high-res shot can reach ~20 MB, and a 200 MP sensor more. 50 MB leaves
+  # headroom so a legitimate full-resolution catch photo is never rejected.
+  PHOTO_MAX_BYTES = 50.megabytes
 
   validates :length_inches, numericality: { greater_than: 0 }
   validates :length_unit, inclusion: { in: %w[inches centimeters] }
