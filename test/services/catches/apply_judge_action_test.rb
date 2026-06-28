@@ -711,6 +711,32 @@ module Catches
       assert_equal "geofence_override", JudgeAction.last.action
     end
 
+    test "geofence_override preserves the imported_photo flag while clearing geofence flags" do
+      oop = create(:catch, user: @user, species: @walleye, length_inches: 25,
+                           latitude: 49.9, longitude: -97.1, status: :needs_review,
+                           flags: ["out_of_province", "out_of_bounds", "imported_photo"])
+
+      ApplyJudgeAction.call(tournament: @t, catch: oop, judge: @judge,
+                            action: :geofence_override, override_in_lake: true, override_in_sask: true)
+
+      oop.reload
+      assert_not_includes oop.flags, "out_of_province", "geofence flag should clear"
+      assert_includes oop.flags, "imported_photo", "anti-cheat import flag must survive recompute_flags!"
+    end
+
+    test "correct_location preserves the imported_photo flag while clearing geofence flags" do
+      oop = create(:catch, user: @user, species: @walleye, length_inches: 25,
+                           latitude: 49.9, longitude: -97.1, status: :needs_review,
+                           flags: ["out_of_province", "out_of_bounds", "imported_photo"])
+
+      ApplyJudgeAction.call(tournament: @t, catch: oop, judge: @judge,
+                            action: :correct_location, latitude: "49.41", longitude: "-103.62")
+
+      oop.reload
+      assert_not_includes oop.flags, "out_of_province", "geofence flag should clear"
+      assert_includes oop.flags, "imported_photo", "anti-cheat import flag must survive recompute_flags!"
+    end
+
     test "clearing a geofence override drops the catch back out of slots" do
       oop = create(:catch, user: @user, species: @walleye, length_inches: 25,
                            latitude: 49.9, longitude: -97.1, status: :needs_review,

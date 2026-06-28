@@ -1,11 +1,10 @@
 module DiagnosticsHelper
   def current_device(user)
-    ua = user.user_events.with_user_agent.recent.limit(1).pick(:user_agent)
-    Diagnostics::Device.parse(ua)
+    Diagnostics::Device.parse(UserEvent.last_value(user, :with_user_agent, :user_agent))
   end
 
   def current_app_build(user)
-    user.user_events.with_app_build.recent.limit(1).pick(:app_build)
+    UserEvent.last_value(user, :with_app_build, :app_build)
   end
 
   def app_build_stale?(build)

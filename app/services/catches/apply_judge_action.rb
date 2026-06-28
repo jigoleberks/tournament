@@ -155,7 +155,7 @@ module Catches
           before_state: before, after_state: after
         )
 
-        affected_tournaments = @catch.catch_placements.map(&:tournament).uniq
+        affected_tournaments = @catch.catch_placements.includes(:tournament).map(&:tournament).uniq
       end
 
       # Broadcast AFTER the transaction commits so other DB connections see the
@@ -191,8 +191,13 @@ module Catches
     end
 
     # Re-derive the persisted flags column after a location/override change.
+    # ComputeFlags only owns the location/time/duplicate flags; imported_photo is
+    # set out-of-band by FlagImportedPhotoJob and would be silently wiped by a
+    # full overwrite, so carry it across the recompute.
     def recompute_flags!
-      @catch.update!(flags: ::Catches::ComputeFlags.call(@catch))
+      recomputed = ::Catches::ComputeFlags.call(@catch)
+      recomputed << "imported_photo" if @catch.flags.include?("imported_photo")
+      @catch.update!(flags: recomputed)
     end
 
     # Drop the catch's active placements, promote backups into the freed slots,

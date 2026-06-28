@@ -11,8 +11,8 @@ module Diagnostics
 
       # Snapshot both prior values BEFORE writing anything so neither
       # check is polluted by the other's newly-inserted row.
-      last_ua    = last_value(user, :with_user_agent, :user_agent)
-      last_build = last_value(user, :with_app_build, :app_build)
+      last_ua    = ::UserEvent.last_value(user, :with_user_agent, :user_agent)
+      last_build = ::UserEvent.last_value(user, :with_app_build, :app_build)
 
       if user_agent.present? && user_agent != last_ua
         ::UserEvent.record!(user: user, kind: :device_changed, user_agent: user_agent, app_build: app_build)
@@ -24,10 +24,5 @@ module Diagnostics
     rescue StandardError => e
       Rails.logger.warn("Diagnostics::RecordVisit failed: #{e.class}: #{e.message}")
     end
-
-    def self.last_value(user, scope, column)
-      user.user_events.public_send(scope).recent.limit(1).pick(column)
-    end
-    private_class_method :last_value
   end
 end

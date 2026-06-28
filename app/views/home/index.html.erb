@@ -12,7 +12,8 @@
 <div class="my-4">
   <h1 class="text-2xl font-bold mb-1"><%= ENV.fetch("APP_NAME", "Tournament") %></h1>
   <p class="text-slate-400 mb-4">Hello, <%= current_user.name %>.</p>
-  <% has_teammates = Tournaments::TeammateLogTournamentsFor.call(user: current_user, club: current_club).any? %>
+  <% active_tournaments = Tournaments::ActiveForUser.call(user: current_user) %>
+  <% has_teammates = Tournaments::TeammateLogTournamentsFor.call(user: current_user, club: current_club, active: active_tournaments).any? %>
   <%= link_to "Log Catch",
               (has_teammates ? select_teammate_catches_path : new_catch_path),
               class: "block w-full h-14 px-6 text-lg font-semibold rounded-lg bg-blue-600 active:bg-blue-700 text-white text-center leading-[3.5rem]" %>
@@ -22,7 +23,6 @@
   </div>
 </div>
 
-<% active_tournaments = Tournaments::ActiveForUser.call(user: current_user) %>
 <% if active_tournaments.any? %>
   <div class="bg-slate-800 rounded-xl p-4 my-3">
     <h2 class="text-lg font-semibold mb-2">Your tournaments</h2>

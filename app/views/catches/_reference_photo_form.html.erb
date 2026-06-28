@@ -1,0 +1,13 @@
+<%# Admin-only reference-photo upload. Shared by the angler catch page
+    (catches/show) and the judge catch page (judges/catches/show). Local: catch. %>
+<%= form_with url: reference_photo_catch_path(catch), method: :patch, local: true, multipart: true,
+              data: { turbo_confirm: "Add this reference photo? It will be shown to everyone alongside the angler's original." } do |f| %>
+  <div class="space-y-3">
+    <%= f.file_field :photo, accept: "image/jpeg,image/png,image/webp", required: true,
+                      class: "text-sm text-slate-300 file:mr-3 file:py-2 file:px-4 file:rounded-lg file:border-0 file:bg-blue-600 file:text-white file:font-semibold file:cursor-pointer" %>
+    <%= f.text_area :note, placeholder: "Optional note", rows: 2, maxlength: 500,
+                    class: "w-full px-3 py-2 rounded-lg bg-slate-900 border border-slate-700 text-base text-slate-100" %>
+    <%= f.submit catch.reference_photo.attached? ? "Replace reference photo" : "Add reference photo",
+                  class: "h-12 px-4 rounded-lg bg-amber-600 active:bg-amber-700 text-white font-semibold w-full" %>
+  </div>
+<% end %>

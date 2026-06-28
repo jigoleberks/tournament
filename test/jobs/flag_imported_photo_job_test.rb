@@ -9,6 +9,7 @@ class FlagImportedPhotoJobTest < ActiveJob::TestCase
   setup do
     @club = create(:club)
     @user = create(:user, club: @club)
+    @judge = create(:user, club: @club, role: :organizer)
     @species = create(:species, club: @club)
   end
 
@@ -70,6 +71,17 @@ class FlagImportedPhotoJobTest < ActiveJob::TestCase
     catch_record.reload
     assert_includes catch_record.flags, "imported_photo"
     assert_equal "disqualified", catch_record.status
+  end
+
+  test "does not reopen a judge-approved (synced) catch, but still records the flag" do
+    catch_record = catch_with(file: "sample_with_exif.jpg", captured_at: EXIF_TIME + 1.hour, status: :synced)
+    JudgeAction.create!(judge_user: @judge, catch: catch_record, action: :approve)
+
+    FlagImportedPhotoJob.perform_now(catch_id: catch_record.id)
+
+    catch_record.reload
+    assert_includes catch_record.flags, "imported_photo", "still surfaces the import flag for staff"
+    assert_equal "synced", catch_record.status, "must not undo a judge's approval"
   end
 
   test "does nothing for a missing catch id" do

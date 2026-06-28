@@ -35,5 +35,19 @@ module Diagnostics
       assert_equal "Unknown device", d.summary
       assert_nil d.supported?
     end
+
+    # SUPPORTED_FLOORS is a hand-maintained mirror of Rails' allow_browser
+    # versions: :modern set. If a Rails upgrade moves those floors, this fails
+    # loudly so the diagnostics card doesn't silently report a stale "supported"
+    # verdict that disagrees with what application_controller actually blocks.
+    # (Edge is intentionally extra — Rails' :modern set has no Edge entry.)
+    test "SUPPORTED_FLOORS stays in sync with Rails' allow_browser :modern floors" do
+      rails_modern = ActionController::AllowBrowser::BrowserBlocker::SETS[:modern]
+      rails_modern.each do |browser, floor|
+        next if floor == false # e.g. ie: false — not a version floor
+        assert_equal floor.to_s, Device::SUPPORTED_FLOORS[browser.to_s.capitalize],
+                     "Rails :modern #{browser} floor is #{floor}; update Device::SUPPORTED_FLOORS to match"
+      end
+    end
   end
 end
