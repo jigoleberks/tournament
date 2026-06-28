@@ -55,7 +55,7 @@ class HomeControllerTest < ActionDispatch::IntegrationTest
     sign_in_as(@member)
     get root_path
     assert_response :success
-    assert_match "Rules (May 9, 2026)", response.body
+    assert_match "Rules (updated May 9, 2026)", response.body
     assert_match rules_path, response.body
   end
 
@@ -69,7 +69,7 @@ class HomeControllerTest < ActionDispatch::IntegrationTest
     @club.update!(active_rules_season: :ice)
     sign_in_as(@member)
     get root_path
-    assert_match "Rules (Jan 1, 2026)", response.body
+    assert_match "Rules (updated Jan 1, 2026)", response.body
   end
 
   test "home: leaderboard hint appears once per locked tournament row" do
