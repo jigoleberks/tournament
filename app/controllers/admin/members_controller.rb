@@ -1,5 +1,5 @@
 class Admin::MembersController < Admin::BaseController
-  before_action :require_admin!, only: [:edit, :update, :destroy, :reactivate]
+  before_action :require_admin!, only: [:edit, :update, :destroy, :reactivate, :purge]
 
   def index
     @users = current_club.members.includes(:club_memberships).order(:deactivated_at, :name)
@@ -62,6 +62,22 @@ class Admin::MembersController < Admin::BaseController
     user = current_club.members.find(params[:id])
     user.update!(deactivated_at: nil)
     redirect_to admin_members_path, notice: "#{user.name} reactivated."
+  end
+
+  def purge
+    user = current_club.members.find(params[:id])
+    if user == current_user
+      redirect_to admin_members_path, alert: "You can't delete yourself."
+    elsif !user.deactivated?
+      redirect_to admin_members_path, alert: "Deactivate #{user.name} before deleting."
+    elsif user.catches.exists?
+      redirect_to admin_members_path, alert: "#{user.name} has catch history and can't be deleted."
+    else
+      user.destroy!
+      redirect_to admin_members_path, notice: "#{user.name} permanently deleted."
+    end
+  rescue ActiveRecord::RecordNotDestroyed, ActiveRecord::DeleteRestrictionError
+    redirect_to admin_members_path, alert: "#{user.name} can't be deleted because of linked records."
   end
 
   def issue_code

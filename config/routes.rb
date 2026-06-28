@@ -69,9 +69,10 @@ Rails.application.routes.draw do
     end
     resources :members, only: [:index, :new, :create, :edit, :update, :destroy] do
       member do
-        post :reactivate
-        post :issue_code
-        get  :code
+        post   :reactivate
+        delete :purge
+        post   :issue_code
+        get    :code
       end
     end
     resources :catches, only: [:index]

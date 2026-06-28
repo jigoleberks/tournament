@@ -50,6 +50,11 @@
                   <% if current_user.admin? %>
                     <%= button_to "Reactivate", reactivate_admin_member_path(u), method: :post,
                                   class: "px-3 py-1.5 rounded bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-medium transition-colors" %>
+                    <% unless u.catches.exists? %>
+                      <%= button_to "Delete", purge_admin_member_path(u), method: :delete,
+                                    data: { turbo_confirm: "Permanently delete #{u.name}? This cannot be undone." },
+                                    class: "px-3 py-1.5 rounded bg-red-600 hover:bg-red-700 text-white text-xs font-medium transition-colors" %>
+                    <% end %>
                   <% end %>
                 <% else %>
                   <% if current_user.admin? %>

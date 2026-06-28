@@ -37,13 +37,17 @@
       <span>Network</span>
       <span data-pre-trip-target="network" class="text-slate-400">…</span>
     </li>
+    <li data-check="version" class="flex justify-between items-center py-3">
+      <span>App version</span>
+      <span data-pre-trip-target="version" class="text-slate-400 text-right">…</span>
+    </li>
   </ul>
 
   <button type="button" data-action="pre-trip#runAll"
           class="w-full h-14 px-6 text-lg font-semibold rounded-lg bg-blue-600 active:bg-blue-700 text-white mt-4">Re-test</button>
 
-  <details class="mt-4 border-t border-slate-700 pt-3">
-    <summary class="text-sm text-slate-400 cursor-pointer select-none">Troubleshooting</summary>
+  <div class="mt-4 border-t border-slate-700 pt-3">
+    <h2 class="text-sm text-slate-400">Troubleshooting</h2>
 
     <div class="mt-3 space-y-2">
       <button type="button" data-action="pre-trip#updateApp"
@@ -52,5 +56,5 @@
 
       <p data-pre-trip-target="troubleshootStatus" class="text-sm text-amber-300 min-h-5"></p>
     </div>
-  </details>
+  </div>
 </div>

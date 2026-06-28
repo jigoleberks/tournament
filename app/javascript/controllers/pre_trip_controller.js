@@ -1,7 +1,7 @@
 import { Controller } from "@hotwired/stimulus"
 
 export default class extends Controller {
-  static targets = ["session", "tournaments", "camera", "microphone", "gps", "clock", "notifications", "network", "troubleshootStatus"]
+  static targets = ["session", "tournaments", "camera", "microphone", "gps", "clock", "notifications", "network", "version", "troubleshootStatus"]
   static values = { activeTournaments: Number }
 
   connect() { this.runAll() }
@@ -15,6 +15,32 @@ export default class extends Controller {
     await this.checkGps()
     await this.checkNotifications()
     this.set("network", navigator.onLine ? `✓ (${navigator.connection?.effectiveType ?? "online"})` : "ℹ offline (sync deferred)")
+    await this.checkVersion()
+  }
+
+  // Compares the build the phone actually has cached against the live server
+  // build. The page is a network-first navigation, so data-app-build is the
+  // current server version; the installed shell version lives in the
+  // `shell-<build>` Cache Storage key (see pwa/service_worker.js.erb). When they
+  // differ the PWA is stuck on an old deploy and "Update app" below is the fix.
+  async checkVersion() {
+    const server = document.documentElement.dataset.appBuild || ""
+    let loaded = server
+    try {
+      if ("caches" in window) {
+        const shell = (await caches.keys()).find((k) => k.startsWith("shell-"))
+        if (shell) loaded = shell.slice("shell-".length)
+      }
+    } catch (e) {
+      // Cache Storage unavailable (e.g. private mode): fall back to assuming the
+      // page render is current rather than crying stale on a number we can't read.
+    }
+    const short = (v) => v.slice(0, 7) || "unknown"
+    if (loaded === server) {
+      this.set("version", `✓ ${short(server)}`)
+    } else {
+      this.set("version", `⚠ update available — you: ${short(loaded)} · server: ${short(server)}`)
+    }
   }
 
   _reset() {

@@ -107,6 +107,79 @@ class Admin::MembersControllerTest < ActionDispatch::IntegrationTest
     assert_not @member.reload.deactivated?
   end
 
+  test "admin can purge a deactivated catch-less member" do
+    @member.update!(deactivated_at: 1.day.ago)
+    sign_in_as(@admin)
+    delete purge_admin_member_path(@member)
+    assert_redirected_to admin_members_path
+    assert_not User.exists?(@member.id)
+  end
+
+  test "non-admin organizer cannot purge" do
+    @member.update!(deactivated_at: 1.day.ago)
+    sign_in_as(@organizer)
+    delete purge_admin_member_path(@member)
+    assert_response :forbidden
+    assert User.exists?(@member.id)
+  end
+
+  test "cannot purge a member who still has catches" do
+    @member.update!(deactivated_at: 1.day.ago)
+    create(:catch, user: @member)
+    sign_in_as(@admin)
+    delete purge_admin_member_path(@member)
+    assert_redirected_to admin_members_path
+    assert User.exists?(@member.id)
+  end
+
+  test "cannot purge a member who is not deactivated" do
+    sign_in_as(@admin)
+    delete purge_admin_member_path(@member)
+    assert_redirected_to admin_members_path
+    assert User.exists?(@member.id)
+  end
+
+  test "admin cannot purge themselves" do
+    sign_in_as(@admin)
+    delete purge_admin_member_path(@admin)
+    assert_redirected_to admin_members_path
+    assert User.exists?(@admin.id)
+  end
+
+  test "purge is scoped to current club" do
+    other_club_user = create(:user, club: create(:club), role: :member)
+    other_club_user.update!(deactivated_at: 1.day.ago)
+    sign_in_as(@admin)
+    delete purge_admin_member_path(other_club_user)
+    assert_response :not_found
+    assert User.exists?(other_club_user.id)
+  end
+
+  test "index shows Delete button for a deactivated catch-less member" do
+    @member.update!(deactivated_at: 1.day.ago)
+    sign_in_as(@admin)
+    get admin_members_path
+    assert_response :success
+    assert_select "form[action=?]", purge_admin_member_path(@member)
+  end
+
+  test "index hides Delete button for a deactivated member with catches" do
+    @member.update!(deactivated_at: 1.day.ago)
+    create(:catch, user: @member)
+    sign_in_as(@admin)
+    get admin_members_path
+    assert_response :success
+    assert_select "form[action=?]", purge_admin_member_path(@member), count: 0
+  end
+
+  test "index hides Delete button from non-admin organizer" do
+    @member.update!(deactivated_at: 1.day.ago)
+    sign_in_as(@organizer)
+    get admin_members_path
+    assert_response :success
+    assert_select "form[action=?]", purge_admin_member_path(@member), count: 0
+  end
+
   test "authenticated request stamps last_seen_at on current_user" do
     @admin.update_columns(last_seen_at: nil)
     sign_in_as(@admin)
