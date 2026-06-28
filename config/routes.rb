@@ -118,6 +118,7 @@ Rails.application.routes.draw do
   end
 
   namespace :api do
+    get "version", to: "version#show"
     resources :catches, only: [:create]
     post   "push_subscriptions", to: "push_subscriptions#create"
     delete "push_subscriptions", to: "push_subscriptions#destroy"

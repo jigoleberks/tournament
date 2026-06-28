@@ -18,26 +18,28 @@ export default class extends Controller {
     await this.checkVersion()
   }
 
-  // Compares the build the phone actually has cached against the live server
-  // build. The page is a network-first navigation, so data-app-build is the
-  // current server version; the installed shell version lives in the
-  // `shell-<build>` Cache Storage key (see pwa/service_worker.js.erb). When they
-  // differ the PWA is stuck on an old deploy and "Update app" below is the fix.
+  // Compares the build the phone is running (data-app-build, baked into the page
+  // it loaded) against the live server build fetched from /api/version. The
+  // endpoint lives under /api/ so the service worker passes it straight to the
+  // network (never cached), so a re-test discovers a deploy that landed after
+  // the phone last loaded — even while it's still showing the pre-deploy page.
+  // A mismatch means "Update app" below will pull the newer build.
   async checkVersion() {
-    const server = document.documentElement.dataset.appBuild || ""
-    let loaded = server
-    try {
-      if ("caches" in window) {
-        const shell = (await caches.keys()).find((k) => k.startsWith("shell-"))
-        if (shell) loaded = shell.slice("shell-".length)
-      }
-    } catch (e) {
-      // Cache Storage unavailable (e.g. private mode): fall back to assuming the
-      // page render is current rather than crying stale on a number we can't read.
-    }
+    const loaded = document.documentElement.dataset.appBuild || ""
     const short = (v) => v.slice(0, 7) || "unknown"
-    if (loaded === server) {
-      this.set("version", `✓ ${short(server)}`)
+
+    let server
+    try {
+      const res = await fetch("/api/version", { headers: { Accept: "application/json" }, cache: "no-store" })
+      if (res.ok) server = (await res.json()).build
+    } catch (e) {
+      // Offline or unreachable: fall through to the can't-check state below.
+    }
+
+    if (!server) {
+      this.set("version", `ℹ ${short(loaded)} (couldn't reach server)`)
+    } else if (server === loaded) {
+      this.set("version", `✓ ${short(loaded)}`)
     } else {
       this.set("version", `⚠ update available — you: ${short(loaded)} · server: ${short(server)}`)
     }

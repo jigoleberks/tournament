@@ -32,4 +32,21 @@ class PreTripTest < ApplicationSystemTestCase
     assert_selector "[data-pre-trip-target='version']", text: "✓"
     assert_selector "[data-pre-trip-target='version']", text: AppVersion.current[0, 7]
   end
+
+  test "Re-test pings the server and flags an update when the loaded build is behind" do
+    token = SignInToken.issue!(user: @user)
+    visit consume_session_path(token: token.token)
+    visit pre_trip_path
+    assert_selector "[data-pre-trip-target='version']", text: "✓"
+
+    # Simulate a phone still showing a page rendered before a deploy: rewrite the
+    # build baked into the loaded page, then re-run the checks. The server (via
+    # /api/version) still reports the real current build, so the row must flag it.
+    page.execute_script("document.documentElement.dataset.appBuild = '0000000'")
+    click_button "Re-test"
+
+    assert_selector "[data-pre-trip-target='version']", text: "⚠ update available"
+    assert_selector "[data-pre-trip-target='version']", text: "0000000"
+    assert_selector "[data-pre-trip-target='version']", text: AppVersion.current[0, 7]
+  end
 end
