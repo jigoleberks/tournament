@@ -4,6 +4,11 @@ export default class extends Controller {
   static targets = ["session", "tournaments", "camera", "microphone", "gps", "clock", "notifications", "network", "version", "troubleshootStatus"]
   static values = { activeTournaments: Number }
 
+  // The diagnostic-check rows that _reset() blanks to "…" before a run.
+  // Excludes troubleshootStatus, which is the Update-app button's own status
+  // line, not a check — sweeping it would stamp a stray "…" there every run.
+  static CHECK_TARGETS = ["session", "tournaments", "camera", "microphone", "gps", "clock", "notifications", "network", "version"]
+
   connect() { this.runAll() }
 
   async runAll() {
@@ -46,7 +51,7 @@ export default class extends Controller {
   }
 
   _reset() {
-    for (const name of this.constructor.targets) {
+    for (const name of this.constructor.CHECK_TARGETS) {
       this.set(name, "…")
     }
   }
@@ -118,6 +123,13 @@ export default class extends Controller {
   // broken offline shell. The offline catch queue lives in IndexedDB, which we
   // deliberately leave untouched — pending catches survive the reset.
   async updateApp() {
+    // Wiping the SW + caches while offline would reload into an app with neither
+    // network nor a precached shell to serve — a bricked PWA until connectivity
+    // returns. Refuse and tell the user to get back online first.
+    if (!navigator.onLine) {
+      this._troubleshoot("⚠ You're offline — reconnect before updating.")
+      return
+    }
     this._troubleshoot("Updating…")
     try {
       if ("serviceWorker" in navigator) {

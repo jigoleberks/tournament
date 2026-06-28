@@ -689,6 +689,19 @@ module Catches
       assert_not_equal first_blob_id, ja.after_state["reference_photo_blob_id"]
     end
 
+    test "add_reference_photo on a disqualified catch keeps it disqualified, not stranded in needs_review" do
+      ApplyJudgeAction.call(tournament: @t, catch: @catch, judge: @judge,
+                            action: :disqualify, note: "bad photo")
+      assert @catch.reload.disqualified?, "precondition: catch is disqualified"
+
+      ApplyJudgeAction.call(tournament: @t, catch: @catch, judge: @judge,
+                            action: :add_reference_photo, note: "clearer angle", photo: sample_upload)
+
+      @catch.reload
+      assert @catch.reference_photo.attached?, "reference photo should be attached"
+      assert @catch.disqualified?, "a disqualified catch must stay disqualified so reinstate still works"
+    end
+
     # --- geofence_override action ---------------------------------------------
 
     test "geofence_override forces an out-of-province catch to place and clears its flags" do

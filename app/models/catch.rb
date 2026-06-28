@@ -43,6 +43,7 @@ class Catch < ApplicationRecord
   validates :client_uuid, presence: true, uniqueness: true
   validate :photo_must_be_attached
   validate :photo_within_limits
+  validate :reference_photo_within_limits
   validate :length_within_species_cap
   validates :note, length: { maximum: 500 }, allow_blank: true
 
@@ -113,6 +114,20 @@ class Catch < ApplicationRecord
     end
     if photo.byte_size.to_i > PHOTO_MAX_BYTES
       errors.add(:photo, "is larger than #{PHOTO_MAX_BYTES / 1.megabyte}MB")
+    end
+  end
+
+  # An admin-uploaded reference photo supersedes the original as display_photo for
+  # every viewer and is run through libvips variants on render, so it needs the
+  # same content-type/size gate as the original — the form's accept= is
+  # client-side only and a non-image would 500 the catch list/detail pages.
+  def reference_photo_within_limits
+    return unless reference_photo.attached?
+    unless PHOTO_CONTENT_TYPES.include?(reference_photo.content_type)
+      errors.add(:reference_photo, "must be a JPEG, PNG, HEIC, or WebP image")
+    end
+    if reference_photo.byte_size.to_i > PHOTO_MAX_BYTES
+      errors.add(:reference_photo, "is larger than #{PHOTO_MAX_BYTES / 1.megabyte}MB")
     end
   end
 

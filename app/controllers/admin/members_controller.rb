@@ -70,13 +70,19 @@ class Admin::MembersController < Admin::BaseController
       redirect_to admin_members_path, alert: "You can't delete yourself."
     elsif !user.deactivated?
       redirect_to admin_members_path, alert: "Deactivate #{user.name} before deleting."
-    elsif user.catches.exists?
+    elsif user.catches.exists? || Catch.where(logged_by_user_id: user.id).exists?
+      # Also block when the member logged catches *for* a teammate
+      # (logged_by_user_id = them, user_id = someone else): those rows aren't in
+      # user.catches but still hold a FK to this user, so destroy! would raise.
       redirect_to admin_members_path, alert: "#{user.name} has catch history and can't be deleted."
     else
       user.destroy!
       redirect_to admin_members_path, notice: "#{user.name} permanently deleted."
     end
-  rescue ActiveRecord::RecordNotDestroyed, ActiveRecord::DeleteRestrictionError
+  rescue ActiveRecord::RecordNotDestroyed, ActiveRecord::DeleteRestrictionError, ActiveRecord::InvalidForeignKey
+    # InvalidForeignKey backstops any remaining DB-level reference (e.g. a
+    # sign_in_tokens.issued_by_user_id row from an invite this member sent) so a
+    # lingering link redirects with a friendly message instead of 500ing.
     redirect_to admin_members_path, alert: "#{user.name} can't be deleted because of linked records."
   end
 

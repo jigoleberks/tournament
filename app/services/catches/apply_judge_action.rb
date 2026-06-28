@@ -125,7 +125,16 @@ module Catches
         when :add_reference_photo
           old_ref_id = @catch.reference_photo.attached? ? @catch.reference_photo.blob.id : nil
           @catch.reference_photo.attach(@photo)
-          @catch.update!(status: :needs_review)
+          # A reference photo is just a clearer image for review; it must not
+          # silently reopen a disqualified catch. A DQ'd catch has no active
+          # placements and can only return to scoring via :reinstate (which
+          # refuses anything that isn't currently disqualified) — flipping it to
+          # needs_review here would strand it: off the leaderboard, un-reinstatable.
+          # Leave a disqualified catch disqualified; for any other status, queue
+          # it for a judge to re-review with the new photo. update! runs either
+          # way so the reference_photo validation still rejects a bad upload.
+          new_status = @catch.disqualified? ? @catch.status : :needs_review
+          @catch.update!(status: new_status)
           set_ivars_for_snapshot(old_ref_id: old_ref_id)
         when :geofence_override
           @catch.update!(override_in_lake: @override_in_lake, override_in_sask: @override_in_sask)

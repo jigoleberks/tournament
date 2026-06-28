@@ -16,7 +16,7 @@ class CatchesController < ApplicationController
     # viewers when any rendered catch carries the possible_duplicate flag.
     # :judge_actions is preloaded so latest_approver (called per row to decide
     # the status badge) consumes the eager-load instead of re-querying per catch.
-    base = current_user.catches.includes(:species, :catch_placements, :judge_actions, photo_attachment: :blob)
+    base = current_user.catches.includes(:species, :catch_placements, :judge_actions, photo_attachment: :blob, reference_photo_attachment: :blob)
     filter_params = effective_filter_params
     filtered = Catches::ApplyFilters.call(scope: base, params: filter_params)
     @catches = sort_catches(filtered)
@@ -33,7 +33,7 @@ class CatchesController < ApplicationController
     @available_species = Species.order(:name)
     @month_of_year_active = month_of_year_param
 
-    base = current_user.catches.includes(:species, photo_attachment: :blob)
+    base = current_user.catches.includes(:species, photo_attachment: :blob, reference_photo_attachment: :blob)
     @catches = Catches::ApplyFilters.call(scope: base, params: effective_filter_params).order(captured_at_device: :desc)
     @counts_by_date = counts_by_date(@month_start)
 
