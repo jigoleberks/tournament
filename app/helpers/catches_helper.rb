@@ -1,22 +1,25 @@
 module CatchesHelper
-  # Renders a resized, lazy-loaded <img> for an Active Storage attachment.
-  # Catch photos are full-resolution phone stills (multi-MB, HEIC on iOS); the
-  # variant resizes AND transcodes to JPEG so every browser can render it. The
-  # variant is generated on first request and cached on disk thereafter.
-  def thumb(attachment, size: [400, 400], **html_options)
-    image_tag attachment.variant(resize_to_limit: size, format: :jpeg), loading: "lazy", **html_options
+  # A resized JPEG variant of an attachment. Catch photos are full-resolution
+  # phone stills (multi-MB, HEIC on iOS); resizing AND transcoding to JPEG means
+  # every browser can render them. Generated on first request, cached on disk.
+  def jpeg_variant(attachment, size)
+    attachment.variant(resize_to_limit: size, format: :jpeg)
   end
 
-  # <img> for a large, full-bleed display (catch detail / lightbox). JPEG so
-  # iOS HEIC originals render.
+  # Renders a resized, lazy-loaded <img> for an Active Storage attachment.
+  def thumb(attachment, size: [400, 400], **html_options)
+    image_tag jpeg_variant(attachment, size), loading: "lazy", **html_options
+  end
+
+  # <img> for a large, full-bleed display (catch detail / lightbox).
   def photo_full(attachment, size: [2000, 2000], **html_options)
-    image_tag attachment.variant(resize_to_limit: size, format: :jpeg), **html_options
+    image_tag jpeg_variant(attachment, size), **html_options
   end
 
   # Bare URL of a large JPEG variant — for lightbox/inline display, which must
   # never point at a raw (possibly HEIC) original. Resized for fast loading.
   def photo_src_url(attachment, size: [2000, 2000])
-    url_for(attachment.variant(resize_to_limit: size, format: :jpeg))
+    url_for(jpeg_variant(attachment, size))
   end
 
   # URL for the "Save photo" download — FULL resolution, never the resized
@@ -98,7 +101,9 @@ module CatchesHelper
     # Reuses ApplicationController#judged_tournament_ids (request-memoized), so the
     # TournamentJudge lookup runs once per request, not once per catch.
     return false if judged_tournament_ids.empty?
-    catch_tournament_ids = catch_record.catch_placements.pluck(:tournament_id).uniq
+    # map (not pluck) so the controller's :catch_placements preload is used —
+    # pluck always issues a fresh query, N+1ing the listing it was preloaded for.
+    catch_tournament_ids = catch_record.catch_placements.map(&:tournament_id).uniq
     (judged_tournament_ids & catch_tournament_ids).any?
   end
 

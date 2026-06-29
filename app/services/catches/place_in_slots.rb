@@ -275,15 +275,13 @@ module Catches
 
     def skip_for_out_of_province?
       return false if @catch.latitude.nil?
-      return false if @catch.override_in_sask?
-      !::Geofence.includes?(:sask, @catch.latitude, @catch.longitude)
+      !@catch.in_geofence?(:sask)
     end
 
     def skip_for_local_out_of_bounds?(tournament)
       return false unless tournament.local?
       return false if @catch.latitude.nil?
-      return false if @catch.override_in_lake?
-      !::Geofence.includes?(:lake, @catch.latitude, @catch.longitude)
+      !@catch.in_geofence?(:lake)
     end
   end
 end

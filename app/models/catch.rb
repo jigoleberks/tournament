@@ -16,6 +16,16 @@ class Catch < ApplicationRecord
     reference_photo.attached? ? reference_photo : photo
   end
 
+  # Single source of truth for the override-or-inside geofence decision shared by
+  # ComputeFlags, PlaceInSlots, and SlotPlacement: the catch satisfies the named
+  # region (:lake or :sask) when a judge has overridden that region's boundary
+  # for this catch, or its coordinates actually fall inside it. Callers handle
+  # the no-location (latitude nil) case themselves.
+  def in_geofence?(region)
+    overridden = region == :lake ? override_in_lake? : override_in_sask?
+    overridden || ::Geofence.includes?(region, latitude, longitude)
+  end
+
   enum :status, {
     pending_sync: 0,
     synced:       1,
