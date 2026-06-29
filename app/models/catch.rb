@@ -108,13 +108,7 @@ class Catch < ApplicationRecord
   end
 
   def photo_within_limits
-    return unless photo.attached?
-    unless PHOTO_CONTENT_TYPES.include?(photo.content_type)
-      errors.add(:photo, "must be a JPEG, PNG, HEIC, or WebP image")
-    end
-    if photo.byte_size.to_i > PHOTO_MAX_BYTES
-      errors.add(:photo, "is larger than #{PHOTO_MAX_BYTES / 1.megabyte}MB")
-    end
+    attachment_within_limits(photo, :photo)
   end
 
   # An admin-uploaded reference photo supersedes the original as display_photo for
@@ -122,12 +116,17 @@ class Catch < ApplicationRecord
   # same content-type/size gate as the original — the form's accept= is
   # client-side only and a non-image would 500 the catch list/detail pages.
   def reference_photo_within_limits
-    return unless reference_photo.attached?
-    unless PHOTO_CONTENT_TYPES.include?(reference_photo.content_type)
-      errors.add(:reference_photo, "must be a JPEG, PNG, HEIC, or WebP image")
+    attachment_within_limits(reference_photo, :reference_photo)
+  end
+
+  # Shared content-type/size gate for both the original and reference photo.
+  def attachment_within_limits(attachment, field)
+    return unless attachment.attached?
+    unless PHOTO_CONTENT_TYPES.include?(attachment.content_type)
+      errors.add(field, "must be a JPEG, PNG, HEIC, or WebP image")
     end
-    if reference_photo.byte_size.to_i > PHOTO_MAX_BYTES
-      errors.add(:reference_photo, "is larger than #{PHOTO_MAX_BYTES / 1.megabyte}MB")
+    if attachment.byte_size.to_i > PHOTO_MAX_BYTES
+      errors.add(field, "is larger than #{PHOTO_MAX_BYTES / 1.megabyte}MB")
     end
   end
 

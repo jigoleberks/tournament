@@ -3,7 +3,7 @@ class ApplicationController < ActionController::Base
   allow_browser versions: :modern
 
   before_action :touch_last_seen
-  helper_method :tournament_leaderboard_visible?
+  helper_method :tournament_leaderboard_visible?, :judged_tournament_ids
 
   private
 

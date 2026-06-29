@@ -168,9 +168,8 @@ class CatchesController < ApplicationController
     return true if catch_record.logged_by_user_id == current_user.id
     return true if current_user.admin?
     return true if current_user.organizer_in?(current_club)
-    judge_tournament_ids = TournamentJudge.where(user: current_user).pluck(:tournament_id)
     catch_tournament_ids = catch_record.catch_placements.pluck(:tournament_id).uniq
-    (judge_tournament_ids & catch_tournament_ids).any?
+    (judged_tournament_ids & catch_tournament_ids).any?
   end
 
   # Tournament to act in (DQ / length edit) from this catch's show page.
