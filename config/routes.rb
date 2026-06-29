@@ -61,6 +61,7 @@ Rails.application.routes.draw do
       end
     end
     resources :tournaments do
+      member { get :results }
       resources :tournament_entries, only: [:create, :update, :destroy] do
         resources :tournament_entry_members, only: [:create, :destroy]
       end
@@ -68,9 +69,10 @@ Rails.application.routes.draw do
     end
     resources :members, only: [:index, :new, :create, :edit, :update, :destroy] do
       member do
-        post :reactivate
-        post :issue_code
-        get  :code
+        post   :reactivate
+        delete :purge
+        post   :issue_code
+        get    :code
       end
     end
     resources :catches, only: [:index]
@@ -96,6 +98,9 @@ Rails.application.routes.draw do
       get :map
       get :select_teammate
     end
+    member do
+      patch :reference_photo
+    end
   end
 
   namespace :judges do
@@ -103,11 +108,17 @@ Rails.application.routes.draw do
       resources :catches, only: [:index, :show] do
         resource :review,          only: [:create]
         resource :manual_override, only: [:new, :create]
+        member do
+          patch :geofence_override
+          patch :correct_location
+          patch :reinstate
+        end
       end
     end
   end
 
   namespace :api do
+    get "version", to: "version#show"
     resources :catches, only: [:create]
     post   "push_subscriptions", to: "push_subscriptions#create"
     delete "push_subscriptions", to: "push_subscriptions#destroy"

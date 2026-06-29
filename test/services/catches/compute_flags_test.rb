@@ -15,6 +15,25 @@ class Catches::ComputeFlagsTest < ActiveSupport::TestCase
     assert_empty Catches::ComputeFlags.call(catch_record)
   end
 
+  test "recompute preserves out-of-band flags it doesn't own" do
+    # imported_photo is written out-of-band by FlagImportedPhotoJob; a location
+    # recompute must not wipe it.
+    catch_record = create(:catch, user: @user, species: @walleye,
+                                   latitude: 49.41, longitude: -103.62,
+                                   captured_at_device: Time.current, captured_at_gps: Time.current,
+                                   flags: ["imported_photo"])
+    assert_equal ["imported_photo"], Catches::ComputeFlags.recompute(catch_record)
+  end
+
+  test "recompute re-derives owned flags from current state" do
+    catch_record = create(:catch, user: @user, species: @walleye,
+                                   latitude: nil, longitude: nil,
+                                   flags: ["out_of_bounds"]) # stale owned flag
+    recomputed = Catches::ComputeFlags.recompute(catch_record)
+    assert_includes recomputed, "missing_gps"
+    assert_not_includes recomputed, "out_of_bounds" # owned flags are re-derived, not preserved
+  end
+
   test "missing_gps when latitude nil" do
     catch_record = build(:catch, user: @user, species: @walleye, latitude: nil, longitude: nil)
     assert_includes Catches::ComputeFlags.call(catch_record), "missing_gps"
@@ -111,5 +130,19 @@ class Catches::ComputeFlagsTest < ActiveSupport::TestCase
     flags = Catches::ComputeFlags.call(catch_record)
     assert_includes flags, "out_of_bounds"
     assert_includes flags, "out_of_province"
+  end
+
+  test "out_of_bounds suppressed when override_in_lake is set" do
+    catch_record = build(:catch, user: @user, species: @walleye,
+                                 latitude: 50.45, longitude: -104.61, # Regina: in SK, outside lake
+                                 override_in_lake: true)
+    assert_not_includes Catches::ComputeFlags.call(catch_record), "out_of_bounds"
+  end
+
+  test "out_of_province suppressed when override_in_sask is set" do
+    catch_record = build(:catch, user: @user, species: @walleye,
+                                 latitude: 49.9, longitude: -97.1, # Winnipeg: outside SK
+                                 override_in_sask: true)
+    assert_not_includes Catches::ComputeFlags.call(catch_record), "out_of_province"
   end
 end

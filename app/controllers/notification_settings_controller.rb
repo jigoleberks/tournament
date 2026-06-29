@@ -9,6 +9,7 @@ class NotificationSettingsController < ApplicationController
   def snooze
     hours = params[:hours].to_f
     @subs.update_all(muted_until: hours.hours.from_now)
+    UserEvent.record!(user: current_user, kind: :push_muted, muted_for_hours: hours)
     redirect_to notification_settings_path, notice: "Muted for #{hours}h."
   end
 

@@ -41,6 +41,12 @@ class Admin::TournamentsController < Admin::BaseController
     end
   end
 
+  def results
+    @tournament = current_club.tournaments.find(params[:id])
+    @leaderboard = Leaderboards::Build.call(tournament: @tournament)
+    render layout: "print"
+  end
+
   private
 
   def set_tournament

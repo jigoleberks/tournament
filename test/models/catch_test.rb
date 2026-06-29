@@ -27,6 +27,40 @@ class CatchTest < ActiveSupport::TestCase
     assert_not duplicate.valid?
   end
 
+  test "add_flag! appends the flag" do
+    catch_record = create(:catch, user: @user, species: @walleye)
+    catch_record.add_flag!("imported_photo")
+    assert_includes catch_record.reload.flags, "imported_photo"
+  end
+
+  test "add_flag! is idempotent" do
+    catch_record = create(:catch, user: @user, species: @walleye)
+    catch_record.add_flag!("imported_photo")
+    catch_record.add_flag!("imported_photo")
+    assert_equal ["imported_photo"], catch_record.reload.flags
+  end
+
+  test "add_flag! does not clobber a flag added concurrently after the instance was loaded" do
+    catch_record = create(:catch, user: @user, species: @walleye)
+    # Simulate a second writer (e.g. a teammate's FlagDuplicates) appending a
+    # flag to the row after this instance snapshotted flags == [].
+    Catch.where(id: catch_record.id).update_all("flags = ARRAY['possible_duplicate']::text[]")
+    catch_record.add_flag!("imported_photo")
+    assert_equal %w[possible_duplicate imported_photo].sort, catch_record.reload.flags.sort
+  end
+
+  test "add_flag! with bump_to_review moves a synced catch to needs_review" do
+    catch_record = create(:catch, user: @user, species: @walleye, status: :synced)
+    catch_record.add_flag!("imported_photo", bump_to_review: true)
+    assert catch_record.reload.needs_review?
+  end
+
+  test "add_flag! with bump_to_review leaves a non-synced catch's status untouched" do
+    catch_record = create(:catch, user: @user, species: @walleye, status: :disqualified)
+    catch_record.add_flag!("imported_photo", bump_to_review: true)
+    assert catch_record.reload.disqualified?
+  end
+
   test "can attach a photo" do
     catch_record = build(:catch, user: @user, species: @walleye)
     catch_record.photo.attach(
@@ -36,6 +70,30 @@ class CatchTest < ActiveSupport::TestCase
     )
     assert catch_record.save
     assert catch_record.photo.attached?
+  end
+
+  test "display_photo returns the original photo when no reference photo is attached" do
+    catch_record = build(:catch, user: @user, species: @walleye)
+    catch_record.photo.attach(
+      io: File.open(Rails.root.join("test/fixtures/files/sample_walleye.jpg")),
+      filename: "original.jpg", content_type: "image/jpeg"
+    )
+    catch_record.save!
+    assert_equal catch_record.photo.blob, catch_record.display_photo.blob
+  end
+
+  test "display_photo returns the reference photo when one is attached" do
+    catch_record = build(:catch, user: @user, species: @walleye)
+    catch_record.photo.attach(
+      io: File.open(Rails.root.join("test/fixtures/files/sample_walleye.jpg")),
+      filename: "original.jpg", content_type: "image/jpeg"
+    )
+    catch_record.reference_photo.attach(
+      io: File.open(Rails.root.join("test/fixtures/files/sample_walleye.jpg")),
+      filename: "reference.jpg", content_type: "image/jpeg"
+    )
+    catch_record.save!
+    assert_equal "reference.jpg", catch_record.display_photo.blob.filename.to_s
   end
 
   test "rejects a non-image photo content_type" do
@@ -313,5 +371,11 @@ class CatchTest < ActiveSupport::TestCase
     c = build(:catch, length_inches: 18.5, length_unit: nil)
     c.valid?
     assert_equal "inches", c.length_unit
+  end
+
+  test "geofence override columns default to false" do
+    c = create(:catch)
+    assert_equal false, c.override_in_lake
+    assert_equal false, c.override_in_sask
   end
 end

@@ -24,7 +24,9 @@ class JudgeWorkflowTest < ApplicationSystemTestCase
 
     visit judges_tournament_catches_path(tournament_id: @t.id)
     click_link "Open"
-    fill_in "note", with: "Looks fine to me"
+    # The catch page now carries several "note" fields (geofence-override,
+    # reinstate); target the review form's by its label to stay unambiguous.
+    fill_in "Note (required if disqualifying)", with: "Looks fine to me"
     click_button "Approve"
 
     assert_text "Status: Synced"
@@ -43,7 +45,7 @@ class JudgeWorkflowTest < ApplicationSystemTestCase
 
     visit judges_tournament_catches_path(tournament_id: @t.id)
     click_link "Open"
-    fill_in "note", with: "Mouth open"
+    fill_in "Note (required if disqualifying)", with: "Mouth open"
     click_button "Disqualify"
 
     # Wait for the disqualify to commit (status + audit line render) before

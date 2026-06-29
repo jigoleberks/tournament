@@ -3,7 +3,7 @@ class ApplicationController < ActionController::Base
   allow_browser versions: :modern
 
   before_action :touch_last_seen
-  helper_method :tournament_leaderboard_visible?
+  helper_method :tournament_leaderboard_visible?, :judged_tournament_ids
 
   private
 
@@ -39,6 +39,10 @@ class ApplicationController < ActionController::Base
   end
 
   def touch_last_seen
-    current_user&.touch_last_seen!
+    Diagnostics::RecordVisit.call(
+      user:       current_user,
+      user_agent: request.user_agent,
+      app_build:  cookies[:app_build]
+    )
   end
 end

@@ -55,7 +55,7 @@ class HomeControllerTest < ActionDispatch::IntegrationTest
     sign_in_as(@member)
     get root_path
     assert_response :success
-    assert_match "Rules (May 9, 2026)", response.body
+    assert_match "Rules (updated May 9, 2026)", response.body
     assert_match rules_path, response.body
   end
 
@@ -69,7 +69,7 @@ class HomeControllerTest < ActionDispatch::IntegrationTest
     @club.update!(active_rules_season: :ice)
     sign_in_as(@member)
     get root_path
-    assert_match "Rules (Jan 1, 2026)", response.body
+    assert_match "Rules (updated Jan 1, 2026)", response.body
   end
 
   test "home: leaderboard hint appears once per locked tournament row" do
@@ -92,25 +92,16 @@ class HomeControllerTest < ActionDispatch::IntegrationTest
     assert_not_includes @response.body, "Ask an organizer to add you to see the leaderboard."
   end
 
-  test "home links 'Log for teammate' straight to the picker with one active team tournament" do
-    t = team_tournament_with_mate_for(@member, name: "Team Cup")
-    sign_in_as(@member)
-    get root_path
-    assert_response :success
-    assert_select "a[href=?]", select_teammate_catches_path(tournament_id: t.id),
-                  text: "Log for teammate"
-  end
-
-  test "home links 'Log for teammate' to the aggregated picker with multiple active team tournaments" do
+  test "home routes 'Log Catch' to the chooser when the member has teammates" do
     team_tournament_with_mate_for(@member, name: "Team Cup")
-    team_tournament_with_mate_for(@member, name: "Second Cup")
     sign_in_as(@member)
     get root_path
     assert_response :success
-    assert_select "a[href=?]", select_teammate_catches_path, text: "Log for teammate"
+    assert_select "a[href=?]", select_teammate_catches_path, text: "Log Catch"
+    assert_no_match "Log for teammate", response.body
   end
 
-  test "home hides 'Log for teammate' for a solo-only member" do
+  test "home routes 'Log Catch' straight to the form for a solo-only member" do
     t = create(:tournament, club: @club, mode: :solo,
                             starts_at: 1.hour.ago, ends_at: 1.hour.from_now)
     entry = create(:tournament_entry, tournament: t)
@@ -118,6 +109,7 @@ class HomeControllerTest < ActionDispatch::IntegrationTest
     sign_in_as(@member)
     get root_path
     assert_response :success
+    assert_select "a[href=?]", new_catch_path, text: "Log Catch"
     assert_no_match "Log for teammate", response.body
   end
 

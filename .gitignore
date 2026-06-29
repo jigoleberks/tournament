@@ -52,3 +52,6 @@
 
 # Local docker-compose overrides (host port remaps, etc.) — worktree-specific.
 /docker-compose.override.yml
+
+# Handoff/planning docs — kept locally, not for the public repo.
+/HANDOFF.md

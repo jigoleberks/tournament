@@ -39,6 +39,7 @@ class Api::CatchesController < Api::BaseController
       placements = Catches::PlaceInSlots.call(catch: catch_record)
       Catches::FlagDuplicates.call(catch: catch_record) if catch_record.flags.include?("possible_duplicate")
       FetchCatchConditionsJob.perform_later(catch_id: catch_record.id)
+      FlagImportedPhotoJob.perform_later(catch_id: catch_record.id)
       render json: serialize(catch_record, placements: placements[:created], flags: catch_record.flags), status: :created
     else
       catch_record.errors.add(:photo, "is required") unless catch_record.photo.attached?

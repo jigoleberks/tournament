@@ -49,7 +49,7 @@ class ClubRulesTest < ApplicationSystemTestCase
 
     sign_in_as(@member)
     visit root_path
-    assert_text "Rules (May 9, 2026)"
+    assert_text "Rules (updated May 9, 2026)"
 
     sign_in_as(@organizer)
     visit admin_rules_path
@@ -58,7 +58,7 @@ class ClubRulesTest < ApplicationSystemTestCase
 
     sign_in_as(@member)
     visit root_path
-    assert_text "Rules (Jan 1, 2026)"
+    assert_text "Rules (updated Jan 1, 2026)"
   end
 
   private

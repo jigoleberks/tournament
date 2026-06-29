@@ -3,6 +3,11 @@ module Catches
     CLOCK_SKEW_THRESHOLD = 5.minutes
     DUPLICATE_WINDOW = 90.seconds
 
+    # Flags computed from catch state by .call. Any flag on a catch that is NOT
+    # in this set was written out-of-band (e.g. imported_photo by
+    # FlagImportedPhotoJob) and must survive a recompute — see .recompute.
+    OWNED_FLAGS = %w[missing_gps clock_skew out_of_bounds out_of_province possible_duplicate].freeze
+
     def self.call(catch_record)
       flags = []
       flags << "missing_gps" if catch_record.latitude.nil?
@@ -10,14 +15,22 @@ module Catches
         skew = (catch_record.captured_at_device - catch_record.captured_at_gps).abs
         flags << "clock_skew" if skew > CLOCK_SKEW_THRESHOLD
       end
-      if catch_record.latitude.present? && !::Geofence.includes?(:lake, catch_record.latitude, catch_record.longitude)
+      if catch_record.latitude.present? && !catch_record.in_geofence?(:lake)
         flags << "out_of_bounds"
       end
-      if catch_record.latitude.present? && !::Geofence.includes?(:sask, catch_record.latitude, catch_record.longitude)
+      if catch_record.latitude.present? && !catch_record.in_geofence?(:sask)
         flags << "out_of_province"
       end
       flags << "possible_duplicate" if duplicate_neighbor?(catch_record)
       flags
+    end
+
+    # Re-derive owned flags from current state while preserving any out-of-band
+    # flags already on the catch, so a recompute (e.g. after a geofence/location
+    # correction) never silently drops a flag ComputeFlags doesn't own.
+    def self.recompute(catch_record)
+      external = catch_record.flags - OWNED_FLAGS
+      (call(catch_record) + external).uniq
     end
 
     def self.duplicate_neighbor?(catch_record)

@@ -34,11 +34,22 @@ class Judges::BaseController < ApplicationController
     head :forbidden
   end
 
+  # Like require_judge!, but also lets site admins (who needn't be assigned as a
+  # judge) act. Organizers remain limited to friendly tournaments, matching
+  # require_judge!. Used for the catch index/detail and the correction actions.
+  def require_reviewer!
+    return if TournamentJudge.exists?(tournament: @tournament, user: current_user)
+    return if @tournament.friendly? && current_user.organizer_in?(@tournament.club)
+    return if current_user.admin?
+    head :forbidden
+  end
+
   # Catches a judge of @tournament is allowed to see/act on:
   # anything placed in @tournament, plus the club-wide needs_review queue.
   def judgeable_catches
     placed_ids = CatchPlacement.where(tournament_id: @tournament.id).select(:catch_id)
-    review_ids = Catch.where(status: :needs_review, user_id: @tournament.club.members.select(:id)).select(:id)
+    club_member_ids = @tournament.club.members.select(:id)
+    review_ids = Catch.where(status: :needs_review, user_id: club_member_ids).select(:id)
     # Eager-load the associations the index/show render per row: user + species
     # for the columns, catch_placements for visible_flags_for -> can_review_catch?,
     # and judge_actions for latest_approver. Without these the listing N+1s.
@@ -46,7 +57,19 @@ class Judges::BaseController < ApplicationController
          .includes(:user, :species, :catch_placements, :judge_actions)
   end
 
+  # Catch lookup for the detail page and correction actions. Broader than
+  # judgeable_catches (the index queue) so that a catch disqualified while it
+  # was still in needs_review and never placed remains reachable for reinstate.
+  # A previously-placed DQ'd catch is already covered by placed_ids (which
+  # deliberately doesn't filter on active:), so we only add the club-wide
+  # disqualified set here, NOT in the index listing.
   def load_catch!
-    @catch = judgeable_catches.find(params[:catch_id] || params[:id])
+    placed_ids = CatchPlacement.where(tournament_id: @tournament.id).select(:catch_id)
+    club_member_ids = @tournament.club.members.select(:id)
+    @catch = Catch.where(id: placed_ids)
+                  .or(Catch.where(status: :needs_review, user_id: club_member_ids))
+                  .or(Catch.where(status: :disqualified, user_id: club_member_ids))
+                  .includes(:user, :species, :catch_placements, :judge_actions)
+                  .find(params[:catch_id] || params[:id])
   end
 end

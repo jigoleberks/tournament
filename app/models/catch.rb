@@ -4,9 +4,49 @@ class Catch < ApplicationRecord
   belongs_to :species
   belongs_to :logged_by_user, class_name: "User", optional: true
   has_one_attached :photo
+  has_one_attached :reference_photo       # admin-added photo that supersedes the original for display
   has_one_attached :video                 # not used in Phase 1; reserved for Phase 2
   has_many :catch_placements, dependent: :destroy
   has_many :judge_actions, dependent: :destroy
+
+  # The photo shown to viewers. An admin-added reference photo supersedes the
+  # angler's original submission for display; the original stays visible to
+  # staff on the judge review page.
+  def display_photo
+    reference_photo.attached? ? reference_photo : photo
+  end
+
+  # Single source of truth for the override-or-inside geofence decision shared by
+  # ComputeFlags, PlaceInSlots, and SlotPlacement: the catch satisfies the named
+  # region (:lake or :sask) when a judge has overridden that region's boundary
+  # for this catch, or its coordinates actually fall inside it. Callers handle
+  # the no-location (latitude nil) case themselves.
+  def in_geofence?(region)
+    overridden = region == :lake ? override_in_lake? : override_in_sask?
+    overridden || ::Geofence.includes?(region, latitude, longitude)
+  end
+
+  # Atomically add `flag` to the flags array in a single UPDATE (no-op if it's
+  # already present). The previous `flags + [...]` then `update_columns` pattern
+  # was a read-modify-write from an in-memory snapshot: two concurrent flag
+  # writers (e.g. FlagImportedPhotoJob and a teammate's FlagDuplicates touching
+  # the same row) could each read the old array and clobber the other's flag.
+  # `array_append` in one statement closes that window. When `bump_to_review` is
+  # set, a still-synced catch is moved to needs_review in the same statement —
+  # guarded on the *current* status so a concurrent judge decision is never
+  # overwritten. Does not refresh this in-memory instance.
+  def add_flag!(flag, bump_to_review: false)
+    quoted = self.class.connection.quote(flag)
+    set_sql = "flags = array_append(flags, #{quoted}::text)"
+    if bump_to_review
+      synced = self.class.statuses["synced"]
+      review = self.class.statuses["needs_review"]
+      set_sql += ", status = CASE WHEN status = #{synced} THEN #{review} ELSE status END"
+    end
+    self.class.where(id: id)
+              .where.not("flags @> ARRAY[?]::text[]", flag)
+              .update_all(set_sql)
+  end
 
   enum :status, {
     pending_sync: 0,
@@ -24,7 +64,10 @@ class Catch < ApplicationRecord
     "other" => 200
   }.freeze
   PHOTO_CONTENT_TYPES = %w[image/jpeg image/png image/heic image/heif image/webp].freeze
-  PHOTO_MAX_BYTES = 25.megabytes
+  # Native full-res phone cameras can produce 100+ MP stills; a single
+  # high-res shot can reach ~20 MB, and a 200 MP sensor more. 50 MB leaves
+  # headroom so a legitimate full-resolution catch photo is never rejected.
+  PHOTO_MAX_BYTES = 50.megabytes
 
   validates :length_inches, numericality: { greater_than: 0 }
   validates :length_unit, inclusion: { in: %w[inches centimeters] }
@@ -32,6 +75,7 @@ class Catch < ApplicationRecord
   validates :client_uuid, presence: true, uniqueness: true
   validate :photo_must_be_attached
   validate :photo_within_limits
+  validate :reference_photo_within_limits
   validate :length_within_species_cap
   validates :note, length: { maximum: 500 }, allow_blank: true
 
@@ -96,12 +140,25 @@ class Catch < ApplicationRecord
   end
 
   def photo_within_limits
-    return unless photo.attached?
-    unless PHOTO_CONTENT_TYPES.include?(photo.content_type)
-      errors.add(:photo, "must be a JPEG, PNG, HEIC, or WebP image")
+    attachment_within_limits(photo, :photo)
+  end
+
+  # An admin-uploaded reference photo supersedes the original as display_photo for
+  # every viewer and is run through libvips variants on render, so it needs the
+  # same content-type/size gate as the original — the form's accept= is
+  # client-side only and a non-image would 500 the catch list/detail pages.
+  def reference_photo_within_limits
+    attachment_within_limits(reference_photo, :reference_photo)
+  end
+
+  # Shared content-type/size gate for both the original and reference photo.
+  def attachment_within_limits(attachment, field)
+    return unless attachment.attached?
+    unless PHOTO_CONTENT_TYPES.include?(attachment.content_type)
+      errors.add(field, "must be a JPEG, PNG, HEIC, or WebP image")
     end
-    if photo.byte_size.to_i > PHOTO_MAX_BYTES
-      errors.add(:photo, "is larger than #{PHOTO_MAX_BYTES / 1.megabyte}MB")
+    if attachment.byte_size.to_i > PHOTO_MAX_BYTES
+      errors.add(field, "is larger than #{PHOTO_MAX_BYTES / 1.megabyte}MB")
     end
   end
 
