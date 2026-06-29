@@ -5,6 +5,12 @@ class FlagImportedPhotoJob < ApplicationJob
   # was logged (take photo -> fill length -> submit). An imported gallery
   # photo carries a much earlier capture time. Flag for judge review when the
   # gap exceeds this window. Soft posture: flag, don't block.
+  #
+  # NOTE: captured_at_device is the *submit* timestamp, not photo-capture time,
+  # so this measures photo-to-submit duration. A slow-but-honest submit (>5 min
+  # to handle/measure the fish on weak signal) can therefore be flagged as
+  # imported. Accepted by decision (2026-06-28): consistent with the soft
+  # posture — it only adds a flag for a judge to clear, never blocks.
   IMPORT_WINDOW = 5.minutes
 
   def perform(catch_id:)
