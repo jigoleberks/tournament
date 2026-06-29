@@ -7,9 +7,7 @@ module Catches
       neighbors = ::Catch.where(user_id: user_ids, captured_at_device: window).where.not(id: catch.id)
       neighbors.find_each do |neighbor|
         next if neighbor.flags.include?("possible_duplicate")
-        new_flags = neighbor.flags + ["possible_duplicate"]
-        new_status = neighbor.status == "synced" ? ::Catch.statuses["needs_review"] : ::Catch.statuses[neighbor.status]
-        neighbor.update_columns(flags: new_flags, status: new_status)
+        neighbor.add_flag!("possible_duplicate", bump_to_review: true)
       end
     end
   end

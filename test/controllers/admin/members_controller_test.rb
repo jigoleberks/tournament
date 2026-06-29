@@ -172,6 +172,17 @@ class Admin::MembersControllerTest < ActionDispatch::IntegrationTest
     assert_select "form[action=?]", purge_admin_member_path(@member), count: 0
   end
 
+  test "index hides Delete button for a deactivated member who logged catches for a teammate" do
+    @member.update!(deactivated_at: 1.day.ago)
+    # Catch belongs to @organizer but was logged *by* @member — not in
+    # @member.catches, but still an FK that blocks purge.
+    create(:catch, user: @organizer, logged_by_user_id: @member.id)
+    sign_in_as(@admin)
+    get admin_members_path
+    assert_response :success
+    assert_select "form[action=?]", purge_admin_member_path(@member), count: 0
+  end
+
   test "index hides Delete button from non-admin organizer" do
     @member.update!(deactivated_at: 1.day.ago)
     sign_in_as(@organizer)

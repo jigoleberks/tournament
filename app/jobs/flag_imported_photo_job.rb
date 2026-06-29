@@ -17,13 +17,11 @@ class FlagImportedPhotoJob < ApplicationJob
     return if captured_at.nil? # no usable EXIF capture time — can't tell
     return if (catch_record.captured_at_device - captured_at).abs <= IMPORT_WINDOW
 
-    new_flags = catch_record.flags + ["imported_photo"]
     # Bump an auto-synced catch into review so staff see the import flag — but
     # never override a human decision. A synced catch a judge has already acted
     # on was deliberately approved; re-opening it here would silently undo the
     # approval (and leave no JudgeAction trail), so only bump untouched catches.
     bump = catch_record.status == "synced" && !catch_record.judge_actions.exists?
-    new_status = bump ? Catch.statuses["needs_review"] : Catch.statuses[catch_record.status]
-    catch_record.update_columns(flags: new_flags, status: new_status)
+    catch_record.add_flag!("imported_photo", bump_to_review: bump)
   end
 end

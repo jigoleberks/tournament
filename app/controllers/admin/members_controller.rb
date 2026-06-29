@@ -3,6 +3,14 @@ class Admin::MembersController < Admin::BaseController
 
   def index
     @users = current_club.members.includes(:club_memberships).order(:deactivated_at, :name)
+    # Members with any catch FK (logged by them, or logged *for* them by a
+    # teammate) can't be purged — mirror MembersController#purge's guard so the
+    # Delete button only shows when the destroy! would actually succeed.
+    member_ids = @users.map(&:id)
+    @member_ids_with_catches = (
+      Catch.where(user_id: member_ids).distinct.pluck(:user_id) +
+      Catch.where(logged_by_user_id: member_ids).distinct.pluck(:logged_by_user_id)
+    ).to_set
   end
 
   def new

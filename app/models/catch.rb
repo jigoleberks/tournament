@@ -26,6 +26,28 @@ class Catch < ApplicationRecord
     overridden || ::Geofence.includes?(region, latitude, longitude)
   end
 
+  # Atomically add `flag` to the flags array in a single UPDATE (no-op if it's
+  # already present). The previous `flags + [...]` then `update_columns` pattern
+  # was a read-modify-write from an in-memory snapshot: two concurrent flag
+  # writers (e.g. FlagImportedPhotoJob and a teammate's FlagDuplicates touching
+  # the same row) could each read the old array and clobber the other's flag.
+  # `array_append` in one statement closes that window. When `bump_to_review` is
+  # set, a still-synced catch is moved to needs_review in the same statement —
+  # guarded on the *current* status so a concurrent judge decision is never
+  # overwritten. Does not refresh this in-memory instance.
+  def add_flag!(flag, bump_to_review: false)
+    quoted = self.class.connection.quote(flag)
+    set_sql = "flags = array_append(flags, #{quoted}::text)"
+    if bump_to_review
+      synced = self.class.statuses["synced"]
+      review = self.class.statuses["needs_review"]
+      set_sql += ", status = CASE WHEN status = #{synced} THEN #{review} ELSE status END"
+    end
+    self.class.where(id: id)
+              .where.not("flags @> ARRAY[?]::text[]", flag)
+              .update_all(set_sql)
+  end
+
   enum :status, {
     pending_sync: 0,
     synced:       1,

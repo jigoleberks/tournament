@@ -27,6 +27,40 @@ class CatchTest < ActiveSupport::TestCase
     assert_not duplicate.valid?
   end
 
+  test "add_flag! appends the flag" do
+    catch_record = create(:catch, user: @user, species: @walleye)
+    catch_record.add_flag!("imported_photo")
+    assert_includes catch_record.reload.flags, "imported_photo"
+  end
+
+  test "add_flag! is idempotent" do
+    catch_record = create(:catch, user: @user, species: @walleye)
+    catch_record.add_flag!("imported_photo")
+    catch_record.add_flag!("imported_photo")
+    assert_equal ["imported_photo"], catch_record.reload.flags
+  end
+
+  test "add_flag! does not clobber a flag added concurrently after the instance was loaded" do
+    catch_record = create(:catch, user: @user, species: @walleye)
+    # Simulate a second writer (e.g. a teammate's FlagDuplicates) appending a
+    # flag to the row after this instance snapshotted flags == [].
+    Catch.where(id: catch_record.id).update_all("flags = ARRAY['possible_duplicate']::text[]")
+    catch_record.add_flag!("imported_photo")
+    assert_equal %w[possible_duplicate imported_photo].sort, catch_record.reload.flags.sort
+  end
+
+  test "add_flag! with bump_to_review moves a synced catch to needs_review" do
+    catch_record = create(:catch, user: @user, species: @walleye, status: :synced)
+    catch_record.add_flag!("imported_photo", bump_to_review: true)
+    assert catch_record.reload.needs_review?
+  end
+
+  test "add_flag! with bump_to_review leaves a non-synced catch's status untouched" do
+    catch_record = create(:catch, user: @user, species: @walleye, status: :disqualified)
+    catch_record.add_flag!("imported_photo", bump_to_review: true)
+    assert catch_record.reload.disqualified?
+  end
+
   test "can attach a photo" do
     catch_record = build(:catch, user: @user, species: @walleye)
     catch_record.photo.attach(
