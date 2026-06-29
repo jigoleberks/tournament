@@ -139,13 +139,6 @@ class CatchesController < ApplicationController
 
   private
 
-  # Adding a reference photo is a site-admin power (like GPS correction on the
-  # judge page), not a per-club role — mirrors Judges::CatchesController's
-  # require_admin! gate on the same action.
-  def require_site_admin!
-    head :forbidden unless current_user&.admin?
-  end
-
   def resolve_teammate_or_redirect
     id = params[:teammate_user_id].presence
     return nil unless id

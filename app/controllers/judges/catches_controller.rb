@@ -4,7 +4,7 @@ class Judges::CatchesController < Judges::BaseController
   skip_before_action :require_judge!, only: REVIEWER_ACTIONS
   before_action :require_reviewer!, only: REVIEWER_ACTIONS
   before_action :load_catch!, only: %i[show geofence_override correct_location reinstate]
-  before_action :require_admin!, only: %i[correct_location]
+  before_action :require_site_admin!, only: %i[correct_location]
 
   def index
     @catches = judgeable_catches
@@ -49,9 +49,5 @@ class Judges::CatchesController < Judges::BaseController
 
   def redirect_to_catch(alert: nil)
     redirect_to judges_tournament_catch_path(tournament_id: @tournament.id, id: @catch.id), alert: alert
-  end
-
-  def require_admin!
-    head :forbidden unless current_user&.admin?
   end
 end

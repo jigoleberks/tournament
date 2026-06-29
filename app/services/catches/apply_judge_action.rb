@@ -39,11 +39,7 @@ module Catches
         when :flag
           @catch.update!(status: :needs_review)
         when :disqualify
-          # Lock affected entries in id order so concurrent PlaceInSlots /
-          # other judge actions don't deadlock with us.
-          entry_ids = @catch.catch_placements.active.pluck(:tournament_entry_id).uniq.sort
-          entry_ids.each { |id| TournamentEntry.lock.find(id) }
-
+          lock_entries!(@catch.catch_placements.active.pluck(:tournament_entry_id))
           freed = @catch.catch_placements.active.to_a
           @catch.catch_placements.active.update_all(active: false)
           @catch.update!(status: :disqualified)
@@ -67,34 +63,14 @@ module Catches
 
           if @species_id && @species_id != prior_species
             @notify_owner = true
-            # Lock the union of (entries currently holding placements for this
-            # catch) and (entries the inner PlaceInSlots will iterate at
-            # @catch.captured_at_device), in id-asc order. Locking only the
-            # first set would let PlaceInSlots later acquire an intermediate
-            # entry id while a concurrent PlaceInSlots in another transaction
-            # holds it and waits for one of ours — a deadlock.
-            current_entry_ids = @catch.catch_placements.active.pluck(:tournament_entry_id)
-            reachable_entry_ids = ::Tournaments::ActiveForUser
-              .with_entries(user: @catch.user, at: @catch.captured_at_device)
-              .map { |row| row[:entry].id }
-            (current_entry_ids + reachable_entry_ids).uniq.sort.each do |id|
-              TournamentEntry.lock.find(id)
-            end
-
-            freed = @catch.catch_placements.active.to_a
-            @catch.catch_placements.active.update_all(active: false)
+            # Update species first, then rebuild placements from scratch so
+            # PlaceInSlots ranks/places the catch under the NEW species. The
+            # lock set (current + reachable entries) is independent of species,
+            # so computing it inside deactivate_and_replace! after the update is
+            # equivalent — and PlaceInSlots only places where the user has an
+            # entry at captured_at_device and a slot exists for the new species.
             @catch.update!(species_id: @species_id)
-            freed.each { |p| Catches::ReconcileFreedSlot.call(placement: p) }
-
-            # Re-place the catch under the new species. PlaceInSlots will only
-            # place in tournaments where the user has an entry at captured_at_device
-            # AND there's a scoring slot for the new species; otherwise the catch
-            # stays unplaced.
-            # broadcast: false — we're inside ApplyJudgeAction's outer transaction.
-            # The caller's post-transaction broadcast at the bottom of #call covers
-            # any newly-affected tournaments. Broadcasting here would expose
-            # pre-commit state to subscribers via separate DB connections.
-            Catches::PlaceInSlots.call(catch: @catch, broadcast: false)
+            deactivate_and_replace!
           end
 
           if @slot_index && @entry_id
@@ -148,11 +124,9 @@ module Catches
           prior_dq = ::JudgeAction.where(catch_id: @catch.id, action: ::JudgeAction.actions[:disqualify])
                                   .order(:created_at).last
           restored_status = prior_dq&.before_state&.dig("status") || "synced"
-          # Lock entries PlaceInSlots will iterate (in id order) before re-placing.
-          ::Tournaments::ActiveForUser
-            .with_entries(user: @catch.user, at: @catch.captured_at_device)
-            .map { |row| row[:entry].id }.uniq.sort
-            .each { |id| TournamentEntry.lock.find(id) }
+          # A DQ'd catch has no active placements to free; just lock the entries
+          # PlaceInSlots will iterate before re-placing.
+          lock_entries!(reachable_entry_ids)
           @catch.update!(status: restored_status)
           @notify_owner = true
           ::Catches::PlaceInSlots.call(catch: @catch, broadcast: false)
@@ -203,28 +177,35 @@ module Catches
     end
 
     # Re-derive the persisted flags column after a location/override change.
-    # ComputeFlags only owns the location/time/duplicate flags; imported_photo is
-    # set out-of-band by FlagImportedPhotoJob and would be silently wiped by a
-    # full overwrite, so carry it across the recompute.
+    # ComputeFlags.recompute preserves out-of-band flags (e.g. imported_photo)
+    # it doesn't own, so we never have to maintain a carry-over list here.
     def recompute_flags!
-      recomputed = ::Catches::ComputeFlags.call(@catch)
-      recomputed << "imported_photo" if @catch.flags.include?("imported_photo")
-      @catch.update!(flags: recomputed)
+      @catch.update!(flags: ::Catches::ComputeFlags.recompute(@catch))
+    end
+
+    # Lock the given entry ids in ascending order. Consistent ordering keeps
+    # concurrent PlaceInSlots / other judge actions from deadlocking with us.
+    def lock_entries!(entry_ids)
+      entry_ids.uniq.sort.each { |id| TournamentEntry.lock.find(id) }
+    end
+
+    # Entries PlaceInSlots will iterate when re-placing this catch at its
+    # captured_at_device — must be locked alongside the entries it currently
+    # occupies, or a concurrent PlaceInSlots could grab an intermediate id we
+    # later need while holding one we're waiting on.
+    def reachable_entry_ids
+      ::Tournaments::ActiveForUser
+        .with_entries(user: @catch.user, at: @catch.captured_at_device)
+        .map { |row| row[:entry].id }
     end
 
     # Drop the catch's active placements, promote backups into the freed slots,
-    # then re-place the catch under its current state. Mirrors the species-change
-    # path: a changed location or override can make the catch newly (in)eligible,
-    # so we must rebuild placements from scratch. Locks the union of entries the
-    # catch currently occupies and entries PlaceInSlots will iterate, in id order,
-    # to avoid deadlocks with concurrent placement.
+    # then re-place the catch under its current state. A changed location,
+    # override, or species can make the catch newly (in)eligible, so placements
+    # are rebuilt from scratch. Used by geofence_override, correct_location, and
+    # the species-change branch of manual_override.
     def deactivate_and_replace!
-      current_entry_ids = @catch.catch_placements.active.pluck(:tournament_entry_id)
-      reachable_entry_ids = ::Tournaments::ActiveForUser
-        .with_entries(user: @catch.user, at: @catch.captured_at_device)
-        .map { |row| row[:entry].id }
-      (current_entry_ids + reachable_entry_ids).uniq.sort.each { |id| TournamentEntry.lock.find(id) }
-
+      lock_entries!(@catch.catch_placements.active.pluck(:tournament_entry_id) + reachable_entry_ids)
       freed = @catch.catch_placements.active.to_a
       @catch.catch_placements.active.update_all(active: false)
       freed.each { |p| ::Catches::ReconcileFreedSlot.call(placement: p) }

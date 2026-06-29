@@ -1,5 +1,5 @@
 class Admin::MembersController < Admin::BaseController
-  before_action :require_admin!, only: [:edit, :update, :destroy, :reactivate, :purge]
+  before_action :require_site_admin!, only: [:edit, :update, :destroy, :reactivate, :purge]
 
   def index
     @users = current_club.members.includes(:club_memberships).order(:deactivated_at, :name)
@@ -115,9 +115,5 @@ class Admin::MembersController < Admin::BaseController
 
   def edit_params
     params.require(:user).permit(:name, :email)
-  end
-
-  def require_admin!
-    head :forbidden unless current_user&.admin?
   end
 end
