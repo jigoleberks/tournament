@@ -10,10 +10,13 @@ module Catches
   #     false "imported" flag), or
   #   - anything that fails to parse.
   class PhotoCaptureTime
-    def self.call(catch_record)
+    # `image:` lets a caller that already decoded the photo (e.g.
+    # FlagImportedPhotoJob, which also runs ScreenshotSignature over the same
+    # blob) reuse it instead of forcing a second download + decode.
+    def self.call(catch_record, image: nil)
       return nil unless catch_record.photo.attached?
 
-      image = ::Vips::Image.new_from_buffer(catch_record.photo.download, "")
+      image ||= ::Vips::Image.new_from_buffer(catch_record.photo.download, "")
       datetime = exif_value(image, "exif-ifd2-DateTimeOriginal")
       offset   = exif_value(image, "exif-ifd2-OffsetTimeOriginal")
       return nil if datetime.nil? || offset.nil?

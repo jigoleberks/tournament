@@ -25,26 +25,36 @@ class FlagImportedPhotoJob < ApplicationJob
     # and the SQL bump is itself guarded on the *current* status.
     bump = catch_record.status == "synced" && !catch_record.judge_actions.exists?
 
-    flag_imported(catch_record, bump)
-    flag_screenshot(catch_record, bump)
+    # Decode the photo once; both detectors below read the same blob via vips,
+    # so passing the image through avoids a second download + decode.
+    image = load_image(catch_record)
+
+    flag_imported(catch_record, image, bump)
+    flag_screenshot(catch_record, image, bump)
   end
 
   private
 
-  def flag_imported(catch_record, bump)
+  def load_image(catch_record)
+    ::Vips::Image.new_from_buffer(catch_record.photo.download, "")
+  rescue ::StandardError
+    nil # let each detector fall back / no-op; a bad blob just stays unflagged
+  end
+
+  def flag_imported(catch_record, image, bump)
     return if catch_record.flags.include?("imported_photo")
     return unless catch_record.captured_at_device
 
-    captured_at = Catches::PhotoCaptureTime.call(catch_record)
+    captured_at = Catches::PhotoCaptureTime.call(catch_record, image: image)
     return if captured_at.nil? # no usable EXIF capture time — can't tell
     return if (catch_record.captured_at_device - captured_at).abs <= IMPORT_WINDOW
 
     catch_record.add_flag!("imported_photo", bump_to_review: bump)
   end
 
-  def flag_screenshot(catch_record, bump)
+  def flag_screenshot(catch_record, image, bump)
     return if catch_record.flags.include?("screenshot_suspect")
-    return unless Catches::ScreenshotSignature.call(catch_record)
+    return unless Catches::ScreenshotSignature.call(catch_record, image: image)
 
     catch_record.add_flag!("screenshot_suspect", bump_to_review: bump)
   end

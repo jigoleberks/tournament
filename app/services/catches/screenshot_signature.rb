@@ -15,10 +15,13 @@ module Catches
   # path that emits progressive JPEGs would false-positive. Re-verify the
   # fingerprint if members' capture habits change.
   class ScreenshotSignature
-    def self.call(catch_record)
+    # `image:` lets a caller that already decoded the photo (e.g.
+    # FlagImportedPhotoJob, which also runs PhotoCaptureTime over the same blob)
+    # reuse it instead of forcing a second download + decode.
+    def self.call(catch_record, image: nil)
       return false unless catch_record.photo.attached?
 
-      image = ::Vips::Image.new_from_buffer(catch_record.photo.download, "")
+      image ||= ::Vips::Image.new_from_buffer(catch_record.photo.download, "")
       image.get_typeof("jpeg-multiscan") != 0 && image.get("jpeg-multiscan").to_i == 1
     rescue ::StandardError
       false
