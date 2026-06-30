@@ -16,6 +16,22 @@ class FlagImportedPhotoJob < ApplicationJob
   def perform(catch_id:)
     catch_record = Catch.find_by(id: catch_id)
     return unless catch_record&.photo&.attached?
+
+    # Bump an auto-synced catch into review so staff see the flag — but never
+    # override a human decision. A synced catch a judge has already acted on was
+    # deliberately approved; re-opening it here would silently undo the approval
+    # (and leave no JudgeAction trail), so only bump untouched catches. Computed
+    # once from the original state — add_flag! does not refresh this instance,
+    # and the SQL bump is itself guarded on the *current* status.
+    bump = catch_record.status == "synced" && !catch_record.judge_actions.exists?
+
+    flag_imported(catch_record, bump)
+    flag_screenshot(catch_record, bump)
+  end
+
+  private
+
+  def flag_imported(catch_record, bump)
     return if catch_record.flags.include?("imported_photo")
     return unless catch_record.captured_at_device
 
@@ -23,11 +39,13 @@ class FlagImportedPhotoJob < ApplicationJob
     return if captured_at.nil? # no usable EXIF capture time — can't tell
     return if (catch_record.captured_at_device - captured_at).abs <= IMPORT_WINDOW
 
-    # Bump an auto-synced catch into review so staff see the import flag — but
-    # never override a human decision. A synced catch a judge has already acted
-    # on was deliberately approved; re-opening it here would silently undo the
-    # approval (and leave no JudgeAction trail), so only bump untouched catches.
-    bump = catch_record.status == "synced" && !catch_record.judge_actions.exists?
     catch_record.add_flag!("imported_photo", bump_to_review: bump)
+  end
+
+  def flag_screenshot(catch_record, bump)
+    return if catch_record.flags.include?("screenshot_suspect")
+    return unless Catches::ScreenshotSignature.call(catch_record)
+
+    catch_record.add_flag!("screenshot_suspect", bump_to_review: bump)
   end
 end

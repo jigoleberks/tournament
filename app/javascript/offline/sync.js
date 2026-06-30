@@ -28,7 +28,7 @@ async function drain() {
         if (rec.note) fd.append("catch[note]", rec.note)
         if (rec.tag_number) fd.append("catch[tag_number]", rec.tag_number)
         if (rec.weight_text) fd.append("catch[weight_text]", rec.weight_text)
-        if (rec.photo) fd.append("catch[photo]", rec.photo, "photo.jpg")
+        if (rec.photo) fd.append("catch[photo]", rec.photo, rec.photo.name || "photo.jpg")
         if (rec.video) {
           const ext = (rec.video.type || "").includes("mp4") ? "mp4" : "webm"
           fd.append("catch[video]", rec.video, `video.${ext}`)
