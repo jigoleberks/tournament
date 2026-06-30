@@ -109,7 +109,7 @@ module CatchesHelper
 
   # Flags judges/organizers see but members must not — either to avoid tipping
   # off a cheater or falsely accusing an honest member of one.
-  REVIEW_ONLY_FLAGS = %w[possible_duplicate imported_photo].freeze
+  REVIEW_ONLY_FLAGS = %w[possible_duplicate imported_photo screenshot_suspect].freeze
 
   # Member-facing flag list: drops review-only flags unless the current viewer
   # is staff for this catch. The early return keeps the common case (no
@@ -127,7 +127,8 @@ module CatchesHelper
     "out_of_bounds"      => "outside local",
     "out_of_province"    => "outside Saskatchewan",
     "possible_duplicate" => "possible duplicate",
-    "imported_photo"     => "imported photo"
+    "imported_photo"     => "imported photo",
+    "screenshot_suspect" => "possible screenshot"
   }.freeze
 
   def flag_label(flag)

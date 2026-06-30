@@ -4,8 +4,9 @@ module Catches
     DUPLICATE_WINDOW = 90.seconds
 
     # Flags computed from catch state by .call. Any flag on a catch that is NOT
-    # in this set was written out-of-band (e.g. imported_photo by
-    # FlagImportedPhotoJob) and must survive a recompute — see .recompute.
+    # in this set was written out-of-band (e.g. imported_photo and
+    # screenshot_suspect by FlagImportedPhotoJob) and must survive a recompute —
+    # see .recompute.
     OWNED_FLAGS = %w[missing_gps clock_skew out_of_bounds out_of_province possible_duplicate].freeze
 
     def self.call(catch_record)

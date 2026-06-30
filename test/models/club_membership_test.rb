@@ -42,4 +42,9 @@ class ClubMembershipTest < ActiveSupport::TestCase
     membership.update!(deactivated_at: Time.current)
     assert membership.deactivated?
   end
+
+  test "show_banner defaults to false" do
+    membership = ClubMembership.create!(user: @user, club: @club, role: :member)
+    assert_equal false, membership.show_banner
+  end
 end

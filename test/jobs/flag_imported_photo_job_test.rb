@@ -84,6 +84,44 @@ class FlagImportedPhotoJobTest < ActiveJob::TestCase
     assert_equal "synced", catch_record.status, "must not undo a judge's approval"
   end
 
+  test "flags screenshot_suspect and bumps a synced catch to needs_review for a progressive JPEG" do
+    catch_record = catch_with(file: "screenshot_progressive.jpg", captured_at: Time.utc(2026, 6, 1, 12, 0, 0))
+
+    FlagImportedPhotoJob.perform_now(catch_id: catch_record.id)
+
+    catch_record.reload
+    assert_includes catch_record.flags, "screenshot_suspect"
+    assert_equal "needs_review", catch_record.status
+  end
+
+  test "does not flag screenshot_suspect for a baseline JPEG" do
+    catch_record = catch_with(file: "sample_walleye.jpg", captured_at: Time.utc(2026, 6, 1, 12, 0, 0))
+
+    FlagImportedPhotoJob.perform_now(catch_id: catch_record.id)
+
+    refute_includes catch_record.reload.flags, "screenshot_suspect"
+  end
+
+  test "is idempotent — re-running does not add a duplicate screenshot_suspect flag" do
+    catch_record = catch_with(file: "screenshot_progressive.jpg", captured_at: Time.utc(2026, 6, 1, 12, 0, 0),
+                              status: :needs_review, flags: ["screenshot_suspect"])
+
+    FlagImportedPhotoJob.perform_now(catch_id: catch_record.id)
+
+    assert_equal ["screenshot_suspect"], catch_record.reload.flags
+  end
+
+  test "records screenshot_suspect but does not reopen a judge-approved (synced) catch" do
+    catch_record = catch_with(file: "screenshot_progressive.jpg", captured_at: Time.utc(2026, 6, 1, 12, 0, 0))
+    JudgeAction.create!(judge_user: @judge, catch: catch_record, action: :approve)
+
+    FlagImportedPhotoJob.perform_now(catch_id: catch_record.id)
+
+    catch_record.reload
+    assert_includes catch_record.flags, "screenshot_suspect"
+    assert_equal "synced", catch_record.status
+  end
+
   test "does nothing for a missing catch id" do
     assert_nothing_raised { FlagImportedPhotoJob.perform_now(catch_id: -1) }
   end

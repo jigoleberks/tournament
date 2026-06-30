@@ -58,6 +58,7 @@ Rails.application.routes.draw do
         resources :rules, only: [:index, :show] do
           collection { get :history }
         end
+        resource :banner, only: [:edit, :update], controller: "banners"
       end
     end
     resources :tournaments do

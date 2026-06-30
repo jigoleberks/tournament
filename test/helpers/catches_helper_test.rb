@@ -85,6 +85,22 @@ class CatchesHelperTest < ActionView::TestCase
     assert_equal "outside Saskatchewan", flag_label("out_of_province")
   end
 
+  test "flag_label renders screenshot_suspect as 'possible screenshot'" do
+    assert_equal "possible screenshot", flag_label("screenshot_suspect")
+  end
+
+  test "visible_flags_for hides screenshot_suspect from a non-reviewing member" do
+    catch_record = Catch.new(flags: %w[missing_gps screenshot_suspect])
+    define_singleton_method(:can_review_catch?) { |_| false }
+    assert_equal %w[missing_gps], visible_flags_for(catch_record)
+  end
+
+  test "visible_flags_for shows screenshot_suspect to staff" do
+    catch_record = Catch.new(flags: %w[missing_gps screenshot_suspect])
+    define_singleton_method(:can_review_catch?) { |_| true }
+    assert_equal %w[missing_gps screenshot_suspect], visible_flags_for(catch_record)
+  end
+
   # --- JPEG-variant photo display helpers (iOS HEIC support) ---
 
   def attached_photo(path: "test/fixtures/files/sample_walleye.jpg", content_type: "image/jpeg", filename: "sample_walleye.jpg")

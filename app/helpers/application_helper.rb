@@ -25,6 +25,16 @@ module ApplicationHelper
     formatted.end_with?(".0") ? formatted.chomp(".0") : formatted
   end
 
+  BANNER_STRIP_CLASSES = {
+    "info"  => "bg-yellow-500/20 border-yellow-500/40 text-yellow-200",
+    "good"  => "bg-emerald-500/20 border-emerald-500/40 text-emerald-200",
+    "alert" => "bg-red-500/20 border-red-500/40 text-red-200",
+  }.freeze
+
+  def banner_strip_classes(style)
+    BANNER_STRIP_CLASSES.fetch(style.to_s, BANNER_STRIP_CLASSES["info"])
+  end
+
   private
 
   def format_tournament_moment(time)
