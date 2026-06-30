@@ -12,7 +12,10 @@ class Admin::Clubs::BannersController < Admin::Clubs::BaseController
       memberships.where.not(user_id: selected_ids).update_all(show_banner: false)
     end
     redirect_to admin_club_path(@foreign_club), notice: "Banner updated."
-  rescue ActiveRecord::RecordInvalid
+  rescue ActiveRecord::RecordInvalid, ArgumentError
+    # ArgumentError: an out-of-range banner_style (the <select> is bypassable)
+    # raises on enum assignment, before any validation runs. The transaction
+    # rolls back, so nothing is half-persisted; re-render the editor as a 422.
     @memberships = club_memberships
     render :edit, status: :unprocessable_entity
   end

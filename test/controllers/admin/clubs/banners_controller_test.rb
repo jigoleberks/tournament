@@ -65,6 +65,21 @@ class Admin::Clubs::BannersControllerTest < ActionDispatch::IntegrationTest
     assert_equal true, other_m.reload.show_banner
   end
 
+  test "update with an invalid banner_style re-renders the editor without 500ing" do
+    @target_club.update!(banner_message: "Original", banner_style: :info)
+    sign_in_as(@admin)
+    patch admin_club_banner_path(@target_club), params: {
+      club: { banner_message: "Changed", banner_style: "purple" },
+      member_ids: [@alice.id]
+    }
+    assert_response :unprocessable_entity
+
+    @target_club.reload
+    assert_equal "Original", @target_club.banner_message, "must not partially persist on a bad style"
+    assert_equal "info", @target_club.banner_style
+    assert_equal false, @alice_m.reload.show_banner, "targeting must roll back with the failed update"
+  end
+
   private
 
   def sign_in_as(user)
