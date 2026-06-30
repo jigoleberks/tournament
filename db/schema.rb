@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_06_27_000000) do
+ActiveRecord::Schema[8.1].define(version: 2026_06_30_135843) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -112,6 +112,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_27_000000) do
     t.datetime "created_at", null: false
     t.datetime "deactivated_at"
     t.integer "role", default: 0, null: false
+    t.boolean "show_banner", default: false, null: false
     t.datetime "updated_at", null: false
     t.bigint "user_id", null: false
     t.index ["club_id"], name: "index_club_memberships_on_club_id"
@@ -133,6 +134,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_27_000000) do
 
   create_table "clubs", force: :cascade do |t|
     t.integer "active_rules_season", default: 0, null: false
+    t.string "banner_message"
+    t.integer "banner_style", default: 0, null: false
     t.datetime "created_at", null: false
     t.string "name", null: false
     t.datetime "updated_at", null: false
