@@ -46,4 +46,9 @@
     <h2 class="text-xl font-semibold text-white mb-2">Rules</h2>
     <p class="text-slate-400 text-sm">Open water and ice rules, with revision history.</p>
   <% end %>
+
+  <%= link_to edit_admin_club_banner_path(@club), class: "block p-6 bg-slate-800 rounded-xl border border-slate-700 hover:border-slate-500 transition-colors" do %>
+    <h2 class="text-xl font-semibold text-white mb-2">Banner</h2>
+    <p class="text-slate-400 text-sm">A home-page message shown to selected members.</p>
+  <% end %>
 </div>
