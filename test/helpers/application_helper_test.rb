@@ -72,4 +72,24 @@ class ApplicationHelperTest < ActionView::TestCase
     assert_equal %w[Bass Walleye Zander], ordered_species.map(&:name)
     assert_same ordered_species, ordered_species, "should reuse the memoized array"
   end
+
+  test "banner_strip_classes returns the yellow set for info" do
+    assert_equal "bg-yellow-500/20 border-yellow-500/40 text-yellow-200",
+                 banner_strip_classes("info")
+  end
+
+  test "banner_strip_classes returns the green set for good" do
+    assert_equal "bg-emerald-500/20 border-emerald-500/40 text-emerald-200",
+                 banner_strip_classes("good")
+  end
+
+  test "banner_strip_classes returns the red set for alert" do
+    assert_equal "bg-red-500/20 border-red-500/40 text-red-200",
+                 banner_strip_classes("alert")
+  end
+
+  test "banner_strip_classes falls back to info for unknown values" do
+    assert_equal "bg-yellow-500/20 border-yellow-500/40 text-yellow-200",
+                 banner_strip_classes(nil)
+  end
 end

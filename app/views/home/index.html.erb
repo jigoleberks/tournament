@@ -9,6 +9,12 @@
   <ul data-pending-catches-target="list" class="text-sm text-slate-300"></ul>
 </section>
 
+<% if current_membership&.show_banner? && current_club&.banner_message.present? %>
+  <p class="<%= banner_strip_classes(current_club.banner_style) %> border rounded-lg px-3 py-2 my-2">
+    <%= current_club.banner_message %>
+  </p>
+<% end %>
+
 <div class="my-4">
   <h1 class="text-2xl font-bold mb-1"><%= ENV.fetch("APP_NAME", "Tournament") %></h1>
   <p class="text-slate-400 mb-4">Hello, <%= current_user.name %>.</p>
