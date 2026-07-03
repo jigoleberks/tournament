@@ -52,3 +52,13 @@
   <%= submit_tag "Save changes",
                  class: "w-full h-14 px-6 text-lg font-semibold rounded-lg bg-blue-600 active:bg-blue-700 text-white mt-6 cursor-pointer" %>
 <% end %>
+
+<% if current_user.admin? %>
+  <section class="bg-slate-800 rounded-xl p-4 mt-6">
+    <h2 class="text-sm uppercase tracking-wide text-slate-400 mb-3">Reference photo</h2>
+    <p class="text-xs text-slate-500 mb-3">
+      <%= catch_record.reference_photo.attached? ? "Replaces the current reference photo for all viewers." : "Shown to everyone alongside the angler's original photo." %>
+    </p>
+    <%= render "catches/reference_photo_form", catch: catch_record %>
+  </section>
+<% end %>

@@ -103,6 +103,20 @@ class Organizers::CatchesControllerTest < ActionDispatch::IntegrationTest
     assert_select "input[name=length_unit][value=inches][checked=checked]", count: 0
   end
 
+  test "site admin sees the reference-photo upload on a catch detail page" do
+    admin = create(:user, club: @club, role: :organizer, admin: true)
+    sign_in_as(admin)
+    get organizers_catch_path(@member_catch.id)
+    assert_response :success
+    assert_select "input[type=file][name=photo]"
+  end
+
+  test "non-admin organizer does not see the reference-photo upload" do
+    sign_in_as(@organizer)
+    get organizers_catch_path(@member_catch.id)
+    assert_select "input[type=file][name=photo]", count: 0
+  end
+
   test "detail page 404s for an out-of-club catch" do
     sign_in_as(@organizer)
     get organizers_catch_path(@foreign_catch.id)
