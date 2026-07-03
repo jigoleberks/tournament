@@ -23,7 +23,7 @@
     <ul class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
       <% @catches.each do |c| %>
         <li class="bg-slate-800 rounded-xl border border-slate-700 overflow-hidden hover:border-slate-500 transition-colors flex flex-col">
-          <%= link_to catch_path(c.id), class: "flex flex-col flex-1" do %>
+          <%= link_to admin_catch_path(c.id), class: "flex flex-col flex-1" do %>
           <% if c.display_photo.attached? %>
             <div class="block w-full bg-black aspect-[4/3]">
               <%= photo_full c.display_photo, class: "w-full h-full object-cover" %>

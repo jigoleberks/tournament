@@ -48,6 +48,8 @@
               <% end %>
             </div>
           </div>
+          <%= link_to "View / edit", organizers_catch_path(c.id),
+                      class: "mt-2 text-center text-xs font-medium text-blue-400 hover:text-blue-300" %>
         </li>
       <% end %>
     </ul>

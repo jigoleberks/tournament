@@ -1,0 +1,47 @@
+# Adds a per-catch detail page and length/species edit to the organizers/ and
+# admin/ catch controllers. Both surfaces are organizer-gated (see their base
+# controllers) and scoped to the current club's members. Edits delegate to
+# Catches::ApplyJudgeAction with tournament: nil — the manual_override path
+# already re-places/rebalances across every tournament the catch is in and
+# writes a JudgeAction audit row.
+module CatchDetailEditing
+  extend ActiveSupport::Concern
+  include LengthParamParsing
+
+  included do
+    before_action :load_editable_catch, only: [:show, :update]
+
+    # A bad length/species edit (e.g. length below a species floor) surfaces as
+    # RecordInvalid out of ApplyJudgeAction; redirect back to the catch with the
+    # validation message instead of a raw 500. Mirrors Judges::BaseController.
+    rescue_from ActiveRecord::RecordInvalid do |error|
+      raise error unless @catch
+      redirect_to url_for(action: :show, id: @catch.id),
+                  alert: "Couldn't apply that change: #{error.record.errors.full_messages.to_sentence}"
+    end
+  end
+
+  def show
+  end
+
+  def update
+    Catches::ApplyJudgeAction.call(
+      tournament: nil, catch: @catch, judge: current_user, action: :manual_override,
+      note: params[:note],
+      length_inches: resolved_length_inches,
+      length_unit: resolved_length_unit,
+      species_id: params[:species_id].presence&.to_i
+    )
+    redirect_to url_for(action: :show, id: @catch.id), notice: "Catch updated."
+  end
+
+  private
+
+  # Only catches owned by a member of the current club are editable; anything
+  # else raises RecordNotFound (→ 404).
+  def load_editable_catch
+    @catch = Catch.where(user_id: current_club.members.select(:id))
+                  .includes(:user, :species, :catch_placements)
+                  .find(params[:id])
+  end
+end

@@ -452,6 +452,78 @@ module Catches
       assert_equal 0, t2.catch_placements.where(catch_id: @catch.id, active: true).count
     end
 
+    test "tournament: nil length-shrink re-scores across all tournaments the catch is in" do
+      # @catch (walleye 20) is placed in @t (slot_count 1). Enter @user in a
+      # second walleye tournament and place @catch there too. A backup owned by
+      # @user (16") loses to @catch's 20" in BOTH tournaments. Shrinking @catch to
+      # 10" via a nil-tournament override must demote it and promote the backup in
+      # BOTH tournaments — proving the edit re-scores every tournament the catch
+      # touches, not just one.
+      backup = create(:catch, user: @user, species: @walleye, length_inches: 16,
+                              captured_at_device: 30.minutes.ago)
+
+      t2 = create(:tournament, club: @club, starts_at: 1.hour.ago, ends_at: 1.hour.from_now)
+      create(:scoring_slot, tournament: t2, species: @walleye, slot_count: 1)
+      entry2 = create(:tournament_entry, tournament: t2)
+      create(:tournament_entry_member, tournament_entry: entry2, user: @user)
+      Catches::PlaceInSlots.call(catch: @catch)   # place @catch in t2 too (already in @t)
+      Catches::PlaceInSlots.call(catch: backup)   # loses to @catch's 20 in both
+
+      # Precondition: @catch (20") holds the walleye slot in both tournaments.
+      assert_equal @catch.id, @t.catch_placements.active.where(species: @walleye).first&.catch_id
+      assert_equal @catch.id, t2.catch_placements.active.where(species: @walleye).first&.catch_id
+
+      ApplyJudgeAction.call(tournament: nil, catch: @catch, judge: @judge,
+                            action: :manual_override, note: "remeasured", length_inches: 10)
+
+      assert_equal 10.0, @catch.reload.length_inches.to_f
+      assert_equal backup.id, @t.catch_placements.active.where(species: @walleye).first&.catch_id,
+                   "t1's walleye slot should promote the 16\" backup"
+      assert_equal backup.id, t2.catch_placements.active.where(species: @walleye).first&.catch_id,
+                   "t2's walleye slot should promote the 16\" backup"
+    end
+
+    test "tournament: nil species change re-places globally and writes an audit row" do
+      create(:scoring_slot, tournament: @t, species: @pike, slot_count: 1)
+      assert_difference "JudgeAction.count", 1 do
+        ApplyJudgeAction.call(tournament: nil, catch: @catch, judge: @judge,
+                              action: :manual_override, note: "mis-id", species_id: @pike.id)
+      end
+      @catch.reload
+      assert_equal @pike.id, @catch.species_id
+      assert @t.catch_placements.where(catch_id: @catch.id, species_id: @pike.id, active: true).exists?
+    end
+
+    test "tournament: nil length change on a fish_train tournament does not rebalance" do
+      ft_user = create(:user, club: @club)
+      ft = build(:tournament, club: @club, format: :fish_train, mode: :solo,
+                 starts_at: 1.hour.ago, ends_at: 1.hour.from_now,
+                 train_cars: [@walleye.id, @walleye.id, @walleye.id])
+      ft.scoring_slots.build(species: @walleye, slot_count: 1)
+      ft.save!
+      ft_entry = create(:tournament_entry, tournament: ft)
+      create(:tournament_entry_member, tournament_entry: ft_entry, user: ft_user)
+      c = create(:catch, user: ft_user, species: @walleye, length_inches: 12,
+                         captured_at_device: 20.minutes.ago)
+      Catches::PlaceInSlots.call(catch: c)
+      before = ft.catch_placements.active.pluck(:catch_id, :slot_index).sort
+
+      ApplyJudgeAction.call(tournament: nil, catch: c, judge: @judge,
+                            action: :manual_override, note: "remeasured", length_inches: 8)
+
+      assert_equal 8.0, c.reload.length_inches.to_f
+      assert_equal before, ft.catch_placements.active.pluck(:catch_id, :slot_index).sort,
+                   "fish_train placements must be untouched by a length edit"
+    end
+
+    test "tournament: nil manual_override sends no owner push" do
+      pushes = capture_pushes do
+        ApplyJudgeAction.call(tournament: nil, catch: @catch, judge: @judge,
+                              action: :manual_override, note: "x", length_inches: 18)
+      end
+      assert_empty pushes, "no tournament context → no push notification"
+    end
+
     test "manual_override species change with length increase bumps a smaller fish in the new-species slot" do
       create(:scoring_slot, tournament: @t, species: @pike, slot_count: 1)
 

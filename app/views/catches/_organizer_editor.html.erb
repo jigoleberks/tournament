@@ -1,0 +1,43 @@
+<%
+  # Seed the form from the catch's own logged unit (not the viewing organizer's
+  # preference) so an untouched length round-trips to the same stored value. If
+  # we defaulted to current_user.length_unit, a species- or note-only edit of a
+  # differently-unit'd catch would re-snap length_inches and flip length_unit,
+  # silently re-scoring every tournament the catch is in.
+  unit    = catch_record.length_unit
+  prefill = unit == "centimeters" ? display_cm(catch_record.length_inches, unit) : catch_record.length_inches
+  species_options = ordered_species.map { |s| [s.name, s.id] }
+%>
+
+<div class="mb-4">
+  <% if catch_record.display_photo.attached? %>
+    <%= thumb catch_record.display_photo, class: "w-full max-h-80 object-contain rounded bg-black" %>
+  <% end %>
+  <div class="mt-2 text-sm text-slate-300">
+    <div class="font-medium text-slate-100"><%= catch_record.user.name %></div>
+    <div><%= catch_record.species.name %> · <%= format_length_dual(catch_record.length_inches, catch_record.length_unit) %></div>
+    <div class="text-slate-500"><%= catch_record.captured_at_device.strftime("%b %d %Y · %l:%M %p") %></div>
+  </div>
+</div>
+
+<h2 class="text-lg font-semibold mb-2">Edit species &amp; length</h2>
+<%= form_with url: url_for(action: :update, id: catch_record.id), method: :patch,
+              local: true, data: { controller: "length-edit" } do %>
+  <%= label_tag :species_id, "Species" %>
+  <%= select_tag :species_id, options_for_select(species_options, catch_record.species_id) %>
+
+  <%= label_tag :length, "Length" %>
+  <%= number_field_tag :length, prefill, step: 0.25,
+                       data: { "length-edit-target": "input", "length-edit-unit": unit } %>
+  <% User::LENGTH_UNITS.each do |u| %>
+    <label>
+      <%= radio_button_tag :length_unit, u, u == unit, data: { action: "change->length-edit#convertUnit" } %>
+      <%= u == "inches" ? "Inches" : "Centimeters" %>
+    </label>
+  <% end %>
+
+  <%= label_tag :note, "Note (optional)" %>
+  <%= text_area_tag :note %>
+
+  <%= submit_tag "Save changes" %>
+<% end %>
