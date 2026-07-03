@@ -5,21 +5,27 @@ module Catches
 
     def self.call(tournament:, catch:, judge:, action:, note: nil,
                   length_inches: nil, length_unit: nil, species_id: nil, slot_index: nil, entry_id: nil,
-                  photo: nil, override_in_lake: nil, override_in_sask: nil, latitude: nil, longitude: nil)
+                  photo: nil, override_in_lake: nil, override_in_sask: nil, latitude: nil, longitude: nil,
+                  club: nil)
       new(tournament: tournament, catch: catch, judge: judge, action: action, note: note,
           length_inches: length_inches, length_unit: length_unit, species_id: species_id,
           slot_index: slot_index, entry_id: entry_id, photo: photo,
           override_in_lake: override_in_lake, override_in_sask: override_in_sask,
-          latitude: latitude, longitude: longitude).call
+          latitude: latitude, longitude: longitude, club: club).call
     end
 
-    def initialize(tournament:, catch:, judge:, action:, note:, length_inches:, length_unit:, species_id:, slot_index:, entry_id:, photo:, override_in_lake:, override_in_sask:, latitude:, longitude:)
+    def initialize(tournament:, catch:, judge:, action:, note:, length_inches:, length_unit:, species_id:, slot_index:, entry_id:, photo:, override_in_lake:, override_in_sask:, latitude:, longitude:, club: nil)
       @tournament, @catch, @judge, @action, @note = tournament, catch, judge, action.to_sym, note
       @length_inches, @length_unit = length_inches, length_unit
       @species_id, @slot_index, @entry_id = species_id, slot_index, entry_id
       @photo = photo
       @override_in_lake, @override_in_sask = override_in_lake, override_in_sask
       @latitude, @longitude = latitude, longitude
+      # When set (organizer/admin catch editor, tournament: nil), the acting user
+      # only has authority in this club: reconcile and broadcast are confined to
+      # its tournaments so the edit never reshuffles or re-broadcasts another
+      # club's baskets. Judge actions pass a specific @tournament and no @club.
+      @club = club
       @snapshot_old_attachment_id = nil
       @notify_owner = false
     end
@@ -93,25 +99,24 @@ module Catches
             # holds a placement. Re-derivation from the whole eligible set is correct
             # for grow and shrink alike (no shrink gating). A species change already
             # rebuilt placements via deactivate_and_replace!, so skip then.
-            ::Tournaments::ActiveForUser
+            eligible = ::Tournaments::ActiveForUser
               .with_entries(user: @catch.user, at: @catch.captured_at_device)
               .select { |r| r[:tournament].scoring_slots.exists?(species_id: @catch.species_id) }
-              .sort_by { |r| r[:entry].id }  # stable lock order
+
+            # ActiveForUser drops tournaments where the owner is now also a judge,
+            # or whose window no longer covers captured_at_device. A stale placement
+            # can still live in one of those, so union in every tournament where the
+            # catch currently holds an active placement. Keyed by entry id, so a
+            # tournament in both sets is reconciled once.
+            placed = @catch.catch_placements.active
+              .includes(tournament_entry: :tournament)
+              .map { |p| { tournament: p.tournament, entry: p.tournament_entry } }
+
+            rows = (eligible + placed).uniq { |r| r[:entry].id }
+            rows = rows.select { |r| r[:tournament].club_id == @club.id } if @club
+            rows.sort_by { |r| r[:entry].id }  # stable lock order
               .each do |r|
-                tournament, entry = r[:tournament], r[:entry]
-                if tournament.format_smallest_fish?
-                  Catches::ReconcileSmallestFish.call(tournament: tournament, entry: entry, species: @catch.species)
-                elsif tournament.format_pro_walleye?
-                  Catches::ReconcileProWalleye.call(tournament: tournament, entry: entry, species: @catch.species)
-                elsif tournament.format_biggest_vs_smallest?
-                  Catches::ReconcileBvsExtremes.call(tournament: tournament, entry: entry, species: @catch.species)
-                elsif tournament.format_fish_train? || tournament.format_hidden_length? || tournament.format_tagged?
-                  # fish_train is append-only; hidden_length/tagged keep every catch,
-                  # so a length edit never changes which catches are placed.
-                  next
-                else
-                  Catches::ReconcileStandard.call(tournament: tournament, entry: entry, species: @catch.species)
-                end
+                Catches::ReconcileBasket.call(tournament: r[:tournament], entry: r[:entry], species: @catch.species)
               end
           end
         when :add_reference_photo
@@ -155,6 +160,8 @@ module Catches
         )
 
         affected_tournaments = @catch.catch_placements.includes(:tournament).map(&:tournament).uniq
+        # A per-club editor edit only re-broadcasts its own club's leaderboards.
+        affected_tournaments.select! { |t| t.club_id == @club.id } if @club
       end
 
       # Broadcast AFTER the transaction commits so other DB connections see the
@@ -221,11 +228,15 @@ module Catches
     # are rebuilt from scratch. Used by geofence_override, correct_location, and
     # the species-change branch of manual_override.
     def deactivate_and_replace!
-      lock_entries!(@catch.catch_placements.active.pluck(:tournament_entry_id) + reachable_entry_ids)
-      freed = @catch.catch_placements.active.to_a
-      @catch.catch_placements.active.update_all(active: false)
+      # A per-club editor edit only rebuilds its own club's placements; a judge
+      # action (no @club) rebuilds every tournament the catch is in.
+      active = @catch.catch_placements.active
+      active = active.joins(:tournament).where(tournaments: { club_id: @club.id }) if @club
+      lock_entries!(active.pluck(:tournament_entry_id) + reachable_entry_ids)
+      freed = active.to_a
+      CatchPlacement.where(id: freed.map(&:id)).update_all(active: false)
       freed.each { |p| ::Catches::ReconcileFreedSlot.call(placement: p) }
-      ::Catches::PlaceInSlots.call(catch: @catch, broadcast: false)
+      ::Catches::PlaceInSlots.call(catch: @catch, broadcast: false, club: @club)
     end
 
     def snapshot

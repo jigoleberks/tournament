@@ -8,17 +8,7 @@ module Leaderboards
       # total desc → largest single fish desc → 2nd largest desc → ... →
       # earliest captured_at_device asc → entry.id asc.
       def self.call(rows)
-        max_fish = rows.map { |r| r[:fish].size }.max || 0
-        rows.sort_by do |r|
-          fish_desc = r[:fish].map { |f| f[:length_inches] }.sort.reverse
-          fish_padded = fish_desc + [0] * (max_fish - fish_desc.size)
-          [
-            -r[:total],
-            *fish_padded.map { |l| -l },
-            r[:earliest_catch_at] || FAR_FUTURE,
-            r[:entry].id
-          ]
-        end
+        TotalLengthCascade.call(rows, tier_complete: false)
       end
     end
   end

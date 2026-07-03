@@ -276,6 +276,86 @@ module Catches
       assert_not_includes active_ids, shrinker.id
     end
 
+    test "length edit reconciles a basket even when the catch owner is a judge of the tournament" do
+      # Owner is also a judge of @t, so Tournaments::ActiveForUser excludes @t.
+      # The catch's existing placement must still be reconciled on a shrink.
+      create(:tournament_judge, tournament: @t, user: @user)
+      backup = create(:catch, user: @user, species: @walleye, length_inches: 16,
+                              captured_at_device: 30.minutes.ago)
+      assert_empty backup.catch_placements
+
+      ApplyJudgeAction.call(tournament: @t, catch: @catch, judge: @judge, action: :manual_override,
+                            note: "remeasured", length_inches: 14)
+
+      active = @t.catch_placements.active.where(species: @walleye)
+      assert_equal 1, active.count
+      assert_equal backup.id, active.first.catch_id, "backup should take the slot after the shrink"
+    end
+
+    test "length edit reconciles a stale basket even when the window no longer covers the catch" do
+      # Shift @t's window into the past so captured_at_device (Time.current) now
+      # falls outside it. ActiveForUser then excludes @t, but the still-active
+      # placement must be reconciled — here dropped, since the catch is no longer
+      # in-window — rather than left inflating the leaderboard total.
+      assert @catch.catch_placements.active.exists?, "precondition: catch is placed"
+      @t.update!(starts_at: 10.minutes.ago, ends_at: 5.minutes.ago)
+
+      ApplyJudgeAction.call(tournament: @t, catch: @catch, judge: @judge, action: :manual_override,
+                            note: "remeasured", length_inches: 14)
+
+      assert_empty @t.catch_placements.active.where(species: @walleye),
+                   "the out-of-window placement is reconciled away, not left inflated"
+    end
+
+    test "length edit with club: only reconciles that club's tournaments" do
+      # Same angler entered in a second club's tournament; the catch is placed in both.
+      club_b = create(:club)
+      create(:club_membership, user: @user, club: club_b)
+      t_b = create(:tournament, club: club_b, starts_at: 1.hour.ago, ends_at: 1.hour.from_now)
+      create(:scoring_slot, tournament: t_b, species: @walleye, slot_count: 1)
+      entry_b = create(:tournament_entry, tournament: t_b)
+      create(:tournament_entry_member, tournament_entry: entry_b, user: @user)
+      @catch.catch_placements.destroy_all
+      Catches::PlaceInSlots.call(catch: @catch)  # now in @t (club A) and t_b (club B)
+      backup = create(:catch, user: @user, species: @walleye, length_inches: 16,
+                              captured_at_device: 30.minutes.ago)
+
+      # A club-A organizer edit (tournament: nil, club: @club) must not touch club B.
+      ApplyJudgeAction.call(tournament: nil, catch: @catch, judge: @judge,
+                            action: :manual_override, note: "remeasured",
+                            length_inches: 14, club: @club)
+
+      active_a = @t.catch_placements.active.where(species: @walleye)
+      active_b = t_b.catch_placements.active.where(species: @walleye)
+      assert_equal backup.id, active_a.first.catch_id, "club A (current club) is reconciled"
+      assert_equal @catch.id, active_b.first.catch_id, "club B is left stale, not reconciled"
+    end
+
+    test "species change with club: rebuilds only the current club's placements" do
+      create(:scoring_slot, tournament: @t, species: @pike, slot_count: 1)
+      club_b = create(:club)
+      create(:club_membership, user: @user, club: club_b)
+      t_b = create(:tournament, club: club_b, starts_at: 1.hour.ago, ends_at: 1.hour.from_now)
+      create(:scoring_slot, tournament: t_b, species: @walleye, slot_count: 1)
+      entry_b = create(:tournament_entry, tournament: t_b)
+      create(:tournament_entry_member, tournament_entry: entry_b, user: @user)
+      @catch.catch_placements.destroy_all
+      Catches::PlaceInSlots.call(catch: @catch)  # walleye in @t (club A) and t_b (club B)
+
+      # Club-A organizer re-IDs the fish as pike. Only club A (which has a pike
+      # slot) should rebuild; club B keeps its now-stale walleye placement.
+      ApplyJudgeAction.call(tournament: nil, catch: @catch, judge: @judge,
+                            action: :manual_override, note: "mis-id",
+                            species_id: @pike.id, club: @club)
+
+      assert @t.catch_placements.active.exists?(catch: @catch, species: @pike),
+             "club A rebuilt under the new species"
+      assert_not @t.catch_placements.active.exists?(catch: @catch, species: @walleye),
+             "club A dropped the old-species placement"
+      assert t_b.catch_placements.active.exists?(catch: @catch, species: @walleye),
+             "club B untouched: keeps the old-species placement"
+    end
+
     test "manual_override rejects an entry that belongs to a different tournament" do
       other_t = create(:tournament, club: @club, starts_at: 1.hour.ago, ends_at: 1.hour.from_now)
       other_entry = create(:tournament_entry, tournament: other_t)

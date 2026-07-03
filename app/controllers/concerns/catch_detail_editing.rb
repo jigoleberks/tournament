@@ -1,9 +1,10 @@
 # Adds a per-catch detail page and length/species edit to the organizers/ and
 # admin/ catch controllers. Both surfaces are organizer-gated (see their base
 # controllers) and scoped to the current club's members. Edits delegate to
-# Catches::ApplyJudgeAction with tournament: nil — the manual_override path
-# already re-places/rebalances across every tournament the catch is in and
-# writes a JudgeAction audit row.
+# Catches::ApplyJudgeAction with tournament: nil and club: current_club — the
+# manual_override path re-places/rebalances the catch across this club's
+# tournaments (the acting organizer's authority is per-club) and writes a
+# JudgeAction audit row.
 module CatchDetailEditing
   extend ActiveSupport::Concern
   include LengthParamParsing
@@ -30,7 +31,8 @@ module CatchDetailEditing
       note: params[:note],
       length_inches: resolved_length_inches,
       length_unit: resolved_length_unit,
-      species_id: params[:species_id].presence&.to_i
+      species_id: params[:species_id].presence&.to_i,
+      club: current_club
     )
     redirect_to url_for(action: :show, id: @catch.id), notice: "Catch updated."
   end

@@ -1,12 +1,15 @@
 module Catches
   class PlaceInSlots
-    def self.call(catch:, broadcast: true)
-      new(catch: catch, broadcast: broadcast).call
+    def self.call(catch:, broadcast: true, club: nil)
+      new(catch: catch, broadcast: broadcast, club: club).call
     end
 
-    def initialize(catch:, broadcast: true)
+    def initialize(catch:, broadcast: true, club: nil)
       @catch = catch
       @broadcast = broadcast
+      # When set (organizer/admin catch editor), only place into this club's
+      # tournaments so a per-club edit never reshuffles another club's baskets.
+      @club = club
     end
 
     def call
@@ -24,6 +27,7 @@ module Catches
         rows = Tournaments::ActiveForUser
           .with_entries(user: @catch.user, at: @catch.captured_at_device)
           .sort_by { |r| r[:entry].id }  # stable lock order across concurrent calls
+        rows = rows.select { |r| r[:tournament].club_id == @club.id } if @club
 
         rows.each do |row|
           tournament = row[:tournament]

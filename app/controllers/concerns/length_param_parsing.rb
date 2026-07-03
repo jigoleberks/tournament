@@ -14,7 +14,11 @@ module LengthParamParsing
   def resolved_length_inches
     if params[:length].present?
       raw = snap_quarter(params[:length].to_d)
-      params[:length_unit] == "centimeters" ? raw / LengthHelper::CM_PER_INCH : raw
+      # length_inches is decimal(5,2). Round the cm->inch conversion to that same
+      # scale so re-saving a catch's prefilled cm value round-trips to the stored
+      # value instead of an un-rounded decimal (e.g. 55 cm -> 21.65, not
+      # 21.6535…) that ApplyJudgeAction would mistake for a length edit.
+      params[:length_unit] == "centimeters" ? (raw / LengthHelper::CM_PER_INCH).round(2) : raw
     else
       params[:length_inches]&.to_d
     end
