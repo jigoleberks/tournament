@@ -556,10 +556,10 @@ module Catches
 
     # --- Biggest vs Smallest reconciliation paths -----------------------------
     #
-    # PromoteBackup / RebalanceSlots assume "fill the freed slot with the
-    # largest non-placed catch," which is wrong for BvS when the freed slot
-    # was holding the smaller extreme. ApplyJudgeAction has to route BvS
-    # placements through Catches::ReconcileBvsExtremes instead.
+    # PromoteBackup assumes "fill the freed slot with the largest non-placed
+    # catch," which is wrong for BvS when the freed slot was holding the smaller
+    # extreme. ApplyJudgeAction has to route BvS placements through
+    # Catches::ReconcileBvsExtremes instead.
 
     def make_bvs_setup
       bvs_user = create(:user, club: @club)
@@ -637,7 +637,7 @@ module Catches
     test "BvS: manual_override length-shrink re-derives both extremes from the eligible catch set" do
       bvs, bvs_entry, bvs_user = make_bvs_setup
       # Active becomes [22, 12]; 14 is mid-range (dropped). Edit 22 down to 13.
-      # Old RebalanceSlots would produce [13, 14] (largest-unplaced fills the
+      # A naive largest-fill would produce [13, 14] (largest-unplaced fills the
       # smallest active slot). Correct BvS: eligible = {13, 14, 12} → [14, 12].
       [22, 12, 14].each_with_index do |len, i|
         Catches::PlaceInSlots.call(
@@ -658,9 +658,9 @@ module Catches
 
     # --- Smallest Fish reconciliation paths -----------------------------------
     #
-    # PromoteBackup / RebalanceSlots assume "promote the largest," which corrupts
-    # a Smallest Fish basket toward larger fish. ApplyJudgeAction has to route
-    # Smallest Fish placements through Catches::ReconcileSmallestFish, which
+    # PromoteBackup assumes "promote the largest," which corrupts a Smallest Fish
+    # basket toward larger fish. ApplyJudgeAction has to route Smallest Fish
+    # placements through Catches::ReconcileSmallestFish, which
     # re-derives the N smallest from the whole eligible set.
 
     def make_smallest_fish_setup
@@ -890,6 +890,188 @@ module Catches
       owner = pushes.find { |p| p[:user_id] == @user.id }
       assert owner, "expected a push to the catch owner"
       assert_match(/reinstat/i, owner[:body])
+    end
+
+    test "pro_walleye: shrinking an over below 55cm reclassifies it and re-balances the basket" do
+      club = create(:club)
+      walleye = create(:species, name: "Walleye")
+      user = create(:user, club: club)
+      judge = create(:user, club: club)
+      t = build(:tournament, club: club, format: :pro_walleye, mode: :team,
+                starts_at: 1.hour.ago, ends_at: 1.hour.from_now)
+      t.scoring_slots.build(species: walleye, slot_count: 5)
+      t.save!
+      entry = create(:tournament_entry, tournament: t)
+      create(:tournament_entry_member, tournament_entry: entry, user: user)
+
+      over24 = create(:catch, user: user, species: walleye, length_inches: 24, status: :synced)
+      [over24, create(:catch, user: user, species: walleye, length_inches: 26, status: :synced),
+       create(:catch, user: user, species: walleye, length_inches: 18, status: :synced),
+       create(:catch, user: user, species: walleye, length_inches: 19, status: :synced),
+       create(:catch, user: user, species: walleye, length_inches: 20, status: :synced)]
+        .each { |c| Catches::PlaceInSlots.call(catch: c) } # full basket {18,19,20,24,26}
+
+      # Shrink the 24 (an over) to 16 (an under). Overs drop to {26}; the basket
+      # re-derives as 1 over + 4 unders.
+      Catches::ApplyJudgeAction.call(tournament: t, catch: over24, judge: judge,
+                                     action: :manual_override, note: "remeasured", length_inches: 16)
+
+      lens = entry.catch_placements.where(active: true).includes(:catch).map { |p| p.catch.length_inches.to_i }.sort
+      assert_equal [16, 18, 19, 20, 26], lens
+    end
+
+    test "pro_walleye: DQ re-derives per class, not a raw largest-backup promote" do
+      club = create(:club)
+      walleye = create(:species, name: "Walleye")
+      user = create(:user, club: club)
+      judge = create(:user, club: club)
+      t = build(:tournament, club: club, format: :pro_walleye, mode: :team,
+                starts_at: 1.hour.ago, ends_at: 1.hour.from_now)
+      t.scoring_slots.build(species: walleye, slot_count: 5)
+      t.save!
+      entry = create(:tournament_entry, tournament: t)
+      create(:tournament_entry_member, tournament_entry: entry, user: user)
+
+      # Basket = 3 unders + 2 overs (full 5); one extra over (22") is an unplaced
+      # backup (over cap is 2, and 22 < 24,26 so it never bumps in).
+      smalls = [14, 16, 17].map { |l| create(:catch, user: user, species: walleye, length_inches: l, status: :synced) }
+      smalls.each { |c| Catches::PlaceInSlots.call(catch: c) }
+      bigs = [24, 26].map { |l| create(:catch, user: user, species: walleye, length_inches: l, status: :synced) }
+      bigs.each { |c| Catches::PlaceInSlots.call(catch: c) }
+      backup22 = create(:catch, user: user, species: walleye, length_inches: 22, status: :synced)
+      Catches::PlaceInSlots.call(catch: backup22)
+      assert_not entry.catch_placements.where(active: true, catch_id: backup22.id).exists?, "22 starts unplaced"
+
+      # DQ the smallest under (14"). ReconcileProWalleye re-derives the basket: the
+      # unders keep 16 & 17, the overs stay 24 & 26; the 22" over backup must NOT be
+      # promoted (it's a 3rd over, beyond the cap — PromoteBackup would wrongly take it).
+      Catches::ApplyJudgeAction.call(tournament: t, catch: smalls.first, judge: judge,
+                                     action: :disqualify, note: "foul")
+
+      lens = entry.catch_placements.where(active: true).includes(:catch).map { |p| p.catch.length_inches.to_i }.sort
+      assert_equal [16, 17, 24, 26], lens
+      assert_not entry.catch_placements.where(active: true, catch_id: backup22.id).exists?, "3rd over backup not promoted"
+    end
+
+    test "pro_walleye: growing an under past 55cm re-derives on grow (not gated to shrink)" do
+      club = create(:club)
+      walleye = create(:species, name: "Walleye")
+      user = create(:user, club: club)
+      judge = create(:user, club: club)
+      t = build(:tournament, club: club, format: :pro_walleye, mode: :team,
+                starts_at: 1.hour.ago, ends_at: 1.hour.from_now)
+      t.scoring_slots.build(species: walleye, slot_count: 5)
+      t.save!
+      entry = create(:tournament_entry, tournament: t)
+      create(:tournament_entry_member, tournament_entry: entry, user: user)
+
+      # 4 unders + 2 overs: basket holds 3 unders + 2 overs; the smallest under (17)
+      # is the unplaced backup.
+      under17 = create(:catch, user: user, species: walleye, length_inches: 17, status: :synced)
+      under20 = create(:catch, user: user, species: walleye, length_inches: 20, status: :synced)
+      over24  = create(:catch, user: user, species: walleye, length_inches: 24, status: :synced)
+      [under17,
+       create(:catch, user: user, species: walleye, length_inches: 18, status: :synced),
+       create(:catch, user: user, species: walleye, length_inches: 19, status: :synced),
+       under20, over24,
+       create(:catch, user: user, species: walleye, length_inches: 26, status: :synced)]
+        .each { |c| Catches::PlaceInSlots.call(catch: c) } # basket {18,19,20,24,26}; 17 unplaced
+      assert_not entry.catch_placements.where(active: true, catch_id: under17.id).exists?, "17 starts unplaced"
+
+      # Grow the 20 (an under, in the basket) to 30 (an over). That would be a 3rd
+      # over, so the smallest over (24) is dropped and the 17 backup returns. A
+      # shrink-gated arm would NOT reconcile a grow, leaving 24 active and 17 unplaced.
+      Catches::ApplyJudgeAction.call(tournament: t, catch: under20, judge: judge,
+                                     action: :manual_override, note: "grew", length_inches: 30)
+
+      lens = entry.catch_placements.where(active: true).includes(:catch).map { |p| p.catch.length_inches.to_i }.sort
+      assert_equal [17, 18, 19, 26, 30], lens
+      assert_not entry.catch_placements.where(active: true, catch_id: over24.id).exists?, "the 24 over dropped past the cap"
+      assert entry.catch_placements.where(active: true, catch_id: under17.id).exists?, "the 17 backup returned"
+    end
+
+    # A length edit on a catch that currently holds NO placement (an eligible
+    # backup) must still re-derive the basket — the fish can grow/shrink into a
+    # scoring position. Covered across the bumping formats below.
+
+    test "length edit pulls an unplaced backup into a STANDARD basket" do
+      club = create(:club)
+      walleye = create(:species, name: "Walleye")
+      user = create(:user, club: club)
+      judge = create(:user, club: club)
+      t = build(:tournament, club: club, format: :standard, mode: :solo,
+                starts_at: 1.hour.ago, ends_at: 1.hour.from_now)
+      t.scoring_slots.build(species: walleye, slot_count: 2)
+      t.save!
+      entry = create(:tournament_entry, tournament: t)
+      create(:tournament_entry_member, tournament_entry: entry, user: user)
+
+      [create(:catch, user: user, species: walleye, length_inches: 10, status: :synced),
+       create(:catch, user: user, species: walleye, length_inches: 14, status: :synced)]
+        .each { |c| Catches::PlaceInSlots.call(catch: c) } # basket {10,14}
+      backup = create(:catch, user: user, species: walleye, length_inches: 8, status: :synced)
+      Catches::PlaceInSlots.call(catch: backup)
+      assert_not entry.catch_placements.where(active: true, catch_id: backup.id).exists?, "8 starts unplaced"
+
+      Catches::ApplyJudgeAction.call(tournament: t, catch: backup, judge: judge,
+                                     action: :manual_override, note: "remeasured", length_inches: 20)
+
+      lens = entry.catch_placements.where(active: true).includes(:catch).map { |p| p.catch.length_inches.to_i }.sort
+      assert_equal [14, 20], lens, "the grown backup takes a slot; the 10 drops"
+    end
+
+    test "length edit pulls an unplaced backup into a SMALLEST FISH basket" do
+      club = create(:club)
+      walleye = create(:species, name: "Walleye")
+      user = create(:user, club: club)
+      judge = create(:user, club: club)
+      t = build(:tournament, club: club, format: :smallest_fish, mode: :solo,
+                starts_at: 1.hour.ago, ends_at: 1.hour.from_now)
+      t.scoring_slots.build(species: walleye, slot_count: 2)
+      t.save!
+      entry = create(:tournament_entry, tournament: t)
+      create(:tournament_entry_member, tournament_entry: entry, user: user)
+
+      [create(:catch, user: user, species: walleye, length_inches: 8, status: :synced),
+       create(:catch, user: user, species: walleye, length_inches: 10, status: :synced)]
+        .each { |c| Catches::PlaceInSlots.call(catch: c) } # smallest basket {8,10}
+      backup = create(:catch, user: user, species: walleye, length_inches: 14, status: :synced)
+      Catches::PlaceInSlots.call(catch: backup)
+      assert_not entry.catch_placements.where(active: true, catch_id: backup.id).exists?, "14 starts unplaced"
+
+      Catches::ApplyJudgeAction.call(tournament: t, catch: backup, judge: judge,
+                                     action: :manual_override, note: "remeasured", length_inches: 5)
+
+      lens = entry.catch_placements.where(active: true).includes(:catch).map { |p| p.catch.length_inches.to_i }.sort
+      assert_equal [5, 8], lens, "the shrunk backup becomes a smallest; the 10 drops"
+    end
+
+    test "length edit pulls an unplaced backup into a PRO WALLEYE basket" do
+      club = create(:club)
+      walleye = create(:species, name: "Walleye")
+      user = create(:user, club: club)
+      judge = create(:user, club: club)
+      t = build(:tournament, club: club, format: :pro_walleye, mode: :team,
+                starts_at: 1.hour.ago, ends_at: 1.hour.from_now)
+      t.scoring_slots.build(species: walleye, slot_count: 5)
+      t.save!
+      entry = create(:tournament_entry, tournament: t)
+      create(:tournament_entry_member, tournament_entry: entry, user: user)
+
+      [16, 17, 18, 19, 20].each do |l|
+        Catches::PlaceInSlots.call(catch: create(:catch, user: user, species: walleye, length_inches: l, status: :synced))
+      end # basket = 5 unders
+      backup = create(:catch, user: user, species: walleye, length_inches: 12, status: :synced)
+      Catches::PlaceInSlots.call(catch: backup)
+      assert_not entry.catch_placements.where(active: true, catch_id: backup.id).exists?, "12 starts unplaced"
+
+      # Grow the unplaced 12 into an over (30). It should enter as an over and bump
+      # the smallest under (16).
+      Catches::ApplyJudgeAction.call(tournament: t, catch: backup, judge: judge,
+                                     action: :manual_override, note: "remeasured", length_inches: 30)
+
+      lens = entry.catch_placements.where(active: true).includes(:catch).map { |p| p.catch.length_inches.to_i }.sort
+      assert_equal [17, 18, 19, 20, 30], lens, "the grown backup enters as the over; the 16 drops"
     end
   end
 end

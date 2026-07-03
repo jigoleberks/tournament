@@ -516,4 +516,32 @@ class TournamentTest < ActiveSupport::TestCase
     assert t.valid?, t.errors.full_messages.to_sentence
     assert t.format_smallest_fish?
   end
+
+  test "pro_walleye requires exactly one Walleye scoring slot" do
+    club = create(:club)
+    walleye = create(:species, name: "Walleye")
+    pike = create(:species, name: "Pike")
+
+    t = build(:tournament, club: club, format: :pro_walleye, mode: :team,
+              starts_at: 1.hour.ago, ends_at: 1.hour.from_now)
+    assert_not t.valid?, "no slot => invalid"
+
+    t.scoring_slots.build(species: pike, slot_count: 1)
+    assert_not t.valid?, "wrong species => invalid"
+
+    t = build(:tournament, club: club, format: :pro_walleye, mode: :solo,
+              starts_at: 1.hour.ago, ends_at: 1.hour.from_now)
+    t.scoring_slots.build(species: walleye, slot_count: 1)
+    assert t.valid?, t.errors.full_messages.to_sentence
+  end
+
+  test "pro_walleye forces the Walleye slot count to 5" do
+    club = create(:club)
+    walleye = create(:species, name: "Walleye")
+    t = build(:tournament, club: club, format: :pro_walleye, mode: :team,
+              starts_at: 1.hour.ago, ends_at: 1.hour.from_now)
+    t.scoring_slots.build(species: walleye, slot_count: 1)
+    t.save!
+    assert_equal 5, t.scoring_slots.sole.slot_count
+  end
 end

@@ -1,0 +1,55 @@
+module Catches
+  class ReconcileProWalleye
+    # Re-derives the Pro Walleye basket for one (entry, species) from scratch: the
+    # 2 largest catches >55 cm, then the largest catches ≤55 cm to fill the rest of
+    # the 5-fish basket (so up to 5 unders when there are no overs). By current
+    # length_inches. Use after any non-incremental change to the eligible-catch
+    # set: DQ, manual length/species edit, member drop. PromoteBackup
+    # assume a single "promote the largest" basket with no over-fish sub-cap, which
+    # is wrong here — we re-pick the whole basket under the 2-over rule instead.
+    include SlotPlacement
+
+    def self.call(tournament:, entry:, species:)
+      new(tournament: tournament, entry: entry, species: species).call
+    end
+
+    def initialize(tournament:, entry:, species:)
+      @tournament, @entry, @species = tournament, entry, species
+    end
+
+    def call
+      ActiveRecord::Base.transaction do
+        @entry.lock!  # serialize with PlaceInSlots / PromoteBackup / ReconcileStandard
+
+        # Deactivate first so we never collide with idx_active_placements_uniq_per_slot
+        # when re-activating an inactive row that shares the target slot.
+        @entry.catch_placements
+              .where(species_id: @species.id, active: true)
+              .update_all(active: false)
+
+        eligible = eligible_catches
+        return if eligible.empty?
+
+        overs  = eligible.select { |c| ProWalleye.big?(c.length_inches) }
+        unders = eligible.reject { |c| ProWalleye.big?(c.length_inches) }
+
+        # Up to 2 overs, then fill the rest of the 5-fish basket with the largest
+        # unders. slot_index is a plain basket position with no class meaning.
+        basket = top(overs, ProWalleye::BIG_CAP)
+        basket += top(unders, ProWalleye::BASKET_SIZE - basket.size)
+        basket.each_with_index do |c, i|
+          activate_placement!(c, slot_index: i)
+        end
+      end
+    end
+
+    private
+
+    # The N largest by length; ties broken by earliest captured_at_device then
+    # lowest id — matches the "first-to-set wins" semantics of the incremental
+    # PlaceInSlots pro_walleye branch (which no-ops on ties).
+    def top(catches, n)
+      catches.sort_by { |c| [-c.length_inches.to_f, c.captured_at_device.to_i, c.id] }.first(n)
+    end
+  end
+end

@@ -41,6 +41,8 @@ export default class extends Controller {
       this._applyTagged()
     } else if (this.formatTarget.value === "smallest_fish") {
       this._applySmallestFish()
+    } else if (this.formatTarget.value === "pro_walleye") {
+      this._applyProWalleye()
     } else {
       this._applyStandard()
     }
@@ -247,6 +249,38 @@ export default class extends Controller {
     if (this.hasFormatDescriptionTarget) {
       this.formatDescriptionTarget.textContent = this.formatDescriptionTarget.dataset.smallestFishText
     }
+  }
+
+  _applyProWalleye() {
+    if (this.hasFormatDescriptionTarget) {
+      this.formatDescriptionTarget.textContent = this.formatDescriptionTarget.dataset.proWalleyeText
+    }
+    if (this.hasModeTarget) {
+      // Pro Walleye allows solo or team — unlock and restore prior selection.
+      this.modeTarget.classList.remove("opacity-60", "pointer-events-none")
+      if (this._priorMode) {
+        this.modeTarget.value = this._priorMode
+        this._priorMode = null
+      }
+    }
+    if (this.hasModeNoteTarget) this.modeNoteTarget.classList.add("hidden")
+
+    if (this.hasSlotsHeadingTarget) this.slotsHeadingTarget.textContent = "Species configuration"
+    if (this.hasSlotsHelpTarget) {
+      this.slotsHelpTarget.textContent = "Locked to Walleye. Five-fish basket, at most 2 fish over 55 cm; the slot count is ignored."
+    }
+    if (this.hasSlotCountLabelTarget) {
+      this.slotCountLabelTargets.forEach((el) => { el.textContent = "Slots (ignored)" })
+    }
+
+    if (this.hasSlotRowTarget) {
+      this.slotRowTargets.forEach((el, i) => {
+        el.classList.toggle("hidden", i > 0)
+        if (i > 0) this._suppressRow(el)
+      })
+    }
+
+    if (this.hasTrainBuilderTarget) this.trainBuilderTarget.classList.add("hidden")
   }
 
   _suppressRow(el) {

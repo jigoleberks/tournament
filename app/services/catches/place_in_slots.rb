@@ -33,7 +33,7 @@ module Catches
           next if skip_for_out_of_province?
           next if skip_for_local_out_of_bounds?(tournament)
 
-          entry.lock!  # serialize with PromoteBackup, RebalanceSlots, other PlaceInSlots
+          entry.lock!  # serialize with PromoteBackup, ReconcileStandard, other PlaceInSlots
 
           # Tournaments::ActiveForUser ran before the entry row lock was held, so a
           # concurrent DropMemberFromEntry could have removed the user from this entry
@@ -215,6 +215,65 @@ module Catches
                   species: @catch.species, slot_index: largest.slot_index, active: true
                 )
                 affected_tournaments << tournament
+              end
+            end
+          elsif tournament.format_pro_walleye?
+            # Pro Walleye (Sask slot limit): a BASKET_SIZE (5) fish basket in which
+            # at most BIG_CAP (2) fish may be over 55 cm; the rest are 55 cm and
+            # under. Score is total length, and an over fish always outmeasures any
+            # under fish, so the basket always prefers to hold up to 2 overs and
+            # fill the remaining slots with the largest unders. slot_index is a
+            # plain 0–4 basket position with no class meaning — class is derived
+            # from length. A later judge length-edit crossing 55 cm is reconciled
+            # by ReconcileProWalleye.
+            #
+            # place! reuses a bumped placement's slot_index, or takes the lowest
+            # free 0–4 slot when the basket has room.
+            place = lambda do |reuse_index|
+              index = reuse_index || (0...ProWalleye::BASKET_SIZE).find { |i| active_placements.none? { |p| p.slot_index == i } }
+              created << CatchPlacement.create!(
+                catch: @catch, tournament: tournament, tournament_entry: entry,
+                species: @catch.species, slot_index: index, active: true
+              )
+              affected_tournaments << tournament
+            end
+            overs  = active_placements.select { |p| ProWalleye.big?(p.catch.length_inches) }
+            unders = active_placements - overs
+            if ProWalleye.big?(@catch.length_inches)
+              if overs.size < ProWalleye::BIG_CAP
+                # Room for another over. Fill an empty slot, or (basket full) bump
+                # the smallest under — an over always beats it. A full basket with
+                # overs < cap always still holds an under to bump.
+                if active_placements.size < ProWalleye::BASKET_SIZE
+                  place.call(nil)
+                else
+                  victim = unders.min_by { |p| p.catch.length_inches }
+                  victim.update!(active: false)
+                  bumped << victim
+                  place.call(victim.slot_index)
+                end
+              else
+                # Over cap already met — only a bigger over can displace the
+                # smallest current over.
+                smallest_over = overs.min_by { |p| p.catch.length_inches }
+                if @catch.length_inches > smallest_over.catch.length_inches
+                  smallest_over.update!(active: false)
+                  bumped << smallest_over
+                  place.call(smallest_over.slot_index)
+                end
+              end
+            else
+              # Under fish: fill any open basket slot, else bump the smallest under
+              # if this one is larger. It never displaces an over.
+              if active_placements.size < ProWalleye::BASKET_SIZE
+                place.call(nil)
+              else
+                smallest_under = unders.min_by { |p| p.catch.length_inches }
+                if smallest_under && @catch.length_inches > smallest_under.catch.length_inches
+                  smallest_under.update!(active: false)
+                  bumped << smallest_under
+                  place.call(smallest_under.slot_index)
+                end
               end
             end
           elsif active_placements.size < slot.slot_count

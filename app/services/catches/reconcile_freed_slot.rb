@@ -11,11 +11,15 @@ module Catches
 
       # PromoteBackup picks the largest non-placed catch — correct for Standard
       # but wrong for BvS/Smallest Fish (which re-derive their extremes from the
-      # whole eligible set) and for Fish Train (append-only, never refilled).
+      # whole eligible set), wrong for Pro Walleye (which re-derives its two
+      # length classes from the whole eligible set), and for Fish Train
+      # (append-only, never refilled).
       if tournament.format_biggest_vs_smallest?
         ReconcileBvsExtremes.call(tournament: tournament, entry: entry, species: species)
       elsif tournament.format_smallest_fish?
         ReconcileSmallestFish.call(tournament: tournament, entry: entry, species: species)
+      elsif tournament.format_pro_walleye?
+        ReconcileProWalleye.call(tournament: tournament, entry: entry, species: species)
       elsif tournament.format_fish_train?
         # Fish Train is append-only: a freed car stays a permanent hole. The
         # angler recovers by catching forward, not by promoting a backup.

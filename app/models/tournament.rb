@@ -10,7 +10,7 @@ class Tournament < ApplicationRecord
   has_many :catch_placements, dependent: :destroy
   has_many :judge_users, through: :tournament_judges, source: :user
   enum :mode, { solo: 0, team: 1 }, prefix: true
-  enum :format, { standard: 0, big_fish_season: 1, hidden_length: 2, biggest_vs_smallest: 3, fish_train: 4, tagged: 5, smallest_fish: 6 }, prefix: true
+  enum :format, { standard: 0, big_fish_season: 1, hidden_length: 2, biggest_vs_smallest: 3, fish_train: 4, tagged: 5, smallest_fish: 6, pro_walleye: 7 }, prefix: true
 
   validates :name, :mode, :starts_at, :ends_at, presence: true
   validate :ends_at_after_starts_at
@@ -28,6 +28,8 @@ class Tournament < ApplicationRecord
   validate :fish_train_train_cars_species_in_pool
   validate :tagged_requires_solo
   validate :tagged_requires_one_tagged_walleye_scoring_slot
+  validate :pro_walleye_requires_one_walleye_scoring_slot
+  before_validation :force_pro_walleye_slot_count
 
   scope :active_at, ->(time) {
     where("starts_at <= ?", time).where("ends_at IS NULL OR ends_at >= ?", time)
@@ -172,5 +174,24 @@ class Tournament < ApplicationRecord
       errors.add(:scoring_slots,
                  "Tagged Walleye tournaments must have exactly one scoring slot for the Tagged Walleye species")
     end
+  end
+
+  def pro_walleye_requires_one_walleye_scoring_slot
+    return unless format_pro_walleye?
+    remaining = scoring_slots.reject(&:marked_for_destruction?)
+    unless remaining.size == 1 && remaining.first.species&.walleye?
+      errors.add(:scoring_slots,
+                 "Pro Walleye tournaments must have exactly one scoring slot for the Walleye species")
+    end
+  end
+
+  # The basket is a fixed 5 fish (at most 2 over 55 cm). PlaceInSlots/
+  # ReconcileProWalleye enforce the basket size and over-cap themselves, but the
+  # leaderboard `complete` flag and the winners/season-points capacity math read
+  # scoring_slots.sum(:slot_count) — so pin the single slot to the basket size
+  # here (the slot-count field is "ignored" in the UI).
+  def force_pro_walleye_slot_count
+    return unless format_pro_walleye?
+    scoring_slots.reject(&:marked_for_destruction?).each { |s| s.slot_count = Catches::ProWalleye::BASKET_SIZE }
   end
 end

@@ -3,7 +3,7 @@ module Catches
     # Re-derives the BvS active placements (biggest + smallest by current
     # length_inches) for one (entry, species) from scratch. Use after any
     # non-incremental change to the eligible-catch set: DQ, manual length/species
-    # edit, member drop. PromoteBackup/RebalanceSlots assume "promote the
+    # edit, member drop. PromoteBackup assumes "promote the
     # largest" semantics, which is wrong when the freed slot was holding the
     # smaller extreme — for BvS we have to look at the whole catch set.
     include SlotPlacement
@@ -18,7 +18,7 @@ module Catches
 
     def call
       ActiveRecord::Base.transaction do
-        @entry.lock!  # serialize with PlaceInSlots / PromoteBackup / RebalanceSlots
+        @entry.lock!  # serialize with PlaceInSlots / PromoteBackup / ReconcileStandard
 
         # Deactivate first so we never collide with idx_active_placements_uniq_per_slot
         # when re-activating an inactive row that shares the target slot.

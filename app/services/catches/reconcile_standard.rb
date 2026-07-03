@@ -1,11 +1,12 @@
 module Catches
-  class ReconcileSmallestFish
-    # Re-derives the N smallest active placements (by current length_inches) for
-    # one (entry, species) from scratch, where N is the species' scoring slot
-    # count. Use after any non-incremental change to the eligible-catch set: DQ,
-    # manual length/species edit, member drop. PromoteBackup assumes
-    # "promote the largest" semantics, which is wrong for Smallest Fish — we
-    # re-pick the N smallest from the whole eligible set instead.
+  class ReconcileStandard
+    # Re-derives the N largest active placements (by current length_inches) for one
+    # (entry, species) from scratch, where N is the species' scoring slot count.
+    # Standard (and Big Fish Season, which shares Standard placement) keep the N
+    # largest. Use after any non-incremental change that can pull a previously
+    # unplaced backup into the basket or drop a now-smaller fish — e.g. a judge
+    # length edit. PromoteBackup repairs only a single freed slot, so it misses the "an unplaced backup grew into the basket"
+    # case; re-picking the N largest from the whole eligible set handles it.
     include SlotPlacement
 
     def self.call(tournament:, entry:, species:)
@@ -34,14 +35,14 @@ module Catches
         eligible = eligible_catches
         return if eligible.empty?
 
-        # N smallest by length; ties broken by earliest captured_at_device then
+        # N largest by length; ties broken by earliest captured_at_device then
         # lowest id — matches the "first-to-set wins" semantics of the incremental
-        # PlaceInSlots smallest_fish branch (strict < no-ops on ties).
-        smallest = eligible
-          .sort_by { |c| [c.length_inches.to_f, c.captured_at_device.to_i, c.id] }
+        # PlaceInSlots Standard branch (strict > no-ops on ties).
+        largest = eligible
+          .sort_by { |c| [-c.length_inches.to_f, c.captured_at_device.to_i, c.id] }
           .first(n)
 
-        smallest.each_with_index do |catch_record, slot_index|
+        largest.each_with_index do |catch_record, slot_index|
           activate_placement!(catch_record, slot_index: slot_index)
         end
       end

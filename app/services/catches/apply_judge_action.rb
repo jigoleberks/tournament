@@ -54,14 +54,15 @@ module Catches
           # Order: length first, then species, then slot-force / length-shrink rebalance.
           # Length must update before the species-change block so PlaceInSlots ranks the
           # catch with its NEW length when looking for slots in the new species.
-          length_changed = @length_inches && @length_inches.to_f != prior_length.to_f
-          unit_changed   = @length_unit.present? && @length_unit != @catch.length_unit
+          length_changed  = @length_inches && @length_inches.to_f != prior_length.to_f
+          unit_changed    = @length_unit.present? && @length_unit != @catch.length_unit
+          species_changed = @species_id.present? && @species_id != prior_species
           if @length_inches && (length_changed || unit_changed)
             @catch.update!({ length_inches: @length_inches, length_unit: @length_unit }.compact)
             @notify_owner = true
           end
 
-          if @species_id && @species_id != prior_species
+          if species_changed
             @notify_owner = true
             # Update species first, then rebuild placements from scratch so
             # PlaceInSlots ranks/places the catch under the NEW species. The
@@ -84,19 +85,34 @@ module Catches
               catch: @catch, tournament: @tournament, tournament_entry: entry,
               species: @catch.species, slot_index: @slot_index, active: true
             )
-          elsif @length_inches && prior_length && @length_inches.to_f != prior_length.to_f
-            shrank = @length_inches.to_f < prior_length.to_f
-            @catch.catch_placements.active.includes(:tournament, :tournament_entry).order(:tournament_entry_id).each do |p|
-              if p.tournament.format_smallest_fish?
-                Catches::ReconcileSmallestFish.call(tournament: p.tournament, entry: p.tournament_entry, species: @catch.species)
-              elsif p.tournament.format_fish_train?
-                next
-              elsif shrank && p.tournament.format_biggest_vs_smallest?
-                Catches::ReconcileBvsExtremes.call(tournament: p.tournament, entry: p.tournament_entry, species: @catch.species)
-              elsif shrank
-                Catches::RebalanceSlots.call(tournament: p.tournament, entry: p.tournament_entry, species: @catch.species)
+          elsif !species_changed && @length_inches && prior_length && @length_inches.to_f != prior_length.to_f
+            # A length edit can change which catches make each basket — it can pull
+            # in a previously-unplaced backup (e.g. one grown past a slot threshold)
+            # or drop a now-smaller fish. So re-derive every tournament the catch is
+            # ELIGIBLE for at its capture time, not just the ones where it currently
+            # holds a placement. Re-derivation from the whole eligible set is correct
+            # for grow and shrink alike (no shrink gating). A species change already
+            # rebuilt placements via deactivate_and_replace!, so skip then.
+            ::Tournaments::ActiveForUser
+              .with_entries(user: @catch.user, at: @catch.captured_at_device)
+              .select { |r| r[:tournament].scoring_slots.exists?(species_id: @catch.species_id) }
+              .sort_by { |r| r[:entry].id }  # stable lock order
+              .each do |r|
+                tournament, entry = r[:tournament], r[:entry]
+                if tournament.format_smallest_fish?
+                  Catches::ReconcileSmallestFish.call(tournament: tournament, entry: entry, species: @catch.species)
+                elsif tournament.format_pro_walleye?
+                  Catches::ReconcileProWalleye.call(tournament: tournament, entry: entry, species: @catch.species)
+                elsif tournament.format_biggest_vs_smallest?
+                  Catches::ReconcileBvsExtremes.call(tournament: tournament, entry: entry, species: @catch.species)
+                elsif tournament.format_fish_train? || tournament.format_hidden_length? || tournament.format_tagged?
+                  # fish_train is append-only; hidden_length/tagged keep every catch,
+                  # so a length edit never changes which catches are placed.
+                  next
+                else
+                  Catches::ReconcileStandard.call(tournament: tournament, entry: entry, species: @catch.species)
+                end
               end
-            end
           end
         when :add_reference_photo
           old_ref_id = @catch.reference_photo.attached? ? @catch.reference_photo.blob.id : nil

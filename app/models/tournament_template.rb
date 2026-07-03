@@ -4,7 +4,7 @@ class TournamentTemplate < ApplicationRecord
   accepts_nested_attributes_for :tournament_template_scoring_slots, allow_destroy: true,
                                 reject_if: ->(attrs) { attrs["species_id"].blank? }
   enum :mode, { solo: 0, team: 1 }, prefix: true
-  enum :format, { standard: 0, big_fish_season: 1, hidden_length: 2, biggest_vs_smallest: 3, fish_train: 4, tagged: 5, smallest_fish: 6 }, prefix: true
+  enum :format, { standard: 0, big_fish_season: 1, hidden_length: 2, biggest_vs_smallest: 3, fish_train: 4, tagged: 5, smallest_fish: 6, pro_walleye: 7 }, prefix: true
   validates :name, presence: true
   validates :default_weekday, inclusion: { in: 0..6 }, allow_nil: true
   validate :default_schedule_all_or_nothing
@@ -18,6 +18,7 @@ class TournamentTemplate < ApplicationRecord
   validate :fish_train_train_cars_species_in_pool
   validate :tagged_requires_solo
   validate :tagged_requires_one_tagged_walleye_scoring_slot
+  validate :pro_walleye_requires_one_walleye_scoring_slot
 
   def scheduled?
     default_weekday.present? && default_start_time.present? && default_end_time.present?
@@ -125,6 +126,15 @@ class TournamentTemplate < ApplicationRecord
     unless remaining.size == 1 && remaining.first.species&.tagged_walleye?
       errors.add(:tournament_template_scoring_slots,
                  "Tagged Walleye tournaments must have exactly one scoring slot for the Tagged Walleye species")
+    end
+  end
+
+  def pro_walleye_requires_one_walleye_scoring_slot
+    return unless format_pro_walleye?
+    remaining = tournament_template_scoring_slots.reject(&:marked_for_destruction?)
+    unless remaining.size == 1 && remaining.first.species&.walleye?
+      errors.add(:tournament_template_scoring_slots,
+                 "Pro Walleye tournaments must have exactly one scoring slot for the Walleye species")
     end
   end
 end

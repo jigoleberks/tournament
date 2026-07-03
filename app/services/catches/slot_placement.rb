@@ -1,8 +1,8 @@
 module Catches
   # Shared eligibility + placement primitives for the services that re-derive a
-  # tournament entry's slots from scratch (ReconcileSmallestFish,
-  # ReconcileBvsExtremes) or fill a single freed slot (PromoteBackup,
-  # RebalanceSlots). Keeping the geofence rule and the activate-or-create upsert
+  # tournament entry's slots from scratch (ReconcileStandard, ReconcileSmallestFish,
+  # ReconcileBvsExtremes, ReconcileProWalleye) or fill a single freed slot
+  # (PromoteBackup). Keeping the geofence rule and the activate-or-create upsert
   # in one place means a change to eligibility lands everywhere at once.
   #
   # Expects the including service to set @tournament, @entry, and @species.
