@@ -200,6 +200,31 @@ class TournamentsControllerTest < ActionDispatch::IntegrationTest
     assert_no_match "Approved by", response.body
   end
 
+  test "biggest_vs_smallest: green check appears beside each approved extreme independently" do
+    species = create(:species, club: @club)
+    tournament = build(:tournament, club: @club, format: :biggest_vs_smallest, mode: :solo,
+                       starts_at: 1.hour.ago, ends_at: 1.hour.from_now)
+    tournament.scoring_slots.build(species: species, slot_count: 1)
+    tournament.save!
+    entry = create(:tournament_entry, tournament: tournament, name: "Team Reel Deal")
+    create(:tournament_entry_member, tournament_entry: entry, user: @user)
+
+    biggest = create(:catch, user: @user, species: species, length_inches: 22.0,
+                     captured_at_device: 40.minutes.ago)
+    smallest = create(:catch, user: @user, species: species, length_inches: 11.0,
+                      captured_at_device: 30.minutes.ago)
+    Catches::PlaceInSlots.call(catch: biggest)
+    Catches::PlaceInSlots.call(catch: smallest)
+
+    # Approve only the biggest — its check should show, the smallest's should not.
+    judge = create(:user, club: @club, name: "Judge Judy")
+    create(:judge_action, judge_user: judge, catch: biggest, action: :approve)
+
+    get tournament_path(tournament)
+    assert_response :success
+    assert_select "[data-test=approved-check]", count: 1
+  end
+
   test "show does not render approved markers for unreviewed fish" do
     tournament = create(:tournament, club: @club)
     species = create(:species, club: @club)
