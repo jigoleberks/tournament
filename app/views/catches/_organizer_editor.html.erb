@@ -11,9 +11,9 @@
 
 <div class="mb-4">
   <% if catch_record.display_photo.attached? %>
-    <%= thumb catch_record.display_photo, class: "w-full max-h-80 object-contain rounded bg-black" %>
+    <%= thumb catch_record.display_photo, class: "w-full max-h-80 object-contain rounded-lg bg-black" %>
   <% end %>
-  <div class="mt-2 text-sm text-slate-300">
+  <div class="mt-3 text-sm text-slate-300">
     <div class="font-medium text-slate-100"><%= catch_record.user.name %></div>
     <div><%= catch_record.species.name %> · <%= format_length_dual(catch_record.length_inches, catch_record.length_unit) %></div>
     <div class="text-slate-500"><%= catch_record.captured_at_device.strftime("%b %d %Y · %l:%M %p") %></div>
@@ -23,21 +23,32 @@
 <h2 class="text-lg font-semibold mb-2">Edit species &amp; length</h2>
 <%= form_with url: url_for(action: :update, id: catch_record.id), method: :patch,
               local: true, data: { controller: "length-edit" } do %>
-  <%= label_tag :species_id, "Species" %>
-  <%= select_tag :species_id, options_for_select(species_options, catch_record.species_id) %>
+  <%= label_tag :species_id, "Species", class: "block text-sm font-medium text-slate-300 mt-4 mb-1" %>
+  <%= select_tag :species_id, options_for_select(species_options, catch_record.species_id),
+                 class: "w-full h-12 px-3 rounded-lg bg-slate-800 border border-slate-700 text-base text-slate-100" %>
 
-  <%= label_tag :length, "Length" %>
-  <%= number_field_tag :length, prefill, step: 0.25,
+  <%= label_tag :length, "Length", class: "block text-sm font-medium text-slate-300 mt-4 mb-1" %>
+  <%= number_field_tag :length, prefill, step: 0.25, min: 0,
+                       class: "w-full h-12 px-3 rounded-lg bg-slate-800 border border-slate-700 text-base text-slate-100",
                        data: { "length-edit-target": "input", "length-edit-unit": unit } %>
-  <% User::LENGTH_UNITS.each do |u| %>
-    <label>
-      <%= radio_button_tag :length_unit, u, u == unit, data: { action: "change->length-edit#convertUnit" } %>
-      <%= u == "inches" ? "Inches" : "Centimeters" %>
-    </label>
-  <% end %>
 
-  <%= label_tag :note, "Note (optional)" %>
-  <%= text_area_tag :note %>
+  <label class="block text-sm font-medium text-slate-300 mt-4 mb-1">Length unit</label>
+  <div class="flex gap-2">
+    <% User::LENGTH_UNITS.each do |u| %>
+      <label class="flex-1">
+        <%= radio_button_tag :length_unit, u, u == unit, class: "sr-only peer",
+                             data: { action: "change->length-edit#convertUnit" } %>
+        <span class="block w-full h-12 leading-[3rem] text-center rounded-lg bg-slate-700 peer-checked:bg-blue-600 text-slate-100 peer-checked:text-white cursor-pointer">
+          <%= u == "inches" ? "Inches" : "Centimeters" %>
+        </span>
+      </label>
+    <% end %>
+  </div>
 
-  <%= submit_tag "Save changes" %>
+  <%= label_tag :note, "Note (optional)", class: "block text-sm font-medium text-slate-300 mt-4 mb-1" %>
+  <%= text_area_tag :note, nil, rows: 3,
+                    class: "w-full px-3 py-2 rounded-lg bg-slate-800 border border-slate-700 text-base text-slate-100" %>
+
+  <%= submit_tag "Save changes",
+                 class: "w-full h-14 px-6 text-lg font-semibold rounded-lg bg-blue-600 active:bg-blue-700 text-white mt-6 cursor-pointer" %>
 <% end %>

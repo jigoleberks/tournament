@@ -19,7 +19,9 @@ class OrganizerCatchEditTest < ApplicationSystemTestCase
     assert_text(/Edit species & length/i)
     select "Northern Pike", from: "species_id"
     fill_in "length", with: "18.5"
-    choose "Inches"
+    # The unit toggle is a styled pill: the radio is visually hidden (sr-only)
+    # behind its label, so click the label rather than the radio itself.
+    choose "Inches", allow_label_click: true
     click_button "Save changes"
 
     # The detail URL is identical before and after the PATCH (index → show, then
