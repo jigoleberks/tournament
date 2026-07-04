@@ -544,4 +544,19 @@ class TournamentTest < ActiveSupport::TestCase
     t.save!
     assert_equal 5, t.scoring_slots.sole.slot_count
   end
+
+  test "supports_forced_slot? only for slot-based formats where a forced placement is durable" do
+    # Slot-based top-N / append-only formats: slot_index is a meaningful position
+    # and no whole-basket re-derive silently reverts a manual force.
+    %i[standard big_fish_season fish_train].each do |fmt|
+      assert build(:tournament, club: @club, format: fmt).supports_forced_slot?,
+             "#{fmt} should support forced slot placement"
+    end
+    # Re-derive-from-length formats (basket is derived, not positioned) and the
+    # every-catch formats: a forced slot is meaningless and/or reverted.
+    %i[hidden_length biggest_vs_smallest tagged smallest_fish pro_walleye].each do |fmt|
+      assert_not build(:tournament, club: @club, format: fmt).supports_forced_slot?,
+                 "#{fmt} should not support forced slot placement"
+    end
+  end
 end

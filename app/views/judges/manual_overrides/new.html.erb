@@ -26,11 +26,16 @@
     </label>
   <% end %>
 
-  <%= label_tag :slot_index, "Force into slot index (optional)" %>
-  <%= number_field_tag :slot_index %>
+  <% if @tournament.supports_forced_slot? %>
+    <%# Forcing a catch into a specific slot only makes sense on slot-based
+        formats; the length-derived / every-catch formats derive placement
+        themselves, so the fields are hidden and the service rejects them. %>
+    <%= label_tag :slot_index, "Force into slot index (optional)" %>
+    <%= number_field_tag :slot_index %>
 
-  <%= label_tag :entry_id, "Entry id (optional)" %>
-  <%= number_field_tag :entry_id %>
+    <%= label_tag :entry_id, "Entry id (optional)" %>
+    <%= number_field_tag :entry_id %>
+  <% end %>
 
   <%= label_tag :note %>
   <%= text_area_tag :note %>

@@ -55,6 +55,16 @@ class Tournament < ApplicationRecord
     !judged?
   end
 
+  # Whether a judge's "force into slot index" manual override is meaningful here.
+  # Only the slot-based top-N formats and append-only Fish Train have a durable,
+  # positional slot_index. The length-derived formats (BvS / Smallest Fish / Pro
+  # Walleye) re-derive the whole basket from length, and the every-catch formats
+  # (Hidden Length / Tagged) place every catch — so a forced slot is meaningless
+  # and would be silently reverted by the next reconcile.
+  def supports_forced_slot?
+    format_standard? || format_big_fish_season? || format_fish_train?
+  end
+
   after_save :schedule_lifecycle_jobs
 
   private

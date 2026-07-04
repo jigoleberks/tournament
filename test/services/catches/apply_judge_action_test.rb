@@ -203,6 +203,40 @@ module Catches
       assert_not @catch.catch_placements.first.reload.active?
     end
 
+    test "manual_override force-slot is rejected on a re-derive format (Pro Walleye)" do
+      # A forced slot on Pro Walleye is meaningless (class is derived from length)
+      # and would be silently reverted by the next ReconcileProWalleye — and could
+      # transiently break the 2-over cap / 5-fish basket. Reject it at the service.
+      walleye = Species.find_or_create_by!(name: "Walleye")
+      pw = build(:tournament, club: @club, format: :pro_walleye, mode: :team,
+                 starts_at: 1.hour.ago, ends_at: 1.hour.from_now)
+      pw.scoring_slots.build(species: walleye, slot_count: 5)
+      pw.save!
+      entry = create(:tournament_entry, tournament: pw)
+      create(:tournament_entry_member, tournament_entry: entry, user: @user)
+      [23, 24].each do |len|
+        Catches::PlaceInSlots.call(
+          catch: create(:catch, user: @user, species: walleye, length_inches: len,
+                        captured_at_device: 30.minutes.ago)
+        )
+      end
+      forced = create(:catch, user: @user, species: walleye, length_inches: 25,
+                              captured_at_device: 20.minutes.ago)
+      before = entry.catch_placements.active.pluck(:catch_id).sort
+
+      assert_raises(Catches::ApplyJudgeAction::ForceSlotUnsupported) do
+        ApplyJudgeAction.call(
+          tournament: pw, catch: forced, judge: @judge, action: :manual_override,
+          note: "force it", slot_index: 2, entry_id: entry.id
+        )
+      end
+
+      assert_equal before, entry.catch_placements.active.pluck(:catch_id).sort,
+                   "basket must be unchanged when a force-slot is rejected"
+      assert_equal 0, ::JudgeAction.where(catch_id: forced.id).count,
+                   "no audit row for a rejected override"
+    end
+
     test "manual_override edit-down promotes a previously-unplaced larger catch into the slot" do
       # @catch (20") is in slot 0. A smaller fish (16") never displaced it.
       backup = create(:catch, user: @user, species: @walleye, length_inches: 16,

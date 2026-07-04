@@ -163,7 +163,46 @@ class Judges::ManualOverridesControllerTest < ActionDispatch::IntegrationTest
     assert_equal 0, other_entry.catch_placements.count
   end
 
+  test "GET new shows the force-slot fields on a slot-based format" do
+    get new_judges_tournament_catch_manual_override_path(tournament_id: @t.id, catch_id: @catch.id)
+    assert_response :success
+    assert_select "input[name=slot_index]"
+    assert_select "input[name=entry_id]"
+  end
+
+  test "GET new hides the force-slot fields on a re-derive format (Pro Walleye)" do
+    pw, catch = pro_walleye_setup
+    get new_judges_tournament_catch_manual_override_path(tournament_id: pw.id, catch_id: catch.id)
+    assert_response :success
+    assert_select "input[name=slot_index]", count: 0
+    assert_select "input[name=entry_id]", count: 0
+  end
+
+  test "POST force-slot on a re-derive format redirects with an alert instead of 500" do
+    pw, catch, entry = pro_walleye_setup(with_entry: true)
+    post judges_tournament_catch_manual_override_path(tournament_id: pw.id, catch_id: catch.id),
+         params: { slot_index: "2", entry_id: entry.id, note: "force" }
+    assert_redirected_to judges_tournament_catch_path(tournament_id: pw.id, id: catch.id)
+    assert_not_nil flash[:alert]
+  end
+
   private
+
+  def pro_walleye_setup(with_entry: false)
+    walleye = Species.find_or_create_by!(name: "Walleye")
+    pw = build(:tournament, club: @club, format: :pro_walleye, mode: :team,
+               starts_at: 1.hour.ago, ends_at: 1.hour.from_now)
+    pw.scoring_slots.build(species: walleye, slot_count: 5)
+    pw.save!
+    create(:tournament_judge, tournament: pw, user: @judge)
+    angler = create(:user, club: @club)
+    entry = create(:tournament_entry, tournament: pw)
+    create(:tournament_entry_member, tournament_entry: entry, user: angler)
+    catch = create(:catch, user: angler, species: walleye, length_inches: 23,
+                           captured_at_device: 30.minutes.ago)
+    Catches::PlaceInSlots.call(catch: catch)
+    with_entry ? [pw, catch, entry] : [pw, catch]
+  end
 
   def build_foreign_catch
     other_t = create(:tournament, club: @club, starts_at: 1.hour.ago, ends_at: 1.hour.from_now)

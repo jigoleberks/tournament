@@ -2,6 +2,7 @@ module Catches
   class ApplyJudgeAction
     class SelfApprovalError < StandardError; end
     class DisqualifyNoteRequired < StandardError; end
+    class ForceSlotUnsupported < StandardError; end
 
     def self.call(tournament:, catch:, judge:, action:, note: nil,
                   length_inches: nil, length_unit: nil, species_id: nil, slot_index: nil, entry_id: nil,
@@ -81,6 +82,10 @@ module Catches
           end
 
           if @slot_index && @entry_id
+            # A forced slot is only durable/meaningful on slot-based formats. On a
+            # length-derived or every-catch format it would break the format's
+            # invariants and be reverted by the next reconcile, so reject it.
+            raise ForceSlotUnsupported unless @tournament.supports_forced_slot?
             @notify_owner = true
             entry = @tournament.tournament_entries.find(@entry_id)
             entry.lock!
