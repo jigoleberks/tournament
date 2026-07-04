@@ -42,18 +42,18 @@ module LengthParamParsing
   end
 
   # True when params[:length] still equals the value the editor seeded the field
-  # with for this catch, in the catch's own unit. Mirrors _organizer_editor's
-  # prefill (LengthHelper#display_cm) arithmetic exactly — cm snapped to the 0.25
-  # grid, inches as stored — so "the user didn't touch length" is detected
-  # byte-for-byte, immune to the display grid's lossy round-trip.
+  # with for this catch, in the catch's own unit. Reuses the view's own prefill
+  # function (LengthHelper#display_cm) rather than re-deriving its snap — a
+  # cm-logged catch shows its 0.25-grid cm value, an inch-logged catch shows its
+  # stored inches — so this "the user didn't touch length" guard can never drift
+  # from what the form actually rendered if that snapping ever changes.
   def length_field_untouched?(catch)
     return false if catch.length_inches.nil?
     return false unless params[:length_unit] == catch.length_unit
 
     prefill =
       if catch.length_unit == "centimeters"
-        cm = catch.length_inches.to_f * LengthHelper::CM_PER_INCH
-        (cm / LengthHelper::QUARTER_CM).round * LengthHelper::QUARTER_CM
+        helpers.display_cm(catch.length_inches, catch.length_unit)
       else
         catch.length_inches.to_f
       end

@@ -11,6 +11,13 @@ class LengthParamParsingTest < ActiveSupport::TestCase
       @params = params
     end
 
+    # Real controllers expose the view helpers via #helpers; the parser reuses
+    # LengthHelper#display_cm through it, so the unit-test host delegates to the
+    # same helper module instead of re-implementing the prefill snap.
+    def helpers
+      @helpers ||= Object.new.extend(LengthHelper)
+    end
+
     def parse
       resolved_length_inches
     end

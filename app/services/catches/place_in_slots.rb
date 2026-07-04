@@ -86,22 +86,27 @@ module Catches
               )
               affected_tournaments << tournament
             else
-              sorted = active_placements.sort_by { |p| p.catch.length_inches }
-              min_p, max_p = sorted.first, sorted.last
-              if @catch.length_inches > max_p.catch.length_inches
-                max_p.update!(active: false)
-                bumped << max_p
+              # Pick the biggest and smallest incumbents by the same rank_key the
+              # reconciler uses (ReconcileBvsExtremes), keeping them distinct so a
+              # tie in length resolves to the same two catches. A new catch that
+              # outranks the biggest becomes the new biggest (the old one drops to
+              # the middle); one that outranks the smallest becomes the smallest.
+              biggest_p  = active_placements.min_by { |p| rank_key(p.catch, desc: true) }
+              smallest_p = (active_placements - [biggest_p]).min_by { |p| rank_key(p.catch, desc: false) }
+              if outranks?(biggest_p, desc: true)
+                biggest_p.update!(active: false)
+                bumped << biggest_p
                 created << CatchPlacement.create!(
                   catch: @catch, tournament: tournament, tournament_entry: entry,
-                  species: @catch.species, slot_index: max_p.slot_index, active: true
+                  species: @catch.species, slot_index: biggest_p.slot_index, active: true
                 )
                 affected_tournaments << tournament
-              elsif @catch.length_inches < min_p.catch.length_inches
-                min_p.update!(active: false)
-                bumped << min_p
+              elsif outranks?(smallest_p, desc: false)
+                smallest_p.update!(active: false)
+                bumped << smallest_p
                 created << CatchPlacement.create!(
                   catch: @catch, tournament: tournament, tournament_entry: entry,
-                  species: @catch.species, slot_index: min_p.slot_index, active: true
+                  species: @catch.species, slot_index: smallest_p.slot_index, active: true
                 )
                 affected_tournaments << tournament
               else
@@ -210,13 +215,13 @@ module Catches
               )
               affected_tournaments << tournament
             else
-              largest = active_placements.max_by { |p| p.catch.length_inches }
-              if @catch.length_inches < largest.catch.length_inches
-                largest.update!(active: false)
-                bumped << largest
+              worst = worst_placement(active_placements, desc: false)
+              if outranks?(worst, desc: false)
+                worst.update!(active: false)
+                bumped << worst
                 created << CatchPlacement.create!(
                   catch: @catch, tournament: tournament, tournament_entry: entry,
-                  species: @catch.species, slot_index: largest.slot_index, active: true
+                  species: @catch.species, slot_index: worst.slot_index, active: true
                 )
                 affected_tournaments << tournament
               end
@@ -251,32 +256,34 @@ module Catches
                 if active_placements.size < ProWalleye::BASKET_SIZE
                   place.call(nil)
                 else
-                  victim = unders.min_by { |p| p.catch.length_inches }
+                  # An over always outmeasures any under, so it always claims the
+                  # slot — drop the under a reconcile would drop (worst by rank).
+                  victim = worst_placement(unders, desc: true)
                   victim.update!(active: false)
                   bumped << victim
                   place.call(victim.slot_index)
                 end
               else
-                # Over cap already met — only a bigger over can displace the
-                # smallest current over.
-                smallest_over = overs.min_by { |p| p.catch.length_inches }
-                if @catch.length_inches > smallest_over.catch.length_inches
-                  smallest_over.update!(active: false)
-                  bumped << smallest_over
-                  place.call(smallest_over.slot_index)
+                # Over cap already met — only a better over can displace the
+                # worst current over.
+                worst_over = worst_placement(overs, desc: true)
+                if outranks?(worst_over, desc: true)
+                  worst_over.update!(active: false)
+                  bumped << worst_over
+                  place.call(worst_over.slot_index)
                 end
               end
             else
-              # Under fish: fill any open basket slot, else bump the smallest under
-              # if this one is larger. It never displaces an over.
+              # Under fish: fill any open basket slot, else displace the worst
+              # under if this one outranks it. It never displaces an over.
               if active_placements.size < ProWalleye::BASKET_SIZE
                 place.call(nil)
               else
-                smallest_under = unders.min_by { |p| p.catch.length_inches }
-                if smallest_under && @catch.length_inches > smallest_under.catch.length_inches
-                  smallest_under.update!(active: false)
-                  bumped << smallest_under
-                  place.call(smallest_under.slot_index)
+                worst_under = worst_placement(unders, desc: true)
+                if worst_under && outranks?(worst_under, desc: true)
+                  worst_under.update!(active: false)
+                  bumped << worst_under
+                  place.call(worst_under.slot_index)
                 end
               end
             end
@@ -288,13 +295,13 @@ module Catches
             )
             affected_tournaments << tournament
           else
-            smallest = active_placements.min_by { |p| p.catch.length_inches }
-            if @catch.length_inches > smallest.catch.length_inches
-              smallest.update!(active: false)
-              bumped << smallest
+            worst = worst_placement(active_placements, desc: true)
+            if outranks?(worst, desc: true)
+              worst.update!(active: false)
+              bumped << worst
               created << CatchPlacement.create!(
                 catch: @catch, tournament: tournament, tournament_entry: entry,
-                species: @catch.species, slot_index: smallest.slot_index, active: true
+                species: @catch.species, slot_index: worst.slot_index, active: true
               )
               affected_tournaments << tournament
             end
@@ -351,6 +358,31 @@ module Catches
     # placement — where a newly placed catch lands when the basket has room.
     def first_free_slot(active_placements, count)
       (0...count).find { |i| active_placements.none? { |p| p.slot_index == i } }
+    end
+
+    # Ranking key mirroring SlotPlacement#by_length, so an incremental bump keeps
+    # and drops exactly the catches a whole-basket reconcile would. desc: true
+    # ranks largest-best; a SMALLER key is better. The captured_at_device-asc then
+    # id tiebreak encodes "first-to-set wins" — the same order the Reconcile*
+    # classes use — so the two paths agree on which of several equal-length
+    # catches holds a slot. Keeping them in sync is pinned by
+    # PlaceReconcileConsistencyTest.
+    def rank_key(catch_record, desc:)
+      sign = desc ? -1 : 1
+      [sign * catch_record.length_inches.to_f, catch_record.captured_at_device.to_i, catch_record.id]
+    end
+
+    # The active placement a reconcile would drop first: the worst by rank_key.
+    def worst_placement(placements, desc:)
+      placements.max_by { |p| rank_key(p.catch, desc: desc) }
+    end
+
+    # Whether @catch outranks (would displace) placement under rank_key — i.e. a
+    # reconcile of the current basket plus @catch would keep @catch and drop
+    # placement. Strictly better, so an exact tie (same length, capture, id) is a
+    # no-op, matching "first-to-set wins".
+    def outranks?(placement, desc:)
+      (rank_key(@catch, desc: desc) <=> rank_key(placement.catch, desc: desc)) < 0
     end
   end
 end
