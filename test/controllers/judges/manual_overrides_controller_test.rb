@@ -25,12 +25,36 @@ class Judges::ManualOverridesControllerTest < ActionDispatch::IntegrationTest
   end
 
   test "GET new prefills cm length snapped to the quarter grid like the show page" do
-    @judge.update!(length_unit: "centimeters")
+    # Seed from the catch's own logged unit (cm), not the judge's preference.
+    @catch.update!(length_unit: "centimeters")
     get new_judges_tournament_catch_manual_override_path(tournament_id: @t.id, catch_id: @catch.id)
     assert_response :success
     # 20 in = 50.8 cm, which snaps to the 0.25 grid as 50.75 — the same value the
     # catch show page prefills. (A plain .round(1) would give 50.8.)
     assert_select "input#length[value=?]", "50.75"
+  end
+
+  test "GET new seeds the unit toggle from the catch's logged unit, not the judge's preference" do
+    # Catch logged in inches; judge prefers cm. The form must seed the catch's
+    # unit so a species- or note-only override round-trips instead of re-snapping
+    # length and flipping the unit — LengthParamParsing's untouched-length guard
+    # only fires when the submitted unit matches the catch's.
+    @judge.update!(length_unit: "centimeters")
+    get new_judges_tournament_catch_manual_override_path(tournament_id: @t.id, catch_id: @catch.id)
+    assert_select "input[name=length_unit][value=inches][checked=checked]"
+    assert_select "input[name=length_unit][value=centimeters][checked=checked]", count: 0
+  end
+
+  test "POST note-only override by a differently-unit'd judge does not drift the length" do
+    # Regression: a judge who prefers cm opens an inches-logged catch and edits
+    # only the note. With the form seeded from the catch's unit, the resubmitted
+    # prefill (20 inches) must round-trip — no length change, no re-score.
+    @judge.update!(length_unit: "centimeters")
+    assert_no_changes -> { @catch.reload.length_inches } do
+      post judges_tournament_catch_manual_override_path(tournament_id: @t.id, catch_id: @catch.id),
+           params: { species_id: @catch.species_id, length: "20", length_unit: "inches", note: "clean fish" }
+    end
+    assert_equal "inches", @catch.reload.length_unit
   end
 
   test "POST with length and length_unit=inches stores inches as-is" do
