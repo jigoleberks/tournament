@@ -19,6 +19,7 @@ class TournamentTemplate < ApplicationRecord
   validate :tagged_requires_solo
   validate :tagged_requires_one_tagged_walleye_scoring_slot
   validate :pro_walleye_requires_one_walleye_scoring_slot
+  before_validation :force_pro_walleye_slot_count
 
   def scheduled?
     default_weekday.present? && default_start_time.present? && default_end_time.present?
@@ -135,6 +136,16 @@ class TournamentTemplate < ApplicationRecord
     unless remaining.size == 1 && remaining.first.species&.walleye?
       errors.add(:tournament_template_scoring_slots,
                  "Pro Walleye tournaments must have exactly one scoring slot for the Walleye species")
+    end
+  end
+
+  # The basket is a fixed 5 fish, so pin the slot's count to the basket size (the
+  # slot-count field is "ignored" in the UI). Mirrors Tournament#force_pro_walleye_slot_count
+  # so a template stores the same capacity a cloned tournament will.
+  def force_pro_walleye_slot_count
+    return unless format_pro_walleye?
+    tournament_template_scoring_slots.reject(&:marked_for_destruction?).each do |s|
+      s.slot_count = Catches::ProWalleye::BASKET_SIZE
     end
   end
 end
