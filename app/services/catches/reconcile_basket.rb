@@ -3,13 +3,13 @@ module Catches
   # can alter which catches qualify — most notably a judge length edit, which can
   # pull a previously-unplaced backup into the basket or drop a now-smaller fish.
   #
-  # Sibling to ReconcileFreedSlot, and the two must be read together: that one
-  # re-fills a SINGLE slot freed by a deactivation (Standard -> PromoteBackup),
-  # this one re-derives the WHOLE basket (Standard -> ReconcileStandard). The
-  # non-Standard branches are identical because BvS/Smallest Fish/Pro Walleye
-  # always re-derive from the full eligible set regardless. Keeping this mapping
-  # here (not inlined in ApplyJudgeAction) means adding a scoring format updates
-  # the reconciliation layer in one obvious place instead of two.
+  # This is the single source of the format->reconciler mapping. ReconcileFreedSlot
+  # (single-slot repair after a deactivation) handles only the Standard family
+  # itself (the cheaper PromoteBackup) and defers every other format to this
+  # method, because BvS/Smallest Fish/Pro Walleye always re-derive from the full
+  # eligible set regardless of what triggered the reconcile, and Fish Train/Hidden
+  # Length/Tagged never refill a freed slot. So adding a scoring format updates the
+  # reconciliation layer in exactly one place.
   class ReconcileBasket
     def self.call(tournament:, entry:, species:)
       if tournament.format_smallest_fish?

@@ -6,26 +6,24 @@ module Catches
   class ReconcileFreedSlot
     def self.call(placement:)
       tournament = placement.tournament
-      entry      = placement.tournament_entry
-      species    = placement.species
 
-      # PromoteBackup picks the largest non-placed catch — correct for Standard
-      # but wrong for BvS/Smallest Fish (which re-derive their extremes from the
-      # whole eligible set), wrong for Pro Walleye (which re-derives its two
-      # length classes from the whole eligible set), and for Fish Train
-      # (append-only, never refilled).
-      if tournament.format_biggest_vs_smallest?
-        ReconcileBvsExtremes.call(tournament: tournament, entry: entry, species: species)
-      elsif tournament.format_smallest_fish?
-        ReconcileSmallestFish.call(tournament: tournament, entry: entry, species: species)
-      elsif tournament.format_pro_walleye?
-        ReconcileProWalleye.call(tournament: tournament, entry: entry, species: species)
-      elsif tournament.format_fish_train?
-        # Fish Train is append-only: a freed car stays a permanent hole. The
-        # angler recovers by catching forward, not by promoting a backup.
-        nil
-      else
+      # Standard and Big Fish Season are top-N by length: a freed slot only needs
+      # its single best backup promoted, which is cheaper than re-deriving the
+      # whole basket. PromoteBackup picks the largest non-placed catch — correct
+      # for those, wrong for every other format. All the others either re-derive
+      # from the full eligible set (BvS / Smallest Fish / Pro Walleye) or never
+      # refill a freed slot (Fish Train, append-only; Hidden Length / Tagged,
+      # which place every catch so there is no backup to promote). ReconcileBasket
+      # already owns that format->reconciler mapping, so defer to it as the single
+      # source of truth rather than duplicating the ladder here.
+      if tournament.format_standard? || tournament.format_big_fish_season?
         PromoteBackup.call(freed_placement: placement)
+      else
+        ReconcileBasket.call(
+          tournament: tournament,
+          entry: placement.tournament_entry,
+          species: placement.species
+        )
       end
     end
   end
