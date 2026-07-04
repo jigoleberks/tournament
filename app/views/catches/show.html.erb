@@ -164,7 +164,14 @@
     <%= form_with url: judges_tournament_catch_manual_override_path(tournament_id: @action_tournament.id, catch_id: @catch.id),
                   local: true, class: "space-y-3", data: { controller: "length-edit" } do |f| %>
       <%
-        unit = current_user.length_unit
+        # Seed the unit toggle from the catch's own logged unit (not the viewing
+        # judge's preference) so an untouched length round-trips to the same stored
+        # value. If we defaulted to current_user.length_unit, a species- or note-only
+        # override of a differently-unit'd catch would fail LengthParamParsing's
+        # untouched-length guard (it only fires when params[:length_unit] matches the
+        # catch's unit), re-snapping length_inches and flipping the unit — silently
+        # re-scoring every basket the catch is in. Mirrors catches/_organizer_editor.
+        unit = @catch.length_unit
         prefill = unit == "centimeters" ? display_cm(@catch.length_inches, unit) : @catch.length_inches
         step    = 0.25
         species_options = ordered_species.map { |s| [s.name, s.id] }
