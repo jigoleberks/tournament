@@ -104,9 +104,15 @@ module Catches
             # holds a placement. Re-derivation from the whole eligible set is correct
             # for grow and shrink alike (no shrink gating). A species change already
             # rebuilt placements via deactivate_and_replace!, so skip then.
-            eligible = ::Tournaments::ActiveForUser
+            candidate_rows = ::Tournaments::ActiveForUser
               .with_entries(user: @catch.user, at: @catch.captured_at_device)
-              .select { |r| r[:tournament].scoring_slots.exists?(species_id: @catch.species_id) }
+            # Which of those tournaments actually score this species? Resolve it in
+            # one query rather than a per-row scoring_slots.exists? (an N+1 under the
+            # @catch row lock we hold here).
+            scored_tournament_ids = ::ScoringSlot
+              .where(tournament_id: candidate_rows.map { |r| r[:tournament].id }, species_id: @catch.species_id)
+              .distinct.pluck(:tournament_id).to_set
+            eligible = candidate_rows.select { |r| scored_tournament_ids.include?(r[:tournament].id) }
 
             # ActiveForUser drops tournaments where the owner is now also a judge,
             # or whose window no longer covers captured_at_device. A stale placement

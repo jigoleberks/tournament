@@ -112,6 +112,25 @@ module Catches
                       "snapshot should not double-query species, got #{species_queries} queries"
     end
 
+    test "length-edit reconcile filters tournaments without an N+1 on scoring_slots" do
+      # The member is entered in several active tournaments that score a
+      # different species (no Walleye slot), so the length edit must filter them
+      # out. That filter must not fire one scoring-slot query per tournament.
+      5.times do
+        other = create(:tournament, club: @club, starts_at: 1.hour.ago, ends_at: 1.hour.from_now)
+        create(:scoring_slot, tournament: other, species: @pike, slot_count: 1)
+        e = create(:tournament_entry, tournament: other)
+        create(:tournament_entry_member, tournament_entry: e, user: @user)
+      end
+
+      slot_queries = count_queries(/scoring_slots/i) do
+        ApplyJudgeAction.call(tournament: @t, catch: @catch, judge: @judge,
+                              action: :manual_override, length_inches: 22, note: "remeasured")
+      end
+      assert_operator slot_queries, :<=, 3,
+                      "scoring-slot lookups must not scale with the member's tournament count, got #{slot_queries}"
+    end
+
     test "approve transitions needs_review -> synced and writes an audit row" do
       assert_difference "JudgeAction.count", 1 do
         ApplyJudgeAction.call(tournament: @t, catch: @catch, judge: @judge, action: :approve, note: "ok")
