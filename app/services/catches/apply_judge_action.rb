@@ -22,10 +22,11 @@ module Catches
       @photo = photo
       @override_in_lake, @override_in_sask = override_in_lake, override_in_sask
       @latitude, @longitude = latitude, longitude
-      # When set (organizer/admin catch editor, tournament: nil), the acting user
-      # only has authority in this club: reconcile and broadcast are confined to
-      # its tournaments so the edit never reshuffles or re-broadcasts another
-      # club's baskets. Judge actions pass a specific @tournament and no @club.
+      # When set, the acting user only has authority in this club: reconcile and
+      # broadcast are confined to its tournaments so the edit never reshuffles or
+      # re-broadcasts another club's baskets. The organizer/admin catch editor
+      # passes it with tournament: nil; a judge passes @tournament.club so a
+      # per-tournament correction stays within that tournament's club too.
       @club = club
       @snapshot_old_attachment_id = nil
       @notify_owner = false
