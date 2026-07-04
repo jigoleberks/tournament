@@ -19,10 +19,16 @@ module Catches
       if tournament.format_standard? || tournament.format_big_fish_season?
         PromoteBackup.call(freed_placement: placement)
       else
+        # Exclude the catch that vacated this slot from the re-derive. It's either
+        # gone (DQ / dropped member) or about to be re-placed by the caller
+        # (deactivate_and_replace! runs PlaceInSlots after this); re-adding it here
+        # would double-place it. PromoteBackup (the Standard branch) already
+        # excludes @placement.catch_id, so this keeps the two branches consistent.
         ReconcileBasket.call(
           tournament: tournament,
           entry: placement.tournament_entry,
-          species: placement.species
+          species: placement.species,
+          exclude_catch_id: placement.catch_id
         )
       end
     end

@@ -9,12 +9,13 @@ module Catches
     # case; re-picking the N largest from the whole eligible set handles it.
     include SlotPlacement
 
-    def self.call(tournament:, entry:, species:)
-      new(tournament: tournament, entry: entry, species: species).call
+    def self.call(tournament:, entry:, species:, exclude_catch_id: nil)
+      new(tournament: tournament, entry: entry, species: species, exclude_catch_id: exclude_catch_id).call
     end
 
-    def initialize(tournament:, entry:, species:)
+    def initialize(tournament:, entry:, species:, exclude_catch_id: nil)
       @tournament, @entry, @species = tournament, entry, species
+      @exclude_catch_id = exclude_catch_id
     end
 
     def call

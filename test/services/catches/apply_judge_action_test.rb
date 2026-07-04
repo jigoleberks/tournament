@@ -957,6 +957,55 @@ module Catches
       assert ja.before_state.key?("latitude"), "snapshot should carry a latitude key"
     end
 
+    # A whole-basket format (Pro Walleye) reconciles a freed slot by re-deriving
+    # the entire basket, which includes the edited catch. deactivate_and_replace!
+    # then calls PlaceInSlots to re-place the catch — so the reconcile step must
+    # NOT re-add the vacating catch, or the catch ends up double-placed (counted
+    # twice on the leaderboard). Mirrors PromoteBackup, which already excludes it.
+    def pro_walleye_entry
+      walleye = create(:species, name: "Walleye", club: @club)
+      pw = build(:tournament, club: @club, format: :pro_walleye, mode: :team,
+                 starts_at: 1.hour.ago, ends_at: 1.hour.from_now)
+      pw.scoring_slots.build(species: walleye, slot_count: 5)
+      pw.save!
+      entry = create(:tournament_entry, tournament: pw)
+      create(:tournament_entry_member, tournament_entry: entry, user: @user)
+      [pw, entry, walleye]
+    end
+
+    test "geofence_override on a Pro Walleye catch does not double-place it" do
+      pw, _entry, walleye = pro_walleye_entry
+      c = create(:catch, user: @user, species: walleye, length_inches: 20, status: :synced)
+      Catches::PlaceInSlots.call(catch: c)
+      assert_equal 1, c.catch_placements.active.where(tournament: pw).count, "sanity: placed once"
+
+      ApplyJudgeAction.call(tournament: pw, catch: c, judge: @judge,
+                            action: :geofence_override, override_in_lake: true, override_in_sask: true)
+
+      assert_equal 1, c.catch_placements.active.where(tournament: pw).count,
+                   "catch must hold exactly one active placement, not be double-placed"
+    end
+
+    test "correct_location on a Pro Walleye catch reconciles the basket without dropping a backup" do
+      pw, entry, walleye = pro_walleye_entry
+      # Full basket of 5 unders; the edited catch (20) is the largest.
+      catches = [16, 17, 18, 19, 20].map do |len|
+        c = create(:catch, user: @user, species: walleye, length_inches: len, status: :synced)
+        Catches::PlaceInSlots.call(catch: c)
+        c
+      end
+      edited = catches.last
+      assert_equal 5, entry.catch_placements.active.count
+
+      ApplyJudgeAction.call(tournament: pw, catch: edited, judge: @judge,
+                            action: :correct_location, latitude: "49.41", longitude: "-103.62")
+
+      assert_equal 1, edited.catch_placements.active.where(tournament: pw).count,
+                   "edited catch stays placed exactly once"
+      active = entry.catch_placements.active.includes(:catch).map { |p| p.catch.length_inches.to_i }.sort
+      assert_equal [16, 17, 18, 19, 20], active, "basket unchanged: no double, no dropped backup"
+    end
+
     # --- correct_location action ----------------------------------------------
 
     test "correct_location moves a catch into the lake, places it, and clears flags" do

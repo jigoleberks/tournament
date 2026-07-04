@@ -32,12 +32,17 @@ module Catches
     # the smallest/extreme and wrongly claim a slot), so we exclude length-less
     # rows here — defensive, since Catch validates length presence.
     def eligible_catches
-      ::Catch.where(user_id: entry_member_ids,
-                    species_id: @species.id,
-                    captured_at_device: tournament_window)
-             .where.not(status: ::Catch.statuses[:disqualified])
-             .where.not(length_inches: nil)
-             .select { |c| slot_eligible?(c) }
+      scope = ::Catch.where(user_id: entry_member_ids,
+                            species_id: @species.id,
+                            captured_at_device: tournament_window)
+                     .where.not(status: ::Catch.statuses[:disqualified])
+                     .where.not(length_inches: nil)
+      # When re-filling a freed slot, the catch that just vacated it is being
+      # re-placed elsewhere (ReconcileFreedSlot -> PlaceInSlots), so it must not
+      # re-claim a slot here or it ends up double-placed. Mirrors PromoteBackup,
+      # which excludes @placement.catch_id from its candidate set.
+      scope = scope.where.not(id: @exclude_catch_id) if @exclude_catch_id
+      scope.select { |c| slot_eligible?(c) }
     end
 
     # Rank catches for slot selection by length. The tiebreak — earliest
