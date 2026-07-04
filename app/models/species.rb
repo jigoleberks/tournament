@@ -29,10 +29,6 @@ class Species < ApplicationRecord
     find_by("lower(name) = ?", TAGGED_WALLEYE_NAME.downcase)
   end
 
-  def self.walleye
-    find_by("lower(name) = ?", WALLEYE_NAME.downcase)
-  end
-
   def tagged_walleye?
     name.to_s.casecmp?(TAGGED_WALLEYE_NAME)
   end
