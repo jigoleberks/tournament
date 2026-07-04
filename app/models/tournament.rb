@@ -17,6 +17,7 @@ class Tournament < ApplicationRecord
   validate :blind_leaderboard_locked_after_start, on: :update
   validate :format_locked_after_start, on: :update
   validate :train_cars_locked_after_start, on: :update
+  validate :scoring_slots_locked_after_start, on: :update
   validate :big_fish_season_requires_solo
   validate :big_fish_season_requires_one_scoring_slot
   validate :hidden_length_requires_one_scoring_slot
@@ -144,6 +145,20 @@ class Tournament < ApplicationRecord
     return unless will_save_change_to_train_cars?
     return if starts_at.blank? || starts_at > Time.current
     errors.add(:train_cars, "can't be changed once the tournament has started")
+  end
+
+  # The species-and-quantity set is fixed once a tournament is active — the same
+  # "no changes after start" rule as format/train_cars, applied to the scoring
+  # slots. Blocks adding, removing, or editing a slot (species or slot_count).
+  # This makes the "active tournaments never change" operating rule real in code,
+  # and closes the mid-tournament slot-removal case that would otherwise strand
+  # already-scored placements for a species the tournament no longer ranks. Same-
+  # value reassignments (e.g. force_pro_walleye_slot_count pinning slot_count) are
+  # not dirty, so a plain save of a started tournament still passes.
+  def scoring_slots_locked_after_start
+    return if starts_at.blank? || starts_at > Time.current
+    return unless scoring_slots.any? { |s| s.new_record? || s.marked_for_destruction? || s.changed? }
+    errors.add(:scoring_slots, "can't be changed once the tournament has started")
   end
 
   def fish_train_pool_size_between_1_and_3

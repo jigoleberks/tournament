@@ -30,15 +30,16 @@ module Catches
         eligible = eligible_catches
         return if eligible.empty?
 
-        # Tiebreaker for same-length catches: earliest captured_at_device wins,
-        # then lowest id. Matches the "first-to-set wins" semantics of the
-        # incremental PlaceInSlots BvS branch (which no-ops on ties).
-        biggest  = eligible.min_by { |c| [-c.length_inches.to_f, c.captured_at_device.to_i, c.id] }
+        # Select biggest then smallest via the shared SlotRanking ordering (earliest
+        # captured_at_device wins a same-length tie). The incremental PlaceInSlots BvS
+        # branch re-selects over the same candidate set with the same key, so the two
+        # paths keep the identical pair.
+        biggest  = by_length(eligible, desc: true).first
         remaining = eligible - [biggest]
         if remaining.empty?
           activate_placement!(biggest, slot_index: 0)
         else
-          smallest = remaining.min_by { |c| [c.length_inches.to_f, c.captured_at_device.to_i, c.id] }
+          smallest = by_length(remaining, desc: false).first
           activate_placement!(biggest, slot_index: 0)
           activate_placement!(smallest, slot_index: 1)
         end

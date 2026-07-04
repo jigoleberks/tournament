@@ -51,8 +51,7 @@ module Catches
     # branches. desc: true is largest-first (Standard, Pro Walleye, BvS);
     # desc: false is smallest-first (Smallest Fish).
     def by_length(catches, desc:)
-      sign = desc ? -1 : 1
-      catches.sort_by { |c| [sign * c.length_inches.to_f, c.captured_at_device.to_i, c.id] }
+      catches.sort_by { |c| SlotRanking.key(c, desc: desc) }
     end
 
     # Whole-basket re-derive shared by ReconcileStandard (desc: true) and

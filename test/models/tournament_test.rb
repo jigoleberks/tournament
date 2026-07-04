@@ -205,6 +205,66 @@ class TournamentTest < ActiveSupport::TestCase
     assert t.valid?, t.errors.full_messages.to_sentence
   end
 
+  test "a scoring slot's quantity cannot be changed after the tournament has started" do
+    species = create(:species)
+    t = create(:tournament, club: @club, format: :standard, mode: :solo,
+               starts_at: 1.hour.ago, ends_at: 1.hour.from_now)
+    slot = create(:scoring_slot, tournament: t, species: species, slot_count: 2)
+
+    t.reload
+    t.scoring_slots_attributes = [{ id: slot.id, species_id: species.id, slot_count: 5 }]
+    assert_not t.valid?
+    assert_includes t.errors[:scoring_slots], "can't be changed once the tournament has started"
+  end
+
+  test "a scoring slot cannot be removed after the tournament has started" do
+    species = create(:species)
+    t = create(:tournament, club: @club, format: :standard, mode: :solo,
+               starts_at: 1.hour.ago, ends_at: 1.hour.from_now)
+    slot = create(:scoring_slot, tournament: t, species: species, slot_count: 2)
+
+    t.reload
+    t.scoring_slots_attributes = [{ id: slot.id, _destroy: "1" }]
+    assert_not t.valid?
+    assert_includes t.errors[:scoring_slots], "can't be changed once the tournament has started"
+  end
+
+  test "a scoring slot cannot be added after the tournament has started" do
+    a = create(:species)
+    b = create(:species)
+    t = create(:tournament, club: @club, format: :standard, mode: :solo,
+               starts_at: 1.hour.ago, ends_at: 1.hour.from_now)
+    create(:scoring_slot, tournament: t, species: a, slot_count: 2)
+
+    t.reload
+    t.scoring_slots_attributes = [{ species_id: b.id, slot_count: 1 }]
+    assert_not t.valid?
+    assert_includes t.errors[:scoring_slots], "can't be changed once the tournament has started"
+  end
+
+  test "scoring slots can be changed before the tournament starts" do
+    species = create(:species)
+    t = create(:tournament, club: @club, format: :standard, mode: :solo,
+               starts_at: 1.hour.from_now, ends_at: 4.hours.from_now)
+    slot = create(:scoring_slot, tournament: t, species: species, slot_count: 2)
+
+    t.reload
+    t.scoring_slots_attributes = [{ id: slot.id, species_id: species.id, slot_count: 5 }]
+    assert t.valid?, t.errors.full_messages.to_sentence
+  end
+
+  test "a started tournament still saves when its scoring slots are untouched" do
+    species = create(:species)
+    t = create(:tournament, club: @club, format: :standard, mode: :solo,
+               starts_at: 1.hour.ago, ends_at: 1.hour.from_now)
+    create(:scoring_slot, tournament: t, species: species, slot_count: 2)
+
+    t.reload
+    t.name = "Renamed mid-tournament"
+    assert t.valid?, t.errors.full_messages.to_sentence
+    assert t.save
+  end
+
   test "format enum includes hidden_length" do
     t = build(:tournament, club: @club, format: :hidden_length, mode: :solo,
               ends_at: 2.hours.from_now)

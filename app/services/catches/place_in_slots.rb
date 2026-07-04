@@ -86,27 +86,29 @@ module Catches
               )
               affected_tournaments << tournament
             else
-              # Pick the biggest and smallest incumbents by the same rank_key the
-              # reconciler uses (ReconcileBvsExtremes), keeping them distinct so a
-              # tie in length resolves to the same two catches. A new catch that
-              # outranks the biggest becomes the new biggest (the old one drops to
-              # the middle); one that outranks the smallest becomes the smallest.
-              biggest_p  = active_placements.min_by { |p| rank_key(p.catch, desc: true) }
-              smallest_p = (active_placements - [biggest_p]).min_by { |p| rank_key(p.catch, desc: false) }
-              if outranks?(biggest_p, desc: true)
-                biggest_p.update!(active: false)
-                bumped << biggest_p
+              # Re-select the surviving biggest+smallest over {both incumbents + the
+              # new catch} using the SAME procedure ReconcileBvsExtremes runs (biggest
+              # by rank_key desc, then smallest by rank_key asc over the rest). Because
+              # the two incumbents are already the extremes of everything seen so far,
+              # this trio contains the true biggest and smallest, so the incremental
+              # basket matches a whole-basket reconcile exactly — including the
+              # equal-length tie case where "keep the earliest-captured" decides which
+              # of two same-length twins survives.
+              candidates = active_placements.map(&:catch) + [@catch]
+              biggest = candidates.min_by { |c| rank_key(c, desc: true) }
+              smallest = (candidates - [biggest]).min_by { |c| rank_key(c, desc: false) }
+              keep_ids = [biggest.id, smallest.id]
+
+              if keep_ids.include?(@catch.id)
+                # @catch displaces the one incumbent that is no longer an extreme; it
+                # reuses that placement's slot_index so we never collide with
+                # idx_active_placements_uniq_per_slot.
+                dropped = active_placements.find { |p| !keep_ids.include?(p.catch_id) }
+                dropped.update!(active: false)
+                bumped << dropped
                 created << CatchPlacement.create!(
                   catch: @catch, tournament: tournament, tournament_entry: entry,
-                  species: @catch.species, slot_index: biggest_p.slot_index, active: true
-                )
-                affected_tournaments << tournament
-              elsif outranks?(smallest_p, desc: false)
-                smallest_p.update!(active: false)
-                bumped << smallest_p
-                created << CatchPlacement.create!(
-                  catch: @catch, tournament: tournament, tournament_entry: entry,
-                  species: @catch.species, slot_index: smallest_p.slot_index, active: true
+                  species: @catch.species, slot_index: dropped.slot_index, active: true
                 )
                 affected_tournaments << tournament
               else
@@ -368,8 +370,7 @@ module Catches
     # catches holds a slot. Keeping them in sync is pinned by
     # PlaceReconcileConsistencyTest.
     def rank_key(catch_record, desc:)
-      sign = desc ? -1 : 1
-      [sign * catch_record.length_inches.to_f, catch_record.captured_at_device.to_i, catch_record.id]
+      SlotRanking.key(catch_record, desc: desc)
     end
 
     # The active placement a reconcile would drop first: the worst by rank_key.

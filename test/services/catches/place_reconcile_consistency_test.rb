@@ -27,7 +27,9 @@ module Catches
     # was captured earlier.
     def basket_for(format:, lengths:, capture_offsets: nil)
       club = create(:club)
-      walleye = create(:species, name: "Walleye")
+      # find_or_create so a single test can call basket_for repeatedly (the fuzz
+      # test) without tripping Species' global name-uniqueness validation.
+      walleye = Species.find_or_create_by!(name: "Walleye")
       user = create(:user, club: club)
       t = build(:tournament, club: club, format: format, mode: :team,
                 starts_at: 2.hours.ago, ends_at: 1.hour.from_now)
@@ -112,11 +114,35 @@ module Catches
       [22, 14, 18, 20, 16],                 # same set, different order
       [20, 20, 18],                         # tied biggest — which 20 is kept
       [18, 20, 20],                         # tied biggest, later placement
+      [20, 20, 25],                         # tied pair, then a strictly BIGGER catch
+      [14, 14, 8],                          # tied pair, then a strictly SMALLER catch
     ].freeze
 
     BIGGEST_VS_SMALLEST_CASES.each_with_index do |lengths, i|
       test "biggest_vs_smallest incremental placement matches reconcile ##{i} #{lengths.inspect}" do
         assert_consistent(format: :biggest_vs_smallest, lengths: lengths)
+      end
+    end
+
+    # Property test: incremental placement must equal whole-basket reconcile for
+    # MANY random catch sequences, not just the hand-picked cases above. A fixed
+    # case list can — and did — miss shapes like BvS "two equal-length extremes,
+    # then a strictly more-extreme catch," so the two paths could silently keep
+    # different catches while every enumerated case passed. A generative test
+    # closes that hole permanently: lengths are drawn from a small pool WITH
+    # duplicates so equal-length ties are common, and capture order is shuffled
+    # independently of placement order to exercise the earliest-capture tiebreak.
+    FUZZ_POOL = [16, 18, 20, 20, 20, 22, 25].freeze # weighted to 20" so ties are frequent
+
+    RECONCILERS.each_key.with_index do |format, idx|
+      test "#{format} incremental placement matches reconcile across random sequences" do
+        rng = Random.new(1000 + idx) # fixed seed per format -> reproducible
+        10.times do
+          n = rng.rand(2..6)
+          lengths = Array.new(n) { FUZZ_POOL.sample(random: rng) }
+          offsets = (1..n).map { |i| 80 + i }.shuffle(random: rng)
+          assert_consistent(format: format, lengths: lengths, capture_offsets: offsets)
+        end
       end
     end
 
