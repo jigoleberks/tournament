@@ -79,7 +79,7 @@ module Catches
             # MORE extreme than one of them. The previously-extreme placement is now
             # in the middle and gets dropped; the new catch reuses its slot_index.
             if active_placements.size < 2
-              next_index = (0..1).find { |i| active_placements.none? { |p| p.slot_index == i } }
+              next_index = first_free_slot(active_placements, 2)
               created << CatchPlacement.create!(
                 catch: @catch, tournament: tournament, tournament_entry: entry,
                 species: @catch.species, slot_index: next_index, active: true
@@ -203,7 +203,7 @@ module Catches
             # but once the basket is full a new catch only matters if it's SMALLER
             # than the current largest placement, which it then bumps.
             if active_placements.size < slot.slot_count
-              next_index = (0...slot.slot_count).find { |i| active_placements.none? { |p| p.slot_index == i } }
+              next_index = first_free_slot(active_placements, slot.slot_count)
               created << CatchPlacement.create!(
                 catch: @catch, tournament: tournament, tournament_entry: entry,
                 species: @catch.species, slot_index: next_index, active: true
@@ -234,7 +234,7 @@ module Catches
             # place! reuses a bumped placement's slot_index, or takes the lowest
             # free 0–4 slot when the basket has room.
             place = lambda do |reuse_index|
-              index = reuse_index || (0...ProWalleye::BASKET_SIZE).find { |i| active_placements.none? { |p| p.slot_index == i } }
+              index = reuse_index || first_free_slot(active_placements, ProWalleye::BASKET_SIZE)
               created << CatchPlacement.create!(
                 catch: @catch, tournament: tournament, tournament_entry: entry,
                 species: @catch.species, slot_index: index, active: true
@@ -281,7 +281,7 @@ module Catches
               end
             end
           elsif active_placements.size < slot.slot_count
-            next_index = (0...slot.slot_count).find { |i| active_placements.none? { |p| p.slot_index == i } }
+            next_index = first_free_slot(active_placements, slot.slot_count)
             created << CatchPlacement.create!(
               catch: @catch, tournament: tournament, tournament_entry: entry,
               species: @catch.species, slot_index: next_index, active: true
@@ -345,6 +345,12 @@ module Catches
       return false unless tournament.local?
       return false if @catch.latitude.nil?
       !@catch.in_geofence?(:lake)
+    end
+
+    # The lowest 0-based slot index in [0, count) not already held by an active
+    # placement — where a newly placed catch lands when the basket has room.
+    def first_free_slot(active_placements, count)
+      (0...count).find { |i| active_placements.none? { |p| p.slot_index == i } }
     end
   end
 end
