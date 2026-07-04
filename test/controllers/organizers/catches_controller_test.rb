@@ -71,6 +71,20 @@ class Organizers::CatchesControllerTest < ActionDispatch::IntegrationTest
     assert_equal 22.5, @member_catch.reload.length_inches.to_f, "invalid edit should not persist"
   end
 
+  test "a note-only edit of a cm-tagged catch does not drift its stored length" do
+    # Legacy inch-grid fish mis-tagged cm: stored 8.50", the editor prefills
+    # 21.5 cm. Changing only the note resubmits that exact prefill; length_inches
+    # must stay 8.50 rather than round-tripping to a drifted 8.46.
+    @member_catch.update!(length_inches: 8.50, length_unit: "centimeters")
+    sign_in_as(@organizer)
+    patch organizers_catch_path(@member_catch.id), params: {
+      species_id: @member_catch.species_id, length: "21.5", length_unit: "centimeters",
+      note: "just a note"
+    }
+    assert_equal 8.50, @member_catch.reload.length_inches.to_f,
+                 "prefilled cm length must round-trip, not drift"
+  end
+
   test "non-organizer cannot update" do
     sign_in_as(@member)
     patch organizers_catch_path(@member_catch.id), params: { length: "10", length_unit: "inches" }

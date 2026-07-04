@@ -14,10 +14,21 @@ class LengthParamParsingTest < ActiveSupport::TestCase
     def parse
       resolved_length_inches
     end
+
+    def parse_for(catch)
+      resolved_length_inches(catch)
+    end
   end
 
   def parse(params)
     Host.new(ActionController::Parameters.new(params)).parse
+  end
+
+  # Stands in for the catch the editor prefilled the form from.
+  CatchStub = Struct.new(:length_inches, :length_unit)
+
+  def parse_for(params, catch)
+    Host.new(ActionController::Parameters.new(params)).parse_for(catch)
   end
 
   test "cm entry converts and rounds to the stored 2dp inch grid" do
@@ -42,5 +53,27 @@ class LengthParamParsingTest < ActiveSupport::TestCase
 
   test "blank length yields nil" do
     assert_nil parse(length_unit: "inches")
+  end
+
+  test "an untouched prefilled cm value resolves to the stored inches, not a drifted one" do
+    # Legacy inch-grid catch mis-tagged cm: stored 8.50", the editor prefills
+    # display_cm(8.50, cm) = 21.5 cm. A note/species-only save resubmits 21.5
+    # unchanged, so it must resolve back to 8.50 — not drift to 8.46, which
+    # would trip a phantom length change and re-score every basket it's in.
+    catch = CatchStub.new(BigDecimal("8.50"), "centimeters")
+    assert_equal 8.50, parse_for({ length: "21.5", length_unit: "centimeters" }, catch).to_f
+  end
+
+  test "an untouched off-grid inches prefill resolves to the stored value" do
+    # Stored 8.53" (off the 0.25 grid). Leaving the field alone must not snap
+    # it to 8.50 on a note-only edit.
+    catch = CatchStub.new(BigDecimal("8.53"), "inches")
+    assert_equal 8.53, parse_for({ length: "8.53", length_unit: "inches" }, catch).to_f
+  end
+
+  test "a genuinely changed cm length still converts (guard fires only on the exact prefill)" do
+    # Same mis-tagged catch, but the organizer actually remeasures to 55 cm.
+    catch = CatchStub.new(BigDecimal("8.50"), "centimeters")
+    assert_equal 21.65, parse_for({ length: "55", length_unit: "centimeters" }, catch).to_f
   end
 end

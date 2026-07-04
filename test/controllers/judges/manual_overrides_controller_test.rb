@@ -104,6 +104,30 @@ class Judges::ManualOverridesControllerTest < ActionDispatch::IntegrationTest
     assert_equal @pike.id, @catch.catch_placements.active.first.species_id
   end
 
+  test "a judge length edit leaves another club's tournament stale" do
+    # The angler is also entered in a second club's tournament, with this catch
+    # holding the slot there too. A judge is assigned per-tournament, so a
+    # club-A judge's length correction must not reconcile or reshuffle club B.
+    angler = @catch.user
+    club_b = create(:club)
+    create(:club_membership, user: angler, club: club_b)
+    t_b = create(:tournament, club: club_b, starts_at: 1.hour.ago, ends_at: 1.hour.from_now)
+    create(:scoring_slot, tournament: t_b, species: @walleye, slot_count: 1)
+    entry_b = create(:tournament_entry, tournament: t_b)
+    create(:tournament_entry_member, tournament_entry: entry_b, user: angler)
+    @catch.catch_placements.destroy_all
+    Catches::PlaceInSlots.call(catch: @catch) # placed in @t (club A) and t_b (club B)
+    # A larger backup that a whole-basket re-derive would promote if club B ran.
+    create(:catch, user: angler, species: @walleye, length_inches: 16,
+                   captured_at_device: 30.minutes.ago, status: :synced)
+
+    post judges_tournament_catch_manual_override_path(tournament_id: @t.id, catch_id: @catch.id),
+         params: { length: "14", length_unit: "inches", note: "remeasured" }
+
+    active_b = t_b.catch_placements.active.where(species: @walleye)
+    assert_equal @catch.id, active_b.first&.catch_id, "club B left stale, not reconciled by a club-A judge"
+  end
+
   test "POST override with entry from another tournament is not found" do
     other_t = create(:tournament, club: @club, starts_at: 1.hour.ago, ends_at: 1.hour.from_now)
     other_entry = create(:tournament_entry, tournament: other_t)

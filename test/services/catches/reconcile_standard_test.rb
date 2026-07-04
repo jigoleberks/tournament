@@ -53,5 +53,16 @@ module Catches
       ReconcileStandard.call(tournament: @t, entry: @entry, species: @walleye)
       assert_equal 0, @entry.catch_placements.where(active: true).count
     end
+
+    test "no scoring slot leaves existing placements untouched instead of wiping them" do
+      c = make(10)
+      PlaceInSlots.call(catch: c)
+      assert_equal [10], active_lengths, "precondition: catch is placed"
+      # Degenerate: the slot is gone but the placement survives. A reconcile must
+      # not clear the basket before it has confirmed a slot to re-derive against.
+      @t.scoring_slots.where(species: @walleye).destroy_all
+      ReconcileStandard.call(tournament: @t, entry: @entry, species: @walleye)
+      assert_equal [10], active_lengths, "placement preserved when no slot exists"
+    end
   end
 end

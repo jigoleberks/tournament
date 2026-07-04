@@ -29,7 +29,7 @@ module CatchDetailEditing
     Catches::ApplyJudgeAction.call(
       tournament: nil, catch: @catch, judge: current_user, action: :manual_override,
       note: params[:note],
-      length_inches: resolved_length_inches,
+      length_inches: resolved_length_inches(@catch),
       length_unit: resolved_length_unit,
       species_id: params[:species_id].presence&.to_i,
       club: current_club

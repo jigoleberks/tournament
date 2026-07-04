@@ -11,8 +11,17 @@ module LengthParamParsing
 
   private
 
-  def resolved_length_inches
+  def resolved_length_inches(catch = nil)
     if params[:length].present?
+      # If the length field still holds exactly the value the editor prefilled
+      # for this catch (same unit), the user changed something else (note,
+      # species) and left length alone. Recomputing length_inches from a
+      # prefilled value is lossy for catches whose stored inches aren't on the
+      # display grid — legacy inch-logged fish mis-tagged cm, or any off-grid
+      # value — so return the stored value verbatim rather than drifting it and
+      # tripping a phantom length change (which would re-score and notify).
+      return catch.length_inches if catch && length_field_untouched?(catch)
+
       raw = snap_quarter(params[:length].to_d)
       # length_inches is decimal(5,2). Round the cm->inch conversion to that same
       # scale so re-saving a catch's prefilled cm value round-trips to the stored
@@ -30,5 +39,24 @@ module LengthParamParsing
 
   def snap_quarter(value)
     (value / QUARTER).round * QUARTER
+  end
+
+  # True when params[:length] still equals the value the editor seeded the field
+  # with for this catch, in the catch's own unit. Mirrors _organizer_editor's
+  # prefill (LengthHelper#display_cm) arithmetic exactly — cm snapped to the 0.25
+  # grid, inches as stored — so "the user didn't touch length" is detected
+  # byte-for-byte, immune to the display grid's lossy round-trip.
+  def length_field_untouched?(catch)
+    return false if catch.length_inches.nil?
+    return false unless params[:length_unit] == catch.length_unit
+
+    prefill =
+      if catch.length_unit == "centimeters"
+        cm = catch.length_inches.to_f * LengthHelper::CM_PER_INCH
+        (cm / LengthHelper::QUARTER_CM).round * LengthHelper::QUARTER_CM
+      else
+        catch.length_inches.to_f
+      end
+    params[:length].to_f == prefill
   end
 end

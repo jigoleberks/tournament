@@ -45,11 +45,9 @@ module Catches
 
     private
 
-    # The N largest by length; ties broken by earliest captured_at_device then
-    # lowest id — matches the "first-to-set wins" semantics of the incremental
-    # PlaceInSlots pro_walleye branch (which no-ops on ties).
+    # The N largest by length (see SlotPlacement#by_length for the tiebreak).
     def top(catches, n)
-      catches.sort_by { |c| [-c.length_inches.to_f, c.captured_at_device.to_i, c.id] }.first(n)
+      by_length(catches, desc: true).first(n)
     end
   end
 end
