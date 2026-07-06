@@ -10,6 +10,10 @@ class Species < ApplicationRecord
   # "Tagged Walleye" species). Used by the Pro Walleye format's slot validation.
   WALLEYE_NAME = "Walleye".freeze
 
+  # Canonical names for the two other species the Bingo card references.
+  PERCH_NAME = "Perch".freeze
+  PIKE_NAME = "Pike".freeze
+
   # Display order for the catch-logging dropdown only (catches/new).
   # Species not listed here fall to the end, ordered alphabetically.
   LOG_ORDER = ["Walleye", "Perch", "Pike", "Stocked Trout", "Lake Trout", "Bass", TAGGED_WALLEYE_NAME, "Other"].freeze

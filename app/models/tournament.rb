@@ -10,7 +10,7 @@ class Tournament < ApplicationRecord
   has_many :catch_placements, dependent: :destroy
   has_many :judge_users, through: :tournament_judges, source: :user
   enum :mode, { solo: 0, team: 1 }, prefix: true
-  enum :format, { standard: 0, big_fish_season: 1, hidden_length: 2, biggest_vs_smallest: 3, fish_train: 4, tagged: 5, smallest_fish: 6, pro_walleye: 7 }, prefix: true
+  enum :format, { standard: 0, big_fish_season: 1, hidden_length: 2, biggest_vs_smallest: 3, fish_train: 4, tagged: 5, smallest_fish: 6, pro_walleye: 7, bingo: 8 }, prefix: true
 
   validates :name, :mode, :starts_at, :ends_at, presence: true
   validate :ends_at_after_starts_at
@@ -31,6 +31,9 @@ class Tournament < ApplicationRecord
   validate :tagged_requires_one_tagged_walleye_scoring_slot
   validate :pro_walleye_requires_one_walleye_scoring_slot
   before_validation :force_pro_walleye_slot_count
+  before_validation :assign_bingo_layout, on: :create
+  validate :bingo_layout_well_formed
+  validate :bingo_layout_locked_after_start, on: :update
 
   scope :active_at, ->(time) {
     where("starts_at <= ?", time).where("ends_at IS NULL OR ends_at >= ?", time)
@@ -218,5 +221,29 @@ class Tournament < ApplicationRecord
   def force_pro_walleye_slot_count
     return unless format_pro_walleye?
     scoring_slots.reject(&:marked_for_destruction?).each { |s| s.slot_count = Catches::ProWalleye::BASKET_SIZE }
+  end
+
+  def assign_bingo_layout
+    return unless format_bingo?
+    return if bingo_layout.present?
+    self.bingo_layout = Catches::Bingo::Tasks.random_layout
+  end
+
+  def bingo_layout_well_formed
+    return unless format_bingo?
+    layout = bingo_layout
+    unless layout.is_a?(Array) && layout.size == 25 &&
+           layout[Catches::Bingo::Tasks::FREE_INDEX] == "free" &&
+           (layout - ["free"]).sort == Catches::Bingo::Tasks.keys.sort
+      errors.add(:bingo_layout, "must be the 24 bingo tasks plus the free center cell")
+    end
+  end
+
+  # Mirror scoring_slots_locked_after_start: the shuffled card freezes at start.
+  def bingo_layout_locked_after_start
+    return unless format_bingo?
+    return unless will_save_change_to_bingo_layout?
+    return if starts_at.blank? || starts_at > Time.current
+    errors.add(:bingo_layout, "can't be changed once the tournament has started")
   end
 end
