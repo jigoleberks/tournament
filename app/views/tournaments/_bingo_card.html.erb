@@ -1,0 +1,16 @@
+<%# app/views/tournaments/_bingo_card.html.erb — locals: tournament, result %>
+<div id="bingo_card">
+  <div class="grid grid-cols-5 gap-1">
+    <% result.cells.each do |cell| %>
+      <div data-bingo-cell
+           class="aspect-square rounded p-1 text-[10px] leading-tight flex items-center justify-center text-center
+                  <%= cell[:filled] ? 'bg-emerald-600 text-white font-semibold' : 'bg-slate-800 text-slate-300' %>">
+        <span><%= cell[:key] == "free" ? "FREE" : cell[:label] %></span>
+      </div>
+    <% end %>
+  </div>
+  <p class="text-sm text-slate-400 mt-3">
+    <%= result.lines_count %> <%= "line".pluralize(result.lines_count) %> ·
+    <%= result.squares_count %>/25 squares<%= " · BLACKOUT!" if result.blackout %>
+  </p>
+</div>

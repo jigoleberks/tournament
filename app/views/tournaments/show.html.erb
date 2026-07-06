@@ -87,7 +87,13 @@
 <% when :entries_only %>
   <%= turbo_stream_from "tournament:#{@tournament.id}:leaderboard:reveal" %>
 <% end %>
-<% if @tournament.format_tagged? %>
+<% if @tournament.format_bingo? %>
+  <% if is_entered && !@tournament.ended? %>
+    <%= link_to "Open your card", bingo_card_tournament_path(@tournament),
+        class: "block w-full h-14 px-6 text-lg font-semibold rounded-lg bg-emerald-600 active:bg-emerald-700 text-white text-center leading-[3.5rem] mb-4" %>
+  <% end %>
+  <%= render "tournaments/bingo_leaderboard", leaderboard: @leaderboard, tournament: @tournament %>
+<% elsif @tournament.format_tagged? %>
   <%= render "tournaments/tagged_leaderboard",
              tournament: @tournament, leaderboard: @leaderboard, viewer_scope: @viewer_scope %>
 <% else %>

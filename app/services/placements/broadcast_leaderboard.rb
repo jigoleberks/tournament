@@ -10,6 +10,11 @@ module Placements
     def self.call(tournament:, leaderboard: nil)
       leaderboard ||= Leaderboards::Build.call(tournament: tournament)
 
+      if tournament.format_bingo?
+        broadcast_bingo(tournament, leaderboard)
+        return
+      end
+
       if tournament.blind?(at: Time.current)
         broadcast_full(tournament, leaderboard)
         tournament.tournament_entries.pluck(:id).each do |entry_id|
@@ -49,6 +54,23 @@ module Placements
           viewer_scope: Leaderboards::ViewerScope::Scope.new(visibility: :own_entry_only, entry_id: entry_id)
         }
       )
+    end
+
+    def self.broadcast_bingo(tournament, leaderboard)
+      Turbo::StreamsChannel.broadcast_replace_to(
+        "tournament:#{tournament.id}:leaderboard:full",
+        target: "leaderboard",
+        partial: "tournaments/bingo_leaderboard",
+        locals: { leaderboard: leaderboard, tournament: tournament }
+      )
+      leaderboard.each do |row|
+        Turbo::StreamsChannel.broadcast_replace_to(
+          "bingo_card:#{tournament.id}:#{row[:entry].id}",
+          target: "bingo_card",
+          partial: "tournaments/bingo_card",
+          locals: { tournament: tournament, result: row[:result] }
+        )
+      end
     end
 
     def self.broadcast_reveal_full(tournament, leaderboard)

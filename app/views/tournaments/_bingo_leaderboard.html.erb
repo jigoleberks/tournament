@@ -1,0 +1,26 @@
+<%# app/views/tournaments/_bingo_leaderboard.html.erb — locals: leaderboard, tournament %>
+<div id="leaderboard">
+  <table class="w-full text-left">
+    <thead>
+      <tr class="text-xs uppercase tracking-wide text-slate-400">
+        <th class="py-2">#</th><th>Angler</th><th class="text-right">Lines</th>
+        <th class="text-right">Squares</th><th></th>
+      </tr>
+    </thead>
+    <tbody>
+      <% leaderboard.each_with_index do |row, i| %>
+        <tr class="border-t border-slate-700">
+          <td class="py-2 text-slate-400"><%= i + 1 %></td>
+          <td class="text-slate-100"><%= row[:entry].display_name %></td>
+          <td class="text-right text-slate-100"><%= row[:lines_count] %></td>
+          <td class="text-right text-slate-100"><%= row[:squares_count] %>/25</td>
+          <td class="text-right">
+            <% if row[:blackout] %>
+              <span class="text-xs uppercase bg-emerald-600 text-white rounded px-2 py-1">Blackout</span>
+            <% end %>
+          </td>
+        </tr>
+      <% end %>
+    </tbody>
+  </table>
+</div>

@@ -90,6 +90,7 @@ Rails.application.routes.draw do
 
   resources :tournaments, only: [:index, :show] do
     collection { get :archived }
+    get :bingo_card, on: :member
     scope module: :tournaments do
       resources :catches, only: [:show]
     end

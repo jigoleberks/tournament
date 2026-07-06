@@ -1,0 +1,9 @@
+<%# app/views/tournaments/bingo_card.html.erb — @tournament, @entry, @result %>
+<h1 class="text-2xl font-semibold mt-4 mb-1"><%= @tournament.name %></h1>
+<p class="text-slate-400 mb-4"><%= @entry.display_name %>'s card</p>
+
+<%= turbo_stream_from "bingo_card:#{@tournament.id}:#{@entry.id}" %>
+<%= render "tournaments/bingo_card", tournament: @tournament, result: @result %>
+
+<%= link_to "Log Catch", new_catch_path,
+    class: "block w-full h-14 mt-4 px-6 text-lg font-semibold rounded-lg bg-blue-600 active:bg-blue-700 text-white text-center leading-[3.5rem]" %>
