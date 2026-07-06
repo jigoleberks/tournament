@@ -32,6 +32,14 @@ module Catches
         rows.each do |row|
           tournament = row[:tournament]
           entry      = row[:entry]
+
+          # Bingo keeps no placements — a card is derived on read. Just flag the
+          # tournament so the post-commit block rebuilds & rebroadcasts it.
+          if tournament.format_bingo?
+            affected_tournaments << tournament
+            next
+          end
+
           slot       = tournament.scoring_slots.find_by(species_id: @catch.species_id)
           next if slot.nil?
           next if skip_for_out_of_province?
