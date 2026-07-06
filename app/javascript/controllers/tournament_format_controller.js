@@ -15,7 +15,7 @@ export default class extends Controller {
   static targets = [
     "format", "formatDescription",
     "mode", "modeNote",
-    "slotsHeading", "slotsHelp", "slotRow", "slotCountLabel",
+    "slotsHeading", "slotsHelp", "slotRow", "slotCountLabel", "slotsSection",
     "trainBuilder",
     "localCheckbox"
   ]
@@ -29,6 +29,10 @@ export default class extends Controller {
   }
 
   sync() {
+    // Bingo is the only format that hides the whole slots section; default
+    // it back to visible so switching away from Bingo restores it.
+    if (this.hasSlotsSectionTarget) this.slotsSectionTarget.classList.remove("hidden")
+
     if (this.formatTarget.value === "big_fish_season") {
       this._applyBigFishSeason()
     } else if (this.formatTarget.value === "hidden_length") {
@@ -43,6 +47,8 @@ export default class extends Controller {
       this._applySmallestFish()
     } else if (this.formatTarget.value === "pro_walleye") {
       this._applyProWalleye()
+    } else if (this.formatTarget.value === "bingo") {
+      this._applyBingo()
     } else {
       this._applyStandard()
     }
@@ -280,6 +286,16 @@ export default class extends Controller {
       })
     }
 
+    if (this.hasTrainBuilderTarget) this.trainBuilderTarget.classList.add("hidden")
+  }
+
+  _applyBingo() {
+    if (this.hasFormatDescriptionTarget) {
+      this.formatDescriptionTarget.textContent = this.formatDescriptionTarget.dataset.bingoText
+    }
+    if (this.hasModeNoteTarget) this.modeNoteTarget.classList.add("hidden")
+    // Bingo needs no scoring slots or train — hide the whole slots section.
+    if (this.hasSlotsSectionTarget) this.slotsSectionTarget.classList.add("hidden")
     if (this.hasTrainBuilderTarget) this.trainBuilderTarget.classList.add("hidden")
   }
 
