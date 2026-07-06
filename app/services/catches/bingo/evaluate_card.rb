@@ -39,10 +39,23 @@ module Catches
 
       def self.call(...) = new(...).call
 
-      def initialize(tournament:, entry:, catches: nil, time_zone: Time.zone)
+      # The walleye/perch/pike ids are the same for every entry in a tournament.
+      # Resolve them once and inject via species_ids: when evaluating many cards
+      # in a loop (see Leaderboards::Build.bingo_rows) to avoid re-querying Species
+      # per entry.
+      def self.species_id_map
+        {
+          walleye: ::Species.by_name(::Species::WALLEYE_NAME)&.id,
+          perch: ::Species.by_name(::Species::PERCH_NAME)&.id,
+          pike: ::Species.by_name(::Species::PIKE_NAME)&.id
+        }
+      end
+
+      def initialize(tournament:, entry:, catches: nil, species_ids: nil, time_zone: Time.zone)
         @tournament = tournament
         @entry = entry
         @catches = catches
+        @species_ids = species_ids
         @time_zone = time_zone
       end
 
@@ -92,15 +105,7 @@ module Catches
       end
 
       def species_ids
-        {
-          walleye: species_id_for(::Species::WALLEYE_NAME),
-          perch: species_id_for(::Species::PERCH_NAME),
-          pike: species_id_for(::Species::PIKE_NAME)
-        }
-      end
-
-      def species_id_for(name)
-        ::Species.find_by("lower(name) = ?", name.downcase)&.id
+        @species_ids ||= self.class.species_id_map
       end
     end
   end

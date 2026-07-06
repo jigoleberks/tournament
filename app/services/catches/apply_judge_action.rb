@@ -173,12 +173,15 @@ module Catches
 
         affected_tournaments = @catch.catch_placements.includes(:tournament).map(&:tournament).uniq
         # Bingo keeps no placements, so its tournaments never appear above. Union in
-        # every bingo tournament the catch is eligible for at its capture time so the
-        # card/leaderboard re-derive (and re-broadcast) after this edit.
-        bingo_tournaments = ::Tournaments::ActiveForUser
-          .with_entries(user: @catch.user, at: @catch.captured_at_device)
-          .map { |row| row[:tournament] }
-          .select(&:format_bingo?)
+        # every bingo tournament this catch is eligible for at its capture time so the
+        # card/leaderboard re-derive (and re-broadcast) after this edit. Query directly
+        # rather than via ActiveForUser: that helper drops tournaments where the owner
+        # is also a judge, and bingo has no active-placement fallback to recover them.
+        bingo_tournaments = ::Tournament.format_bingo
+          .joins(tournament_entries: :tournament_entry_members)
+          .where(tournament_entry_members: { user_id: @catch.user_id })
+          .where("starts_at <= :at AND (ends_at IS NULL OR ends_at >= :at)", at: @catch.captured_at_device)
+          .distinct.to_a
         affected_tournaments = (affected_tournaments + bingo_tournaments).uniq
         # A per-club editor edit only re-broadcasts its own club's leaderboards.
         affected_tournaments.select! { |t| t.club_id == @club.id } if @club

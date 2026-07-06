@@ -40,6 +40,16 @@ class TournamentBingoTest < ActiveSupport::TestCase
     assert_nil t.bingo_layout
   end
 
+  test "switching an existing unstarted tournament to bingo assigns a layout on update" do
+    t = Tournament.create!(club: club, name: "Std", mode: :solo, format: :standard,
+                           starts_at: 1.hour.from_now, ends_at: 4.hours.from_now)
+    assert_nil t.bingo_layout
+    assert t.update(format: :bingo), t.errors.full_messages.to_sentence
+    assert t.format_bingo?
+    assert_equal 25, t.bingo_layout.size
+    assert_equal "free", t.bingo_layout[12]
+  end
+
   test "PERCH_NAME and PIKE_NAME constants exist" do
     assert_equal "Perch", Species::PERCH_NAME
     assert_equal "Pike", Species::PIKE_NAME

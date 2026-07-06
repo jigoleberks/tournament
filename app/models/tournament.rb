@@ -31,7 +31,7 @@ class Tournament < ApplicationRecord
   validate :tagged_requires_one_tagged_walleye_scoring_slot
   validate :pro_walleye_requires_one_walleye_scoring_slot
   before_validation :force_pro_walleye_slot_count
-  before_validation :assign_bingo_layout, on: :create
+  before_validation :assign_bingo_layout
   validate :bingo_layout_well_formed
   validate :bingo_layout_locked_after_start, on: :update
   validate :bingo_not_blind

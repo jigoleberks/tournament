@@ -29,8 +29,14 @@ class Species < ApplicationRecord
     end
   end
 
+  # Case-insensitive lookup by canonical name. Species names are globally unique
+  # (validated case-insensitively), so this resolves to at most one row.
+  def self.by_name(name)
+    find_by("lower(name) = ?", name.downcase)
+  end
+
   def self.tagged_walleye
-    find_by("lower(name) = ?", TAGGED_WALLEYE_NAME.downcase)
+    by_name(TAGGED_WALLEYE_NAME)
   end
 
   def tagged_walleye?

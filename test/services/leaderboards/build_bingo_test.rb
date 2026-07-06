@@ -27,5 +27,26 @@ module Leaderboards
       assert_operator rows.first[:squares_count], :>=, 2
       assert_equal 1, rows.last[:squares_count] # only free
     end
+
+    test "resolves bingo species a bounded number of times regardless of entry count" do
+      club = Club.create!(name: "C")
+      Species.find_or_create_by!(name: "Walleye")
+      t = Tournament.new(club: club, name: "B", mode: :solo, format: :bingo,
+                         starts_at: 2.hours.ago, ends_at: 2.hours.from_now)
+      t.save!
+
+      3.times do |i|
+        u = User.create!(name: "U#{i}", email: "u#{i}@example.com")
+        entry = t.tournament_entries.create!
+        entry.tournament_entry_members.create!(user: u)
+      end
+
+      # species_id_map resolves the 3 bingo species once for the whole build; the
+      # count must not scale with the number of entries (the pre-fix N+1 was 3×N).
+      species_queries = count_queries(/FROM "species"/) do
+        Leaderboards::Build.call(tournament: t)
+      end
+      assert_operator species_queries, :<=, 3
+    end
   end
 end
