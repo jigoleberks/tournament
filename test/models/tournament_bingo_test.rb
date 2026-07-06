@@ -44,4 +44,15 @@ class TournamentBingoTest < ActiveSupport::TestCase
     assert_equal "Perch", Species::PERCH_NAME
     assert_equal "Pike", Species::PIKE_NAME
   end
+
+  test "bingo tournament with blind_leaderboard true is invalid" do
+    t = build_bingo(blind_leaderboard: true)
+    assert_not t.valid?
+    assert t.errors[:blind_leaderboard].any?
+  end
+
+  test "bingo tournament with blind_leaderboard false is valid" do
+    t = build_bingo(blind_leaderboard: false)
+    assert t.valid?, t.errors.full_messages.to_sentence
+  end
 end

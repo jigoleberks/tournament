@@ -3,8 +3,6 @@ module Catches
     # Derives an entry's bingo card purely from its in-window, non-DQ'd catches.
     # No stored fill-state; called on every leaderboard/card build & broadcast.
     class EvaluateCard
-      FREE_INDEX = Catches::Bingo::Tasks::FREE_INDEX
-
       # The 12 winning lines by grid index: 5 rows, 5 cols, 2 diagonals.
       LINES = [
         [0, 1, 2, 3, 4], [5, 6, 7, 8, 9], [10, 11, 12, 13, 14], [15, 16, 17, 18, 19], [20, 21, 22, 23, 24],

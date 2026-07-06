@@ -34,6 +34,7 @@ class Tournament < ApplicationRecord
   before_validation :assign_bingo_layout, on: :create
   validate :bingo_layout_well_formed
   validate :bingo_layout_locked_after_start, on: :update
+  validate :bingo_not_blind
 
   scope :active_at, ->(time) {
     where("starts_at <= ?", time).where("ends_at IS NULL OR ends_at >= ?", time)
@@ -245,5 +246,10 @@ class Tournament < ApplicationRecord
     return unless will_save_change_to_bingo_layout?
     return if starts_at.blank? || starts_at > Time.current
     errors.add(:bingo_layout, "can't be changed once the tournament has started")
+  end
+
+  def bingo_not_blind
+    return unless format_bingo?
+    errors.add(:blind_leaderboard, "isn't available for Bingo tournaments") if blind_leaderboard?
   end
 end

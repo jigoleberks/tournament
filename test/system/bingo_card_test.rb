@@ -21,10 +21,8 @@ class BingoCardTest < ApplicationSystemTestCase
     assert_selector "[data-bingo-cell]", count: 25
     filled_before = all("[data-bingo-cell].bg-emerald-600").count
 
-    # Place a qualifying Walleye directly (the camera flow is covered elsewhere),
-    # then let the bingo card broadcast repaint — or, if the live Turbo Stream
-    # doesn't land reliably in this harness, reload and assert the compute-on-read
-    # path picked it up.
+    # Place a qualifying Walleye directly (the camera flow is covered elsewhere).
+    # Capybara polls until the live Turbo Stream broadcast repaints the card.
     Catches::PlaceInSlots.call(
       catch: create(:catch, user: @angler, species: @walleye,
                     length_inches: 15, captured_at_device: 5.minutes.ago)

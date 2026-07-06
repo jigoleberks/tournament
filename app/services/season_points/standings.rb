@@ -47,7 +47,7 @@ module SeasonPoints
           placements: placements_by_tid[t.id] || [],
           total_capacity: capacity_by_tid[t.id] || 0
         )
-        top_three = rows.reject { |r| r[:fish].empty? }.first(3)
+        top_three = ::Leaderboards::QualifiedRows.call(tournament: t, rows: rows).first(3)
         awards = ::Tournaments::SeasonPointsAwarded.call(
           tournament: t,
           top_three: top_three,

@@ -154,6 +154,36 @@ module SeasonPoints
       assert_equal ["Alpha", "Bravo"], tied_at_3_5
     end
 
+    test "bingo tournament awards season points without crashing" do
+      ends_at = 1.day.ago
+      starts_at = ends_at - 4.hours
+      t = create(:tournament, club: @club, mode: :solo, format: :bingo,
+                 awards_season_points: true, season_tag: "Bingo 2026",
+                 starts_at: starts_at, ends_at: ends_at)
+
+      user = create(:user, club: @club, name: "Bingo Angler")
+      entry = create(:tournament_entry, tournament: t)
+      create(:tournament_entry_member, tournament_entry: entry, user: user)
+      create(:catch, user: user, species: @walleye, length_inches: 15,
+                     captured_at_device: ends_at - 1.hour)
+
+      # PointsScale needs >= 3 anglers entered for a scale to apply; these two
+      # never progress past the free square (0.5 attendance bonus only).
+      %w[Skunked1 Skunked2].each do |name|
+        u = create(:user, club: @club, name: name)
+        e = create(:tournament_entry, tournament: t)
+        create(:tournament_entry_member, tournament_entry: e, user: u)
+      end
+
+      result = Standings.call(club: @club, season_tag: "Bingo 2026")
+
+      angler = result.find { |r| r[:user].name == "Bingo Angler" }
+      assert_not_nil angler, "bingo angler with a qualifying square should appear in standings"
+      assert_operator angler[:points], :>, 0
+      skunked = result.find { |r| r[:user].name == "Skunked1" }
+      assert_equal 0.5, skunked[:points], "entrant with only the free square should still get the attendance bonus"
+    end
+
     test "row includes per-tournament breakdown" do
       t, w = build_finished(season_tag: "Wednesday 2026", ends_at: 1.week.ago)
       add_solo(tournament: t, in_window: w, name: "Alpha",   lengths: [25])

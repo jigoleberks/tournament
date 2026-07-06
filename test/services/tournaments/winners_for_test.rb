@@ -53,6 +53,38 @@ module Tournaments
       assert_equal({}, WinnersFor.call(tournaments: []))
     end
 
+    test "bingo tournament: returns the entry with squares beyond the free cell, not a crash" do
+      walleye = create(:species, club: @club, name: "Walleye")
+      t = create(:tournament, club: @club, name: "Bingo", format: :bingo, mode: :solo,
+                 starts_at: 2.days.ago, ends_at: 1.day.ago)
+
+      catcher_user = create(:user, club: @club, name: "Catcher")
+      catcher_entry = create(:tournament_entry, tournament: t)
+      create(:tournament_entry_member, tournament_entry: catcher_entry, user: catcher_user)
+      create(:catch, user: catcher_user, species: walleye, length_inches: 15,
+                     captured_at_device: t.ends_at - 1.hour)
+
+      empty_user = create(:user, club: @club, name: "Empty")
+      empty_entry = create(:tournament_entry, tournament: t)
+      create(:tournament_entry_member, tournament_entry: empty_entry, user: empty_user)
+
+      result = WinnersFor.call(tournaments: [t])
+
+      assert_equal catcher_entry.id, result[t.id].id
+    end
+
+    test "bingo tournament: nil winner when the only entry has just the free square" do
+      t = create(:tournament, club: @club, name: "Bingo Empty", format: :bingo, mode: :solo,
+                 starts_at: 2.days.ago, ends_at: 1.day.ago)
+      user = create(:user, club: @club, name: "NoCatches")
+      entry = create(:tournament_entry, tournament: t)
+      create(:tournament_entry_member, tournament_entry: entry, user: user)
+
+      result = WinnersFor.call(tournaments: [t])
+
+      assert_nil result[t.id]
+    end
+
     test "issues a bounded number of queries regardless of tournament count" do
       tournaments = 5.times.map { |i| build_tournament("T#{i}") }
       tournaments.each_with_index { |t, i| add_angler(t, "angler#{i}", [10 + i]) }
