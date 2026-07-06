@@ -1,6 +1,10 @@
 module Leaderboards
   class Build
     def self.call(tournament:, entries: nil, placements: nil, total_capacity: nil)
+      if tournament.format_bingo?
+        return Leaderboards::Rankers::Bingo.call(bingo_rows(tournament, entries: entries))
+      end
+
       rows = build_rows(tournament, entries: entries, placements: placements, total_capacity: total_capacity)
       case tournament.format
       when "hidden_length"       then Leaderboards::Rankers::HiddenLength.call(rows, tournament: tournament)
@@ -65,5 +69,14 @@ module Leaderboards
     end
 
     private_class_method :build_rows
+
+    def self.bingo_rows(tournament, entries: nil)
+      entries ||= tournament.tournament_entries.includes(:users)
+      entries.map do |entry|
+        result = Catches::Bingo::EvaluateCard.call(tournament: tournament, entry: entry)
+        { entry: entry, result: result }
+      end
+    end
+    private_class_method :bingo_rows
   end
 end
