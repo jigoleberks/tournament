@@ -54,7 +54,7 @@ module Tournaments
     end
 
     test "bingo tournament: returns the entry with squares beyond the free cell, not a crash" do
-      walleye = create(:species, club: @club, name: "Walleye")
+      walleye, = create_bingo_species!
       t = create(:tournament, club: @club, name: "Bingo", format: :bingo, mode: :solo,
                  starts_at: 2.days.ago, ends_at: 1.day.ago)
 
@@ -74,6 +74,7 @@ module Tournaments
     end
 
     test "bingo tournament: nil winner when the only entry has just the free square" do
+      create_bingo_species!
       t = create(:tournament, club: @club, name: "Bingo Empty", format: :bingo, mode: :solo,
                  starts_at: 2.days.ago, ends_at: 1.day.ago)
       user = create(:user, club: @club, name: "NoCatches")

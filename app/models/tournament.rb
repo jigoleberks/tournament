@@ -35,6 +35,7 @@ class Tournament < ApplicationRecord
   validate :bingo_layout_well_formed
   validate :bingo_layout_locked_after_start, on: :update
   validate :bingo_not_blind
+  validate :bingo_species_present
 
   scope :active_at, ->(time) {
     where("starts_at <= ?", time).where("ends_at IS NULL OR ends_at >= ?", time)
@@ -251,5 +252,16 @@ class Tournament < ApplicationRecord
   def bingo_not_blind
     return unless format_bingo?
     errors.add(:blind_leaderboard, "isn't available for Bingo tournaments") if blind_leaderboard?
+  end
+
+  # The bingo card references Walleye/Perch/Pike by canonical name. If any is
+  # absent (never seeded, or renamed), those squares can never fill and blackout
+  # becomes unreachable — so surface it loudly at save time instead of shipping a
+  # silently broken card.
+  def bingo_species_present
+    return unless format_bingo?
+    missing = Catches::Bingo::EvaluateCard.species_id_map.select { |_, id| id.nil? }.keys
+    return if missing.empty?
+    errors.add(:base, "Bingo needs these species defined first: #{missing.map { |s| s.to_s.titleize }.join(', ')}")
   end
 end

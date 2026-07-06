@@ -8,7 +8,7 @@ class TournamentsBingoTest < ActionDispatch::IntegrationTest
     post session_path, params: { email: @user.email }
     get consume_session_path(token: SignInToken.last.token)
 
-    @walleye = Species.find_or_create_by!(name: "Walleye")
+    @walleye, = create_bingo_species!
     @t = Tournament.new(club: @club, name: "Bingo Night", mode: :solo, format: :bingo,
                         starts_at: 2.hours.ago, ends_at: 2.hours.from_now)
     @t.save!

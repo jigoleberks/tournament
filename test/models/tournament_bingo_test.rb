@@ -2,6 +2,8 @@
 require "test_helper"
 
 class TournamentBingoTest < ActiveSupport::TestCase
+  setup { create_bingo_species! }
+
   def club = Club.create!(name: "Test Club")
 
   def build_bingo(**attrs)
@@ -64,5 +66,13 @@ class TournamentBingoTest < ActiveSupport::TestCase
   test "bingo tournament with blind_leaderboard false is valid" do
     t = build_bingo(blind_leaderboard: false)
     assert t.valid?, t.errors.full_messages.to_sentence
+  end
+
+  test "bingo is rejected when a referenced species is missing" do
+    Species.where("lower(name) = ?", "pike").delete_all
+    t = build_bingo
+    assert_not t.valid?
+    assert(t.errors[:base].any? { |m| m.include?("Pike") },
+           "expected a base error naming the missing Pike species, got #{t.errors[:base].inspect}")
   end
 end

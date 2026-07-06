@@ -4,7 +4,7 @@ module Leaderboards
   class BuildBingoTest < ActiveSupport::TestCase
     test "bingo build returns one ranked row per entry with a result" do
       club = Club.create!(name: "C")
-      walleye = Species.find_or_create_by!(name: "Walleye")
+      walleye, = create_bingo_species!
       t = Tournament.new(club: club, name: "B", mode: :solo, format: :bingo,
                          starts_at: 2.hours.ago, ends_at: 2.hours.from_now)
       t.save! # auto-layout
@@ -30,7 +30,7 @@ module Leaderboards
 
     test "resolves bingo species a bounded number of times regardless of entry count" do
       club = Club.create!(name: "C")
-      Species.find_or_create_by!(name: "Walleye")
+      create_bingo_species!
       t = Tournament.new(club: club, name: "B", mode: :solo, format: :bingo,
                          starts_at: 2.hours.ago, ends_at: 2.hours.from_now)
       t.save!
@@ -41,12 +41,13 @@ module Leaderboards
         entry.tournament_entry_members.create!(user: u)
       end
 
-      # species_id_map resolves the 3 bingo species once for the whole build; the
-      # count must not scale with the number of entries (the pre-fix N+1 was 3×N).
+      # species_id_map resolves all 3 bingo species in a single IN query for the
+      # whole build; the count must not scale with the number of entries (the
+      # pre-fix N+1 was 3×N, and the pre-batching version was 3 separate queries).
       species_queries = count_queries(/FROM "species"/) do
         Leaderboards::Build.call(tournament: t)
       end
-      assert_operator species_queries, :<=, 3
+      assert_operator species_queries, :<=, 1
     end
   end
 end

@@ -4,7 +4,7 @@ module Catches
   class ApplyJudgeActionBingoTest < ActiveSupport::TestCase
     test "disqualifying a bingo catch broadcasts the bingo tournament" do
       club = Club.create!(name: "C")
-      walleye = Species.find_or_create_by!(name: "Walleye")
+      walleye, = create_bingo_species!
       t = Tournament.new(club: club, name: "B", mode: :solo, format: :bingo,
                          starts_at: 2.hours.ago, ends_at: 2.hours.from_now)
       t.save!
@@ -26,7 +26,7 @@ module Catches
 
     test "broadcasts the bingo tournament even when the catch owner is also a judge on it" do
       club = Club.create!(name: "C")
-      walleye = Species.find_or_create_by!(name: "Walleye")
+      walleye, = create_bingo_species!
       t = Tournament.new(club: club, name: "B", mode: :solo, format: :bingo,
                          starts_at: 2.hours.ago, ends_at: 2.hours.from_now)
       t.save!

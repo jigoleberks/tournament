@@ -190,7 +190,7 @@ module Catches
       # Broadcast AFTER the transaction commits so other DB connections see the
       # new state when they rebuild the leaderboard.
       affected_tournaments.each do |t|
-        Placements::BroadcastLeaderboard.call(tournament: t)
+        Placements::BroadcastLeaderboard.call(tournament: t, changed_entry_ids: bingo_changed_entry_ids(t))
       end
 
       # @notify_owner is only set by tournament-scoped actions (disqualify,
@@ -208,6 +208,18 @@ module Catches
     end
 
     private
+
+    # For a bingo tournament, the only card this edit changes is the one the catch's
+    # owner belongs to — return its entry id(s) so BroadcastLeaderboard rebroadcasts
+    # just that card. nil for non-bingo (the arg is ignored there).
+    def bingo_changed_entry_ids(tournament)
+      return nil unless tournament.format_bingo?
+      tournament.tournament_entries
+        .joins(:tournament_entry_members)
+        .where(tournament_entry_members: { user_id: @catch.user_id })
+        .pluck(:id)
+        .presence
+    end
 
     def notification_body
       species_name = @catch.species&.name

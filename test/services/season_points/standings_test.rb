@@ -155,6 +155,7 @@ module SeasonPoints
     end
 
     test "bingo tournament awards season points without crashing" do
+      create_bingo_species!
       ends_at = 1.day.ago
       starts_at = ends_at - 4.hours
       t = create(:tournament, club: @club, mode: :solo, format: :bingo,

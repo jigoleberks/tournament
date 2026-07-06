@@ -15,6 +15,9 @@ module Catches
     def call
       created, bumped = [], []
       affected_tournaments = Set.new
+      # Bingo only: the entry whose card this catch changes, keyed by tournament id,
+      # so we rebroadcast just that angler's card rather than everyone's.
+      bingo_changed_entry_ids = Hash.new { |h, k| h[k] = [] }
 
       # One outer transaction so all locks acquired here are released atomically.
       # Without it, two boats submitting catches for the same (entry, species) at
@@ -37,6 +40,7 @@ module Catches
           # tournament so the post-commit block rebuilds & rebroadcasts it.
           if tournament.format_bingo?
             affected_tournaments << tournament
+            bingo_changed_entry_ids[tournament.id] << entry.id
             next
           end
 
@@ -335,7 +339,12 @@ module Catches
         # broadcast and the took-the-lead detection, which otherwise each rebuild
         # the same (expensive) leaderboard per affected tournament.
         leaderboards = affected_tournaments.to_h { |t| [t.id, Leaderboards::Build.call(tournament: t)] }
-        affected_tournaments.each { |t| Placements::BroadcastLeaderboard.call(tournament: t, leaderboard: leaderboards[t.id]) }
+        affected_tournaments.each do |t|
+          Placements::BroadcastLeaderboard.call(
+            tournament: t, leaderboard: leaderboards[t.id],
+            changed_entry_ids: bingo_changed_entry_ids[t.id].presence
+          )
+        end
 
         Placements::DetectNotifications.call(result: result, leaderboards: leaderboards).each do |n|
           DeliverPushNotificationJob.perform_later(

@@ -286,6 +286,7 @@ class Organizers::TournamentsControllerTest < ActionDispatch::IntegrationTest
 
   test "organizer can create a bingo tournament with no scoring slots" do
     sign_in_as(@organizer)
+    create_bingo_species!
     assert_difference -> { Tournament.count }, 1 do
       post organizers_tournaments_path, params: { tournament: {
         name: "Bingo Night", format: "bingo", mode: "solo",

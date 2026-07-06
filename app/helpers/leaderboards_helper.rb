@@ -24,6 +24,8 @@ module LeaderboardsHelper
 
   # Flat one-line score label for the admin/print results sheet.
   def leaderboard_score_label(row, tournament)
+    return bingo_score_label(row) if tournament&.format_bingo?
+
     parts = leaderboard_score_parts(row, tournament)
     return "—" if parts.nil?
     return "#{parts[:tickets]} #{'ticket'.pluralize(parts[:tickets])}" if parts.key?(:tickets)
@@ -31,5 +33,16 @@ module LeaderboardsHelper
     label = %(#{parts[:inches]} · #{format('%.2f', parts[:cm])} cm)
     label += %( · #{format('%.2f', parts[:off])}" off) if parts[:off]
     label
+  end
+
+  # Bingo has no length "score" — the print sheet shows progress instead. An entry
+  # holding only the free centre square (squares <= 1) hasn't progressed, so it
+  # reads as "—" like a length entry with no scoring fish (mirrors QualifiedRows).
+  def bingo_score_label(row)
+    return "Blackout" if row[:blackout]
+    squares = row[:squares_count].to_i
+    return "—" if squares <= 1
+    lines = row[:lines_count].to_i
+    %(#{pluralize(lines, "line")} · #{squares}/25 squares)
   end
 end

@@ -44,11 +44,13 @@ module Catches
       # in a loop (see Leaderboards::Build.bingo_rows) to avoid re-querying Species
       # per entry.
       def self.species_id_map
-        {
-          walleye: ::Species.by_name(::Species::WALLEYE_NAME)&.id,
-          perch: ::Species.by_name(::Species::PERCH_NAME)&.id,
-          pike: ::Species.by_name(::Species::PIKE_NAME)&.id
-        }
+        names = { walleye: ::Species::WALLEYE_NAME, perch: ::Species::PERCH_NAME, pike: ::Species::PIKE_NAME }
+        # One round-trip for all three; names are globally unique (case-insensitive).
+        by_lower = ::Species
+          .where("lower(name) IN (?)", names.values.map(&:downcase))
+          .pluck(:name, :id)
+          .to_h { |name, id| [name.downcase, id] }
+        names.transform_values { |canonical| by_lower[canonical.downcase] }
       end
 
       def initialize(tournament:, entry:, catches: nil, species_ids: nil, time_zone: Time.zone)

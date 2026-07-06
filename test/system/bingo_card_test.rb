@@ -3,7 +3,7 @@ require "application_system_test_case"
 class BingoCardTest < ApplicationSystemTestCase
   setup do
     @club = Club.first || create(:club)
-    @walleye = create(:species, club: @club, name: "Walleye")
+    @walleye, = create_bingo_species!
     @angler = create(:user, club: @club, name: "Angler A")
   end
 
