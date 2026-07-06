@@ -1,0 +1,109 @@
+module Catches
+  module Bingo
+    # Derives an entry's bingo card purely from its in-window, non-DQ'd catches.
+    # No stored fill-state; called on every leaderboard/card build & broadcast.
+    class EvaluateCard
+      FREE_INDEX = Catches::Bingo::Tasks::FREE_INDEX
+
+      # The 12 winning lines by grid index: 5 rows, 5 cols, 2 diagonals.
+      LINES = [
+        [0, 1, 2, 3, 4], [5, 6, 7, 8, 9], [10, 11, 12, 13, 14], [15, 16, 17, 18, 19], [20, 21, 22, 23, 24],
+        [0, 5, 10, 15, 20], [1, 6, 11, 16, 21], [2, 7, 12, 17, 22], [3, 8, 13, 18, 23], [4, 9, 14, 19, 24],
+        [0, 6, 12, 18, 24], [4, 8, 12, 16, 20]
+      ].freeze
+
+      CatchLite = Struct.new(:id, :length, :species_id, :at, keyword_init: true)
+
+      Result = Struct.new(:cells, :squares_count, :square_times, :lines_count,
+                          :line_times, :blackout, :blackout_at, keyword_init: true)
+
+      # Evaluation context handed to each task predicate.
+      class Context
+        def initialize(catches:, species_ids:, time_zone:)
+          @catches = catches
+          @species_ids = species_ids
+          @time_zone = time_zone
+        end
+
+        attr_reader :catches
+
+        def species_id(sym) = @species_ids[sym]
+
+        # captured_at_device is a naive UTC timestamp. Rebuild its wall-clock
+        # components as UTC, then present in the tournament's local zone. Mirrors
+        # the double-AT-TIME-ZONE fix used in SQL filters.
+        def local_hour(at)
+          ActiveSupport::TimeZone["UTC"]
+            .local(at.year, at.month, at.day, at.hour, at.min, at.sec)
+            .in_time_zone(@time_zone).hour
+        end
+      end
+
+      def self.call(...) = new(...).call
+
+      def initialize(tournament:, entry:, catches: nil, time_zone: Time.zone)
+        @tournament = tournament
+        @entry = entry
+        @catches = catches
+        @time_zone = time_zone
+      end
+
+      def call
+        cats = (@catches || load_catches).sort_by(&:at)
+        ctx = Context.new(catches: cats, species_ids: species_ids, time_zone: @time_zone)
+
+        cells = @tournament.bingo_layout.each_with_index.map do |key, index|
+          if key == "free"
+            { index: index, key: "free", label: "Show up to League Night",
+              filled: true, completed_at: @tournament.starts_at }
+          else
+            task = Tasks.fetch(key)
+            at = task[:completed_at].call(ctx)
+            { index: index, key: key, label: task[:label], filled: !at.nil?, completed_at: at }
+          end
+        end
+
+        filled = cells.select { |c| c[:filled] }
+        square_times = filled.map { |c| c[:completed_at] }.sort
+        line_times = LINES.filter_map do |idxs|
+          times = idxs.map { |i| cells[i][:completed_at] }
+          times.max if times.all?
+        end.sort
+        blackout = filled.size == 25
+
+        Result.new(
+          cells: cells,
+          squares_count: filled.size,
+          square_times: square_times,
+          lines_count: line_times.size,
+          line_times: line_times,
+          blackout: blackout,
+          blackout_at: (blackout ? square_times.max : nil)
+        )
+      end
+
+      private
+
+      def load_catches
+        user_ids = @entry.users.pluck(:id)
+        ::Catch.where(user_id: user_ids)
+          .where.not(status: :disqualified)
+          .where(captured_at_device: @tournament.starts_at..@tournament.ends_at)
+          .pluck(:id, :length_inches, :species_id, :captured_at_device)
+          .map { |id, len, sp, at| CatchLite.new(id: id, length: len, species_id: sp, at: at) }
+      end
+
+      def species_ids
+        {
+          walleye: species_id_for(::Species::WALLEYE_NAME),
+          perch: species_id_for(::Species::PERCH_NAME),
+          pike: species_id_for(::Species::PIKE_NAME)
+        }
+      end
+
+      def species_id_for(name)
+        ::Species.find_by("lower(name) = ?", name.downcase)&.id
+      end
+    end
+  end
+end
