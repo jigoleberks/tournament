@@ -235,6 +235,7 @@ class Tournament < ApplicationRecord
     return unless format_bingo?
     layout = bingo_layout
     unless layout.is_a?(Array) && layout.size == 25 &&
+           layout.all?(String) &&
            layout[Catches::Bingo::Tasks::FREE_INDEX] == "free" &&
            (layout - ["free"]).sort == Catches::Bingo::Tasks.keys.sort
       errors.add(:bingo_layout, "must be the 24 bingo tasks plus the free center cell")

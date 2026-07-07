@@ -68,7 +68,7 @@ module Catches
 
         cells = @tournament.bingo_layout.each_with_index.map do |key, index|
           if key == "free"
-            { index: index, key: "free", label: "Show up to League Night",
+            { index: index, key: "free", label: "FREE",
               filled: true, completed_at: @tournament.starts_at }
           else
             task = Tasks.fetch(key)
