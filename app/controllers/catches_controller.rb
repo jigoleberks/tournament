@@ -90,6 +90,7 @@ class CatchesController < ApplicationController
   def new
     @teammate = resolve_teammate_or_redirect
     return if performed?
+    @selected_species = Species.find_by(id: params[:species_id]) if params[:species_id].present?
     angler = @teammate || current_user
     @catch = angler.catches.build(captured_at_device: Time.current,
                                   client_uuid: SecureRandom.uuid)

@@ -876,6 +876,25 @@ class CatchesControllerTest < ActionDispatch::IntegrationTest
     assert_equal "Teammate not found.", flash[:alert]
   end
 
+  test "GET /catches/new with a valid species_id assigns @selected_species" do
+    species = Species.in_log_order.first
+    get new_catch_path(species_id: species.id)
+    assert_response :success
+    assert_equal species, assigns(:selected_species)
+  end
+
+  test "GET /catches/new without species_id leaves @selected_species nil" do
+    get new_catch_path
+    assert_response :success
+    assert_nil assigns(:selected_species)
+  end
+
+  test "GET /catches/new with an unknown species_id leaves @selected_species nil" do
+    get new_catch_path(species_id: 0)
+    assert_response :success
+    assert_nil assigns(:selected_species)
+  end
+
   test "POST /catches with valid teammate files catch under teammate and stamps logger" do
     @tournament.update!(mode: :team)
     teammate = create(:user, club: @club, name: "Boatmate")
