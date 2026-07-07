@@ -18,7 +18,7 @@
   <% elsif is_entered %>
     <% has_teammates = @tournament.mode_team? && Tournaments::TeammatesFor.call(user: current_user, tournament: @tournament).exists? %>
     <%= link_to "Log Catch",
-                (has_teammates ? select_teammate_catches_path : new_catch_path),
+                (has_teammates ? select_teammate_catches_path : select_species_catches_path),
                 class: "block w-full h-14 px-6 text-lg font-semibold rounded-lg bg-blue-600 active:bg-blue-700 text-white text-center leading-[3.5rem] mb-4" %>
   <% else %>
     <p class="text-slate-400 italic">You're not entered. Ask an organizer to add you.</p>

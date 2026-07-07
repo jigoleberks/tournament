@@ -725,8 +725,8 @@ class CatchesControllerTest < ActionDispatch::IntegrationTest
 
     get select_teammate_catches_path
     assert_response :success
-    assert_select "a[href=?]", new_catch_path, text: "Myself"
-    assert_select "a[href=?]", new_catch_path(teammate_user_id: teammate.id), text: "Boatmate"
+    assert_select "a[href=?]", select_species_catches_path, text: "Myself"
+    assert_select "a[href=?]", select_species_catches_path(teammate_user_id: teammate.id), text: "Boatmate"
     assert_no_match "Other Boat", response.body
   end
 
@@ -768,7 +768,7 @@ class CatchesControllerTest < ActionDispatch::IntegrationTest
 
     get select_teammate_catches_path
     assert_response :success
-    assert_select "a[href=?]", new_catch_path(teammate_user_id: mate.id), count: 1
+    assert_select "a[href=?]", select_species_catches_path(teammate_user_id: mate.id), count: 1
   end
 
   test "GET /catches/select_teammate shows only current-club teammates, not another club's" do
@@ -816,7 +816,7 @@ class CatchesControllerTest < ActionDispatch::IntegrationTest
   test "tournament show routes 'Log Catch' to the form for a solo tournament" do
     get tournament_path(@tournament)
     assert_response :success
-    assert_select "a[href=?]", new_catch_path, text: "Log Catch"
+    assert_select "a[href=?]", select_species_catches_path, text: "Log Catch"
     assert_no_match "Log for teammate", response.body
   end
 
@@ -834,7 +834,7 @@ class CatchesControllerTest < ActionDispatch::IntegrationTest
     @tournament.update!(mode: :team)
     get tournament_path(@tournament)
     assert_response :success
-    assert_select "a[href=?]", new_catch_path, text: "Log Catch"
+    assert_select "a[href=?]", select_species_catches_path, text: "Log Catch"
     assert_no_match "Log for teammate", response.body
   end
 
@@ -853,7 +853,7 @@ class CatchesControllerTest < ActionDispatch::IntegrationTest
 
     get tournament_path(@tournament)
     assert_response :success
-    assert_select "a[href=?]", new_catch_path, text: "Log Catch"
+    assert_select "a[href=?]", select_species_catches_path, text: "Log Catch"
     assert_no_match "Log for teammate", response.body
   end
 
