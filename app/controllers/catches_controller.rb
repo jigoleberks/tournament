@@ -79,7 +79,7 @@ class CatchesController < ApplicationController
 
   def select_teammate
     @teammates = Tournaments::TeammatesAcross.call(user: current_user, club: current_club)
-    redirect_to(new_catch_path) and return if @teammates.empty?
+    redirect_to(select_species_catches_path) and return if @teammates.empty?
   end
 
   def select_species

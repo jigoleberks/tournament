@@ -730,10 +730,10 @@ class CatchesControllerTest < ActionDispatch::IntegrationTest
     assert_no_match "Other Boat", response.body
   end
 
-  test "GET /catches/select_teammate redirects to new catch when the user has no teammates" do
+  test "GET /catches/select_teammate redirects to the species step when the user has no teammates" do
     # @tournament is solo by default, so the user has no team teammates.
     get select_teammate_catches_path
-    assert_redirected_to new_catch_path
+    assert_redirected_to select_species_catches_path
   end
 
   test "GET /catches/select_teammate aggregates teammates flat, with no tournament grouping" do
