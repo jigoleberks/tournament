@@ -793,6 +793,26 @@ class CatchesControllerTest < ActionDispatch::IntegrationTest
     assert_no_match "Other Club Mate", response.body
   end
 
+  test "GET /catches/select_species lists species linking into the catch form" do
+    get select_species_catches_path
+    assert_response :success
+    first = Species.in_log_order.first
+    assert_select "a[href=?]", new_catch_path(species_id: first.id), text: first.name
+  end
+
+  test "GET /catches/select_species threads teammate_user_id onto the species links" do
+    @tournament.update!(mode: :team)
+    teammate = create(:user, club: @club, name: "Boatmate")
+    create(:tournament_entry_member, tournament_entry: @entry, user: teammate)
+
+    get select_species_catches_path(teammate_user_id: teammate.id)
+    assert_response :success
+    first = Species.in_log_order.first
+    assert_select "a[href=?]",
+                  new_catch_path(species_id: first.id, teammate_user_id: teammate.id),
+                  text: first.name
+  end
+
   test "tournament show routes 'Log Catch' to the form for a solo tournament" do
     get tournament_path(@tournament)
     assert_response :success

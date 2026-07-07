@@ -82,6 +82,11 @@ class CatchesController < ApplicationController
     redirect_to(new_catch_path) and return if @teammates.empty?
   end
 
+  def select_species
+    @teammate_user_id = params[:teammate_user_id].presence
+    @species = Species.in_log_order
+  end
+
   def new
     @teammate = resolve_teammate_or_redirect
     return if performed?

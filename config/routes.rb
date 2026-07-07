@@ -99,6 +99,7 @@ Rails.application.routes.draw do
     collection do
       get :map
       get :select_teammate
+      get :select_species
     end
     member do
       patch :reference_photo
