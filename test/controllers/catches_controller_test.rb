@@ -895,6 +895,24 @@ class CatchesControllerTest < ActionDispatch::IntegrationTest
     assert_nil assigns(:selected_species)
   end
 
+  test "GET /catches/new with species_id renders a read-only species banner and hidden select" do
+    species = Species.in_log_order.first
+    get new_catch_path(species_id: species.id)
+    assert_response :success
+    assert_select "a[href=?]", select_species_catches_path, text: "Change"
+    assert_match "Species:", response.body
+    # The select is still present (so the JS controller keeps working) but hidden.
+    assert_select "select#catch_species_id.hidden option[selected][value=?]",
+                  species.id.to_s, text: species.name
+  end
+
+  test "GET /catches/new without species_id renders the editable species dropdown" do
+    get new_catch_path
+    assert_response :success
+    assert_select "label[for=catch_species_id]", text: "Species"
+    assert_select "select#catch_species_id:not(.hidden)"
+  end
+
   test "POST /catches with valid teammate files catch under teammate and stamps logger" do
     @tournament.update!(mode: :team)
     teammate = create(:user, club: @club, name: "Boatmate")

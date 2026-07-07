@@ -7,6 +7,7 @@
 %>
 <% offline   = local_assigns.fetch(:offline, false) %>
 <% teammate  = local_assigns.fetch(:teammate, nil) %>
+<% selected_species = local_assigns.fetch(:selected_species, nil) %>
 <% all_species = Species.in_log_order %>
 <% default_species = all_species.find { |s| s.name.casecmp?("walleye") } || all_species.first %>
 <% length_caps = all_species.each_with_object({}) do |s, h|
@@ -24,13 +25,27 @@
                   video-capture:captured->catch-form#onVideoCaptured
                   video-capture:failed->catch-form#onVideoFailed">
 
-  <label for="catch_species_id" class="block text-sm font-medium text-slate-300 mt-4 mb-1">Species</label>
-  <select id="catch_species_id" data-catch-form-target="speciesSelect" data-action="change->catch-form#refresh"
-          class="w-full h-12 px-3 rounded-lg bg-slate-800 border border-slate-700 text-base text-slate-100">
-    <% all_species.each do |s| %>
-      <option value="<%= s.id %>"<%= " selected" if s == default_species %>><%= s.name %></option>
-    <% end %>
-  </select>
+  <% if selected_species %>
+    <div class="bg-amber-900/30 border border-amber-700/40 rounded-lg p-3 mt-4 mb-1 flex items-center justify-between gap-3">
+      <span class="text-sm text-amber-200">
+        Species: <span class="font-semibold"><%= selected_species.name %></span>
+      </span>
+      <%= link_to "Change", select_species_catches_path(teammate_user_id: teammate&.id),
+                  class: "text-xs text-amber-200/80 underline" %>
+    </div>
+    <select id="catch_species_id" data-catch-form-target="speciesSelect"
+            data-action="change->catch-form#refresh" class="hidden" aria-hidden="true" tabindex="-1">
+      <option value="<%= selected_species.id %>" selected><%= selected_species.name %></option>
+    </select>
+  <% else %>
+    <label for="catch_species_id" class="block text-sm font-medium text-slate-300 mt-4 mb-1">Species</label>
+    <select id="catch_species_id" data-catch-form-target="speciesSelect" data-action="change->catch-form#refresh"
+            class="w-full h-12 px-3 rounded-lg bg-slate-800 border border-slate-700 text-base text-slate-100">
+      <% all_species.each do |s| %>
+        <option value="<%= s.id %>"<%= " selected" if s == default_species %>><%= s.name %></option>
+      <% end %>
+    </select>
+  <% end %>
 
   <label for="catch_length_inches" data-catch-form-target="lengthLabel" class="block text-sm font-medium text-slate-300 mt-4 mb-1">
     <%= current_user&.metric? ? "Length (cm)" : "Length (in)" %>
