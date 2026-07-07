@@ -2,6 +2,8 @@ require "test_helper"
 
 module Catches
   class DropMemberFromEntryTest < ActiveSupport::TestCase
+    include ActionCable::TestHelper
+
     setup do
       @club    = create(:club)
       @walleye = create(:species, club: @club)
@@ -133,6 +135,26 @@ module Catches
         Catches::DropMemberFromEntry.call(entry: @entry, user: @removed)
       end
       assert_equal [@t.id], calls
+    end
+
+    test "bingo: dropping a member rebroadcasts only the changed entry's card" do
+      create_bingo_species!
+      bingo = build(:tournament, club: @club, mode: :team, format: :bingo,
+                    starts_at: 1.hour.ago, ends_at: 1.hour.from_now)
+      bingo.save!
+      e1 = create(:tournament_entry, tournament: bingo, name: "Boat 1")
+      create(:tournament_entry_member, tournament_entry: e1, user: @kept)
+      create(:tournament_entry_member, tournament_entry: e1, user: @removed)
+      e2 = create(:tournament_entry, tournament: bingo, name: "Boat 2")
+      create(:tournament_entry_member, tournament_entry: e2, user: create(:user, club: @club))
+
+      assert_broadcasts("tournament:#{bingo.id}:leaderboard:full", 1) do
+        assert_broadcasts("bingo_card:#{bingo.id}:#{e1.id}", 1) do
+          assert_broadcasts("bingo_card:#{bingo.id}:#{e2.id}", 0) do
+            Catches::DropMemberFromEntry.call(entry: e1, user: @removed)
+          end
+        end
+      end
     end
 
     test "is a no-op-on-leaderboard when the removed member had no active placements" do

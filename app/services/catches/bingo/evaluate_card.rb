@@ -54,6 +54,55 @@ module Catches
         names.transform_values { |canonical| by_lower[canonical.downcase] }
       end
 
+      # Batch-load every entry's in-window, non-DQ'd, in-bounds catches for a whole
+      # leaderboard build in two queries (members + catches) instead of the per-entry
+      # users.pluck + Catch.where that #load_catches issues one entry at a time.
+      # Returns { entry_id => [CatchLite, ...] }; a team entry unions its members'.
+      def self.catches_by_entry(tournament:, entries:)
+        entry_ids = entries.map(&:id)
+        return {} if entry_ids.empty?
+
+        member_rows = ::TournamentEntryMember
+          .where(tournament_entry_id: entry_ids)
+          .pluck(:tournament_entry_id, :user_id)
+        lites_by_user = catch_lites_by_user(tournament, member_rows.map(&:last).uniq)
+
+        users_by_entry = member_rows.each_with_object(Hash.new { |h, k| h[k] = [] }) do |(eid, uid), acc|
+          acc[eid] << uid
+        end
+        entry_ids.index_with do |eid|
+          users_by_entry[eid].flat_map { |uid| lites_by_user[uid] || [] }
+        end
+      end
+
+      # Mirror PlaceInSlots' hard scoring exclusions so a bingo card scores the same
+      # catches every other format does: an out-of-province catch never counts, and
+      # on a local tournament a catch outside the lake never counts. A GPS-less catch
+      # is kept, and judge geofence overrides are honored via Catch#in_geofence?.
+      def self.excluded_by_geofence?(tournament, catch)
+        return false if catch.latitude.nil?
+        return true unless catch.in_geofence?(:sask)
+        tournament.local? && !catch.in_geofence?(:lake)
+      end
+
+      # { user_id => [CatchLite, ...] } for the given users, one catches query.
+      def self.catch_lites_by_user(tournament, user_ids)
+        return {} if user_ids.empty?
+        ::Catch.where(user_id: user_ids)
+          .where.not(status: :disqualified)
+          .where(captured_at_device: tournament.starts_at..tournament.ends_at)
+          .reject { |c| excluded_by_geofence?(tournament, c) }
+          .group_by(&:user_id)
+          .transform_values { |cs| cs.map { |c| to_lite(c) } }
+      end
+      private_class_method :catch_lites_by_user
+
+      def self.to_lite(catch)
+        CatchLite.new(id: catch.id, length: catch.length_inches,
+                      species_id: catch.species_id, at: catch.captured_at_device)
+      end
+      private_class_method :to_lite
+
       def initialize(tournament:, entry:, catches: nil, species_ids: nil, time_zone: Time.zone)
         @tournament = tournament
         @entry = entry
@@ -98,24 +147,11 @@ module Catches
 
       private
 
+      # Single-entry load (card page, direct EvaluateCard.call without catches:).
+      # Batch builds inject catches: via self.catches_by_entry to avoid this per-entry.
       def load_catches
-        user_ids = @entry.users.pluck(:id)
-        ::Catch.where(user_id: user_ids)
-          .where.not(status: :disqualified)
-          .where(captured_at_device: @tournament.starts_at..@tournament.ends_at)
-          .reject { |c| excluded_by_geofence?(c) }
-          .map { |c| CatchLite.new(id: c.id, length: c.length_inches, species_id: c.species_id, at: c.captured_at_device) }
-      end
-
-      # Mirror PlaceInSlots' hard scoring exclusions (skip_for_out_of_province? /
-      # skip_for_local_out_of_bounds?) so a bingo card scores the same catches every
-      # other format does: an out-of-province catch never counts, and on a local
-      # tournament a catch outside the lake never counts. A GPS-less catch is kept,
-      # and judge geofence overrides are honored via Catch#in_geofence?.
-      def excluded_by_geofence?(catch)
-        return false if catch.latitude.nil?
-        return true unless catch.in_geofence?(:sask)
-        @tournament.local? && !catch.in_geofence?(:lake)
+        self.class.send(:catch_lites_by_user, @tournament, @entry.users.pluck(:id))
+          .values.flatten
       end
 
       def species_ids

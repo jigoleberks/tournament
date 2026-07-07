@@ -174,9 +174,7 @@ module Catches
         affected_tournaments = @catch.catch_placements.includes(:tournament).map(&:tournament).uniq
         # Bingo keeps no placements, so its tournaments never appear above. Union in
         # every bingo tournament this catch is eligible for at its capture time so the
-        # card/leaderboard re-derive (and re-broadcast) after this edit. Query directly
-        # rather than via ActiveForUser: that helper drops tournaments where the owner
-        # is also a judge, and bingo has no active-placement fallback to recover them.
+        # card/leaderboard re-derive (and re-broadcast) after this edit.
         bingo_tournaments = ::Tournament.format_bingo
           .joins(tournament_entries: :tournament_entry_members)
           .where(tournament_entry_members: { user_id: @catch.user_id })

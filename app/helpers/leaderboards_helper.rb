@@ -42,7 +42,13 @@ module LeaderboardsHelper
     return "Blackout" if row[:blackout]
     squares = row[:squares_count].to_i
     return "—" if squares <= 1
-    lines = row[:lines_count].to_i
-    %(#{pluralize(lines, "line")} · #{squares}/25 squares)
+    bingo_progress_label(lines_count: row[:lines_count].to_i, squares_count: squares)
+  end
+
+  # The shared "N line(s) · M/25 squares" fragment — single source of truth for the
+  # progress wording, rendered by both the print/admin score sheet (bingo_score_label)
+  # and the live card (_bingo_card partial).
+  def bingo_progress_label(lines_count:, squares_count:)
+    %(#{pluralize(lines_count, "line")} · #{squares_count}/25 squares)
   end
 end

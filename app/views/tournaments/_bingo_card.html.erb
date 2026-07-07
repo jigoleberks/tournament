@@ -10,7 +10,6 @@
     <% end %>
   </div>
   <p class="text-sm text-slate-400 mt-3">
-    <%= result.lines_count %> <%= "line".pluralize(result.lines_count) %> ·
-    <%= result.squares_count %>/25 squares<%= " · BLACKOUT!" if result.blackout %>
+    <%= bingo_progress_label(lines_count: result.lines_count, squares_count: result.squares_count) %><%= " · BLACKOUT!" if result.blackout %>
   </p>
 </div>

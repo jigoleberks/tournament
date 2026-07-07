@@ -176,5 +176,53 @@ module Placements
       assert payloads.any? { |p| p[:reason] == "took_the_lead" && p[:user] == user },
              "post-reveal lead changes should still notify"
     end
+
+    test "bingo: an angler who stamps a square and leads gets a took-the-lead push" do
+      walleye, = create_bingo_species!
+      t = create(:tournament, club: @club, mode: :solo, format: :bingo,
+                 starts_at: 1.hour.ago, ends_at: 1.hour.from_now)
+      alice = create(:user, club: @club, name: "Alice")
+      bob = create(:user, club: @club, name: "Bob")
+      ea = create(:tournament_entry, tournament: t)
+      create(:tournament_entry_member, tournament_entry: ea, user: alice)
+      eb = create(:tournament_entry, tournament: t)
+      create(:tournament_entry_member, tournament_entry: eb, user: bob)
+
+      result = Catches::PlaceInSlots.call(
+        catch: create(:catch, user: alice, species: walleye, length_inches: 16,
+                      captured_at_device: 30.minutes.ago, status: :synced)
+      )
+
+      payloads = DetectNotifications.call(result: result)
+      lead = payloads.select { |p| p[:reason] == "took_the_lead" }
+      assert_equal [alice], lead.map { |p| p[:user] }
+      assert_equal "You took the lead!", lead.first[:body]
+    end
+
+    test "bingo: a stamping catch that does not take the lead does not push" do
+      walleye, = create_bingo_species!
+      t = create(:tournament, club: @club, mode: :solo, format: :bingo,
+                 starts_at: 1.hour.ago, ends_at: 1.hour.from_now)
+      alice = create(:user, club: @club, name: "Alice")
+      bob = create(:user, club: @club, name: "Bob")
+      ea = create(:tournament_entry, tournament: t)
+      create(:tournament_entry_member, tournament_entry: ea, user: alice)
+      eb = create(:tournament_entry, tournament: t)
+      create(:tournament_entry_member, tournament_entry: eb, user: bob)
+
+      # Alice establishes a dominating lead with two walleye (Bob's squares become
+      # a strict subset of hers), so Bob's later catch stamps but can't lead.
+      Catches::PlaceInSlots.call(catch: create(:catch, user: alice, species: walleye,
+        length_inches: 16, captured_at_device: 40.minutes.ago, status: :synced))
+      Catches::PlaceInSlots.call(catch: create(:catch, user: alice, species: walleye,
+        length_inches: 16, captured_at_device: 38.minutes.ago, status: :synced))
+
+      bob_result = Catches::PlaceInSlots.call(catch: create(:catch, user: bob, species: walleye,
+        length_inches: 16, captured_at_device: 36.minutes.ago, status: :synced))
+
+      payloads = DetectNotifications.call(result: bob_result)
+      assert_empty payloads.select { |p| p[:reason] == "took_the_lead" },
+                   "a stamping catch that doesn't take the lead must not push"
+    end
   end
 end

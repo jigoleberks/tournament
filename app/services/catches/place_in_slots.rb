@@ -346,6 +346,11 @@ module Catches
           )
         end
 
+        # Bingo keeps no placements, so DetectNotifications can't spot a lead change
+        # from result[:created]. Detect it here (where @catch is in scope): the
+        # submitter's card is now the leader AND this catch stamped a new square.
+        result[:bingo_lead] = bingo_lead_notifications(affected_tournaments, leaderboards, bingo_changed_entry_ids)
+
         Placements::DetectNotifications.call(result: result, leaderboards: leaderboards).each do |n|
           DeliverPushNotificationJob.perform_later(
             user_id: n[:user].id,
@@ -361,6 +366,36 @@ module Catches
     end
 
     private
+
+    # For each affected bingo tournament, a took-the-lead event for the submitter
+    # when their (now-changed) card is the leader and this catch stamped at least
+    # one new square. Only the submitter's own card changed this run, so no other
+    # entry can have taken the lead. Returns [{ tournament:, entry: }].
+    def bingo_lead_notifications(tournaments, leaderboards, changed_entry_ids)
+      tournaments.select(&:format_bingo?).filter_map do |t|
+        entry_id = changed_entry_ids.fetch(t.id, []).first
+        next unless entry_id
+
+        leader = leaderboards[t.id]&.first
+        next unless leader && leader[:entry].id == entry_id
+
+        before = bingo_result_without_catch(t, leader[:entry])
+        next unless leader[:result].squares_count > before.squares_count
+
+        { tournament: t, entry: leader[:entry] }
+      end
+    end
+
+    # The submitter's card as it stood before this catch — re-derived from the
+    # entry's catches minus @catch — so we can tell whether @catch newly filled a
+    # square (square count is monotonic in catches, so a positive delta == stamped).
+    def bingo_result_without_catch(tournament, entry)
+      lites = Catches::Bingo::EvaluateCard
+        .catches_by_entry(tournament: tournament, entries: [entry])[entry.id] || []
+      Catches::Bingo::EvaluateCard.call(
+        tournament: tournament, entry: entry, catches: lites.reject { |c| c.id == @catch.id }
+      )
+    end
 
     def skip_for_out_of_province?
       return false if @catch.latitude.nil?

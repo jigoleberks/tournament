@@ -71,15 +71,19 @@ module Leaderboards
     private_class_method :build_rows
 
     def self.bingo_rows(tournament, entries: nil)
-      entries ||= tournament.tournament_entries
+      entries = (entries || tournament.tournament_entries).to_a
       # The bingo species ids are tournament-global; resolve them once and inject
-      # so EvaluateCard doesn't re-query Species for every entry. (users isn't
-      # eager-loaded — both EvaluateCard#load_catches and TournamentEntry#display_name
-      # pluck, which ignores a preload.)
+      # so EvaluateCard doesn't re-query Species for every entry. Likewise batch
+      # every entrant's in-window catches into two queries and inject them, rather
+      # than letting each EvaluateCard#load_catches re-query catches per entry.
       species_ids = Catches::Bingo::EvaluateCard.species_id_map
+      catches_by_entry = Catches::Bingo::EvaluateCard.catches_by_entry(
+        tournament: tournament, entries: entries
+      )
       entries.map do |entry|
         result = Catches::Bingo::EvaluateCard.call(
-          tournament: tournament, entry: entry, species_ids: species_ids
+          tournament: tournament, entry: entry, species_ids: species_ids,
+          catches: catches_by_entry[entry.id]
         )
         { entry: entry, result: result }
       end

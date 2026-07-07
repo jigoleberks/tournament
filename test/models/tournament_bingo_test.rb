@@ -52,6 +52,17 @@ class TournamentBingoTest < ActiveSupport::TestCase
     assert_equal "free", t.bingo_layout[12]
   end
 
+  test "switching to bingo after start is rejected with the format error, not a bingo_layout error" do
+    t = Tournament.create!(club: club, name: "Std", mode: :solo, format: :standard,
+                           starts_at: 1.hour.ago, ends_at: 4.hours.from_now)
+    t.format = :bingo
+
+    assert_not t.valid?
+    assert_includes t.errors[:format], "can't be changed once the tournament has started"
+    assert_empty t.errors[:bingo_layout],
+                 "the auto-assigned layout must not surface a misleading bingo_layout error"
+  end
+
   test "PERCH_NAME and PIKE_NAME constants exist" do
     assert_equal "Perch", Species::PERCH_NAME
     assert_equal "Pike", Species::PIKE_NAME

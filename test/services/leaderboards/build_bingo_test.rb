@@ -49,5 +49,26 @@ module Leaderboards
       end
       assert_operator species_queries, :<=, 1
     end
+
+    test "loads every entrant's catches in a single query, not one per entry" do
+      club = Club.create!(name: "C")
+      walleye, = create_bingo_species!
+      t = Tournament.new(club: club, name: "B", mode: :solo, format: :bingo,
+                         starts_at: 2.hours.ago, ends_at: 2.hours.from_now)
+      t.save!
+
+      3.times do |i|
+        u = User.create!(name: "U#{i}", email: "u#{i}@example.com")
+        entry = t.tournament_entries.create!
+        entry.tournament_entry_members.create!(user: u)
+        create(:catch, user: u, species: walleye, length_inches: 16,
+               captured_at_device: 1.hour.ago, status: :synced)
+      end
+
+      catch_queries = count_queries(/FROM "catches"/) do
+        Leaderboards::Build.call(tournament: t)
+      end
+      assert_equal 1, catch_queries, "expected one batched catches query, not one per entry"
+    end
   end
 end

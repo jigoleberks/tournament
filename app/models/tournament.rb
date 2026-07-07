@@ -247,6 +247,11 @@ class Tournament < ApplicationRecord
     return unless format_bingo?
     return unless will_save_change_to_bingo_layout?
     return if starts_at.blank? || starts_at > Time.current
+    # Switching format to bingo after start also auto-assigns a layout (nil -> array).
+    # That rejection belongs to format_locked_after_start; don't pile on a misleading
+    # "layout can't be changed" error when the layout only appeared because of the
+    # (already-blocked) format switch.
+    return if will_save_change_to_format?
     errors.add(:bingo_layout, "can't be changed once the tournament has started")
   end
 
