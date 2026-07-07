@@ -47,6 +47,44 @@ module Catches
         assert_includes keys_filled, "time_hour1" # 6:30 PM local
       end
 
+      test "time-window square fills for a DB-loaded catch in a non-UTC app zone (regression)" do
+        # Before the local_hour fix, a DB-read captured_at_device came back as a
+        # local TimeWithZone and got re-offset, bucketing a 6:30 PM Saskatchewan
+        # catch to noon so the 6-6:59 PM square never filled in production. This
+        # exercises the real load_catches path (not injected CatchLite structs).
+        Time.use_zone("America/Regina") do
+          instant = Time.utc(2026, 7, 6, 0, 30) # 00:30 UTC = 6:30 PM CST (no DST)
+          t = tournament_with_top_row(%w[time_hour1 walleye_1 walleye_2 walleye_3])
+          t.update_columns(starts_at: instant - 1.hour, ends_at: instant + 1.hour)
+          user = User.create!(name: "A", email: "tzdb@example.com")
+          entry = t.tournament_entries.create!
+          entry.tournament_entry_members.create!(user: user)
+          create(:catch, user: user, species: walleye, length_inches: 15, captured_at_device: instant)
+
+          r = EvaluateCard.call(tournament: t, entry: entry)
+          keys_filled = r.cells.select { |c| c[:filled] }.map { |c| c[:key] }
+          assert_includes keys_filled, "time_hour1",
+                          "6:30 PM local catch should fill the 6-6:59 PM square"
+        end
+      end
+
+      test "an out-of-province catch is excluded from the card, like every other format" do
+        # Mirrors PlaceInSlots#skip_for_out_of_province?: a GPS-tagged catch outside
+        # Saskatchewan never scores. The card must not fill from it.
+        t = tournament_with_top_row(%w[walleye_1 walleye_2 walleye_3 perch_1])
+        user = User.create!(name: "A", email: "geo@example.com")
+        entry = t.tournament_entries.create!
+        entry.tournament_entry_members.create!(user: user)
+        # (0, 0) is far outside the Saskatchewan geofence; no judge override.
+        create(:catch, user: user, species: walleye, length_inches: 15,
+               captured_at_device: 1.hour.ago, latitude: 0.0, longitude: 0.0)
+
+        r = EvaluateCard.call(tournament: t, entry: entry)
+        keys_filled = r.cells.select { |c| c[:filled] }.map { |c| c[:key] }
+        assert_equal 1, r.squares_count, "only the free square should remain"
+        refute_includes keys_filled, "walleye_1"
+      end
+
       test "a completed top row counts as one line with time = max cell time" do
         t = tournament_with_top_row(%w[walleye_1 walleye_2 walleye_3 perch_1 perch_2])
         w = walleye.id; p = perch.id

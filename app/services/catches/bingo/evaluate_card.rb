@@ -27,13 +27,14 @@ module Catches
 
         def species_id(sym) = @species_ids[sym]
 
-        # captured_at_device is a naive UTC timestamp. Rebuild its wall-clock
-        # components as UTC, then present in the tournament's local zone. Mirrors
-        # the double-AT-TIME-ZONE fix used in SQL filters.
+        # `at` already denotes the correct instant: read from the DB, captured_at_device
+        # is a time-zone-aware ActiveSupport::TimeWithZone; the unit tests pass a raw
+        # UTC Time. Either way, presenting it in the tournament's local zone gives the
+        # wall-clock hour. (An earlier version rebuilt the components as if they were
+        # UTC and re-converted, which double-applied the offset whenever the app zone
+        # wasn't UTC — e.g. APP_TIME_ZONE=Saskatchewan bucketed a 6:30 PM catch to noon.)
         def local_hour(at)
-          ActiveSupport::TimeZone["UTC"]
-            .local(at.year, at.month, at.day, at.hour, at.min, at.sec)
-            .in_time_zone(@time_zone).hour
+          at.in_time_zone(@time_zone).hour
         end
       end
 
@@ -102,8 +103,19 @@ module Catches
         ::Catch.where(user_id: user_ids)
           .where.not(status: :disqualified)
           .where(captured_at_device: @tournament.starts_at..@tournament.ends_at)
-          .pluck(:id, :length_inches, :species_id, :captured_at_device)
-          .map { |id, len, sp, at| CatchLite.new(id: id, length: len, species_id: sp, at: at) }
+          .reject { |c| excluded_by_geofence?(c) }
+          .map { |c| CatchLite.new(id: c.id, length: c.length_inches, species_id: c.species_id, at: c.captured_at_device) }
+      end
+
+      # Mirror PlaceInSlots' hard scoring exclusions (skip_for_out_of_province? /
+      # skip_for_local_out_of_bounds?) so a bingo card scores the same catches every
+      # other format does: an out-of-province catch never counts, and on a local
+      # tournament a catch outside the lake never counts. A GPS-less catch is kept,
+      # and judge geofence overrides are honored via Catch#in_geofence?.
+      def excluded_by_geofence?(catch)
+        return false if catch.latitude.nil?
+        return true unless catch.in_geofence?(:sask)
+        @tournament.local? && !catch.in_geofence?(:lake)
       end
 
       def species_ids
