@@ -1,4 +1,11 @@
 module ApplicationHelper
+  # The species list (alphabetical), loaded once per request. Use in views that
+  # render species in a loop (scoring-slot rows, fish-train cars) so each row
+  # reuses one query instead of re-running Species.order(:name).
+  def ordered_species
+    @ordered_species ||= Species.order(:name).to_a
+  end
+
   def tournament_window(tournament)
     starts_at = tournament.starts_at
     ends_at   = tournament.ends_at
@@ -16,6 +23,16 @@ module ApplicationHelper
   def format_season_points(n)
     formatted = format("%.1f", n)
     formatted.end_with?(".0") ? formatted.chomp(".0") : formatted
+  end
+
+  BANNER_STRIP_CLASSES = {
+    "info"  => "bg-yellow-500/20 border-yellow-500/40 text-yellow-200",
+    "good"  => "bg-emerald-500/20 border-emerald-500/40 text-emerald-200",
+    "alert" => "bg-red-500/20 border-red-500/40 text-red-200",
+  }.freeze
+
+  def banner_strip_classes(style)
+    BANNER_STRIP_CLASSES.fetch(style.to_s, BANNER_STRIP_CLASSES["info"])
   end
 
   private

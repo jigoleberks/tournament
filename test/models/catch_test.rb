@@ -27,6 +27,40 @@ class CatchTest < ActiveSupport::TestCase
     assert_not duplicate.valid?
   end
 
+  test "add_flag! appends the flag" do
+    catch_record = create(:catch, user: @user, species: @walleye)
+    catch_record.add_flag!("imported_photo")
+    assert_includes catch_record.reload.flags, "imported_photo"
+  end
+
+  test "add_flag! is idempotent" do
+    catch_record = create(:catch, user: @user, species: @walleye)
+    catch_record.add_flag!("imported_photo")
+    catch_record.add_flag!("imported_photo")
+    assert_equal ["imported_photo"], catch_record.reload.flags
+  end
+
+  test "add_flag! does not clobber a flag added concurrently after the instance was loaded" do
+    catch_record = create(:catch, user: @user, species: @walleye)
+    # Simulate a second writer (e.g. a teammate's FlagDuplicates) appending a
+    # flag to the row after this instance snapshotted flags == [].
+    Catch.where(id: catch_record.id).update_all("flags = ARRAY['possible_duplicate']::text[]")
+    catch_record.add_flag!("imported_photo")
+    assert_equal %w[possible_duplicate imported_photo].sort, catch_record.reload.flags.sort
+  end
+
+  test "add_flag! with bump_to_review moves a synced catch to needs_review" do
+    catch_record = create(:catch, user: @user, species: @walleye, status: :synced)
+    catch_record.add_flag!("imported_photo", bump_to_review: true)
+    assert catch_record.reload.needs_review?
+  end
+
+  test "add_flag! with bump_to_review leaves a non-synced catch's status untouched" do
+    catch_record = create(:catch, user: @user, species: @walleye, status: :disqualified)
+    catch_record.add_flag!("imported_photo", bump_to_review: true)
+    assert catch_record.reload.disqualified?
+  end
+
   test "can attach a photo" do
     catch_record = build(:catch, user: @user, species: @walleye)
     catch_record.photo.attach(
@@ -36,6 +70,30 @@ class CatchTest < ActiveSupport::TestCase
     )
     assert catch_record.save
     assert catch_record.photo.attached?
+  end
+
+  test "display_photo returns the original photo when no reference photo is attached" do
+    catch_record = build(:catch, user: @user, species: @walleye)
+    catch_record.photo.attach(
+      io: File.open(Rails.root.join("test/fixtures/files/sample_walleye.jpg")),
+      filename: "original.jpg", content_type: "image/jpeg"
+    )
+    catch_record.save!
+    assert_equal catch_record.photo.blob, catch_record.display_photo.blob
+  end
+
+  test "display_photo returns the reference photo when one is attached" do
+    catch_record = build(:catch, user: @user, species: @walleye)
+    catch_record.photo.attach(
+      io: File.open(Rails.root.join("test/fixtures/files/sample_walleye.jpg")),
+      filename: "original.jpg", content_type: "image/jpeg"
+    )
+    catch_record.reference_photo.attach(
+      io: File.open(Rails.root.join("test/fixtures/files/sample_walleye.jpg")),
+      filename: "reference.jpg", content_type: "image/jpeg"
+    )
+    catch_record.save!
+    assert_equal "reference.jpg", catch_record.display_photo.blob.filename.to_s
   end
 
   test "rejects a non-image photo content_type" do
@@ -83,10 +141,55 @@ class CatchTest < ActiveSupport::TestCase
     assert_not too_big.valid?
   end
 
-  test "uncapped species accept any positive length" do
+  test "bass over 35 inches is invalid" do
+    bass = create(:species, club: @club, name: "Bass")
+    too_big = build(:catch, user: @user, species: bass, length_inches: 35.25)
+    assert_not too_big.valid?
+    assert_includes too_big.errors[:length_inches].join, "Bass"
+  end
+
+  test "lake trout over 55 inches is invalid" do
     trout = create(:species, club: @club, name: "Lake Trout")
-    big = build(:catch, user: @user, species: trout, length_inches: 200)
+    too_big = build(:catch, user: @user, species: trout, length_inches: 55.5)
+    assert_not too_big.valid?
+  end
+
+  test "stocked trout over 35 inches is invalid" do
+    trout = create(:species, club: @club, name: "Stocked Trout")
+    too_big = build(:catch, user: @user, species: trout, length_inches: 35.25)
+    assert_not too_big.valid?
+  end
+
+  test "tagged walleye over 50 inches is invalid" do
+    tagged = create(:species, club: @club, name: "Tagged Walleye")
+    too_big = build(:catch, user: @user, species: tagged, length_inches: 50.5,
+                    tag_number: "A1")
+    assert_not too_big.valid?
+  end
+
+  test "other over 200 inches is invalid" do
+    other = create(:species, club: @club, name: "Other")
+    too_big = build(:catch, user: @user, species: other, length_inches: 200.25)
+    assert_not too_big.valid?
+  end
+
+  test "other at exactly 200 inches is valid" do
+    other = create(:species, club: @club, name: "Other")
+    boundary = build(:catch, user: @user, species: other, length_inches: 200)
+    assert boundary.valid?
+  end
+
+  test "a species not in the cap table accepts any positive length" do
+    crappie = create(:species, club: @club, name: "Crappie")
+    big = build(:catch, user: @user, species: crappie, length_inches: 500)
     assert big.valid?
+  end
+
+  test "length_cap_for looks up the cap by species name, case-insensitive" do
+    assert_equal 50, Catch.length_cap_for(@walleye)
+    assert_equal 35, Catch.length_cap_for(create(:species, club: @club, name: "Bass"))
+    assert_nil Catch.length_cap_for(create(:species, club: @club, name: "Crappie"))
+    assert_nil Catch.length_cap_for(nil)
   end
 
   test "note up to 500 chars is valid" do
@@ -140,6 +243,32 @@ class CatchTest < ActiveSupport::TestCase
     create(:judge_action, catch: catch_record, judge_user: judge, action: :disqualify,
                           note: "actual reason", created_at: 1.minute.ago)
     assert_equal "actual reason", catch_record.disqualification_note
+  end
+
+  test "disqualification_note breaks created_at ties deterministically by highest id" do
+    judge = create(:user, club: @club, role: :organizer)
+    catch_record = create(:catch, user: @user, species: @walleye, status: :disqualified)
+    same_time = 1.minute.ago
+    create(:judge_action, catch: catch_record, judge_user: judge, action: :disqualify,
+                          note: "earlier row", created_at: same_time)
+    create(:judge_action, catch: catch_record, judge_user: judge, action: :disqualify,
+                          note: "later row", created_at: same_time)
+    assert_equal "later row", catch_record.disqualification_note
+  end
+
+  test "disqualification_note consumes eager-loaded judge_actions without re-querying" do
+    judge = create(:user, club: @club, role: :organizer)
+    2.times do
+      c = create(:catch, user: @user, species: @walleye, status: :disqualified)
+      create(:judge_action, catch: c, judge_user: judge, action: :disqualify, note: "bad")
+    end
+
+    loaded = Catch.where(status: :disqualified).includes(:judge_actions).to_a
+    judge_action_queries = count_queries(/\bfrom\s+"?judge_actions"?/i) do
+      loaded.each(&:disqualification_note)
+    end
+    assert_equal 0, judge_action_queries,
+                 "disqualification_note should read the preloaded association, not re-query per row"
   end
 
   test "disqualification_note returns nil when catch is not disqualified" do
@@ -279,5 +408,11 @@ class CatchTest < ActiveSupport::TestCase
     c = build(:catch, length_inches: 18.5, length_unit: nil)
     c.valid?
     assert_equal "inches", c.length_unit
+  end
+
+  test "geofence override columns default to false" do
+    c = create(:catch)
+    assert_equal false, c.override_in_lake
+    assert_equal false, c.override_in_sask
   end
 end

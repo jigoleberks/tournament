@@ -1,7 +1,7 @@
 class Admin::ClubsController < ApplicationController
   layout "admin"
   before_action :require_sign_in!
-  before_action :require_admin!
+  before_action :require_site_admin!
   before_action :set_club, only: [ :edit, :update, :show ]
 
   def index
@@ -52,9 +52,5 @@ class Admin::ClubsController < ApplicationController
 
   def club_params
     params.require(:club).permit(:name)
-  end
-
-  def require_admin!
-    head :forbidden unless current_user&.admin?
   end
 end

@@ -6,5 +6,6 @@ class Admin::DashboardsController < Admin::BaseController
     @total_active_members = User.active.count
     @active_tournaments   = Tournament.where("ends_at IS NULL OR ends_at >= ?", Time.current).count
     @catches_last_7_days  = Catch.where(created_at: 7.days.ago..).count
+    @server_info = Diagnostics::ServerInfo.call
   end
 end

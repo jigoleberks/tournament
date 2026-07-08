@@ -28,8 +28,8 @@ class TournamentsControllerTest < ActionDispatch::IntegrationTest
   end
 
   test "archived includes tournaments ended more than 24h ago, newest first" do
-    older = create(:tournament, club: @club, name: "Older", ends_at: 5.days.ago)
-    newer = create(:tournament, club: @club, name: "Newer", ends_at: 26.hours.ago)
+    older = create(:tournament, club: @club, name: "Older", starts_at: 6.days.ago, ends_at: 5.days.ago)
+    newer = create(:tournament, club: @club, name: "Newer", starts_at: 2.days.ago, ends_at: 26.hours.ago)
     get archived_tournaments_path
     assert_match "Older", response.body
     assert_match "Newer", response.body
@@ -38,20 +38,21 @@ class TournamentsControllerTest < ActionDispatch::IntegrationTest
   end
 
   test "archived excludes tournaments ended within the last 24h" do
-    create(:tournament, club: @club, name: "RecentlyEnded", ends_at: 2.hours.ago)
+    create(:tournament, club: @club, name: "RecentlyEnded", starts_at: 4.hours.ago, ends_at: 2.hours.ago)
     get archived_tournaments_path
     assert_no_match "RecentlyEnded", response.body
   end
 
   test "archived excludes tournaments with no ends_at" do
-    create(:tournament, club: @club, name: "OpenEnded", ends_at: nil)
+    # Legacy NULL-ends_at row: bypass the now-required ends_at validation.
+    build(:tournament, club: @club, name: "OpenEnded", ends_at: nil).save!(validate: false)
     get archived_tournaments_path
     assert_no_match "OpenEnded", response.body
   end
 
   test "archived is scoped to the current user's club" do
     other_club = create(:club)
-    create(:tournament, club: other_club, name: "OtherClubTourney", ends_at: 5.days.ago)
+    create(:tournament, club: other_club, name: "OtherClubTourney", starts_at: 6.days.ago, ends_at: 5.days.ago)
     get archived_tournaments_path
     assert_no_match "OtherClubTourney", response.body
   end
@@ -76,7 +77,7 @@ class TournamentsControllerTest < ActionDispatch::IntegrationTest
   end
 
   test "archived omits the winner suffix when a tournament has no placed catches" do
-    create(:tournament, club: @club, name: "EmptyTourney", ends_at: 5.days.ago)
+    create(:tournament, club: @club, name: "EmptyTourney", starts_at: 6.days.ago, ends_at: 5.days.ago)
     get archived_tournaments_path
     assert_response :success
     assert_match "EmptyTourney", response.body
@@ -85,7 +86,7 @@ class TournamentsControllerTest < ActionDispatch::IntegrationTest
 
   test "archived does not render the season_tag on rows" do
     create(:tournament, club: @club, name: "TaggedTourney",
-           ends_at: 5.days.ago, season_tag: "Spring 2026")
+           starts_at: 6.days.ago, ends_at: 5.days.ago, season_tag: "Spring 2026")
     get archived_tournaments_path
     assert_response :success
     assert_match "TaggedTourney", response.body
@@ -108,7 +109,7 @@ class TournamentsControllerTest < ActionDispatch::IntegrationTest
 
   test "archived shows the leaderboard hint on a locked entrants-only row" do
     create(:tournament, club: @club, name: "Closed Archive",
-           ends_at: 5.days.ago, entrants_only_leaderboard: true)
+           starts_at: 6.days.ago, ends_at: 5.days.ago, entrants_only_leaderboard: true)
     get archived_tournaments_path
     assert_response :success
     assert_match "Ask an organizer to add you", response.body
@@ -172,7 +173,7 @@ class TournamentsControllerTest < ActionDispatch::IntegrationTest
 
   test "show renders the ends label and date/time on the same line, date right-aligned" do
     ends_at = Time.zone.local(2026, 6, 15, 18, 30)
-    tournament = create(:tournament, club: @club, ends_at: ends_at)
+    tournament = create(:tournament, club: @club, starts_at: ends_at - 4.hours, ends_at: ends_at)
     get tournament_path(tournament)
     assert_response :success
     assert_select "[class~='justify-between']" do
@@ -197,6 +198,31 @@ class TournamentsControllerTest < ActionDispatch::IntegrationTest
     assert_response :success
     assert_select "[data-test=approved-check]", count: 1
     assert_no_match "Approved by", response.body
+  end
+
+  test "biggest_vs_smallest: green check appears beside each approved extreme independently" do
+    species = create(:species, club: @club)
+    tournament = build(:tournament, club: @club, format: :biggest_vs_smallest, mode: :solo,
+                       starts_at: 1.hour.ago, ends_at: 1.hour.from_now)
+    tournament.scoring_slots.build(species: species, slot_count: 1)
+    tournament.save!
+    entry = create(:tournament_entry, tournament: tournament, name: "Team Reel Deal")
+    create(:tournament_entry_member, tournament_entry: entry, user: @user)
+
+    biggest = create(:catch, user: @user, species: species, length_inches: 22.0,
+                     captured_at_device: 40.minutes.ago)
+    smallest = create(:catch, user: @user, species: species, length_inches: 11.0,
+                      captured_at_device: 30.minutes.ago)
+    Catches::PlaceInSlots.call(catch: biggest)
+    Catches::PlaceInSlots.call(catch: smallest)
+
+    # Approve only the biggest — its check should show, the smallest's should not.
+    judge = create(:user, club: @club, name: "Judge Judy")
+    create(:judge_action, judge_user: judge, catch: biggest, action: :approve)
+
+    get tournament_path(tournament)
+    assert_response :success
+    assert_select "[data-test=approved-check]", count: 1
   end
 
   test "show does not render approved markers for unreviewed fish" do

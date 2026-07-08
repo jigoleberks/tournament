@@ -9,12 +9,11 @@ require "application_system_test_case"
 # Three browser quirks have to be smoothed over to drive this headless, all via a
 # single "evaluate on new document" script (runs before any page script):
 #
-#   1. navigator.onLine is pinned false *only on /offline*. The offline-reconnect
-#      controller redirects to "/" the instant it sees online (its whole job:
-#      leave the static shell once a real session is reachable), and headless
-#      Chromium always reports online. Pinning it false on /offline keeps the
-#      shell alive to drive the form; "/" still reports online so sync.js's
-#      load-handler drains the queue.
+#   1. navigator.onLine is pinned false *only on /offline*. The back-to-live
+#      controller no longer redirects on its own (it only updates a hint), but
+#      sync.js's load-handler on "/" fires when online is true and drains the
+#      queue. Pinning it false on /offline prevents that drain from firing while
+#      the form is being driven; "/" still reports online so sync.js runs there.
 #   2. geolocation.getCurrentPosition is stubbed to "denied" so catch-form's
 #      tryGeolocate() resolves immediately instead of hanging (headless Chrome
 #      fires neither callback).
@@ -116,6 +115,28 @@ class OfflineCatchFormTest < ApplicationSystemTestCase
     # The form is still mounted and interactive — not stuck mid-navigation.
     find("select#catch_species_id").select("Walleye")
     assert_selector "select#catch_species_id option[selected]", text: "Walleye", visible: :all
+  end
+
+  test "offline shell stays put and offers a manual return instead of auto-redirecting" do
+    sign_in_as(@user)
+
+    visit "/offline"
+
+    # We must still be on the shell (old behavior auto-bounced to "/").
+    assert_selector "h1", text: "Log Catch"
+    assert_current_path "/offline"
+    assert_button "Back to live app"
+  end
+
+  test "tapping Back to live leaves the offline shell for the live app" do
+    sign_in_as(@user)
+
+    visit "/offline"
+    click_button "Back to live app"
+
+    # The live page does not carry the back-to-live controller.
+    assert_no_selector "[data-controller='back-to-live']"
+    assert_no_current_path "/offline"
   end
 
   private

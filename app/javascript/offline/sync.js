@@ -32,7 +32,7 @@ async function drain() {
         if (rec.water_depth_feet != null) fd.append("catch[water_depth_feet]", rec.water_depth_feet)
         if (rec.water_temperature_c != null) fd.append("catch[water_temperature_c]", rec.water_temperature_c)
         if (rec.structure) fd.append("catch[structure]", rec.structure)
-        if (rec.photo) fd.append("catch[photo]", rec.photo, "photo.jpg")
+        if (rec.photo) fd.append("catch[photo]", rec.photo, rec.photo.name || "photo.jpg")
         if (rec.video) {
           const ext = (rec.video.type || "").includes("mp4") ? "mp4" : "webm"
           fd.append("catch[video]", rec.video, `video.${ext}`)

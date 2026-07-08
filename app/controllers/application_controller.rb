@@ -3,7 +3,7 @@ class ApplicationController < ActionController::Base
   allow_browser versions: :modern
 
   before_action :touch_last_seen
-  helper_method :tournament_leaderboard_visible?, :logbook_enabled?
+  helper_method :tournament_leaderboard_visible?, :judged_tournament_ids, :logbook_enabled?
 
   LOGBOOK_ENABLED_VALUES = %w[1 true yes on].freeze
 
@@ -45,6 +45,10 @@ class ApplicationController < ActionController::Base
   end
 
   def touch_last_seen
-    current_user&.touch_last_seen!
+    Diagnostics::RecordVisit.call(
+      user:       current_user,
+      user_agent: request.user_agent,
+      app_build:  cookies[:app_build]
+    )
   end
 end

@@ -1,21 +1,20 @@
-<h1 class="text-2xl font-semibold mt-4 mb-2">Log for a teammate</h1>
+<h1 class="text-2xl font-semibold mt-4 mb-2">Who's this catch for?</h1>
 <p class="text-slate-400 text-sm mb-4">
-  Pick a teammate from <span class="text-slate-300"><%= @tournament.name %></span>.
-  The catch will be filed under their name with you noted as the logger.
+  Log your own catch, or file one under a teammate's name (you'll be noted as the logger).
 </p>
 
-<% if @teammates.any? %>
-  <ul class="space-y-2">
-    <% @teammates.each do |t| %>
-      <li>
-        <%= link_to t.name, new_catch_path(teammate_user_id: t.id),
-                    class: "block w-full h-14 px-4 rounded-lg bg-slate-800 active:bg-slate-700 text-slate-100 text-base font-medium leading-[3.5rem]" %>
-      </li>
-    <% end %>
-  </ul>
-<% else %>
-  <p class="text-slate-400 italic">No teammates on your entry.</p>
-<% end %>
+<ul class="space-y-2">
+  <li>
+    <%= link_to "Myself", new_catch_path,
+                class: "block w-full h-28 px-4 rounded-lg bg-blue-600 active:bg-blue-700 text-white text-lg font-semibold leading-[7rem]" %>
+  </li>
+  <% @teammates.each do |t| %>
+    <li>
+      <%= link_to t.name, new_catch_path(teammate_user_id: t.id),
+                  class: "block w-full h-14 px-4 rounded-lg bg-slate-800 active:bg-slate-700 text-slate-100 text-base font-medium leading-[3.5rem]" %>
+    </li>
+  <% end %>
+</ul>
 
-<%= link_to "Cancel", tournament_path(@tournament),
+<%= link_to "Cancel", root_path,
             class: "block w-full h-12 px-4 mt-4 rounded-lg bg-slate-700 active:bg-slate-600 text-slate-100 text-center leading-[3rem]" %>

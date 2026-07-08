@@ -8,7 +8,6 @@ module Leaderboards
       # Row :fish is returned biggest-first so the leaderboard partial can render
       # the two extremes in that order without re-sorting.
       def self.call(entry_rows)
-        far_future = ::Time.zone.at(0) + 100.years
         rows = entry_rows.map do |row|
           fish = row[:fish]
           if fish.size >= 2
@@ -43,7 +42,7 @@ module Leaderboards
           [
             r[:complete] ? 0 : 1,
             -(r[:total] || 0),
-            r[:earliest_catch_at] || far_future,
+            r[:earliest_catch_at] || FAR_FUTURE,
             r[:entry].id
           ]
         end

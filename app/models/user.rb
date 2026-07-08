@@ -8,6 +8,7 @@ class User < ApplicationRecord
   has_many :baits, dependent: :restrict_with_error
   has_many :push_subscriptions, dependent: :destroy
   has_many :judge_actions, foreign_key: :judge_user_id, dependent: :destroy
+  has_many :user_events, dependent: :delete_all
 
   validates :name, :email, presence: true
   validates :email, uniqueness: { case_sensitive: false }

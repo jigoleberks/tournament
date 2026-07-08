@@ -1,4 +1,6 @@
 class Admin::TournamentsController < Admin::BaseController
+  include TournamentParams
+
   before_action :set_tournament, only: [:edit, :update, :destroy]
 
   def index
@@ -39,17 +41,15 @@ class Admin::TournamentsController < Admin::BaseController
     end
   end
 
+  def results
+    @tournament = current_club.tournaments.find(params[:id])
+    @leaderboard = Leaderboards::Build.call(tournament: @tournament)
+    render layout: "print"
+  end
+
   private
 
   def set_tournament
     @tournament = current_club.tournaments.find(params[:id])
-  end
-
-  def tournament_params
-    params.require(:tournament).permit(
-      :name, :kind, :mode, :starts_at, :ends_at, :season_tag, :requires_release_video, :judged, :local,
-      :awards_season_points, :entrants_only_leaderboard,
-      scoring_slots_attributes: [:id, :species_id, :slot_count, :_destroy]
-    )
   end
 end

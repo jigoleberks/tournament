@@ -18,8 +18,8 @@
       <% tile_classes += " active:bg-slate-700" if @tournament.friendly? %>
       <li class="<%= tile_classes %>">
         <% body = capture do %>
-          <% if c.photo.attached? %>
-            <%= thumb c.photo, class: "w-full h-32 object-cover rounded bg-black" %>
+          <% if c.display_photo.attached? %>
+            <%= thumb c.display_photo, class: "w-full h-32 object-cover rounded bg-black" %>
           <% else %>
             <div class="w-full h-32 rounded bg-black flex items-center justify-center text-slate-500 text-sm">no photo</div>
           <% end %>

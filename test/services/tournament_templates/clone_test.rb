@@ -148,5 +148,19 @@ module TournamentTemplates
       assert_equal [perch.id, pike.id, perch.id], cloned.train_cars
       assert_equal 2, cloned.scoring_slots.count
     end
+
+    test "clones a pro_walleye template into a valid tournament with a 5-count Walleye slot" do
+      walleye = create(:species, club: @club, name: "Walleye")
+      template = build(:tournament_template, club: @club, format: :pro_walleye, mode: :team)
+      template.tournament_template_scoring_slots.build(species: walleye, slot_count: 5)
+      template.save!
+
+      t = TournamentTemplates::Clone.call(template: template, starts_at: 1.hour.from_now, ends_at: 3.hours.from_now)
+
+      assert t.persisted?
+      assert t.format_pro_walleye?
+      assert_equal walleye.id, t.scoring_slots.sole.species_id
+      assert_equal 5, t.scoring_slots.sole.slot_count
+    end
   end
 end

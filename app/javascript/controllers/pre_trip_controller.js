@@ -1,8 +1,13 @@
 import { Controller } from "@hotwired/stimulus"
 
 export default class extends Controller {
-  static targets = ["session", "tournaments", "camera", "microphone", "gps", "clock", "notifications", "network"]
+  static targets = ["session", "tournaments", "camera", "microphone", "gps", "clock", "notifications", "network", "version", "troubleshootStatus"]
   static values = { activeTournaments: Number }
+
+  // The diagnostic-check rows that _reset() blanks to "…" before a run.
+  // Excludes troubleshootStatus, which is the Update-app button's own status
+  // line, not a check — sweeping it would stamp a stray "…" there every run.
+  static CHECK_TARGETS = ["session", "tournaments", "camera", "microphone", "gps", "clock", "notifications", "network", "version"]
 
   connect() { this.runAll() }
 
@@ -15,10 +20,38 @@ export default class extends Controller {
     await this.checkGps()
     await this.checkNotifications()
     this.set("network", navigator.onLine ? `✓ (${navigator.connection?.effectiveType ?? "online"})` : "ℹ offline (sync deferred)")
+    await this.checkVersion()
+  }
+
+  // Compares the build the phone is running (data-app-build, baked into the page
+  // it loaded) against the live server build fetched from /api/version. The
+  // endpoint lives under /api/ so the service worker passes it straight to the
+  // network (never cached), so a re-test discovers a deploy that landed after
+  // the phone last loaded — even while it's still showing the pre-deploy page.
+  // A mismatch means "Update app" below will pull the newer build.
+  async checkVersion() {
+    const loaded = document.documentElement.dataset.appBuild || ""
+    const short = (v) => v.slice(0, 7) || "unknown"
+
+    let server
+    try {
+      const res = await fetch("/api/version", { headers: { Accept: "application/json" }, cache: "no-store" })
+      if (res.ok) server = (await res.json()).build
+    } catch (e) {
+      // Offline or unreachable: fall through to the can't-check state below.
+    }
+
+    if (!server) {
+      this.set("version", `ℹ ${short(loaded)} (couldn't reach server)`)
+    } else if (server === loaded) {
+      this.set("version", `✓ ${short(loaded)}`)
+    } else {
+      this.set("version", `⚠ update available — you: ${short(loaded)} · server: ${short(server)}`)
+    }
   }
 
   _reset() {
-    for (const name of this.constructor.targets) {
+    for (const name of this.constructor.CHECK_TARGETS) {
       this.set(name, "…")
     }
   }
@@ -82,5 +115,38 @@ export default class extends Controller {
     if (Notification.permission === "granted") return this.set("notifications", "✓")
     if (Notification.permission === "denied")  return this.set("notifications", "⚠ denied")
     return this.set("notifications", "⚠ not requested yet")
+  }
+
+  // Forces a fresh copy of the app: unregister the service worker and drop every
+  // Cache Storage entry (the precached shell + fingerprinted assets), then reload
+  // so a clean worker reinstalls. Recovers a phone stuck on an old deploy or a
+  // broken offline shell. The offline catch queue lives in IndexedDB, which we
+  // deliberately leave untouched — pending catches survive the reset.
+  async updateApp() {
+    // Wiping the SW + caches while offline would reload into an app with neither
+    // network nor a precached shell to serve — a bricked PWA until connectivity
+    // returns. Refuse and tell the user to get back online first.
+    if (!navigator.onLine) {
+      this._troubleshoot("⚠ You're offline — reconnect before updating.")
+      return
+    }
+    this._troubleshoot("Updating…")
+    try {
+      if ("serviceWorker" in navigator) {
+        const regs = await navigator.serviceWorker.getRegistrations()
+        await Promise.all(regs.map((r) => r.unregister()))
+      }
+      if ("caches" in window) {
+        const keys = await caches.keys()
+        await Promise.all(keys.map((k) => caches.delete(k)))
+      }
+    } catch (e) {
+      console.warn("App update/clear-cache failed:", e)
+    }
+    location.reload()
+  }
+
+  _troubleshoot(text) {
+    if (this.hasTroubleshootStatusTarget) this.troubleshootStatusTarget.textContent = text
   }
 }

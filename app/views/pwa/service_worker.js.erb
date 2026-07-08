@@ -11,6 +11,7 @@
               import_paths.select { |p| p.start_with?("/") } %>
 const CACHE = <%= ("shell-" + ::AppVersion.current).to_json.html_safe %>;
 const SHELL = <%= precache.to_json.html_safe %>;
+const NAV_TIMEOUT_MS = 3000;
 
 self.addEventListener("install", (event) => {
   event.waitUntil(caches.open(CACHE).then((c) => c.addAll(SHELL)));
@@ -44,22 +45,47 @@ self.addEventListener("fetch", (event) => {
     return;
   }
 
+  // Top-level navigations: network-first, but bounded by a timeout. On a weak
+  // signal the request can hang for many seconds without throwing, leaving the
+  // angler on a white screen. If the server hasn't returned response *headers*
+  // within NAV_TIMEOUT_MS, abort and serve the static /offline shell so they can
+  // log catches into IndexedDB. We race the response (≈TTFB), not full render: a
+  // working-but-slow server still answers headers within the window; only a true
+  // hang trips the fallback. The live response is NOT cached (it may contain
+  // authenticated/personalized HTML).
+  if (event.request.mode === "navigate") {
+    event.respondWith(navigateWithTimeout(event.request));
+    return;
+  }
+
   // Network-first for everything else, and DO NOT cache the responses at
   // runtime: they may contain authenticated/personalized HTML, and serving a
   // cached copy after sign-out (or to another user on a shared device) would
-  // leak data. The only offline fallback is the static, user-agnostic /offline
-  // shell precached at install — served for genuine top-level navigations
-  // (request.mode === "navigate") so a cold launch with no signal still reaches
-  // the catch form, which keeps working from IndexedDB. Failed sub-resource and
-  // fetch/XHR requests get a bare 503; they're never served the shell.
+  // leak data. Failed sub-resource and fetch/XHR requests get a bare 503; they're
+  // never served the shell.
   event.respondWith(
-    fetch(event.request).catch(() =>
-      event.request.mode === "navigate"
-        ? caches.match("/offline").then((c) => c || new Response("offline", { status: 503 }))
-        : new Response("offline", { status: 503 })
-    )
+    fetch(event.request).catch(() => new Response("offline", { status: 503 }))
   );
 });
+
+function offlineShell() {
+  return caches.match("/offline").then((c) => c || new Response("offline", { status: 503 }));
+}
+
+async function navigateWithTimeout(request) {
+  const controller = new AbortController();
+  let timer;
+  const timeout = new Promise((resolve) => {
+    timer = setTimeout(() => { controller.abort(); resolve(null); }, NAV_TIMEOUT_MS);
+  });
+  // Swallow the fetch's own rejection (including the post-timeout AbortError) so a
+  // settled race never leaves a floating unhandled rejection in the SW console. A
+  // hard network error before the timer resolves null here too -> offline shell.
+  const live = fetch(request, { signal: controller.signal }).catch(() => null);
+  const res = await Promise.race([live, timeout]);
+  clearTimeout(timer);
+  return res || offlineShell();
+}
 
 self.addEventListener("sync", (event) => {
   if (event.tag === "catch-sync") {

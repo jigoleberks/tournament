@@ -1,8 +1,13 @@
 <h1 class="text-2xl font-semibold mt-4 mb-4">Log Catch</h1>
 
-<div data-controller="offline-reconnect"
+<div data-controller="back-to-live"
      class="bg-amber-900/30 border border-amber-700/40 rounded-lg p-3 mb-4 text-sm text-amber-200">
-  You're offline. Log your catch now — it'll upload automatically when you're back in service.
+  <p>You're offline. Log your catch now — it'll upload when you tap below to return to the live app.</p>
+  <p data-back-to-live-target="status" class="mt-1 text-amber-300/80">🔴 Still offline — your catches are saved</p>
+  <button type="button" data-action="back-to-live#back"
+          class="mt-2 h-10 px-4 rounded-lg bg-amber-600 active:bg-amber-700 text-white font-medium">
+    Back to live app
+  </button>
 </div>
 
 <%= render "catches/form_fields", csrf_token: "", teammate: nil, offline: true %>

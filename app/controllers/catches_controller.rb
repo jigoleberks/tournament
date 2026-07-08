@@ -1,6 +1,7 @@
 class CatchesController < ApplicationController
   include CatchFilterHelpers
   before_action :require_sign_in!
+  before_action :require_site_admin!, only: :reference_photo
 
   def index
     @selected_start, @selected_end = resolve_date_range
@@ -14,7 +15,9 @@ class CatchesController < ApplicationController
     # :catch_placements is preloaded so visible_flags_for -> can_review_catch?
     # (which walks placements to find tournament_ids) doesn't N+1 for staff
     # viewers when any rendered catch carries the possible_duplicate flag.
-    base = current_user.catches.includes(:species, :catch_placements, photo_attachment: :blob)
+    # :judge_actions is preloaded so latest_approver (called per row to decide
+    # the status badge) consumes the eager-load instead of re-querying per catch.
+    base = current_user.catches.includes(:species, :catch_placements, :judge_actions, photo_attachment: :blob, reference_photo_attachment: :blob)
     filter_params = effective_filter_params
     filtered = Catches::ApplyFilters.call(scope: base, params: filter_params)
     @catches = sort_catches(filtered)
@@ -31,7 +34,7 @@ class CatchesController < ApplicationController
     @available_species = Species.order(:name)
     @month_of_year_active = month_of_year_param
 
-    base = current_user.catches.includes(:species, photo_attachment: :blob)
+    base = current_user.catches.includes(:species, photo_attachment: :blob, reference_photo_attachment: :blob)
     @catches = Catches::ApplyFilters.call(scope: base, params: effective_filter_params).order(captured_at_device: :desc)
     @counts_by_date = counts_by_date(@month_start)
 
@@ -52,10 +55,32 @@ class CatchesController < ApplicationController
     @action_tournament = resolve_action_tournament(@catch)
   end
 
+  # Site admins can add/replace a catch's reference photo from the catch detail
+  # page itself — independent of any tournament, so catches that were never
+  # placed (more than half of them) can be corrected too. The reference photo is
+  # a property of the catch, not of a placement; ApplyJudgeAction's
+  # add_reference_photo path never touches the tournament, so we pass nil.
+  def reference_photo
+    catch_record = Catch.where(user_id: current_club.members.select(:id)).find(params[:id])
+    # Both entry points (the catch detail page and the judge review page) post
+    # here; redirect_back returns the admin to whichever they came from.
+    if params[:photo].blank?
+      redirect_back(fallback_location: catch_path(catch_record), alert: "Choose a photo to add.") and return
+    end
+
+    Catches::ApplyJudgeAction.call(
+      tournament: nil, catch: catch_record, judge: current_user,
+      action: :add_reference_photo, note: params[:note], photo: params[:photo]
+    )
+    redirect_back fallback_location: catch_path(catch_record), notice: "Reference photo added."
+  rescue ActiveRecord::RecordInvalid => e
+    redirect_back fallback_location: catch_path(catch_record),
+                  alert: "Couldn't add reference photo: #{e.record.errors.full_messages.to_sentence}"
+  end
+
   def select_teammate
-    @tournament = current_club.tournaments.find(params[:tournament_id])
-    redirect_to(@tournament) and return unless @tournament.mode_team?
-    @teammates = Tournaments::TeammatesFor.call(user: current_user, tournament: @tournament)
+    @teammates = Tournaments::TeammatesAcross.call(user: current_user, club: current_club)
+    redirect_to(new_catch_path) and return if @teammates.empty?
   end
 
   def new
@@ -64,13 +89,9 @@ class CatchesController < ApplicationController
     angler = @teammate || current_user
     @catch = angler.catches.build(captured_at_device: Time.current,
                                   client_uuid: SecureRandom.uuid)
-    @species = Species.order(:name)
-    @length_caps = @species.each_with_object({}) do |s, h|
-      cap = Catch::MAX_LENGTH_BY_SPECIES[s.name.to_s.downcase]
-      h[s.id] = cap if cap
-    end
-    @tagged_species_id = Species.tagged_walleye&.id
-    @available_baits = current_user.baits.active.order(:created_at) if logbook_enabled?
+    # Species list, caps, the tagged-species id, and the logbook bait list are
+    # derived in the shared _form_fields partial (so the offline shell, which
+    # renders it with no controller, stays self-contained).
   end
 
   def create
@@ -85,7 +106,6 @@ class CatchesController < ApplicationController
     if teammate && !shares_entry_at?(teammate, @catch.captured_at_device)
       @catch.errors.add(:base, "You and this teammate aren't on the same entry in any active tournament.")
       @teammate = teammate
-      @species = Species.order(:name)
       render :new, status: :unprocessable_entity
       return
     end
@@ -99,11 +119,11 @@ class CatchesController < ApplicationController
       Catches::PlaceInSlots.call(catch: @catch)
       Catches::FlagDuplicates.call(catch: @catch) if @catch.flags.include?("possible_duplicate")
       FetchCatchConditionsJob.perform_later(catch_id: @catch.id)
+      FlagImportedPhotoJob.perform_later(catch_id: @catch.id)
       redirect_to root_path, notice: teammate ? "Catch logged for #{teammate.name}" : "Catch logged"
     else
       @catch.errors.add(:photo, "is required") unless @catch.photo.attached?
       @teammate = teammate
-      @species = Species.order(:name)
       render :new, status: :unprocessable_entity
     end
   end
@@ -142,10 +162,10 @@ class CatchesController < ApplicationController
   def authorized_to_view?(catch_record)
     return true if catch_record.user_id == current_user.id
     return true if catch_record.logged_by_user_id == current_user.id
+    return true if current_user.admin?
     return true if current_user.organizer_in?(current_club)
-    judge_tournament_ids = TournamentJudge.where(user: current_user).pluck(:tournament_id)
     catch_tournament_ids = catch_record.catch_placements.pluck(:tournament_id).uniq
-    (judge_tournament_ids & catch_tournament_ids).any?
+    (judged_tournament_ids & catch_tournament_ids).any?
   end
 
   # Tournament to act in (DQ / length edit) from this catch's show page.

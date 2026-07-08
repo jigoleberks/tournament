@@ -37,7 +37,6 @@ FactoryBot.define do
   factory :tournament do
     association :club
     sequence(:name) { |n| "Tournament #{n}" }
-    kind { :event }
     mode { :solo }
     starts_at { 1.hour.ago }
     ends_at { 1.hour.from_now }

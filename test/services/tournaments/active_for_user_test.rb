@@ -22,7 +22,10 @@ module Tournaments
     end
 
     test "open-ended ends_at is treated as still active" do
-      t = create(:tournament, club: @club, starts_at: 1.day.ago, ends_at: nil)
+      # Legacy state: ends_at is now required for new records, but the query
+      # still defends against NULL. Persist one bypassing validation.
+      t = build(:tournament, club: @club, starts_at: 1.day.ago, ends_at: nil)
+      t.save!(validate: false)
       entry = create(:tournament_entry, tournament: t)
       create(:tournament_entry_member, tournament_entry: entry, user: @user)
 

@@ -15,8 +15,7 @@ class FishTrainTournamentTest < ApplicationSystemTestCase
 
   test "Fish Train tournament: ranks by score, cars-in-order, last car has current badge" do
     t = build(:tournament, club: @club, name: "FT Wed",
-              format: :fish_train, mode: :solo, kind: :event,
-              starts_at: 30.minutes.ago, ends_at: 30.minutes.from_now,
+              format: :fish_train, mode: :solo, starts_at: 30.minutes.ago, ends_at: 30.minutes.from_now,
               train_cars: [@perch.id, @pike.id, @walleye.id, @perch.id])
     [@perch, @pike, @walleye].each { |sp| t.scoring_slots.build(species: sp, slot_count: 1) }
     t.save!
@@ -64,8 +63,7 @@ class FishTrainTournamentTest < ApplicationSystemTestCase
 
   test "Fish Train tournament: cars-completed beats fewer-cars at the same score" do
     t = build(:tournament, club: @club, name: "FT Tied",
-              format: :fish_train, mode: :solo, kind: :event,
-              starts_at: 30.minutes.ago, ends_at: 30.minutes.from_now,
+              format: :fish_train, mode: :solo, starts_at: 30.minutes.ago, ends_at: 30.minutes.from_now,
               train_cars: [@perch.id, @pike.id, @walleye.id, @perch.id, @pike.id])
     [@perch, @pike, @walleye].each { |sp| t.scoring_slots.build(species: sp, slot_count: 1) }
     t.save!
@@ -109,8 +107,7 @@ class FishTrainTournamentTest < ApplicationSystemTestCase
 
   test "switching a draft tournament to Fish Train reveals the builder and persists train_cars" do
     tournament = create(:tournament, club: @club, name: "FT Draft",
-                                     mode: :solo, format: :standard, kind: :event,
-                                     starts_at: 1.day.from_now, ends_at: 2.days.from_now)
+                                     mode: :solo, format: :standard, starts_at: 1.day.from_now, ends_at: 2.days.from_now)
     create(:scoring_slot, tournament: tournament, species: @walleye, slot_count: 1)
 
     sign_in_as(@organizer)

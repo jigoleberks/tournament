@@ -3,15 +3,20 @@ require "test_helper"
 class TournamentTest < ActiveSupport::TestCase
   setup { @club = create(:club) }
 
-  test "requires name, kind, mode, starts_at" do
+  test "requires name, mode, starts_at" do
     assert_not Tournament.new(club: @club).valid?
   end
 
-  test "kind enum: event and ongoing" do
-    t = create(:tournament, club: @club, kind: :event)
-    assert t.event?
-    t.update!(kind: :ongoing)
-    assert t.ongoing?
+  test "requires ends_at" do
+    t = build(:tournament, club: @club, ends_at: nil)
+    assert_not t.valid?
+    assert t.errors[:ends_at].any?
+  end
+
+  test "ends_at must be after starts_at" do
+    t = build(:tournament, club: @club, starts_at: 1.hour.from_now, ends_at: 1.hour.ago)
+    assert_not t.valid?
+    assert t.errors[:ends_at].any?
   end
 
   test "mode enum: solo and team" do
@@ -25,12 +30,12 @@ class TournamentTest < ActiveSupport::TestCase
   end
 
   test "active? is true when ends_at is nil and starts_at has passed" do
-    t = create(:tournament, starts_at: 1.day.ago, ends_at: nil)
+    t = build(:tournament, starts_at: 1.day.ago, ends_at: nil)
     assert t.active?
   end
 
   test "active? is false before starts_at" do
-    t = create(:tournament, starts_at: 1.hour.from_now)
+    t = create(:tournament, starts_at: 1.hour.from_now, ends_at: 5.hours.from_now)
     assert_not t.active?
   end
 
@@ -45,7 +50,7 @@ class TournamentTest < ActiveSupport::TestCase
   end
 
   test "ended? is false when ends_at is nil" do
-    t = create(:tournament, starts_at: 1.day.ago, ends_at: nil)
+    t = build(:tournament, starts_at: 1.day.ago, ends_at: nil)
     assert_not t.ended?
   end
 
@@ -94,19 +99,12 @@ class TournamentTest < ActiveSupport::TestCase
   test "blind_leaderboard requires ends_at" do
     t = build(:tournament, club: @club, blind_leaderboard: true, ends_at: nil)
     assert_not t.valid?
-    assert t.errors[:blind_leaderboard].any? { |e| e.include?("end time") }
+    assert t.errors[:ends_at].any?
   end
 
-  test "blind_leaderboard rejected when kind is ongoing" do
+  test "blind_leaderboard valid when ends_at present" do
     t = build(:tournament, club: @club, blind_leaderboard: true,
-              kind: :ongoing, ends_at: 1.hour.from_now)
-    assert_not t.valid?
-    assert t.errors[:blind_leaderboard].any? { |e| e.include?("end time") }
-  end
-
-  test "blind_leaderboard valid when kind is event and ends_at present" do
-    t = build(:tournament, club: @club, blind_leaderboard: true,
-              kind: :event, starts_at: 1.hour.ago, ends_at: 1.hour.from_now)
+              starts_at: 1.hour.ago, ends_at: 1.hour.from_now)
     assert t.valid?
   end
 
@@ -207,9 +205,69 @@ class TournamentTest < ActiveSupport::TestCase
     assert t.valid?, t.errors.full_messages.to_sentence
   end
 
+  test "a scoring slot's quantity cannot be changed after the tournament has started" do
+    species = create(:species)
+    t = create(:tournament, club: @club, format: :standard, mode: :solo,
+               starts_at: 1.hour.ago, ends_at: 1.hour.from_now)
+    slot = create(:scoring_slot, tournament: t, species: species, slot_count: 2)
+
+    t.reload
+    t.scoring_slots_attributes = [{ id: slot.id, species_id: species.id, slot_count: 5 }]
+    assert_not t.valid?
+    assert_includes t.errors[:scoring_slots], "can't be changed once the tournament has started"
+  end
+
+  test "a scoring slot cannot be removed after the tournament has started" do
+    species = create(:species)
+    t = create(:tournament, club: @club, format: :standard, mode: :solo,
+               starts_at: 1.hour.ago, ends_at: 1.hour.from_now)
+    slot = create(:scoring_slot, tournament: t, species: species, slot_count: 2)
+
+    t.reload
+    t.scoring_slots_attributes = [{ id: slot.id, _destroy: "1" }]
+    assert_not t.valid?
+    assert_includes t.errors[:scoring_slots], "can't be changed once the tournament has started"
+  end
+
+  test "a scoring slot cannot be added after the tournament has started" do
+    a = create(:species)
+    b = create(:species)
+    t = create(:tournament, club: @club, format: :standard, mode: :solo,
+               starts_at: 1.hour.ago, ends_at: 1.hour.from_now)
+    create(:scoring_slot, tournament: t, species: a, slot_count: 2)
+
+    t.reload
+    t.scoring_slots_attributes = [{ species_id: b.id, slot_count: 1 }]
+    assert_not t.valid?
+    assert_includes t.errors[:scoring_slots], "can't be changed once the tournament has started"
+  end
+
+  test "scoring slots can be changed before the tournament starts" do
+    species = create(:species)
+    t = create(:tournament, club: @club, format: :standard, mode: :solo,
+               starts_at: 1.hour.from_now, ends_at: 4.hours.from_now)
+    slot = create(:scoring_slot, tournament: t, species: species, slot_count: 2)
+
+    t.reload
+    t.scoring_slots_attributes = [{ id: slot.id, species_id: species.id, slot_count: 5 }]
+    assert t.valid?, t.errors.full_messages.to_sentence
+  end
+
+  test "a started tournament still saves when its scoring slots are untouched" do
+    species = create(:species)
+    t = create(:tournament, club: @club, format: :standard, mode: :solo,
+               starts_at: 1.hour.ago, ends_at: 1.hour.from_now)
+    create(:scoring_slot, tournament: t, species: species, slot_count: 2)
+
+    t.reload
+    t.name = "Renamed mid-tournament"
+    assert t.valid?, t.errors.full_messages.to_sentence
+    assert t.save
+  end
+
   test "format enum includes hidden_length" do
     t = build(:tournament, club: @club, format: :hidden_length, mode: :solo,
-              kind: :event, ends_at: 2.hours.from_now)
+              ends_at: 2.hours.from_now)
     walleye = create(:species, club: @club)
     t.scoring_slots.build(species: walleye, slot_count: 1)
     assert t.valid?, t.errors.full_messages.inspect
@@ -218,7 +276,7 @@ class TournamentTest < ActiveSupport::TestCase
 
   test "hidden_length tournament errors when no scoring slot is configured" do
     t = build(:tournament, club: @club, format: :hidden_length, mode: :solo,
-              kind: :event, ends_at: 2.hours.from_now)
+              ends_at: 2.hours.from_now)
     assert_not t.valid?
     assert_includes t.errors[:scoring_slots],
                     "Hidden Length tournaments must have exactly one species configured"
@@ -228,7 +286,7 @@ class TournamentTest < ActiveSupport::TestCase
     walleye = create(:species, club: @club)
     pike    = create(:species, club: @club)
     t = build(:tournament, club: @club, format: :hidden_length, mode: :solo,
-              kind: :event, ends_at: 2.hours.from_now)
+              ends_at: 2.hours.from_now)
     t.scoring_slots.build(species: walleye, slot_count: 1)
     t.scoring_slots.build(species: pike, slot_count: 1)
     assert_not t.valid?
@@ -239,7 +297,7 @@ class TournamentTest < ActiveSupport::TestCase
   test "hidden_length tournament accepts exactly one scoring slot" do
     walleye = create(:species, club: @club)
     t = build(:tournament, club: @club, format: :hidden_length, mode: :solo,
-              kind: :event, ends_at: 2.hours.from_now)
+              ends_at: 2.hours.from_now)
     t.scoring_slots.build(species: walleye, slot_count: 1)
     assert t.valid?, t.errors.full_messages.inspect
   end
@@ -247,33 +305,24 @@ class TournamentTest < ActiveSupport::TestCase
   test "hidden_length tournament accepts team mode" do
     walleye = create(:species, club: @club)
     t = build(:tournament, club: @club, format: :hidden_length, mode: :team,
-              kind: :event, ends_at: 2.hours.from_now)
+              ends_at: 2.hours.from_now)
     t.scoring_slots.build(species: walleye, slot_count: 1)
     assert t.valid?, t.errors.full_messages.inspect
-  end
-
-  test "hidden_length tournament requires kind=event" do
-    walleye = create(:species, club: @club)
-    t = build(:tournament, club: @club, format: :hidden_length, mode: :solo,
-              kind: :ongoing, ends_at: 2.hours.from_now)
-    t.scoring_slots.build(species: walleye, slot_count: 1)
-    assert_not t.valid?
-    assert_includes t.errors[:format], "Hidden Length tournaments must be event kind with an end time"
   end
 
   test "hidden_length tournament requires ends_at" do
     walleye = create(:species, club: @club)
     t = build(:tournament, club: @club, format: :hidden_length, mode: :solo,
-              kind: :event, ends_at: nil)
+              ends_at: nil)
     t.scoring_slots.build(species: walleye, slot_count: 1)
     assert_not t.valid?
-    assert_includes t.errors[:format], "Hidden Length tournaments must be event kind with an end time"
+    assert t.errors[:ends_at].any?
   end
 
   test "hidden_length_target is locked once set" do
     walleye = create(:species, club: @club)
     t = build(:tournament, club: @club, format: :hidden_length, mode: :solo,
-              kind: :event, ends_at: 2.hours.from_now, hidden_length_target: 17.25)
+              ends_at: 2.hours.from_now, hidden_length_target: 17.25)
     t.scoring_slots.build(species: walleye, slot_count: 1)
     t.save!
     t.hidden_length_target = 18.00
@@ -284,7 +333,7 @@ class TournamentTest < ActiveSupport::TestCase
   test "hidden_length_target must be a quarter-inch step in [12.00, 22.00]" do
     walleye = create(:species, club: @club)
     base_attrs = { club: @club, format: :hidden_length, mode: :solo,
-                   kind: :event, ends_at: 2.hours.from_now }
+                   ends_at: 2.hours.from_now }
 
     [11.75, 22.25, 17.10].each do |bad|
       t = build(:tournament, **base_attrs, hidden_length_target: bad)
@@ -304,7 +353,7 @@ class TournamentTest < ActiveSupport::TestCase
   test "format enum includes biggest_vs_smallest" do
     walleye = create(:species, club: @club)
     t = build(:tournament, club: @club, format: :biggest_vs_smallest, mode: :solo,
-              kind: :event, ends_at: 2.hours.from_now)
+              ends_at: 2.hours.from_now)
     t.scoring_slots.build(species: walleye, slot_count: 1)
     assert t.valid?, t.errors.full_messages.inspect
     assert t.format_biggest_vs_smallest?
@@ -312,7 +361,7 @@ class TournamentTest < ActiveSupport::TestCase
 
   test "biggest_vs_smallest tournament errors when no scoring slot is configured" do
     t = build(:tournament, club: @club, format: :biggest_vs_smallest, mode: :solo,
-              kind: :event, ends_at: 2.hours.from_now)
+              ends_at: 2.hours.from_now)
     assert_not t.valid?
     assert_includes t.errors[:scoring_slots],
                     "Biggest vs Smallest tournaments must have exactly one species configured"
@@ -322,7 +371,7 @@ class TournamentTest < ActiveSupport::TestCase
     walleye = create(:species, club: @club)
     pike    = create(:species, club: @club)
     t = build(:tournament, club: @club, format: :biggest_vs_smallest, mode: :solo,
-              kind: :event, ends_at: 2.hours.from_now)
+              ends_at: 2.hours.from_now)
     t.scoring_slots.build(species: walleye, slot_count: 1)
     t.scoring_slots.build(species: pike, slot_count: 1)
     assert_not t.valid?
@@ -333,33 +382,24 @@ class TournamentTest < ActiveSupport::TestCase
   test "biggest_vs_smallest tournament accepts exactly one scoring slot" do
     walleye = create(:species, club: @club)
     t = build(:tournament, club: @club, format: :biggest_vs_smallest, mode: :solo,
-              kind: :event, ends_at: 2.hours.from_now)
+              ends_at: 2.hours.from_now)
     t.scoring_slots.build(species: walleye, slot_count: 1)
     assert t.valid?, t.errors.full_messages.inspect
-  end
-
-  test "biggest_vs_smallest tournament requires kind=event" do
-    walleye = create(:species, club: @club)
-    t = build(:tournament, club: @club, format: :biggest_vs_smallest, mode: :solo,
-              kind: :ongoing, ends_at: 2.hours.from_now)
-    t.scoring_slots.build(species: walleye, slot_count: 1)
-    assert_not t.valid?
-    assert_includes t.errors[:format], "Biggest vs Smallest tournaments must be event kind with an end time"
   end
 
   test "biggest_vs_smallest tournament requires ends_at" do
     walleye = create(:species, club: @club)
     t = build(:tournament, club: @club, format: :biggest_vs_smallest, mode: :solo,
-              kind: :event, ends_at: nil)
+              ends_at: nil)
     t.scoring_slots.build(species: walleye, slot_count: 1)
     assert_not t.valid?
-    assert_includes t.errors[:format], "Biggest vs Smallest tournaments must be event kind with an end time"
+    assert t.errors[:ends_at].any?
   end
 
   test "biggest_vs_smallest tournament accepts team mode" do
     walleye = create(:species, club: @club)
     t = build(:tournament, club: @club, format: :biggest_vs_smallest, mode: :team,
-              kind: :event, ends_at: 2.hours.from_now)
+              ends_at: 2.hours.from_now)
     t.scoring_slots.build(species: walleye, slot_count: 1)
     assert t.valid?, t.errors.full_messages.inspect
   end
@@ -367,7 +407,7 @@ class TournamentTest < ActiveSupport::TestCase
   test "format enum includes fish_train" do
     walleye = create(:species, club: @club)
     t = build(:tournament, club: @club, format: :fish_train, mode: :solo,
-              kind: :event, ends_at: 2.hours.from_now,
+              ends_at: 2.hours.from_now,
               train_cars: [walleye.id, walleye.id, walleye.id])
     t.scoring_slots.build(species: walleye, slot_count: 1)
     assert t.valid?, t.errors.full_messages.inspect
@@ -376,7 +416,7 @@ class TournamentTest < ActiveSupport::TestCase
 
   test "fish_train tournament errors when no scoring slot is configured" do
     t = build(:tournament, club: @club, format: :fish_train, mode: :solo,
-              kind: :event, ends_at: 2.hours.from_now, train_cars: [1, 1, 1])
+              ends_at: 2.hours.from_now, train_cars: [1, 1, 1])
     assert_not t.valid?
     assert_includes t.errors[:scoring_slots],
                     "Fish Train tournaments must have between 1 and 3 species in the pool"
@@ -388,7 +428,7 @@ class TournamentTest < ActiveSupport::TestCase
     s3 = create(:species, club: @club)
     s4 = create(:species, club: @club)
     t = build(:tournament, club: @club, format: :fish_train, mode: :solo,
-              kind: :event, ends_at: 2.hours.from_now,
+              ends_at: 2.hours.from_now,
               train_cars: [s1.id, s2.id, s3.id])
     [s1, s2, s3, s4].each { |s| t.scoring_slots.build(species: s, slot_count: 1) }
     assert_not t.valid?
@@ -399,7 +439,7 @@ class TournamentTest < ActiveSupport::TestCase
   test "fish_train tournament errors when train has fewer than 3 cars" do
     s = create(:species, club: @club)
     t = build(:tournament, club: @club, format: :fish_train, mode: :solo,
-              kind: :event, ends_at: 2.hours.from_now,
+              ends_at: 2.hours.from_now,
               train_cars: [s.id, s.id])
     t.scoring_slots.build(species: s, slot_count: 1)
     assert_not t.valid?
@@ -410,7 +450,7 @@ class TournamentTest < ActiveSupport::TestCase
   test "fish_train tournament errors when train has more than 6 cars" do
     s = create(:species, club: @club)
     t = build(:tournament, club: @club, format: :fish_train, mode: :solo,
-              kind: :event, ends_at: 2.hours.from_now,
+              ends_at: 2.hours.from_now,
               train_cars: Array.new(7) { s.id })
     t.scoring_slots.build(species: s, slot_count: 1)
     assert_not t.valid?
@@ -422,7 +462,7 @@ class TournamentTest < ActiveSupport::TestCase
     pool_species = create(:species, club: @club)
     off_pool     = create(:species, club: @club)
     t = build(:tournament, club: @club, format: :fish_train, mode: :solo,
-              kind: :event, ends_at: 2.hours.from_now,
+              ends_at: 2.hours.from_now,
               train_cars: [pool_species.id, off_pool.id, pool_species.id])
     t.scoring_slots.build(species: pool_species, slot_count: 1)
     assert_not t.valid?
@@ -430,30 +470,20 @@ class TournamentTest < ActiveSupport::TestCase
                     "Fish Train cars must reference species in the pool"
   end
 
-  test "fish_train tournament requires kind=event" do
-    s = create(:species, club: @club)
-    t = build(:tournament, club: @club, format: :fish_train, mode: :solo,
-              kind: :ongoing, ends_at: 2.hours.from_now,
-              train_cars: [s.id, s.id, s.id])
-    t.scoring_slots.build(species: s, slot_count: 1)
-    assert_not t.valid?
-    assert_includes t.errors[:format], "Fish Train tournaments must be event kind with an end time"
-  end
-
   test "fish_train tournament requires ends_at" do
     s = create(:species, club: @club)
     t = build(:tournament, club: @club, format: :fish_train, mode: :solo,
-              kind: :event, ends_at: nil,
+              ends_at: nil,
               train_cars: [s.id, s.id, s.id])
     t.scoring_slots.build(species: s, slot_count: 1)
     assert_not t.valid?
-    assert_includes t.errors[:format], "Fish Train tournaments must be event kind with an end time"
+    assert t.errors[:ends_at].any?
   end
 
   test "fish_train tournament accepts team mode" do
     s = create(:species, club: @club)
     t = build(:tournament, club: @club, format: :fish_train, mode: :team,
-              kind: :event, ends_at: 2.hours.from_now,
+              ends_at: 2.hours.from_now,
               train_cars: [s.id, s.id, s.id])
     t.scoring_slots.build(species: s, slot_count: 1)
     assert t.valid?, t.errors.full_messages.inspect
@@ -464,7 +494,7 @@ class TournamentTest < ActiveSupport::TestCase
     pike    = create(:species, club: @club, name: "Pike")
     walleye = create(:species, club: @club, name: "Walleye")
     t = build(:tournament, club: @club, format: :fish_train, mode: :solo,
-              kind: :event, ends_at: 2.hours.from_now,
+              ends_at: 2.hours.from_now,
               train_cars: [perch.id, pike.id, walleye.id, perch.id, pike.id, walleye.id])
     [perch, pike, walleye].each { |sp| t.scoring_slots.build(species: sp, slot_count: 1) }
     assert t.valid?, t.errors.full_messages.inspect
@@ -473,7 +503,7 @@ class TournamentTest < ActiveSupport::TestCase
   test "train_cars cannot be changed after the tournament has started" do
     s = create(:species, club: @club)
     t = build(:tournament, club: @club, format: :fish_train, mode: :solo,
-              kind: :event, starts_at: 1.hour.ago, ends_at: 1.hour.from_now,
+              starts_at: 1.hour.ago, ends_at: 1.hour.from_now,
               train_cars: [s.id, s.id, s.id])
     t.scoring_slots.build(species: s, slot_count: 1)
     t.save!
@@ -486,7 +516,7 @@ class TournamentTest < ActiveSupport::TestCase
   test "train_cars can be changed before the tournament starts" do
     s = create(:species, club: @club)
     t = build(:tournament, club: @club, format: :fish_train, mode: :solo,
-              kind: :event, starts_at: 1.hour.from_now, ends_at: 4.hours.from_now,
+              starts_at: 1.hour.from_now, ends_at: 4.hours.from_now,
               train_cars: [s.id, s.id, s.id])
     t.scoring_slots.build(species: s, slot_count: 1)
     t.save!
@@ -495,22 +525,21 @@ class TournamentTest < ActiveSupport::TestCase
     assert t.valid?, t.errors.full_messages.to_sentence
   end
 
-  test "tagged format requires event kind with end time" do
+  test "tagged format requires an end time" do
     club = create(:club)
     tagged_species = Species.find_or_create_by!(name: "Tagged Walleye")
 
-    t = build(:tournament, club: club, format: :tagged, mode: :solo, kind: :ongoing, ends_at: nil)
+    t = build(:tournament, club: club, format: :tagged, mode: :solo, ends_at: nil)
     t.scoring_slots.build(species: tagged_species, slot_count: 1)
     assert_not t.valid?
-    assert_includes t.errors[:format], "Tagged Walleye tournaments must be event kind with an end time"
+    assert t.errors[:ends_at].any?
   end
 
   test "tagged format requires solo mode" do
     club = create(:club)
     tagged_species = Species.find_or_create_by!(name: "Tagged Walleye")
 
-    t = build(:tournament, club: club, format: :tagged, mode: :team, kind: :event,
-              starts_at: 1.hour.ago, ends_at: 1.hour.from_now)
+    t = build(:tournament, club: club, format: :tagged, mode: :team, starts_at: 1.hour.ago, ends_at: 1.hour.from_now)
     t.scoring_slots.build(species: tagged_species, slot_count: 1)
     assert_not t.valid?
     assert_includes t.errors[:format], "Tagged Walleye tournaments must be solo"
@@ -521,8 +550,7 @@ class TournamentTest < ActiveSupport::TestCase
     Species.find_or_create_by!(name: "Tagged Walleye")
     walleye = create(:species, name: "Walleye Test #{SecureRandom.hex(2)}")
 
-    t = build(:tournament, club: club, format: :tagged, mode: :solo, kind: :event,
-              starts_at: 1.hour.ago, ends_at: 1.hour.from_now)
+    t = build(:tournament, club: club, format: :tagged, mode: :solo, starts_at: 1.hour.ago, ends_at: 1.hour.from_now)
     t.scoring_slots.build(species: walleye, slot_count: 1)
     assert_not t.valid?
     assert_includes t.errors[:scoring_slots],
@@ -533,9 +561,62 @@ class TournamentTest < ActiveSupport::TestCase
     club = create(:club)
     tagged_species = Species.find_or_create_by!(name: "Tagged Walleye")
 
-    t = build(:tournament, club: club, format: :tagged, mode: :solo, kind: :event,
-              starts_at: 1.hour.ago, ends_at: 1.hour.from_now)
+    t = build(:tournament, club: club, format: :tagged, mode: :solo, starts_at: 1.hour.ago, ends_at: 1.hour.from_now)
     t.scoring_slots.build(species: tagged_species, slot_count: 1)
     assert t.valid?, t.errors.full_messages.to_sentence
+  end
+
+  test "smallest_fish is a valid format with per-species scoring slots" do
+    club = create(:club)
+    walleye = create(:species, club: club)
+    t = build(:tournament, club: club, format: :smallest_fish,
+              mode: :solo, starts_at: 1.hour.ago, ends_at: 1.hour.from_now)
+    t.scoring_slots.build(species: walleye, slot_count: 3)
+
+    assert t.valid?, t.errors.full_messages.to_sentence
+    assert t.format_smallest_fish?
+  end
+
+  test "pro_walleye requires exactly one Walleye scoring slot" do
+    club = create(:club)
+    walleye = create(:species, name: "Walleye")
+    pike = create(:species, name: "Pike")
+
+    t = build(:tournament, club: club, format: :pro_walleye, mode: :team,
+              starts_at: 1.hour.ago, ends_at: 1.hour.from_now)
+    assert_not t.valid?, "no slot => invalid"
+
+    t.scoring_slots.build(species: pike, slot_count: 1)
+    assert_not t.valid?, "wrong species => invalid"
+
+    t = build(:tournament, club: club, format: :pro_walleye, mode: :solo,
+              starts_at: 1.hour.ago, ends_at: 1.hour.from_now)
+    t.scoring_slots.build(species: walleye, slot_count: 1)
+    assert t.valid?, t.errors.full_messages.to_sentence
+  end
+
+  test "pro_walleye forces the Walleye slot count to 5" do
+    club = create(:club)
+    walleye = create(:species, name: "Walleye")
+    t = build(:tournament, club: club, format: :pro_walleye, mode: :team,
+              starts_at: 1.hour.ago, ends_at: 1.hour.from_now)
+    t.scoring_slots.build(species: walleye, slot_count: 1)
+    t.save!
+    assert_equal 5, t.scoring_slots.sole.slot_count
+  end
+
+  test "supports_forced_slot? only for slot-based formats where a forced placement is durable" do
+    # Slot-based top-N / append-only formats: slot_index is a meaningful position
+    # and no whole-basket re-derive silently reverts a manual force.
+    %i[standard big_fish_season fish_train].each do |fmt|
+      assert build(:tournament, club: @club, format: fmt).supports_forced_slot?,
+             "#{fmt} should support forced slot placement"
+    end
+    # Re-derive-from-length formats (basket is derived, not positioned) and the
+    # every-catch formats: a forced slot is meaningless and/or reverted.
+    %i[hidden_length biggest_vs_smallest tagged smallest_fish pro_walleye].each do |fmt|
+      assert_not build(:tournament, club: @club, format: fmt).supports_forced_slot?,
+                 "#{fmt} should not support forced slot placement"
+    end
   end
 end

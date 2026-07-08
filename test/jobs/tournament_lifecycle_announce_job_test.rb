@@ -21,7 +21,7 @@ class TournamentLifecycleAnnounceJobTest < ActiveJob::TestCase
   end
 
   test "fires an 'ended' push" do
-    @t.update_columns(ends_at: 1.minute.ago)
+    @t.update_columns(starts_at: 2.hours.ago, ends_at: 1.minute.ago)
     with_perform_later_capture do |enqueued|
       TournamentLifecycleAnnounceJob.perform_now(tournament_id: @t.id, kind: "ended")
       assert_equal 1, enqueued.size
@@ -45,7 +45,7 @@ class TournamentLifecycleAnnounceJobTest < ActiveJob::TestCase
   end
 
   test "ended on a non-blind tournament uses the legacy body and does not broadcast reveal" do
-    @t.update_columns(ends_at: 1.minute.ago)
+    @t.update_columns(starts_at: 2.hours.ago, ends_at: 1.minute.ago)
 
     with_perform_later_capture do |enqueued|
       assert_broadcasts("tournament:#{@t.id}:leaderboard:reveal", 0) do
@@ -87,8 +87,8 @@ class TournamentLifecycleAnnounceJobTest < ActiveJob::TestCase
   test "ended on a hidden_length tournament rolls the target, broadcasts the leaderboard, and pushes the reveal body" do
     walleye = create(:species, club: @club)
     @t.scoring_slots.create!(species: walleye, slot_count: 1)
-    @t.update!(format: :hidden_length, mode: :solo, kind: :event)
-    @t.update_columns(ends_at: 1.minute.ago)
+    @t.update!(format: :hidden_length, mode: :solo)
+    @t.update_columns(starts_at: 2.hours.ago, ends_at: 1.minute.ago)
 
     with_perform_later_capture do |enqueued|
       assert_broadcasts("tournament:#{@t.id}:leaderboard:full", 1) do
@@ -107,7 +107,7 @@ class TournamentLifecycleAnnounceJobTest < ActiveJob::TestCase
   test "ended on a hidden_length tournament with future ends_at does not roll" do
     walleye = create(:species, club: @club)
     @t.scoring_slots.create!(species: walleye, slot_count: 1)
-    @t.update!(format: :hidden_length, mode: :solo, kind: :event)
+    @t.update!(format: :hidden_length, mode: :solo)
     @t.update_columns(ends_at: 1.hour.from_now)
 
     with_perform_later_capture do |enqueued|
@@ -123,8 +123,8 @@ class TournamentLifecycleAnnounceJobTest < ActiveJob::TestCase
   test "ended hidden_length retries the broadcast if BroadcastLeaderboard fails after the roll commits" do
     walleye = create(:species, club: @club)
     @t.scoring_slots.create!(species: walleye, slot_count: 1)
-    @t.update!(format: :hidden_length, mode: :solo, kind: :event)
-    @t.update_columns(ends_at: 1.minute.ago)
+    @t.update!(format: :hidden_length, mode: :solo)
+    @t.update_columns(starts_at: 2.hours.ago, ends_at: 1.minute.ago)
 
     # Roll succeeds (target row commits) but the broadcast raises. The stamp must
     # NOT be set, so the retry can re-broadcast.
@@ -164,8 +164,8 @@ class TournamentLifecycleAnnounceJobTest < ActiveJob::TestCase
   test "ended hidden_length retries successfully if RollHiddenLengthTarget raises on first attempt" do
     walleye = create(:species, club: @club)
     @t.scoring_slots.create!(species: walleye, slot_count: 1)
-    @t.update!(format: :hidden_length, mode: :solo, kind: :event)
-    @t.update_columns(ends_at: 1.minute.ago)
+    @t.update!(format: :hidden_length, mode: :solo)
+    @t.update_columns(starts_at: 2.hours.ago, ends_at: 1.minute.ago)
 
     # First attempt: simulate a transient failure inside the roll service.
     raised_once = false

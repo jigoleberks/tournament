@@ -4,7 +4,6 @@
 
 <ul class="mt-4 space-y-2">
   <% @users.each do |u| %>
-    <% entries = u.tournament_entry_members.joins(:tournament_entry).count %>
     <li class="bg-slate-800 rounded-lg px-4 py-3 flex items-center justify-between gap-3">
       <div>
         <strong><%= u.name %></strong>
@@ -12,9 +11,7 @@
         <% if u.deactivated? %>
           <span class="text-sm text-amber-400">— deactivated</span>
         <% end %>
-        <% if entries > 0 %>
-          <span class="text-sm text-slate-400">— in <%= entries %> tournament<%= 's' if entries != 1 %></span>
-        <% end %>
+        <span class="text-sm text-slate-400">— <%= u.email %></span>
       </div>
       <div class="flex items-center gap-2">
         <% if u == current_user %>

@@ -32,6 +32,13 @@ module Authentication
     redirect_to new_session_path unless signed_in?
   end
 
+  # Site-admin gate (the scope-free `admin:` flag on User), shared by the
+  # cross-club and admin-only catch actions. Returns 403 rather than redirecting
+  # so it works the same for HTML and API-ish endpoints.
+  def require_site_admin!
+    head :forbidden unless current_user&.admin?
+  end
+
   def sign_in!(user, club: nil)
     reset_session
     session[:user_id] = user.id

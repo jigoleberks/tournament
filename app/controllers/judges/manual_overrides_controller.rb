@@ -1,7 +1,7 @@
 class Judges::ManualOverridesController < Judges::BaseController
-  before_action :load_catch!
+  include LengthParamParsing
 
-  QUARTER = BigDecimal("0.25")
+  before_action :load_catch!
 
   def new
   end
@@ -10,36 +10,19 @@ class Judges::ManualOverridesController < Judges::BaseController
     Catches::ApplyJudgeAction.call(
       tournament: @tournament, catch: @catch, judge: current_user, action: :manual_override,
       note: params[:note],
-      length_inches: resolved_length_inches,
+      length_inches: resolved_length_inches(@catch),
       length_unit: resolved_length_unit,
       species_id: params[:species_id].presence&.to_i,
       slot_index: params[:slot_index].presence&.to_i,
-      entry_id: params[:entry_id].presence&.to_i
+      entry_id: params[:entry_id].presence&.to_i,
+      # A judge is assigned to a specific tournament; confine reconcile and
+      # broadcast to that tournament's club so a correction never reshuffles or
+      # re-broadcasts another club's leaderboards (matches the organizer editor).
+      club: @tournament.club
     )
     redirect_to judges_tournament_catch_path(tournament_id: @tournament.id, id: @catch.id)
-  end
-
-  private
-
-  # Accept either:
-  #   - legacy: length_inches=19.75 (raw inches)
-  #   - new:    length=50 + length_unit=centimeters (or inches)
-  # New form: snap the typed value to the 0.25 grid of its unit before
-  # converting, mirroring the client-side entry rule.
-  def resolved_length_inches
-    if params[:length].present?
-      raw = snap_quarter(params[:length].to_d)
-      params[:length_unit] == "centimeters" ? raw / LengthHelper::CM_PER_INCH : raw
-    else
-      params[:length_inches]&.to_d
-    end
-  end
-
-  def resolved_length_unit
-    params[:length_unit] if %w[inches centimeters].include?(params[:length_unit])
-  end
-
-  def snap_quarter(value)
-    (value / QUARTER).round * QUARTER
+  rescue Catches::ApplyJudgeAction::ForceSlotUnsupported
+    redirect_to judges_tournament_catch_path(tournament_id: @tournament.id, id: @catch.id),
+                alert: "Forcing a catch into a slot isn't supported for this tournament format."
   end
 end

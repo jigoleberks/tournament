@@ -41,6 +41,22 @@ class Tournaments::CatchesControllerTest < ActionDispatch::IntegrationTest
     refute_match "GPS:", body, "no GPS coordinates on the modal"
   end
 
+  test "modal shows both the reference photo and the angler's original, labelled, to a regular member" do
+    @catch.reference_photo.attach(
+      io: File.open(Rails.root.join("test/fixtures/files/sample_walleye.jpg")),
+      filename: "reference.jpg", content_type: "image/jpeg"
+    )
+    sign_in_as(@member)
+
+    get tournament_catch_path(@tournament, @catch)
+
+    assert_response :ok
+    body = @response.body
+    assert_select "img", minimum: 2
+    assert_match "Reference photo", body, "members should see the admin reference photo labelled"
+    assert_match "Original photo", body, "members should still see the angler's original labelled"
+  end
+
   test "active blind tournament returns 404 even when member would otherwise have access" do
     blind = create(:tournament, club: @club,
                    starts_at: 1.hour.ago, ends_at: 1.hour.from_now,

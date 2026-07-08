@@ -1,8 +1,16 @@
 class Admin::MembersController < Admin::BaseController
-  before_action :require_admin!, only: [:edit, :update, :destroy, :reactivate]
+  before_action :require_site_admin!, only: [:edit, :update, :destroy, :reactivate, :purge]
 
   def index
     @users = current_club.members.includes(:club_memberships).order(:deactivated_at, :name)
+    # Members with any catch FK (logged by them, or logged *for* them by a
+    # teammate) can't be purged — mirror MembersController#purge's guard so the
+    # Delete button only shows when the destroy! would actually succeed.
+    member_ids = @users.map(&:id)
+    @member_ids_with_catches = (
+      Catch.where(user_id: member_ids).distinct.pluck(:user_id) +
+      Catch.where(logged_by_user_id: member_ids).distinct.pluck(:logged_by_user_id)
+    ).to_set
   end
 
   def new
@@ -64,6 +72,28 @@ class Admin::MembersController < Admin::BaseController
     redirect_to admin_members_path, notice: "#{user.name} reactivated."
   end
 
+  def purge
+    user = current_club.members.find(params[:id])
+    if user == current_user
+      redirect_to admin_members_path, alert: "You can't delete yourself."
+    elsif !user.deactivated?
+      redirect_to admin_members_path, alert: "Deactivate #{user.name} before deleting."
+    elsif user.catches.exists? || Catch.where(logged_by_user_id: user.id).exists?
+      # Also block when the member logged catches *for* a teammate
+      # (logged_by_user_id = them, user_id = someone else): those rows aren't in
+      # user.catches but still hold a FK to this user, so destroy! would raise.
+      redirect_to admin_members_path, alert: "#{user.name} has catch history and can't be deleted."
+    else
+      user.destroy!
+      redirect_to admin_members_path, notice: "#{user.name} permanently deleted."
+    end
+  rescue ActiveRecord::RecordNotDestroyed, ActiveRecord::DeleteRestrictionError, ActiveRecord::InvalidForeignKey
+    # InvalidForeignKey backstops any remaining DB-level reference (e.g. a
+    # sign_in_tokens.issued_by_user_id row from an invite this member sent) so a
+    # lingering link redirects with a friendly message instead of 500ing.
+    redirect_to admin_members_path, alert: "#{user.name} can't be deleted because of linked records."
+  end
+
   def issue_code
     member = current_club.members.active.find(params[:id])
     token = SignInToken.issue_code!(user: member, club: current_club, issued_by: current_user)
@@ -85,9 +115,5 @@ class Admin::MembersController < Admin::BaseController
 
   def edit_params
     params.require(:user).permit(:name, :email)
-  end
-
-  def require_admin!
-    head :forbidden unless current_user&.admin?
   end
 end

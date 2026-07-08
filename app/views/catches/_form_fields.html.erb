@@ -12,11 +12,11 @@
 <% available_baits = (logbook && current_user) ? current_user.baits.active.order(:created_at) : [] %>
 <% all_species = Species.in_log_order %>
 <% default_species = all_species.find { |s| s.name.casecmp?("walleye") } || all_species.first %>
-<% length_caps = Species.order(:name).each_with_object({}) do |s, h|
-     cap = Catch::MAX_LENGTH_BY_SPECIES[s.name.to_s.downcase]
+<% length_caps = all_species.each_with_object({}) do |s, h|
+     cap = Catch.length_cap_for(s)
      h[s.id] = cap if cap
    end %>
-<% tagged_species_id = Species.tagged_walleye&.id %>
+<% tagged_species_id = all_species.find(&:tagged_walleye?)&.id %>
 
 <div data-controller="catch-form photo-capture video-capture"
      data-catch-form-csrf-token-value="<%= local_assigns.fetch(:csrf_token, "") %>"
@@ -91,48 +91,19 @@
     <% end %>
 
     <h3 class="text-lg font-semibold mt-6 mb-2">Photo</h3>
-    <div data-photo-capture-target="inlineSlot" class="relative">
-      <video data-photo-capture-target="video" autoplay muted playsinline
-             class="hidden w-full aspect-[3/4] object-cover rounded-lg bg-black"></video>
-      <span data-photo-capture-target="frameGuide"
-            class="hidden pointer-events-none absolute inset-[12.5%] border-2 border-white/80"></span>
-      <div data-photo-capture-target="zoomToggle"
-           class="hidden absolute bottom-4 left-1/2 -translate-x-1/2 flex rounded-full bg-slate-900/70 p-1 gap-1">
-        <button type="button" data-photo-capture-target="zoomHalfButton"
-                data-action="photo-capture#setZoomHalf"
-                class="px-3 h-10 rounded-full text-sm text-white">0.5x</button>
-        <button type="button" data-photo-capture-target="zoomOneButton"
-                data-action="photo-capture#setZoomOne"
-                class="px-3 h-10 rounded-full text-sm text-white">1x</button>
-      </div>
-    </div>
+    <input type="file" accept="image/*" capture="environment"
+           data-photo-capture-target="input"
+           data-action="change->photo-capture#onChange"
+           class="hidden">
     <img data-photo-capture-target="preview" alt=""
          class="hidden w-full aspect-[3/4] object-contain rounded-lg bg-black">
     <div class="flex gap-2 mt-2">
       <button type="button" data-photo-capture-target="openButton"
-              data-action="photo-capture#start"
-              class="flex-1 h-12 px-4 rounded-lg bg-slate-700 active:bg-slate-600 text-slate-100">Open camera</button>
-      <button type="button" data-photo-capture-target="captureButton"
-              data-action="photo-capture#capture"
-              class="hidden flex-1 h-14 px-4 rounded-lg bg-blue-600 active:bg-blue-700 text-white font-semibold">Capture</button>
-      <button type="button" data-photo-capture-target="fullscreenButton"
-              data-action="photo-capture#enterFullscreen"
-              aria-label="Fullscreen camera"
-              class="hidden h-14 w-14 rounded-lg bg-slate-700 active:bg-slate-600 text-slate-100 text-xl">⛶</button>
+              data-action="photo-capture#open"
+              class="flex-1 h-12 px-4 rounded-lg bg-slate-700 active:bg-slate-600 text-slate-100">Take photo</button>
       <button type="button" data-photo-capture-target="retakeButton"
               data-action="photo-capture#retake"
               class="hidden flex-1 h-12 px-4 rounded-lg bg-slate-700 active:bg-slate-600 text-slate-100">Retake</button>
-    </div>
-
-    <div data-photo-capture-target="fullscreenContainer"
-         class="hidden fixed inset-0 z-50 bg-black">
-      <div data-photo-capture-target="fullscreenSlot" class="absolute inset-0 flex items-center justify-center"></div>
-      <button type="button" data-action="photo-capture#exitFullscreen"
-              aria-label="Close fullscreen"
-              class="absolute top-4 left-4 w-12 h-12 rounded-full bg-slate-900/70 text-white text-xl flex items-center justify-center">✕</button>
-      <button type="button" data-action="photo-capture#capture"
-              aria-label="Capture photo"
-              class="absolute right-6 top-1/2 -translate-y-1/2 w-20 h-20 rounded-full bg-white border-4 border-slate-300 active:bg-slate-200"></button>
     </div>
 
     <% unless offline %>

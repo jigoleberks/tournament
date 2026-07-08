@@ -9,6 +9,7 @@ class NotificationSettingsController < ApplicationController
   def snooze
     hours = params[:hours].to_f
     @subs.update_all(muted_until: hours.hours.from_now)
+    UserEvent.record!(user: current_user, kind: :push_muted, muted_for_hours: hours)
     redirect_to notification_settings_path, notice: "Muted for #{hours}h."
   end
 
@@ -18,16 +19,23 @@ class NotificationSettingsController < ApplicationController
   end
 
   def mute_tournament
-    @subs.each do |sub|
-      ids = (sub.muted_tournament_ids + [params[:tournament_id].to_i]).uniq
-      sub.update!(muted_tournament_ids: ids)
+    tid = params[:tournament_id].to_i
+    # Each subscription carries its own muted_tournament_ids array, so we update
+    # per row — but in one transaction so a mid-loop failure doesn't half-apply.
+    ActiveRecord::Base.transaction do
+      @subs.each do |sub|
+        sub.update!(muted_tournament_ids: (sub.muted_tournament_ids + [tid]).uniq)
+      end
     end
     redirect_to notification_settings_path
   end
 
   def unmute_tournament
-    @subs.each do |sub|
-      sub.update!(muted_tournament_ids: sub.muted_tournament_ids - [params[:tournament_id].to_i])
+    tid = params[:tournament_id].to_i
+    ActiveRecord::Base.transaction do
+      @subs.each do |sub|
+        sub.update!(muted_tournament_ids: sub.muted_tournament_ids - [tid])
+      end
     end
     redirect_to notification_settings_path
   end

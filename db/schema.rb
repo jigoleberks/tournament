@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_05_28_173741) do
+ActiveRecord::Schema[8.1].define(version: 2026_06_30_135843) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -100,6 +100,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_05_28_173741) do
     t.string "moon_phase"
     t.decimal "moon_phase_fraction", precision: 5, scale: 4
     t.text "note"
+    t.boolean "override_in_lake", default: false, null: false
+    t.boolean "override_in_sask", default: false, null: false
     t.decimal "pressure_trend_24h_hpa", precision: 5, scale: 2
     t.bigint "species_id", null: false
     t.integer "status", default: 1, null: false
@@ -127,6 +129,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_05_28_173741) do
     t.datetime "created_at", null: false
     t.datetime "deactivated_at"
     t.integer "role", default: 0, null: false
+    t.boolean "show_banner", default: false, null: false
     t.datetime "updated_at", null: false
     t.bigint "user_id", null: false
     t.index ["club_id"], name: "index_club_memberships_on_club_id"
@@ -148,6 +151,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_05_28_173741) do
 
   create_table "clubs", force: :cascade do |t|
     t.integer "active_rules_season", default: 0, null: false
+    t.string "banner_message"
+    t.integer "banner_style", default: 0, null: false
     t.datetime "created_at", null: false
     t.string "name", null: false
     t.datetime "updated_at", null: false
@@ -400,6 +405,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_05_28_173741) do
     t.integer "format", default: 0, null: false
     t.integer "mode", default: 0, null: false
     t.string "name", null: false
+    t.string "season_tag"
     t.integer "train_cars", default: [], null: false, array: true
     t.datetime "updated_at", null: false
     t.index ["club_id"], name: "index_tournament_templates_on_club_id"
@@ -418,7 +424,6 @@ ActiveRecord::Schema[8.1].define(version: 2026_05_28_173741) do
     t.integer "format", default: 0, null: false
     t.decimal "hidden_length_target", precision: 5, scale: 2
     t.boolean "judged", default: false, null: false
-    t.integer "kind", default: 0, null: false
     t.datetime "lifecycle_ended_announced_at"
     t.boolean "local", default: true, null: false
     t.integer "mode", default: 0, null: false
@@ -433,6 +438,17 @@ ActiveRecord::Schema[8.1].define(version: 2026_05_28_173741) do
     t.index ["club_id"], name: "index_tournaments_on_club_id"
     t.index ["drawn_by_user_id"], name: "index_tournaments_on_drawn_by_user_id"
     t.index ["drawn_winning_placement_id"], name: "index_tournaments_on_drawn_winning_placement_id"
+  end
+
+  create_table "user_events", force: :cascade do |t|
+    t.string "app_build"
+    t.datetime "created_at", null: false
+    t.integer "kind", null: false
+    t.jsonb "metadata", default: {}, null: false
+    t.string "user_agent"
+    t.bigint "user_id", null: false
+    t.index ["user_id", "created_at"], name: "index_user_events_on_user_id_and_created_at"
+    t.index ["user_id"], name: "index_user_events_on_user_id"
   end
 
   create_table "users", force: :cascade do |t|
@@ -488,4 +504,5 @@ ActiveRecord::Schema[8.1].define(version: 2026_05_28_173741) do
   add_foreign_key "tournaments", "catch_placements", column: "drawn_winning_placement_id"
   add_foreign_key "tournaments", "clubs"
   add_foreign_key "tournaments", "users", column: "drawn_by_user_id"
+  add_foreign_key "user_events", "users"
 end

@@ -6,7 +6,7 @@ module Tournaments
       @club = create(:club)
       @walleye = create(:species, club: @club)
       @t = build(:tournament, club: @club, format: :hidden_length, mode: :solo,
-                 kind: :event, starts_at: 2.hours.ago, ends_at: 1.minute.ago)
+                 starts_at: 2.hours.ago, ends_at: 1.minute.ago)
       @t.scoring_slots.build(species: @walleye, slot_count: 1)
       @t.save!
     end

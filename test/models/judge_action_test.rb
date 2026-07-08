@@ -26,4 +26,12 @@ class JudgeActionTest < ActiveSupport::TestCase
       end
     end
   end
+
+  test "new correction actions are valid enum values" do
+    %i[geofence_override correct_location reinstate].each do |a|
+      action = build(:judge_action, action: a)
+      assert action.valid?, "#{a} should be a valid action"
+      assert_equal a.to_s, action.action
+    end
+  end
 end

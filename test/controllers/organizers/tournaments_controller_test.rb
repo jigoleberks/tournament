@@ -28,7 +28,6 @@ class Organizers::TournamentsControllerTest < ActionDispatch::IntegrationTest
       post organizers_tournaments_path, params: {
         tournament: {
           name: "Wed Night",
-          kind: "event",
           mode: "solo",
           starts_at: 1.day.from_now,
           ends_at: 1.day.from_now + 4.hours,
@@ -45,7 +44,7 @@ class Organizers::TournamentsControllerTest < ActionDispatch::IntegrationTest
     sign_in_as(organizer)
     assert_difference -> { @club.tournaments.count }, 1 do
       post organizers_tournaments_path, params: {
-        tournament: { name: "Away Trip", kind: "event", mode: "solo",
+        tournament: { name: "Away Trip", mode: "solo",
                       starts_at: Time.current, ends_at: 1.day.from_now,
                       local: "0" }
       }
@@ -57,7 +56,7 @@ class Organizers::TournamentsControllerTest < ActionDispatch::IntegrationTest
     organizer = create(:user, club: @club, role: :organizer)
     sign_in_as(organizer)
     post organizers_tournaments_path, params: {
-      tournament: { name: "Local Trip", kind: "event", mode: "solo",
+      tournament: { name: "Local Trip", mode: "solo",
                     starts_at: Time.current, ends_at: 1.day.from_now }
     }
     assert_equal true, @club.tournaments.last.local
@@ -67,7 +66,7 @@ class Organizers::TournamentsControllerTest < ActionDispatch::IntegrationTest
     organizer = create(:user, club: @club, role: :organizer)
     sign_in_as(organizer)
     away = create(:tournament, club: @club, local: false, name: "Out of Town",
-                               starts_at: 1.day.from_now)
+                               starts_at: 1.day.from_now, ends_at: 2.days.from_now)
     get organizers_tournaments_path
     assert_response :success
     assert_match "(away)", response.body
@@ -77,7 +76,7 @@ class Organizers::TournamentsControllerTest < ActionDispatch::IntegrationTest
     sign_in_as(@organizer)
     assert_difference -> { @club.tournaments.count }, 1 do
       post organizers_tournaments_path, params: {
-        tournament: { name: "Season Tournament", kind: "event", mode: "solo",
+        tournament: { name: "Season Tournament", mode: "solo",
                       starts_at: 1.day.from_now, ends_at: 1.day.from_now + 4.hours,
                       awards_season_points: "1" }
       }
@@ -92,7 +91,6 @@ class Organizers::TournamentsControllerTest < ActionDispatch::IntegrationTest
     post organizers_tournaments_path, params: {
       tournament: {
         name: "Blind League Night",
-        kind: "event",
         mode: "solo",
         starts_at: 1.hour.from_now,
         ends_at: 4.hours.from_now,
@@ -131,7 +129,6 @@ class Organizers::TournamentsControllerTest < ActionDispatch::IntegrationTest
       post organizers_tournaments_path, params: {
         tournament: {
           name: "Big Walleye Season",
-          kind: "ongoing",
           mode: "solo",
           format: "big_fish_season",
           starts_at: 1.day.from_now,
@@ -151,7 +148,6 @@ class Organizers::TournamentsControllerTest < ActionDispatch::IntegrationTest
       post organizers_tournaments_path, params: {
         tournament: {
           name: "Bad Combo",
-          kind: "event",
           mode: "team",
           format: "big_fish_season",
           starts_at: 1.day.from_now,
@@ -172,7 +168,6 @@ class Organizers::TournamentsControllerTest < ActionDispatch::IntegrationTest
       post organizers_tournaments_path, params: {
         tournament: {
           name: "Two Species",
-          kind: "event",
           mode: "solo",
           format: "big_fish_season",
           starts_at: 1.day.from_now,
@@ -212,7 +207,6 @@ class Organizers::TournamentsControllerTest < ActionDispatch::IntegrationTest
       post organizers_tournaments_path, params: {
         tournament: {
           name: "HL Wed",
-          kind: "event",
           mode: "solo",
           format: "hidden_length",
           starts_at: 1.day.from_now,
@@ -232,7 +226,7 @@ class Organizers::TournamentsControllerTest < ActionDispatch::IntegrationTest
     sign_in_as(@organizer)
     walleye = create(:species, club: @club, name: "Walleye HL2")
     t = build(:tournament, club: @club, format: :hidden_length, mode: :solo,
-              kind: :event, starts_at: 1.hour.from_now, ends_at: 4.hours.from_now)
+              starts_at: 1.hour.from_now, ends_at: 4.hours.from_now)
     t.scoring_slots.build(species: walleye, slot_count: 1)
     t.save!
 
@@ -252,7 +246,6 @@ class Organizers::TournamentsControllerTest < ActionDispatch::IntegrationTest
       post organizers_tournaments_path, params: {
         tournament: {
           name: "BvS Wed",
-          kind: "event",
           mode: "solo",
           format: "biggest_vs_smallest",
           starts_at: 1.day.from_now,
@@ -274,7 +267,6 @@ class Organizers::TournamentsControllerTest < ActionDispatch::IntegrationTest
       post organizers_tournaments_path, params: {
         tournament: {
           name: "FT Wed",
-          kind: "event",
           mode: "solo",
           format: "fish_train",
           starts_at: 1.day.from_now,
@@ -298,7 +290,7 @@ class Organizers::TournamentsControllerTest < ActionDispatch::IntegrationTest
     user = create(:user, club: club)
     tagged = Species.find_or_create_by!(name: "Tagged Walleye")
     t = build(:tournament, club: club, format: :tagged, mode: :solo,
-              kind: :event, starts_at: 2.hours.ago, ends_at: 1.hour.ago)
+              starts_at: 2.hours.ago, ends_at: 1.hour.ago)
     t.scoring_slots.build(species: tagged, slot_count: 1)
     t.save!
     entry = create(:tournament_entry, tournament: t)
@@ -320,7 +312,7 @@ class Organizers::TournamentsControllerTest < ActionDispatch::IntegrationTest
     member = create(:user, club: club, role: :member)
     tagged = Species.find_or_create_by!(name: "Tagged Walleye")
     t = build(:tournament, club: club, format: :tagged, mode: :solo,
-              kind: :event, starts_at: 2.hours.ago, ends_at: 1.hour.ago)
+              starts_at: 2.hours.ago, ends_at: 1.hour.ago)
     t.scoring_slots.build(species: tagged, slot_count: 1)
     t.save!
 
@@ -336,7 +328,7 @@ class Organizers::TournamentsControllerTest < ActionDispatch::IntegrationTest
     user = create(:user, club: club)
     tagged = Species.find_or_create_by!(name: "Tagged Walleye")
     t = build(:tournament, club: club, format: :tagged, mode: :solo,
-              kind: :event, starts_at: 2.hours.ago, ends_at: 1.hour.ago)
+              starts_at: 2.hours.ago, ends_at: 1.hour.ago)
     t.scoring_slots.build(species: tagged, slot_count: 1)
     t.save!
     entry = create(:tournament_entry, tournament: t)
@@ -354,6 +346,23 @@ class Organizers::TournamentsControllerTest < ActionDispatch::IntegrationTest
       post draw_organizers_tournament_url(t), params: { force: "1" }
       assert_not_equal first_drawn_at, t.reload.drawn_at
     end
+  end
+
+  test "creates a pro_walleye tournament with a forced 5-count Walleye slot" do
+    sign_in_as(@organizer)
+    walleye = create(:species, club: @club, name: "Walleye")
+    assert_difference -> { Tournament.count } => 1, -> { ScoringSlot.count } => 1 do
+      post organizers_tournaments_path, params: {
+        tournament: {
+          name: "Sask Slot Limit", mode: "team", format: "pro_walleye",
+          starts_at: 1.hour.from_now, ends_at: 3.hours.from_now,
+          scoring_slots_attributes: { "0" => { species_id: walleye.id, slot_count: "1" } }
+        }
+      }
+    end
+    t = Tournament.order(:id).last
+    assert t.format_pro_walleye?
+    assert_equal 5, t.scoring_slots.sole.slot_count
   end
 
   private

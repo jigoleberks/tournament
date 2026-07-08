@@ -33,7 +33,7 @@ module Tournaments
     end
 
     test "returns {} when not points-eligible" do
-      tournament = create(:tournament, club: @club, awards_season_points: false, ends_at: 1.hour.ago)
+      tournament = create(:tournament, club: @club, awards_season_points: false, starts_at: 3.hours.ago, ends_at: 1.hour.ago)
       assert_equal({}, SeasonPointsAwarded.call(tournament: tournament))
     end
 
@@ -43,7 +43,9 @@ module Tournaments
     end
 
     test "returns {} when ends_at is nil" do
-      tournament = create(:tournament, club: @club, awards_season_points: true, starts_at: 1.hour.ago, ends_at: nil)
+      # Legacy NULL-ends_at row: bypass the now-required ends_at validation.
+      tournament = build(:tournament, club: @club, awards_season_points: true, starts_at: 1.hour.ago, ends_at: nil)
+      tournament.save!(validate: false)
       assert_equal({}, SeasonPointsAwarded.call(tournament: tournament))
     end
 

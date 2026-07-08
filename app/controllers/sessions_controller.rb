@@ -28,6 +28,7 @@ class SessionsController < ApplicationController
     if record
       sign_in!(record.user, club: record.club)
       login_log "link_success", email: record.user.email, ip: request.remote_ip
+      record_sign_in(record.user, "link")
       redirect_to root_path, notice: "Welcome, #{record.user.name}"
     else
       login_log "link_invalid", ip: request.remote_ip
@@ -45,9 +46,16 @@ class SessionsController < ApplicationController
     if record
       sign_in!(record.user, club: record.club)
       login_log "code_success", email: record.user.email, ip: request.remote_ip
+      record_sign_in(record.user, "code")
       redirect_to root_path, notice: "Welcome, #{record.user.name}"
     else
       login_log "code_failed", email: email, ip: request.remote_ip
+      failed_user = User.find_by(email: email)
+      UserEvent.record!(
+        user: failed_user, kind: :sign_in_failed,
+        user_agent: request.user_agent, app_build: cookies[:app_build],
+        ip: request.remote_ip, method: "code"
+      ) if failed_user
       flash.now[:alert] = "That email and code don't match, or the code has expired."
       render :code, status: :unprocessable_entity
     end
@@ -65,5 +73,13 @@ class SessionsController < ApplicationController
     parts[:email] = email if email
     parts[:ip] = ip if ip
     LOGIN_LOGGER.info(parts.map { |k, v| "#{k}=#{v}" }.join(" "))
+  end
+
+  def record_sign_in(user, method)
+    UserEvent.record!(
+      user: user, kind: :sign_in_succeeded,
+      user_agent: request.user_agent, app_build: cookies[:app_build],
+      ip: request.remote_ip, method: method
+    )
   end
 end

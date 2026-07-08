@@ -6,7 +6,6 @@ module Leaderboards
       # row[:fish] is expected to be ordered by slot_index ascending so the
       # leaderboard partial can render cars in train order.
       def self.call(entry_rows)
-        far_future = ::Time.zone.at(0) + 100.years
         rows = entry_rows.map do |row|
           fish = row[:fish]
           {
@@ -24,7 +23,7 @@ module Leaderboards
             -r[:total],
             -r[:cars_completed],
             *Array.new(max_cars) { |i| -(r[:fish_lengths_desc][i] || 0) },
-            r[:earliest_catch_at] || far_future,
+            r[:earliest_catch_at] || FAR_FUTURE,
             r[:entry].id
           ]
         end

@@ -42,4 +42,17 @@ class ClubTest < ActiveSupport::TestCase
     club.update!(active_rules_season: :ice)
     assert_equal ice_rev, club.current_rules_revision
   end
+
+  test "banner_message defaults to nil and banner_style defaults to info" do
+    club = Club.create!(name: "Banner Defaults FC")
+    assert_nil club.banner_message
+    assert_equal "info", club.banner_style
+  end
+
+  test "banner_style maps to integers good=1 alert=2" do
+    club = Club.create!(name: "Banner Enum FC")
+    club.update!(banner_style: :alert)
+    raw = Club.connection.select_value(Club.where(id: club.id).select(:banner_style).to_sql)
+    assert_equal 2, raw
+  end
 end

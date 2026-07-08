@@ -8,6 +8,8 @@ module Leaderboards
       when "biggest_vs_smallest" then Leaderboards::Rankers::BiggestVsSmallest.call(rows)
       when "fish_train"          then Leaderboards::Rankers::FishTrain.call(rows)
       when "tagged"              then Leaderboards::Rankers::Tagged.call(rows)
+      when "smallest_fish"       then Leaderboards::Rankers::SmallestFish.call(rows)
+      when "pro_walleye"         then Leaderboards::Rankers::ProWalleye.call(rows)
       else                            Leaderboards::Rankers::Standard.call(rows)
       end
     end
@@ -44,6 +46,8 @@ module Leaderboards
           # Tickets in the order they were earned — matches the angler's mental
           # model and the way tags are read off the row in the partial.
           fish.sort_by { |f| f[:captured_at_device] || Time.at(0) }
+        elsif tournament.format_smallest_fish?
+          fish.sort_by { |f| f[:length_inches] }             # smallest-first
         else
           fish.sort_by { |f| -f[:length_inches] }            # biggest-first (default)
         end

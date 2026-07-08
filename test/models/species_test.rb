@@ -39,4 +39,11 @@ class SpeciesTest < ActiveSupport::TestCase
 
     assert_equal %w[WALLEYE perch], Species.in_log_order.map(&:name)
   end
+
+  test "walleye? matches ordinary Walleye but not Tagged Walleye" do
+    assert     Species.new(name: "Walleye").walleye?
+    assert     Species.new(name: "walleye").walleye?
+    assert_not Species.new(name: "Tagged Walleye").walleye?
+    assert_not Species.new(name: "Pike").walleye?
+  end
 end

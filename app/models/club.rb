@@ -5,6 +5,7 @@ class Club < ApplicationRecord
   has_many :tournament_templates, dependent: :destroy
   has_many :rules_revisions, class_name: "ClubRulesRevision", dependent: :destroy
   enum :active_rules_season, { open_water: 0, ice: 1 }, prefix: true
+  enum :banner_style, { info: 0, good: 1, alert: 2 }, default: :info
   validates :name, presence: true, uniqueness: true
 
   def current_rules_revision

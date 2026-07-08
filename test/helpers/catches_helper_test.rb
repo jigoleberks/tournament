@@ -84,4 +84,79 @@ class CatchesHelperTest < ActionView::TestCase
   test "flag_label renders out_of_province as 'outside Saskatchewan'" do
     assert_equal "outside Saskatchewan", flag_label("out_of_province")
   end
+
+  test "flag_label renders screenshot_suspect as 'possible screenshot'" do
+    assert_equal "possible screenshot", flag_label("screenshot_suspect")
+  end
+
+  test "visible_flags_for hides screenshot_suspect from a non-reviewing member" do
+    catch_record = Catch.new(flags: %w[missing_gps screenshot_suspect])
+    define_singleton_method(:can_review_catch?) { |_| false }
+    assert_equal %w[missing_gps], visible_flags_for(catch_record)
+  end
+
+  test "visible_flags_for shows screenshot_suspect to staff" do
+    catch_record = Catch.new(flags: %w[missing_gps screenshot_suspect])
+    define_singleton_method(:can_review_catch?) { |_| true }
+    assert_equal %w[missing_gps screenshot_suspect], visible_flags_for(catch_record)
+  end
+
+  # --- JPEG-variant photo display helpers (iOS HEIC support) ---
+
+  def attached_photo(path: "test/fixtures/files/sample_walleye.jpg", content_type: "image/jpeg", filename: "sample_walleye.jpg")
+    blob = ActiveStorage::Blob.create_and_upload!(
+      io: File.open(Rails.root.join(path)),
+      filename: filename,
+      content_type: content_type
+    )
+    record = Catch.new
+    record.photo.attach(blob)
+    record.photo
+  end
+
+  # These exercise the helpers themselves (not a re-implementation of their
+  # internals) so they fail if a helper is changed to serve the raw original.
+  # A variant routes through /representations/; a raw original through /blobs/.
+
+  test "thumb renders a lazy <img> pointing at a processed variant, not the raw original" do
+    html = thumb(attached_photo)
+    assert_match %r{<img }, html
+    assert_match %r{loading="lazy"}, html
+    assert_includes html, "/rails/active_storage/representations/"
+    refute_includes html, "/rails/active_storage/blobs/"
+  end
+
+  test "photo_full renders a full-bleed <img> at a processed variant" do
+    html = photo_full(attached_photo)
+    assert_match %r{<img }, html
+    assert_includes html, "/rails/active_storage/representations/"
+    refute_includes html, "/rails/active_storage/blobs/"
+  end
+
+  test "photo_src_url returns a representation URL, not a raw blob URL" do
+    url = photo_src_url(attached_photo)
+    assert_includes url, "/rails/active_storage/representations/"
+    refute_includes url, "/rails/active_storage/blobs/"
+  end
+
+  test "photo_download_url serves a JPEG original raw (full size, no resize variant)" do
+    url = photo_download_url(attached_photo)
+    assert_includes url, "/rails/active_storage/blobs/"
+    refute_includes url, "/representations/"
+  end
+
+  test "photo_download_url transcodes a non-JPEG original to a full-resolution JPEG" do
+    photo = attached_photo(path: "test/fixtures/files/sample_walleye.heic",
+                           content_type: "image/heic", filename: "sample_walleye.heic")
+    url = photo_download_url(photo)
+    # Non-JPEG goes through a variant (representation), not the raw original.
+    assert_includes url, "/rails/active_storage/representations/"
+  end
+
+  test "the JPEG variant transcodes a HEIC original (the iOS path)" do
+    photo = attached_photo(path: "test/fixtures/files/sample_walleye.heic",
+                           content_type: "image/heic", filename: "sample_walleye.heic")
+    processed = photo.variant(resize_to_limit: [400, 400], format: :jpeg).processed
+    assert_equal "image/jpeg", processed.image.blob.content_type
+  end
 end

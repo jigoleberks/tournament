@@ -1,0 +1,44 @@
+<div class="mb-6">
+  <h1 class="text-3xl font-bold">Banner — <%= @foreign_club.name %></h1>
+  <p class="text-slate-400 mt-1">Shown on the home page only to the members you check. Leave the message blank to hide it for everyone.</p>
+</div>
+
+<%= form_with url: admin_club_banner_path(@foreign_club), method: :patch do |f| %>
+  <div class="mb-4">
+    <label class="block text-sm text-slate-300 mb-1">Message</label>
+    <%= text_area_tag "club[banner_message]", @foreign_club.banner_message,
+          rows: 3,
+          class: "w-full rounded-lg bg-slate-800 border border-slate-700 px-3 py-2 text-slate-100" %>
+  </div>
+
+  <div class="mb-6">
+    <label class="block text-sm text-slate-300 mb-1">Color</label>
+    <%= select_tag "club[banner_style]",
+          options_for_select(
+            [["Yellow (info)", "info"], ["Green (good)", "good"], ["Red (alert)", "alert"]],
+            @foreign_club.banner_style),
+          class: "rounded-lg bg-slate-800 border border-slate-700 px-3 py-2 text-slate-100" %>
+  </div>
+
+  <fieldset class="mb-6">
+    <legend class="text-sm text-slate-300 mb-2">Who sees it</legend>
+    <% if @memberships.any? %>
+      <div class="space-y-2">
+        <% @memberships.each do |m| %>
+          <label class="flex items-center gap-2 text-slate-100">
+            <%= check_box_tag "member_ids[]", m.user_id, m.show_banner?,
+                  id: "member_#{m.user_id}", class: "h-4 w-4" %>
+            <span><%= m.user.name %></span>
+          </label>
+        <% end %>
+      </div>
+    <% else %>
+      <p class="text-slate-400 text-sm">This club has no members yet.</p>
+    <% end %>
+  </fieldset>
+
+  <div class="flex gap-3">
+    <%= f.submit "Save banner", class: "h-12 px-6 rounded-lg bg-blue-600 active:bg-blue-700 text-white font-semibold" %>
+    <%= link_to "Cancel", admin_club_path(@foreign_club), class: "h-12 px-6 rounded-lg bg-slate-700 text-slate-100 leading-[3rem]" %>
+  </div>
+<% end %>

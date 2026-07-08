@@ -13,8 +13,7 @@ class HiddenLengthTournamentTest < ApplicationSystemTestCase
 
   test "Hidden Length tournament: rolls target at end and reshuffles leaderboard" do
     t = build(:tournament, club: @club, name: "HL Wed",
-              format: :hidden_length, mode: :solo, kind: :event,
-              starts_at: 30.minutes.ago, ends_at: 5.minutes.from_now)
+              format: :hidden_length, mode: :solo, starts_at: 30.minutes.ago, ends_at: 5.minutes.from_now)
     t.scoring_slots.build(species: @walleye, slot_count: 1)
     t.save!
 
@@ -84,8 +83,7 @@ class HiddenLengthTournamentTest < ApplicationSystemTestCase
     pike = create(:species, club: @club, name: "Pike")
 
     tournament = create(:tournament, club: @club, name: "HL Draft",
-                                     mode: :solo, format: :standard, kind: :event,
-                                     starts_at: 1.day.from_now, ends_at: 2.days.from_now)
+                                     mode: :solo, format: :standard, starts_at: 1.day.from_now, ends_at: 2.days.from_now)
     create(:scoring_slot, tournament: tournament, species: @walleye, slot_count: 2)
     create(:scoring_slot, tournament: tournament, species: pike,     slot_count: 1)
 

@@ -83,16 +83,28 @@
                 <% biggest, smallest = row[:fish].first, row[:fish].last %>
                 <% url_b, frame_b = catch_link_target(tournament: tournament, catch_id: biggest[:id]) %>
                 <% url_s, frame_s = catch_link_target(tournament: tournament, catch_id: smallest[:id]) %>
-                <div class="text-xs text-slate-400 mt-1">
-                  Biggest: <%= link_to format_length_dual(biggest[:length_inches], biggest[:length_unit]), url_b, class: "text-blue-300 underline-offset-2 hover:underline", data: frame_b ? { turbo_frame: frame_b } : {} %>
-                  ·
-                  Smallest: <%= link_to format_length_dual(smallest[:length_inches], smallest[:length_unit]), url_s, class: "text-blue-300 underline-offset-2 hover:underline", data: frame_s ? { turbo_frame: frame_s } : {} %>
+                <div class="text-xs text-slate-400 mt-1 space-y-1">
+                  <div>
+                    Biggest: <%= link_to format_length_dual(biggest[:length_inches], biggest[:length_unit]), url_b, class: "text-blue-300 underline-offset-2 hover:underline", data: frame_b ? { turbo_frame: frame_b } : {} %>
+                    <% if biggest[:approver_name] %>
+                      <span data-test="approved-check" class="text-green-400 ml-1" aria-label="approved">✓</span>
+                    <% end %>
+                  </div>
+                  <div>
+                    Smallest: <%= link_to format_length_dual(smallest[:length_inches], smallest[:length_unit]), url_s, class: "text-blue-300 underline-offset-2 hover:underline", data: frame_s ? { turbo_frame: frame_s } : {} %>
+                    <% if smallest[:approver_name] %>
+                      <span data-test="approved-check" class="text-green-400 ml-1" aria-label="approved">✓</span>
+                    <% end %>
+                  </div>
                 </div>
               <% elsif row[:fish].size == 1 %>
                 <% f = row[:fish].first %>
                 <% url, frame = catch_link_target(tournament: tournament, catch_id: f[:id]) %>
                 <div class="text-xs text-slate-400 mt-1">
                   <%= link_to format_length_dual(f[:length_inches], f[:length_unit]), url, class: "text-blue-300 underline-offset-2 hover:underline", data: frame ? { turbo_frame: frame } : {} %>
+                  <% if f[:approver_name] %>
+                    <span data-test="approved-check" class="text-green-400 ml-1" aria-label="approved">✓</span>
+                  <% end %>
                   — need 1 more catch
                 </div>
               <% end %>
@@ -149,24 +161,18 @@
           <% end %>
         </td>
         <td class="px-3 py-3 font-mono">
-          <% if row_visible %>
-            <% scoring_value = row[:total] %>
-            <%# BvS spread of 0 (two equal-length catches) is a real score for a complete entry, not "—". %>
-            <% bvs_complete_zero = tournament&.format_biggest_vs_smallest? && row[:complete] && scoring_value == 0 %>
-            <% if scoring_value.nil? || (scoring_value.zero? && !bvs_complete_zero) %>
-              <div>—</div>
-            <% else %>
-              <% inches_part, cm_part = format_length_parts(scoring_value) %>
-              <div><%= inches_part %></div>
-              <div><%= cm_part %></div>
-              <% if tournament&.format_hidden_length? && tournament.hidden_length_target.present? %>
-                <div class="text-xs text-slate-400">
-                  <%= format("%.2f", (scoring_value.to_d - tournament.hidden_length_target.to_d).abs) %>" off
-                </div>
-              <% end %>
-            <% end %>
-          <% else %>
+          <% parts = row_visible ? leaderboard_score_parts(row, tournament) : nil %>
+          <% if !row_visible || parts.nil? %>
             <div>—</div>
+          <% elsif parts.key?(:tickets) %>
+            <%# Tagged's "total" is a ticket count, not a length — no inch/cm rendering. %>
+            <div><%= parts[:tickets] %> <%= "ticket".pluralize(parts[:tickets]) %></div>
+          <% else %>
+            <div><%= parts[:inches] %></div>
+            <div><%= format("%.2f", parts[:cm]) %> cm</div>
+            <% if parts[:off] %>
+              <div class="text-xs text-slate-400"><%= format("%.2f", parts[:off]) %>" off</div>
+            <% end %>
           <% end %>
         </td>
       </tr>

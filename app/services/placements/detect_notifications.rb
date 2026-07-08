@@ -1,11 +1,16 @@
 module Placements
   class DetectNotifications
-    def self.call(result:)
-      new(result: result).call
+    def self.call(result:, leaderboards: {})
+      new(result: result, leaderboards: leaderboards).call
     end
 
-    def initialize(result:)
+    # `leaderboards` is an optional { tournament_id => built_leaderboard } cache
+    # so callers that already built a tournament's leaderboard (e.g. PlaceInSlots
+    # for its broadcast) don't pay to rebuild it here. Missing ids fall back to
+    # an on-demand build.
+    def initialize(result:, leaderboards: {})
       @result = result
+      @leaderboards = leaderboards
     end
 
     def call
@@ -50,7 +55,8 @@ module Placements
         # isn't the winning metric, so a "took the lead" push would mislead.
         next [] if t.format_hidden_length? && t.hidden_length_target.nil?
 
-        leader_entry = Leaderboards::Build.call(tournament: t).first&.dig(:entry)
+        leaderboard = @leaderboards[t.id] || Leaderboards::Build.call(tournament: t)
+        leader_entry = leaderboard.first&.dig(:entry)
         next [] unless leader_entry
 
         new_leader_users = leader_entry.users

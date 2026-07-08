@@ -65,4 +65,31 @@ class ApplicationHelperTest < ActionView::TestCase
   test "format_season_points renders bare half" do
     assert_equal "0.5", format_season_points(0.5)
   end
+
+  test "ordered_species returns species alphabetically and memoizes the load" do
+    club = create(:club)
+    %w[Zander Bass Walleye].each { |n| create(:species, club: club, name: n) }
+    assert_equal %w[Bass Walleye Zander], ordered_species.map(&:name)
+    assert_same ordered_species, ordered_species, "should reuse the memoized array"
+  end
+
+  test "banner_strip_classes returns the yellow set for info" do
+    assert_equal "bg-yellow-500/20 border-yellow-500/40 text-yellow-200",
+                 banner_strip_classes("info")
+  end
+
+  test "banner_strip_classes returns the green set for good" do
+    assert_equal "bg-emerald-500/20 border-emerald-500/40 text-emerald-200",
+                 banner_strip_classes("good")
+  end
+
+  test "banner_strip_classes returns the red set for alert" do
+    assert_equal "bg-red-500/20 border-red-500/40 text-red-200",
+                 banner_strip_classes("alert")
+  end
+
+  test "banner_strip_classes falls back to info for unknown values" do
+    assert_equal "bg-yellow-500/20 border-yellow-500/40 text-yellow-200",
+                 banner_strip_classes(nil)
+  end
 end
