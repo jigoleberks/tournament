@@ -5,12 +5,12 @@
 
 <ul class="space-y-2">
   <li>
-    <%= link_to "Myself", new_catch_path,
+    <%= link_to "Myself", select_species_catches_path,
                 class: "block w-full h-28 px-4 rounded-lg bg-blue-600 active:bg-blue-700 text-white text-lg font-semibold leading-[7rem]" %>
   </li>
   <% @teammates.each do |t| %>
     <li>
-      <%= link_to t.name, new_catch_path(teammate_user_id: t.id),
+      <%= link_to t.name, select_species_catches_path(teammate_user_id: t.id),
                   class: "block w-full h-14 px-4 rounded-lg bg-slate-800 active:bg-slate-700 text-slate-100 text-base font-medium leading-[3.5rem]" %>
     </li>
   <% end %>

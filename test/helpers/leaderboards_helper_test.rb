@@ -31,4 +31,23 @@ class LeaderboardsHelperTest < ActionView::TestCase
                    { length_inches: 20.0, length_unit: "inches" }] }
     refute_equal "—", leaderboard_score_label(row, t)
   end
+
+  test "bingo format shows lines and squares progress" do
+    t = build(:tournament, format: :bingo)
+    assert_equal "2 lines · 14/25 squares",
+                 leaderboard_score_label({ blackout: false, lines_count: 2, squares_count: 14 }, t)
+    assert_equal "1 line · 6/25 squares",
+                 leaderboard_score_label({ blackout: false, lines_count: 1, squares_count: 6 }, t)
+  end
+
+  test "bingo blackout shows Blackout, free-only shows an em dash" do
+    t = build(:tournament, format: :bingo)
+    assert_equal "Blackout", leaderboard_score_label({ blackout: true, lines_count: 12, squares_count: 25 }, t)
+    assert_equal "—", leaderboard_score_label({ blackout: false, lines_count: 0, squares_count: 1 }, t)
+  end
+
+  test "bingo_progress_label formats the shared lines/squares fragment" do
+    assert_equal "2 lines · 14/25 squares", bingo_progress_label(lines_count: 2, squares_count: 14)
+    assert_equal "1 line · 6/25 squares", bingo_progress_label(lines_count: 1, squares_count: 6)
+  end
 end

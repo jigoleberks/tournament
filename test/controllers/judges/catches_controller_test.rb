@@ -236,7 +236,42 @@ class Judges::CatchesControllerTest < ActionDispatch::IntegrationTest
     assert_select "input[type=submit][value=?]", "Save corrected location"
   end
 
+  # Bingo keeps no CatchPlacement rows, so a clean (unflagged) entrant catch is
+  # neither placed nor in the needs_review queue — before the entrant/window
+  # branch it was invisible to the judge.
+  test "index reaches an entrant's clean catch on a bingo tournament (no placements)" do
+    bingo, judge, clean = bingo_tournament_with_clean_catch
+    sign_in_as(judge)
+    get judges_tournament_catches_path(tournament_id: bingo.id)
+    assert_response :success
+    assert_includes response.body, "<td>#{clean.id}</td>",
+                     "a bingo entrant's clean catch should appear in the judge queue"
+  end
+
+  test "show reaches an entrant's clean catch on a bingo tournament (no placements)" do
+    bingo, judge, clean = bingo_tournament_with_clean_catch
+    sign_in_as(judge)
+    get judges_tournament_catch_path(tournament_id: bingo.id, id: clean.id)
+    assert_response :success
+  end
+
   private
+
+  # A bingo tournament with an assigned judge and one entrant whose synced,
+  # unflagged catch falls inside the window. Returns [tournament, judge, catch].
+  def bingo_tournament_with_clean_catch
+    create_bingo_species!
+    bingo = Tournament.create!(club: @club, name: "Bingo Night", mode: :solo, format: :bingo,
+                               starts_at: 2.hours.ago, ends_at: 2.hours.from_now)
+    judge = create(:user, club: @club)
+    create(:tournament_judge, tournament: bingo, user: judge)
+    angler = create(:user, club: @club)
+    entry = bingo.tournament_entries.create!
+    entry.tournament_entry_members.create!(user: angler)
+    clean = create(:catch, user: angler, species: @walleye, length_inches: 15,
+                   captured_at_device: 1.hour.ago, status: :synced)
+    [bingo, judge, clean]
+  end
 
   def create_foreign_synced_catch
     other_t = create(:tournament, club: @club, starts_at: 1.hour.ago, ends_at: 1.hour.from_now)

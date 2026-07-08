@@ -50,11 +50,15 @@ class Judges::BaseController < ApplicationController
     placed_ids = CatchPlacement.where(tournament_id: @tournament.id).select(:catch_id)
     club_member_ids = @tournament.club.members.select(:id)
     review_ids = Catch.where(status: :needs_review, user_id: club_member_ids).select(:id)
+    scope = Catch.where(id: placed_ids).or(Catch.where(id: review_ids))
+    # Bingo keeps no placements, so placed_ids can't surface a judged bingo
+    # tournament's clean (unflagged) catches. Add every entrant's in-window catch
+    # so the judge can still inspect/DQ them.
+    scope = scope.or(Catch.where(id: bingo_entrant_catch_ids)) if @tournament.format_bingo?
     # Eager-load the associations the index/show render per row: user + species
     # for the columns, catch_placements for visible_flags_for -> can_review_catch?,
     # and judge_actions for latest_approver. Without these the listing N+1s.
-    Catch.where(id: placed_ids).or(Catch.where(id: review_ids))
-         .includes(:user, :species, :catch_placements, :judge_actions)
+    scope.includes(:user, :species, :catch_placements, :judge_actions)
   end
 
   # Catch lookup for the detail page and correction actions. Broader than
@@ -66,10 +70,26 @@ class Judges::BaseController < ApplicationController
   def load_catch!
     placed_ids = CatchPlacement.where(tournament_id: @tournament.id).select(:catch_id)
     club_member_ids = @tournament.club.members.select(:id)
-    @catch = Catch.where(id: placed_ids)
-                  .or(Catch.where(status: :needs_review, user_id: club_member_ids))
-                  .or(Catch.where(status: :disqualified, user_id: club_member_ids))
-                  .includes(:user, :species, :catch_placements, :judge_actions)
+    scope = Catch.where(id: placed_ids)
+                 .or(Catch.where(status: :needs_review, user_id: club_member_ids))
+                 .or(Catch.where(status: :disqualified, user_id: club_member_ids))
+    # See judgeable_catches: a judged bingo tournament's clean catches are only
+    # reachable via the entrant/window lookup, not placements.
+    scope = scope.or(Catch.where(id: bingo_entrant_catch_ids)) if @tournament.format_bingo?
+    @catch = scope.includes(:user, :species, :catch_placements, :judge_actions)
                   .find(params[:catch_id] || params[:id])
+  end
+
+  # Bingo keeps no CatchPlacement rows, so the placement-based lookups above miss
+  # an entrant's clean catches. Reach them by entrant + tournament window,
+  # mirroring Catches::Bingo::EvaluateCard#load_catches.
+  def bingo_entrant_catch_ids
+    entrant_ids = TournamentEntryMember
+      .joins(:tournament_entry)
+      .where(tournament_entries: { tournament_id: @tournament.id })
+      .select(:user_id)
+    Catch.where(user_id: entrant_ids,
+                captured_at_device: @tournament.starts_at..@tournament.ends_at)
+         .select(:id)
   end
 end

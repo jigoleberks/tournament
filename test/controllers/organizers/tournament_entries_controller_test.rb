@@ -1,6 +1,8 @@
 require "test_helper"
 
 class Organizers::TournamentEntriesControllerTest < ActionDispatch::IntegrationTest
+  include ActionCable::TestHelper
+
   setup do
     @club = create(:club)
     @organizer = create(:user, club: @club, role: :organizer)
@@ -152,6 +154,39 @@ class Organizers::TournamentEntriesControllerTest < ActionDispatch::IntegrationT
       post organizers_tournament_tournament_entries_path(tournament_id: @solo.id),
            params: { tournament_entry: { member_user_ids: [@member.id] } }
       assert_empty enqueued
+    end
+  end
+
+  test "bingo: creating an entry does not rebroadcast existing anglers' cards" do
+    create_bingo_species!
+    bingo = create(:tournament, club: @club, mode: :solo, format: :bingo,
+                   starts_at: 1.hour.ago, ends_at: 1.hour.from_now)
+    existing = create(:tournament_entry, tournament: bingo)
+    create(:tournament_entry_member, tournament_entry: existing, user: @teammate)
+
+    assert_broadcasts("tournament:#{bingo.id}:leaderboard:full", 1) do
+      assert_broadcasts("bingo_card:#{bingo.id}:#{existing.id}", 0) do
+        post organizers_tournament_tournament_entries_path(tournament_id: bingo.id),
+             params: { tournament_entry: { member_user_ids: [@member.id] } }
+      end
+    end
+    new_entry = bingo.tournament_entries.where.not(id: existing.id).sole
+    assert_equal [@member], new_entry.users
+  end
+
+  test "bingo: destroying an entry does not rebroadcast sibling cards" do
+    create_bingo_species!
+    bingo = create(:tournament, club: @club, mode: :solo, format: :bingo,
+                   starts_at: 1.hour.ago, ends_at: 1.hour.from_now)
+    doomed = create(:tournament_entry, tournament: bingo)
+    create(:tournament_entry_member, tournament_entry: doomed, user: @member)
+    sibling = create(:tournament_entry, tournament: bingo)
+    create(:tournament_entry_member, tournament_entry: sibling, user: @teammate)
+
+    assert_broadcasts("tournament:#{bingo.id}:leaderboard:full", 1) do
+      assert_broadcasts("bingo_card:#{bingo.id}:#{sibling.id}", 0) do
+        delete organizers_tournament_tournament_entry_path(tournament_id: bingo.id, id: doomed.id)
+      end
     end
   end
 

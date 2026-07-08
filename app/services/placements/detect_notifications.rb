@@ -25,7 +25,7 @@ module Placements
           url: "/tournaments/#{row[:tournament].id}"
         }
       end
-      lead_changes.each do |row|
+      (lead_changes + bingo_lead_changes).each do |row|
         payloads << {
           user: row[:user],
           reason: "took_the_lead",
@@ -65,6 +65,15 @@ module Placements
         next [] unless leader_just_created
 
         new_leader_users.map { |u| { user: u, tournament: t } }
+      end
+    end
+
+    # Bingo lead changes are precomputed by PlaceInSlots (it holds the catch needed
+    # to tell whether a square was newly stamped) and handed over as
+    # result[:bingo_lead] = [{ tournament:, entry: }]. Expand to one row per angler.
+    def bingo_lead_changes
+      (@result[:bingo_lead] || []).flat_map do |row|
+        row[:entry].users.map { |u| { user: u, tournament: row[:tournament] } }
       end
     end
   end

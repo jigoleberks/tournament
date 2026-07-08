@@ -284,6 +284,20 @@ class Organizers::TournamentsControllerTest < ActionDispatch::IntegrationTest
     assert_equal [perch.id, pike.id, perch.id], created.train_cars
   end
 
+  test "organizer can create a bingo tournament with no scoring slots" do
+    sign_in_as(@organizer)
+    create_bingo_species!
+    assert_difference -> { Tournament.count }, 1 do
+      post organizers_tournaments_path, params: { tournament: {
+        name: "Bingo Night", format: "bingo", mode: "solo",
+        starts_at: 1.hour.from_now, ends_at: 4.hours.from_now
+      } }
+    end
+    t = Tournament.order(:id).last
+    assert t.format_bingo?
+    assert_equal 25, t.bingo_layout.size
+  end
+
   test "draw: organizer can trigger the tagged draw and is redirected with notice" do
     club = create(:club)
     organizer = create(:user, club: club, role: :organizer)

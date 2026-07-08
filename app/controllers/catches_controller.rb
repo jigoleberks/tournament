@@ -79,12 +79,18 @@ class CatchesController < ApplicationController
 
   def select_teammate
     @teammates = Tournaments::TeammatesAcross.call(user: current_user, club: current_club)
-    redirect_to(new_catch_path) and return if @teammates.empty?
+    redirect_to(select_species_catches_path) and return if @teammates.empty?
+  end
+
+  def select_species
+    @teammate_user_id = params[:teammate_user_id].presence
+    @species = Species.in_log_order
   end
 
   def new
     @teammate = resolve_teammate_or_redirect
     return if performed?
+    @selected_species = Species.find_by(id: params[:species_id]) if params[:species_id].present?
     angler = @teammate || current_user
     @catch = angler.catches.build(captured_at_device: Time.current,
                                   client_uuid: SecureRandom.uuid)

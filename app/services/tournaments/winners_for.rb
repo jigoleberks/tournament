@@ -27,7 +27,7 @@ module Tournaments
           placements: placements_by_tid[t.id] || [],
           total_capacity: capacity_by_tid[t.id] || 0
         )
-        h[t.id] = rows.reject { |r| r[:fish].empty? }.first&.dig(:entry)
+        h[t.id] = ::Leaderboards::QualifiedRows.call(tournament: t, rows: rows).first&.dig(:entry)
       end
     end
   end

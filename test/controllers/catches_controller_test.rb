@@ -725,15 +725,15 @@ class CatchesControllerTest < ActionDispatch::IntegrationTest
 
     get select_teammate_catches_path
     assert_response :success
-    assert_select "a[href=?]", new_catch_path, text: "Myself"
-    assert_select "a[href=?]", new_catch_path(teammate_user_id: teammate.id), text: "Boatmate"
+    assert_select "a[href=?]", select_species_catches_path, text: "Myself"
+    assert_select "a[href=?]", select_species_catches_path(teammate_user_id: teammate.id), text: "Boatmate"
     assert_no_match "Other Boat", response.body
   end
 
-  test "GET /catches/select_teammate redirects to new catch when the user has no teammates" do
+  test "GET /catches/select_teammate redirects to the species step when the user has no teammates" do
     # @tournament is solo by default, so the user has no team teammates.
     get select_teammate_catches_path
-    assert_redirected_to new_catch_path
+    assert_redirected_to select_species_catches_path
   end
 
   test "GET /catches/select_teammate aggregates teammates flat, with no tournament grouping" do
@@ -768,7 +768,7 @@ class CatchesControllerTest < ActionDispatch::IntegrationTest
 
     get select_teammate_catches_path
     assert_response :success
-    assert_select "a[href=?]", new_catch_path(teammate_user_id: mate.id), count: 1
+    assert_select "a[href=?]", select_species_catches_path(teammate_user_id: mate.id), count: 1
   end
 
   test "GET /catches/select_teammate shows only current-club teammates, not another club's" do
@@ -793,10 +793,30 @@ class CatchesControllerTest < ActionDispatch::IntegrationTest
     assert_no_match "Other Club Mate", response.body
   end
 
+  test "GET /catches/select_species lists species linking into the catch form" do
+    get select_species_catches_path
+    assert_response :success
+    first = Species.in_log_order.first
+    assert_select "a[href=?]", new_catch_path(species_id: first.id), text: first.name
+  end
+
+  test "GET /catches/select_species threads teammate_user_id onto the species links" do
+    @tournament.update!(mode: :team)
+    teammate = create(:user, club: @club, name: "Boatmate")
+    create(:tournament_entry_member, tournament_entry: @entry, user: teammate)
+
+    get select_species_catches_path(teammate_user_id: teammate.id)
+    assert_response :success
+    first = Species.in_log_order.first
+    assert_select "a[href=?]",
+                  new_catch_path(species_id: first.id, teammate_user_id: teammate.id),
+                  text: first.name
+  end
+
   test "tournament show routes 'Log Catch' to the form for a solo tournament" do
     get tournament_path(@tournament)
     assert_response :success
-    assert_select "a[href=?]", new_catch_path, text: "Log Catch"
+    assert_select "a[href=?]", select_species_catches_path, text: "Log Catch"
     assert_no_match "Log for teammate", response.body
   end
 
@@ -814,7 +834,7 @@ class CatchesControllerTest < ActionDispatch::IntegrationTest
     @tournament.update!(mode: :team)
     get tournament_path(@tournament)
     assert_response :success
-    assert_select "a[href=?]", new_catch_path, text: "Log Catch"
+    assert_select "a[href=?]", select_species_catches_path, text: "Log Catch"
     assert_no_match "Log for teammate", response.body
   end
 
@@ -833,7 +853,7 @@ class CatchesControllerTest < ActionDispatch::IntegrationTest
 
     get tournament_path(@tournament)
     assert_response :success
-    assert_select "a[href=?]", new_catch_path, text: "Log Catch"
+    assert_select "a[href=?]", select_species_catches_path, text: "Log Catch"
     assert_no_match "Log for teammate", response.body
   end
 
@@ -848,12 +868,59 @@ class CatchesControllerTest < ActionDispatch::IntegrationTest
     assert_match "Boatmate", response.body
   end
 
+  test "GET /catches/new with species_id and teammate_user_id threads teammate into the Change link" do
+    @tournament.update!(mode: :team)
+    teammate = create(:user, club: @club, name: "Boatmate")
+    create(:tournament_entry_member, tournament_entry: @entry, user: teammate)
+    species = Species.in_log_order.first
+    get new_catch_path(species_id: species.id, teammate_user_id: teammate.id)
+    assert_response :success
+    assert_select "a[href=?]", select_species_catches_path(teammate_user_id: teammate.id), text: "Change"
+  end
+
   test "GET /catches/new with foreign-club teammate redirects with alert" do
     other_club = create(:club)
     foreigner = create(:user, club: other_club)
     get new_catch_path(teammate_user_id: foreigner.id)
     assert_redirected_to new_catch_path
     assert_equal "Teammate not found.", flash[:alert]
+  end
+
+  test "GET /catches/new with a valid species_id assigns @selected_species" do
+    species = Species.in_log_order.first
+    get new_catch_path(species_id: species.id)
+    assert_response :success
+    assert_equal species, assigns(:selected_species)
+  end
+
+  test "GET /catches/new without species_id leaves @selected_species nil" do
+    get new_catch_path
+    assert_response :success
+    assert_nil assigns(:selected_species)
+  end
+
+  test "GET /catches/new with an unknown species_id leaves @selected_species nil" do
+    get new_catch_path(species_id: 0)
+    assert_response :success
+    assert_nil assigns(:selected_species)
+  end
+
+  test "GET /catches/new with species_id renders a read-only species banner and hidden select" do
+    species = Species.in_log_order.first
+    get new_catch_path(species_id: species.id)
+    assert_response :success
+    assert_select "a[href=?]", select_species_catches_path, text: "Change"
+    assert_match "Species:", response.body
+    # The select is still present (so the JS controller keeps working) but hidden.
+    assert_select "select#catch_species_id.hidden option[selected][value=?]",
+                  species.id.to_s, text: species.name
+  end
+
+  test "GET /catches/new without species_id renders the editable species dropdown" do
+    get new_catch_path
+    assert_response :success
+    assert_select "label[for=catch_species_id]", text: "Species"
+    assert_select "select#catch_species_id:not(.hidden)"
   end
 
   test "POST /catches with valid teammate files catch under teammate and stamps logger" do

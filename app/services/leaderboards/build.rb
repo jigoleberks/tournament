@@ -1,6 +1,10 @@
 module Leaderboards
   class Build
     def self.call(tournament:, entries: nil, placements: nil, total_capacity: nil)
+      if tournament.format_bingo?
+        return Leaderboards::Rankers::Bingo.call(bingo_rows(tournament, entries: entries))
+      end
+
       rows = build_rows(tournament, entries: entries, placements: placements, total_capacity: total_capacity)
       case tournament.format
       when "hidden_length"       then Leaderboards::Rankers::HiddenLength.call(rows, tournament: tournament)
@@ -65,5 +69,25 @@ module Leaderboards
     end
 
     private_class_method :build_rows
+
+    def self.bingo_rows(tournament, entries: nil)
+      entries = (entries || tournament.tournament_entries).to_a
+      # The bingo species ids are tournament-global; resolve them once and inject
+      # so EvaluateCard doesn't re-query Species for every entry. Likewise batch
+      # every entrant's in-window catches into two queries and inject them, rather
+      # than letting each EvaluateCard#load_catches re-query catches per entry.
+      species_ids = Catches::Bingo::EvaluateCard.species_id_map
+      catches_by_entry = Catches::Bingo::EvaluateCard.catches_by_entry(
+        tournament: tournament, entries: entries
+      )
+      entries.map do |entry|
+        result = Catches::Bingo::EvaluateCard.call(
+          tournament: tournament, entry: entry, species_ids: species_ids,
+          catches: catches_by_entry[entry.id]
+        )
+        { entry: entry, result: result }
+      end
+    end
+    private_class_method :bingo_rows
   end
 end

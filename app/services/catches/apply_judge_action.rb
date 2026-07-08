@@ -172,6 +172,15 @@ module Catches
         )
 
         affected_tournaments = @catch.catch_placements.includes(:tournament).map(&:tournament).uniq
+        # Bingo keeps no placements, so its tournaments never appear above. Union in
+        # every bingo tournament this catch is eligible for at its capture time so the
+        # card/leaderboard re-derive (and re-broadcast) after this edit.
+        bingo_tournaments = ::Tournament.format_bingo
+          .joins(tournament_entries: :tournament_entry_members)
+          .where(tournament_entry_members: { user_id: @catch.user_id })
+          .where("starts_at <= :at AND (ends_at IS NULL OR ends_at >= :at)", at: @catch.captured_at_device)
+          .distinct.to_a
+        affected_tournaments = (affected_tournaments + bingo_tournaments).uniq
         # A per-club editor edit only re-broadcasts its own club's leaderboards.
         affected_tournaments.select! { |t| t.club_id == @club.id } if @club
       end
@@ -179,7 +188,7 @@ module Catches
       # Broadcast AFTER the transaction commits so other DB connections see the
       # new state when they rebuild the leaderboard.
       affected_tournaments.each do |t|
-        Placements::BroadcastLeaderboard.call(tournament: t)
+        Placements::BroadcastLeaderboard.call(tournament: t, changed_entry_ids: bingo_changed_entry_ids(t))
       end
 
       # @notify_owner is only set by tournament-scoped actions (disqualify,
@@ -197,6 +206,18 @@ module Catches
     end
 
     private
+
+    # For a bingo tournament, the only card this edit changes is the one the catch's
+    # owner belongs to — return its entry id(s) so BroadcastLeaderboard rebroadcasts
+    # just that card. nil for non-bingo (the arg is ignored there).
+    def bingo_changed_entry_ids(tournament)
+      return nil unless tournament.format_bingo?
+      tournament.tournament_entries
+        .joins(:tournament_entry_members)
+        .where(tournament_entry_members: { user_id: @catch.user_id })
+        .pluck(:id)
+        .presence
+    end
 
     def notification_body
       species_name = @catch.species&.name

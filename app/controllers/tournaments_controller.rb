@@ -27,6 +27,21 @@ class TournamentsController < ApplicationController
     end
   end
 
+  def bingo_card
+    @tournament = current_club.tournaments.find(params[:id])
+    unless @tournament.format_bingo?
+      redirect_to tournament_path(@tournament) and return
+    end
+    @entry = @tournament.tournament_entries
+      .joins(:tournament_entry_members)
+      .find_by(tournament_entry_members: { user_id: current_user.id })
+    unless @entry
+      redirect_to tournament_path(@tournament),
+                  alert: "You're not entered in this tournament." and return
+    end
+    @result = Catches::Bingo::EvaluateCard.call(tournament: @tournament, entry: @entry)
+  end
+
   def archived
     @tournaments = current_club.tournaments
       .where("ends_at IS NOT NULL AND ends_at < ?", 24.hours.ago)

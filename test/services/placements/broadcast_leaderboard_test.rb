@@ -69,6 +69,38 @@ module Placements
       end
     end
 
+    test "bingo without changed_entry_ids: broadcasts every angler's card" do
+      create_bingo_species!
+      club = create(:club)
+      t = create(:tournament, club: club, format: :bingo, mode: :solo,
+                 starts_at: 1.hour.ago, ends_at: 1.hour.from_now)
+      e1 = create(:tournament_entry, tournament: t)
+      e2 = create(:tournament_entry, tournament: t)
+
+      assert_broadcasts("bingo_card:#{t.id}:#{e1.id}", 1) do
+        assert_broadcasts("bingo_card:#{t.id}:#{e2.id}", 1) do
+          BroadcastLeaderboard.call(tournament: t)
+        end
+      end
+    end
+
+    test "bingo with changed_entry_ids: only the changed angler's card rebroadcasts" do
+      create_bingo_species!
+      club = create(:club)
+      t = create(:tournament, club: club, format: :bingo, mode: :solo,
+                 starts_at: 1.hour.ago, ends_at: 1.hour.from_now)
+      e1 = create(:tournament_entry, tournament: t)
+      e2 = create(:tournament_entry, tournament: t)
+
+      assert_broadcasts("tournament:#{t.id}:leaderboard:full", 1) do
+        assert_broadcasts("bingo_card:#{t.id}:#{e1.id}", 1) do
+          assert_broadcasts("bingo_card:#{t.id}:#{e2.id}", 0) do
+            BroadcastLeaderboard.call(tournament: t, changed_entry_ids: [e1.id])
+          end
+        end
+      end
+    end
+
     test "ended non-blind tournament: does not broadcast to :reveal" do
       club = create(:club)
       walleye = create(:species, club: club)

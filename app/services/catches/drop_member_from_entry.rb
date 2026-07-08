@@ -24,7 +24,8 @@ module Catches
           freed.each { |p| ::Catches::ReconcileFreedSlot.call(placement: p) }
         end
       end
-      ::Placements::BroadcastLeaderboard.call(tournament: tournament)
+      # Only this entry's card changed (bingo); other anglers' cards are untouched.
+      ::Placements::BroadcastLeaderboard.call(tournament: tournament, changed_entry_ids: [@entry.id])
     end
   end
 end

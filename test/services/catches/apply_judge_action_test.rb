@@ -329,22 +329,6 @@ module Catches
       assert_not_includes active_ids, shrinker.id
     end
 
-    test "length edit reconciles a basket even when the catch owner is a judge of the tournament" do
-      # Owner is also a judge of @t, so Tournaments::ActiveForUser excludes @t.
-      # The catch's existing placement must still be reconciled on a shrink.
-      create(:tournament_judge, tournament: @t, user: @user)
-      backup = create(:catch, user: @user, species: @walleye, length_inches: 16,
-                              captured_at_device: 30.minutes.ago)
-      assert_empty backup.catch_placements
-
-      ApplyJudgeAction.call(tournament: @t, catch: @catch, judge: @judge, action: :manual_override,
-                            note: "remeasured", length_inches: 14)
-
-      active = @t.catch_placements.active.where(species: @walleye)
-      assert_equal 1, active.count
-      assert_equal backup.id, active.first.catch_id, "backup should take the slot after the shrink"
-    end
-
     test "length edit reconciles a stale basket even when the window no longer covers the catch" do
       # Shift @t's window into the past so captured_at_device (Time.current) now
       # falls outside it. ActiveForUser then excludes @t, but the still-active

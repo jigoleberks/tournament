@@ -19,13 +19,20 @@ require "factory_bot_rails"
 class ActiveSupport::TestCase
   include FactoryBot::Syntax::Methods
 
+  # The three canonical species the Bingo card references. Tournament validates
+  # they exist before a bingo tournament can be saved, so bingo tests must seed
+  # them (inherited by integration and system test cases too).
+  def create_bingo_species!
+    %w[Walleye Perch Pike].map { |n| Species.find_or_create_by!(name: n) }
+  end
+
   # Captures every Placements::BroadcastLeaderboard.call(tournament:) inside the
   # block and yields the array of tournament ids broadcast to. Restores the
   # original implementation in `ensure` so failures don't leak the stub.
   def with_broadcast_spy
     calls = []
     original = Placements::BroadcastLeaderboard.method(:call)
-    Placements::BroadcastLeaderboard.define_singleton_method(:call) { |tournament:| calls << tournament.id }
+    Placements::BroadcastLeaderboard.define_singleton_method(:call) { |tournament:, **| calls << tournament.id }
     begin
       yield calls
     ensure

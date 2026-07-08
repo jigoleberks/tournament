@@ -90,6 +90,7 @@ Rails.application.routes.draw do
 
   resources :tournaments, only: [:index, :show] do
     collection { get :archived }
+    get :bingo_card, on: :member
     scope module: :tournaments do
       resources :catches, only: [:show]
     end
@@ -98,6 +99,7 @@ Rails.application.routes.draw do
     collection do
       get :map
       get :select_teammate
+      get :select_species
     end
     member do
       patch :reference_photo

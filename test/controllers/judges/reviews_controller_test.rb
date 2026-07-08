@@ -37,10 +37,9 @@ class Judges::ReviewsControllerTest < ActionDispatch::IntegrationTest
   end
 
   test "POST approve on judge's own catch is rejected" do
-    own_entry = create(:tournament_entry, tournament: @t)
-    create(:tournament_entry_member, tournament_entry: own_entry, user: @judge)
+    # A judge can't be entered in their own tournament, but they're a club member,
+    # so a needs_review catch they logged still surfaces in the club-wide queue.
     own_catch = create(:catch, user: @judge, species: @walleye, length_inches: 22, status: :needs_review)
-    Catches::PlaceInSlots.call(catch: own_catch)
 
     post judges_tournament_catch_review_path(tournament_id: @t.id, catch_id: own_catch.id),
          params: { action_kind: "approve", note: "self" }

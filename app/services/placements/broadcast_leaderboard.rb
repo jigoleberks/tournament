@@ -7,8 +7,16 @@ module Placements
     # For a tagged tournament, partial_for routes to tagged_leaderboard so the
     # broadcast carries the ticket-count UI; DrawTaggedWinner also re-broadcasts
     # after a draw so the winner banner appears live.
-    def self.call(tournament:, leaderboard: nil)
+    # changed_entry_ids (bingo only): when the caller knows which entries actually
+    # changed, only those per-angler cards are rebroadcast. nil means "unknown" —
+    # rebroadcast every card (safe default for callers like add/drop-member).
+    def self.call(tournament:, leaderboard: nil, changed_entry_ids: nil)
       leaderboard ||= Leaderboards::Build.call(tournament: tournament)
+
+      if tournament.format_bingo?
+        broadcast_bingo(tournament, leaderboard, changed_entry_ids)
+        return
+      end
 
       if tournament.blind?(at: Time.current)
         broadcast_full(tournament, leaderboard)
@@ -49,6 +57,25 @@ module Placements
           viewer_scope: Leaderboards::ViewerScope::Scope.new(visibility: :own_entry_only, entry_id: entry_id)
         }
       )
+    end
+
+    def self.broadcast_bingo(tournament, leaderboard, changed_entry_ids = nil)
+      Turbo::StreamsChannel.broadcast_replace_to(
+        "tournament:#{tournament.id}:leaderboard:full",
+        target: "leaderboard",
+        partial: "tournaments/bingo_leaderboard",
+        locals: { leaderboard: leaderboard, tournament: tournament }
+      )
+      cards = leaderboard
+      cards = cards.select { |row| changed_entry_ids.include?(row[:entry].id) } if changed_entry_ids
+      cards.each do |row|
+        Turbo::StreamsChannel.broadcast_replace_to(
+          "bingo_card:#{tournament.id}:#{row[:entry].id}",
+          target: "bingo_card",
+          partial: "tournaments/bingo_card",
+          locals: { tournament: tournament, result: row[:result] }
+        )
+      end
     end
 
     def self.broadcast_reveal_full(tournament, leaderboard)
