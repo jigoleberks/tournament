@@ -868,6 +868,16 @@ class CatchesControllerTest < ActionDispatch::IntegrationTest
     assert_match "Boatmate", response.body
   end
 
+  test "GET /catches/new with species_id and teammate_user_id threads teammate into the Change link" do
+    @tournament.update!(mode: :team)
+    teammate = create(:user, club: @club, name: "Boatmate")
+    create(:tournament_entry_member, tournament_entry: @entry, user: teammate)
+    species = Species.in_log_order.first
+    get new_catch_path(species_id: species.id, teammate_user_id: teammate.id)
+    assert_response :success
+    assert_select "a[href=?]", select_species_catches_path(teammate_user_id: teammate.id), text: "Change"
+  end
+
   test "GET /catches/new with foreign-club teammate redirects with alert" do
     other_club = create(:club)
     foreigner = create(:user, club: other_club)
