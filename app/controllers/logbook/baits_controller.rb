@@ -13,14 +13,24 @@ class Logbook::BaitsController < ApplicationController
     @vocab = chip_vocab
   end
 
+  # JSON is the catch form's quick-add panel: it fetch-POSTs here mid-catch
+  # and slots the returned {id, name} straight into the bait dropdown.
   def create
     @bait = current_user.baits.build(bait_params)
     if @bait.save
-      redirect_to logbook_baits_path, notice: "Bait added."
+      respond_to do |format|
+        format.html { redirect_to logbook_baits_path, notice: "Bait added." }
+        format.json { render json: { id: @bait.id, name: @bait.display_name }, status: :created }
+      end
     else
-      flash.now[:alert] = @bait.errors.full_messages.to_sentence
-      @vocab = chip_vocab
-      render :new, status: :unprocessable_entity
+      respond_to do |format|
+        format.html do
+          flash.now[:alert] = @bait.errors.full_messages.to_sentence
+          @vocab = chip_vocab
+          render :new, status: :unprocessable_entity
+        end
+        format.json { render json: { errors: @bait.errors.full_messages }, status: :unprocessable_entity }
+      end
     end
   end
 
@@ -55,30 +65,8 @@ class Logbook::BaitsController < ApplicationController
     params.require(:bait).permit(:color, :weight, :lure_type, :bait_type, :plastic, :plastic_color)
   end
 
-  # Starter chips shown before the angler has built up their own vocabulary.
-  STARTER_VOCAB = {
-    colors:   ["white", "chartreuse", "orange", "pink", "blue", "green"],
-    lures:    ["jighead", "fireball"],
-    plastics: ["twister grub", "tube jig", "frog"],
-    tippings: ["minnow", "crawler", "leech"]
-  }.freeze
-
-  # Tap-chip options per attribute: everything this user has ever entered
-  # (archived combos included — retiring a combo shouldn't shrink the
-  # vocabulary), merged with the starters, deduped case-insensitively.
   def chip_vocab
-    baits = current_user.baits
-    {
-      colors:   merged_vocab(:colors, baits.pluck(:color) + baits.pluck(:plastic_color)),
-      lures:    merged_vocab(:lures, baits.pluck(:lure_type)),
-      plastics: merged_vocab(:plastics, baits.pluck(:plastic)),
-      tippings: merged_vocab(:tippings, baits.pluck(:bait_type))
-    }
-  end
-
-  def merged_vocab(key, values)
-    (values.map { |v| v.to_s.strip }.reject(&:blank?) + STARTER_VOCAB[key])
-      .uniq(&:downcase)
+    Bait.chip_vocab(current_user)
   end
 
   def ensure_logbook_enabled

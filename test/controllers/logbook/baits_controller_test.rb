@@ -48,6 +48,26 @@ class Logbook::BaitsControllerTest < ActionDispatch::IntegrationTest
     assert_response :unprocessable_entity
   end
 
+  test "POST /logbook/baits as JSON returns the id and display name for the quick-add panel" do
+    assert_difference -> { Bait.count } => 1 do
+      post logbook_baits_path, params: {
+        bait: { weight: "3/8 oz", color: "orange", lure_type: "fireball", bait_type: "minnow" }
+      }, as: :json
+    end
+    assert_response :created
+    body = JSON.parse(response.body)
+    assert_equal Bait.last.id, body["id"]
+    assert_equal "3/8 oz orange fireball + minnow", body["name"]
+  end
+
+  test "POST /logbook/baits as JSON returns errors for an empty bait" do
+    assert_no_difference -> { Bait.count } do
+      post logbook_baits_path, params: { bait: { color: "", weight: "" } }, as: :json
+    end
+    assert_response :unprocessable_entity
+    assert_includes JSON.parse(response.body)["errors"].join, "at least one"
+  end
+
   test "POST /logbook/baits persists the plastic and its colour" do
     assert_difference -> { Bait.count } => 1 do
       post logbook_baits_path, params: {

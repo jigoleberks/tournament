@@ -166,8 +166,48 @@
             <% end %>
           </select>
         </div>
-        <%= link_to "+ Add", new_logbook_bait_path, target: "_blank",
-                    class: "h-12 px-3 rounded-lg bg-slate-700 active:bg-slate-600 text-slate-100 text-sm leading-[3rem] whitespace-nowrap" %>
+        <button type="button" data-action="catch-form#toggleBaitQuickAdd"
+                data-test="bait-quick-add-toggle"
+                class="h-12 px-3 rounded-lg bg-slate-700 active:bg-slate-600 text-slate-100 text-sm whitespace-nowrap">+ New</button>
+      </div>
+
+      <%# Quick-add: compose and save a bait without ever leaving the catch.
+          Saves via fetch to /logbook/baits (JSON) and selects the new bait. %>
+      <div data-catch-form-target="baitQuickAdd" hidden
+           class="mt-3 bg-slate-800/60 border border-slate-700 rounded-lg p-3 space-y-4">
+        <p class="text-sm font-medium text-slate-200">New bait</p>
+        <% bait_vocab = Bait.chip_vocab(current_user) %>
+        <% [
+             ["Weight",                        "weight",        Bait::COMMON_WEIGHTS,   "e.g. 7/8 oz"],
+             ["Lure",                          "lure_type",     bait_vocab[:lures],     "e.g. crankbait"],
+             ["Lure colour",                   "color",         bait_vocab[:colors],    "e.g. blue/pink"],
+             ["Plastic (optional)",            "plastic",       bait_vocab[:plastics],  "e.g. paddle tail"],
+             ["Plastic colour (optional)",     "plastic_color", bait_vocab[:colors],    "e.g. motor oil"],
+             ["Bait / tipping (optional)",     "bait_type",     bait_vocab[:tippings],  "e.g. jumbo minnow"],
+           ].each do |chip_label, field, chips, placeholder| %>
+          <div data-controller="chip-picker">
+            <label class="block text-sm text-slate-300 mb-1"><%= chip_label %></label>
+            <div class="flex flex-wrap gap-2">
+              <% chips.each do |v| %>
+                <button type="button" data-chip-picker-target="chip" data-action="chip-picker#pick" data-value="<%= v %>"
+                        class="px-3 h-10 rounded-full bg-slate-700 active:bg-slate-600 text-slate-100 text-sm"><%= v %></button>
+              <% end %>
+              <button type="button" data-chip-picker-target="otherButton" data-action="chip-picker#other"
+                      class="px-3 h-10 rounded-full border border-dashed border-slate-500 text-slate-400 text-sm">Other…</button>
+            </div>
+            <input type="text" data-bait-field="<%= field %>" placeholder="<%= placeholder %>"
+                   data-chip-picker-target="input"
+                   class="hidden w-full h-12 px-3 mt-2 rounded-lg bg-slate-800 border border-slate-700 text-base text-slate-100">
+          </div>
+        <% end %>
+        <p data-catch-form-target="baitQuickAddStatus" class="text-amber-300 text-sm"></p>
+        <div class="flex gap-2">
+          <button type="button" data-action="catch-form#cancelBaitQuickAdd"
+                  class="flex-1 h-12 px-4 rounded-lg bg-slate-700 active:bg-slate-600 text-slate-100">Cancel</button>
+          <button type="button" data-action="catch-form#saveBaitQuickAdd"
+                  data-catch-form-target="baitQuickAddSave" data-test="bait-quick-add-save"
+                  class="flex-1 h-12 px-4 rounded-lg bg-blue-600 active:bg-blue-700 text-white font-semibold">Save bait</button>
+        </div>
       </div>
 
       <label for="catch_water_depth_feet" class="block text-sm font-medium text-slate-300 mt-4 mb-1">Water depth (ft)</label>

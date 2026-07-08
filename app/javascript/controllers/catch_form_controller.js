@@ -4,7 +4,8 @@ import { convertLength, snapToGrid } from "lib/length_convert"
 
 export default class extends Controller {
   static targets = ["speciesSelect", "lengthInput", "lengthLabel", "noteInput", "submitButton", "status", "tagWrapper", "tagInput", "weightInput",
-                    "step1", "step2", "baitSelect", "waterDepthInput", "waterTempInput", "structureSelect", "recentBait"]
+                    "step1", "step2", "baitSelect", "waterDepthInput", "waterTempInput", "structureSelect", "recentBait",
+                    "baitQuickAdd", "baitQuickAddStatus", "baitQuickAddSave"]
   static values = { csrfToken: String, capsBySpeciesId: Object, teammateUserId: String, taggedSpeciesId: String }
 
   connect() {
@@ -97,6 +98,61 @@ export default class extends Controller {
       chip.classList.toggle("text-white", active)
       chip.classList.toggle("bg-slate-700", !active)
       chip.classList.toggle("text-slate-100", !active)
+    })
+  }
+
+  toggleBaitQuickAdd() {
+    this.baitQuickAddTarget.hidden = !this.baitQuickAddTarget.hidden
+  }
+
+  cancelBaitQuickAdd() {
+    this._clearBaitQuickAdd()
+    this.baitQuickAddTarget.hidden = true
+  }
+
+  // Save the composed bait without leaving the catch: POST as JSON, slot the
+  // new bait into the dropdown, select it, and fold the panel away.
+  async saveBaitQuickAdd() {
+    const fields = {}
+    this.baitQuickAddTarget.querySelectorAll("[data-bait-field]").forEach(input => {
+      fields[input.dataset.baitField] = input.value.trim()
+    })
+    if (!Object.values(fields).some(v => v)) {
+      this.baitQuickAddStatusTarget.textContent = "Pick or type at least one piece first."
+      return
+    }
+
+    this.baitQuickAddSaveTarget.disabled = true
+    try {
+      const resp = await fetch("/logbook/baits", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "Accept": "application/json", "X-CSRF-Token": this.csrfTokenValue },
+        body: JSON.stringify({ bait: fields }),
+        credentials: "same-origin"
+      })
+      const body = await resp.json().catch(() => ({}))
+      if (!resp.ok) {
+        this.baitQuickAddStatusTarget.textContent = body.errors?.join(", ") || "Couldn't save the bait — try again."
+        return
+      }
+      this.baitSelectTarget.add(new Option(body.name, body.id, true, true))
+      this.syncRecentBaitChips()
+      this._clearBaitQuickAdd()
+      this.baitQuickAddTarget.hidden = true
+    } catch (_) {
+      this.baitQuickAddStatusTarget.textContent = "No connection — new baits need to be saved online."
+    } finally {
+      this.baitQuickAddSaveTarget.disabled = false
+    }
+  }
+
+  _clearBaitQuickAdd() {
+    this.baitQuickAddStatusTarget.textContent = ""
+    this.baitQuickAddTarget.querySelectorAll("[data-bait-field]").forEach(input => {
+      input.value = ""
+      // Lets each chip-picker clear its highlight and re-hide its text field.
+      input.dispatchEvent(new Event("input", { bubbles: true }))
+      input.classList.add("hidden")
     })
   }
 

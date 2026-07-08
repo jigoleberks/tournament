@@ -17,6 +17,34 @@ class Bait < ApplicationRecord
     "3/8 oz", "1/2 oz", "5/8 oz", "3/4 oz", "1 oz"
   ].freeze
 
+  # Starter chips shown before the angler has built up their own vocabulary.
+  STARTER_VOCAB = {
+    colors:   ["white", "chartreuse", "orange", "pink", "blue", "green"],
+    lures:    ["jighead", "fireball"],
+    plastics: ["twister grub", "tube jig", "frog"],
+    tippings: ["minnow", "crawler", "leech"]
+  }.freeze
+
+  # Tap-chip options per attribute: everything this user has ever entered
+  # (archived combos included — retiring a combo shouldn't shrink the
+  # vocabulary), merged with the starters, deduped case-insensitively.
+  # Shared by the bait form and the catch form's quick-add panel.
+  def self.chip_vocab(user)
+    baits = user.baits
+    {
+      colors:   merged_vocab(:colors, baits.pluck(:color) + baits.pluck(:plastic_color)),
+      lures:    merged_vocab(:lures, baits.pluck(:lure_type)),
+      plastics: merged_vocab(:plastics, baits.pluck(:plastic)),
+      tippings: merged_vocab(:tippings, baits.pluck(:bait_type))
+    }
+  end
+
+  def self.merged_vocab(key, values)
+    (values.map { |v| v.to_s.strip }.reject(&:blank?) + STARTER_VOCAB[key])
+      .uniq(&:downcase)
+  end
+  private_class_method :merged_vocab
+
   def archived?
     archived_at.present?
   end
