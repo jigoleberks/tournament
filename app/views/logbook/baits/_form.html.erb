@@ -1,35 +1,107 @@
-<%= form_with model: [:logbook, @bait], local: true, class: "space-y-4" do |f| %>
+<%= form_with model: [:logbook, @bait], local: true, class: "space-y-5",
+              data: { controller: "bait-preview", action: "input->bait-preview#refresh" } do |f| %>
   <% if @bait.errors.any? %>
     <div class="bg-red-900/40 border border-red-700 rounded p-3 text-sm text-red-200">
       <%= @bait.errors.full_messages.to_sentence %>
     </div>
   <% end %>
 
-  <div>
-    <%= f.label :color, class: "block text-slate-300 mb-1" %>
-    <%= f.text_field :color, placeholder: "e.g. orange, blue/pink",
-                     class: "w-full h-12 px-3 rounded-lg bg-slate-800 border border-slate-700 text-slate-100" %>
+  <div class="bg-slate-800/60 border border-slate-700 rounded-lg p-3">
+    <p class="text-xs text-slate-400 mb-1">Your bait</p>
+    <p data-bait-preview-target="name" class="text-base text-slate-100 font-medium"></p>
   </div>
 
-  <div>
-    <%= f.label :weight, class: "block text-slate-300 mb-1" %>
-    <%= f.text_field :weight, placeholder: "e.g. 3/8 oz",
-                     class: "w-full h-12 px-3 rounded-lg bg-slate-800 border border-slate-700 text-slate-100" %>
+  <div data-controller="chip-picker">
+    <label class="block text-slate-300 mb-1">Weight</label>
+    <div class="flex flex-wrap gap-2">
+      <% Bait::COMMON_WEIGHTS.each do |w| %>
+        <button type="button" data-chip-picker-target="chip" data-action="chip-picker#pick" data-value="<%= w %>"
+                class="px-3 h-10 rounded-full bg-slate-700 active:bg-slate-600 text-slate-100 text-sm"><%= w %></button>
+      <% end %>
+      <button type="button" data-chip-picker-target="otherButton" data-action="chip-picker#other"
+              class="px-3 h-10 rounded-full border border-dashed border-slate-500 text-slate-400 text-sm">Other…</button>
+    </div>
+    <%= f.text_field :weight, placeholder: "e.g. 7/8 oz",
+                     data: { chip_picker_target: "input", bait_preview_target: "weight", action: "input->chip-picker#typed" },
+                     class: "hidden w-full h-12 px-3 mt-2 rounded-lg bg-slate-800 border border-slate-700 text-slate-100" %>
   </div>
 
-  <div>
-    <%= f.label :lure_type, "Lure type", class: "block text-slate-300 mb-1" %>
-    <%= f.text_field :lure_type, placeholder: "e.g. fireball, jighead, crankbait",
-                     class: "w-full h-12 px-3 rounded-lg bg-slate-800 border border-slate-700 text-slate-100" %>
+  <div data-controller="chip-picker">
+    <label class="block text-slate-300 mb-1">Lure</label>
+    <div class="flex flex-wrap gap-2">
+      <% @vocab[:lures].each do |v| %>
+        <button type="button" data-chip-picker-target="chip" data-action="chip-picker#pick" data-value="<%= v %>"
+                class="px-3 h-10 rounded-full bg-slate-700 active:bg-slate-600 text-slate-100 text-sm"><%= v %></button>
+      <% end %>
+      <button type="button" data-chip-picker-target="otherButton" data-action="chip-picker#other"
+              class="px-3 h-10 rounded-full border border-dashed border-slate-500 text-slate-400 text-sm">Other…</button>
+    </div>
+    <%= f.text_field :lure_type, placeholder: "e.g. crankbait",
+                     data: { chip_picker_target: "input", bait_preview_target: "lure", action: "input->chip-picker#typed" },
+                     class: "hidden w-full h-12 px-3 mt-2 rounded-lg bg-slate-800 border border-slate-700 text-slate-100" %>
   </div>
 
-  <div>
-    <%= f.label :bait_type, "Bait / tipping", class: "block text-slate-300 mb-1" %>
-    <%= f.text_field :bait_type, placeholder: "e.g. minnow, jumbo minnow, curly tail plastic",
-                     class: "w-full h-12 px-3 rounded-lg bg-slate-800 border border-slate-700 text-slate-100" %>
+  <div data-controller="chip-picker">
+    <label class="block text-slate-300 mb-1">Lure colour</label>
+    <div class="flex flex-wrap gap-2">
+      <% @vocab[:colors].each do |v| %>
+        <button type="button" data-chip-picker-target="chip" data-action="chip-picker#pick" data-value="<%= v %>"
+                class="px-3 h-10 rounded-full bg-slate-700 active:bg-slate-600 text-slate-100 text-sm"><%= v %></button>
+      <% end %>
+      <button type="button" data-chip-picker-target="otherButton" data-action="chip-picker#other"
+              class="px-3 h-10 rounded-full border border-dashed border-slate-500 text-slate-400 text-sm">Other…</button>
+    </div>
+    <%= f.text_field :color, placeholder: "e.g. blue/pink",
+                     data: { chip_picker_target: "input", bait_preview_target: "color", action: "input->chip-picker#typed" },
+                     class: "hidden w-full h-12 px-3 mt-2 rounded-lg bg-slate-800 border border-slate-700 text-slate-100" %>
   </div>
 
-  <p class="text-xs text-slate-400">At least one field is required. Whichever you fill in shows up in the bait picker.</p>
+  <div data-controller="chip-picker">
+    <label class="block text-slate-300 mb-1">Plastic <span class="text-slate-500">(optional)</span></label>
+    <div class="flex flex-wrap gap-2">
+      <% @vocab[:plastics].each do |v| %>
+        <button type="button" data-chip-picker-target="chip" data-action="chip-picker#pick" data-value="<%= v %>"
+                class="px-3 h-10 rounded-full bg-slate-700 active:bg-slate-600 text-slate-100 text-sm"><%= v %></button>
+      <% end %>
+      <button type="button" data-chip-picker-target="otherButton" data-action="chip-picker#other"
+              class="px-3 h-10 rounded-full border border-dashed border-slate-500 text-slate-400 text-sm">Other…</button>
+    </div>
+    <%= f.text_field :plastic, placeholder: "e.g. paddle tail",
+                     data: { chip_picker_target: "input", bait_preview_target: "plastic", action: "input->chip-picker#typed" },
+                     class: "hidden w-full h-12 px-3 mt-2 rounded-lg bg-slate-800 border border-slate-700 text-slate-100" %>
+  </div>
+
+  <div data-controller="chip-picker">
+    <label class="block text-slate-300 mb-1">Plastic colour <span class="text-slate-500">(optional)</span></label>
+    <div class="flex flex-wrap gap-2">
+      <% @vocab[:colors].each do |v| %>
+        <button type="button" data-chip-picker-target="chip" data-action="chip-picker#pick" data-value="<%= v %>"
+                class="px-3 h-10 rounded-full bg-slate-700 active:bg-slate-600 text-slate-100 text-sm"><%= v %></button>
+      <% end %>
+      <button type="button" data-chip-picker-target="otherButton" data-action="chip-picker#other"
+              class="px-3 h-10 rounded-full border border-dashed border-slate-500 text-slate-400 text-sm">Other…</button>
+    </div>
+    <%= f.text_field :plastic_color, placeholder: "e.g. motor oil",
+                     data: { chip_picker_target: "input", bait_preview_target: "plasticColor", action: "input->chip-picker#typed" },
+                     class: "hidden w-full h-12 px-3 mt-2 rounded-lg bg-slate-800 border border-slate-700 text-slate-100" %>
+  </div>
+
+  <div data-controller="chip-picker">
+    <label class="block text-slate-300 mb-1">Bait / tipping <span class="text-slate-500">(optional)</span></label>
+    <div class="flex flex-wrap gap-2">
+      <% @vocab[:tippings].each do |v| %>
+        <button type="button" data-chip-picker-target="chip" data-action="chip-picker#pick" data-value="<%= v %>"
+                class="px-3 h-10 rounded-full bg-slate-700 active:bg-slate-600 text-slate-100 text-sm"><%= v %></button>
+      <% end %>
+      <button type="button" data-chip-picker-target="otherButton" data-action="chip-picker#other"
+              class="px-3 h-10 rounded-full border border-dashed border-slate-500 text-slate-400 text-sm">Other…</button>
+    </div>
+    <%= f.text_field :bait_type, placeholder: "e.g. jumbo minnow",
+                     data: { chip_picker_target: "input", bait_preview_target: "tipping", action: "input->chip-picker#typed" },
+                     class: "hidden w-full h-12 px-3 mt-2 rounded-lg bg-slate-800 border border-slate-700 text-slate-100" %>
+  </div>
+
+  <p class="text-xs text-slate-400">Tap to pick, tap again to clear, "Other…" to type something new. New entries show up as chips next time.</p>
 
   <div class="flex gap-2">
     <%= f.submit (@bait.persisted? ? "Save bait" : "Add bait"),

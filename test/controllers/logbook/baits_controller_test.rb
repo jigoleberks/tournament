@@ -48,6 +48,18 @@ class Logbook::BaitsControllerTest < ActionDispatch::IntegrationTest
     assert_response :unprocessable_entity
   end
 
+  test "POST /logbook/baits persists the plastic and its colour" do
+    assert_difference -> { Bait.count } => 1 do
+      post logbook_baits_path, params: {
+        bait: { weight: "1/4 oz", lure_type: "jighead", plastic: "tube jig", plastic_color: "pink" }
+      }
+    end
+    bait = Bait.last
+    assert_equal "tube jig", bait.plastic
+    assert_equal "pink", bait.plastic_color
+    assert_redirected_to logbook_baits_path
+  end
+
   test "PATCH /logbook/baits/:id updates the bait" do
     bait = create(:bait, user: @user, color: "orange")
     patch logbook_bait_path(bait), params: { bait: { color: "blue" } }

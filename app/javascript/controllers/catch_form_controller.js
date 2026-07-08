@@ -4,7 +4,7 @@ import { convertLength, snapToGrid } from "lib/length_convert"
 
 export default class extends Controller {
   static targets = ["speciesSelect", "lengthInput", "lengthLabel", "noteInput", "submitButton", "status", "tagWrapper", "tagInput", "weightInput",
-                    "step1", "step2", "baitSelect", "waterDepthInput", "waterTempInput", "structureSelect"]
+                    "step1", "step2", "baitSelect", "waterDepthInput", "waterTempInput", "structureSelect", "recentBait"]
   static values = { csrfToken: String, capsBySpeciesId: Object, teammateUserId: String, taggedSpeciesId: String }
 
   connect() {
@@ -79,6 +79,25 @@ export default class extends Controller {
     if (event) event.preventDefault()
     if (this.hasStep2Target) this.step2Target.hidden = true
     if (this.hasStep1Target) this.step1Target.hidden = false
+  }
+
+  // "Same jig as last cast" in one tap: a recent-bait chip sets the select;
+  // tapping the active chip clears it again.
+  pickRecentBait(event) {
+    const id = String(event.params.baitId)
+    this.baitSelectTarget.value = this.baitSelectTarget.value === id ? "" : id
+    this.syncRecentBaitChips()
+  }
+
+  syncRecentBaitChips() {
+    const selected = this.baitSelectTarget.value
+    this.recentBaitTargets.forEach(chip => {
+      const active = String(chip.dataset.catchFormBaitIdParam) === selected
+      chip.classList.toggle("bg-blue-600", active)
+      chip.classList.toggle("text-white", active)
+      chip.classList.toggle("bg-slate-700", !active)
+      chip.classList.toggle("text-slate-100", !active)
+    })
   }
 
   async submit(event) {

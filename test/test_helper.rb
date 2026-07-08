@@ -1,4 +1,8 @@
 ENV["RAILS_ENV"] ||= "test"
+# LOGBOOK_ENABLED is per-deployment config; a dev box with it in .env would
+# otherwise flip every catch form in the suite into the two-step logbook flow.
+# Tests that exercise the logbook set (and restore) it explicitly.
+ENV.delete("LOGBOOK_ENABLED")
 require_relative "../config/environment"
 require "rails/test_help"
 

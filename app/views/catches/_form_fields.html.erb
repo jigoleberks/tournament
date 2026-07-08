@@ -10,6 +10,10 @@
 <% teammate  = local_assigns.fetch(:teammate, nil) %>
 <% logbook   = !offline && logbook_enabled? %>
 <% available_baits = (logbook && current_user) ? current_user.baits.active.order(:created_at) : [] %>
+<% recent_bait_ids = (logbook && current_user) ?
+     current_user.catches.where.not(bait_id: nil).order(captured_at_device: :desc).limit(25).pluck(:bait_id).uniq.first(4) : [] %>
+<% baits_by_id = available_baits.index_by(&:id) %>
+<% recent_baits = recent_bait_ids.filter_map { |id| baits_by_id[id] } %>
 <% all_species = Species.in_log_order %>
 <% default_species = all_species.find { |s| s.name.casecmp?("walleye") } || all_species.first %>
 <% length_caps = all_species.each_with_object({}) do |s, h|
@@ -138,10 +142,23 @@
       <h2 class="text-xl font-semibold mt-2 mb-2">Trip details</h2>
       <p class="text-sm text-slate-400 mb-4">All fields optional — fill in what you know.</p>
 
+      <% if recent_baits.any? %>
+        <label class="block text-sm font-medium text-slate-300 mb-1">Recent baits</label>
+        <div class="flex flex-wrap gap-2 mb-3">
+          <% recent_baits.each do |b| %>
+            <button type="button" data-catch-form-target="recentBait"
+                    data-catch-form-bait-id-param="<%= b.id %>"
+                    data-action="catch-form#pickRecentBait"
+                    class="px-3 h-10 rounded-full bg-slate-700 active:bg-slate-600 text-slate-100 text-sm"><%= b.display_name %></button>
+          <% end %>
+        </div>
+      <% end %>
+
       <div class="flex items-end gap-2">
         <div class="flex-1">
           <label for="catch_bait_id" class="block text-sm font-medium text-slate-300 mb-1">Bait</label>
           <select id="catch_bait_id" data-catch-form-target="baitSelect"
+                  data-action="change->catch-form#syncRecentBaitChips"
                   class="w-full h-12 px-3 rounded-lg bg-slate-800 border border-slate-700 text-base text-slate-100">
             <option value="">No bait selected</option>
             <% available_baits.each do |b| %>

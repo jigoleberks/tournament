@@ -63,6 +63,22 @@ class BaitTest < ActiveSupport::TestCase
     assert_equal "green", bait.display_name
   end
 
+  test "display_name renders the plastic as its own group with its own colour" do
+    bait = Bait.new(user: @user, weight: "1/4 oz", color: "chartreuse", lure_type: "jighead",
+                    plastic: "tube jig", plastic_color: "pink", bait_type: "minnow")
+    assert_equal "1/4 oz chartreuse jighead + pink tube jig + minnow", bait.display_name
+  end
+
+  test "display_name handles a plastic-only bait" do
+    bait = Bait.new(user: @user, plastic: "twister grub", plastic_color: "white")
+    assert_equal "white twister grub", bait.display_name
+  end
+
+  test "valid when only a plastic is set" do
+    bait = Bait.new(user: @user, plastic: "frog")
+    assert bait.valid?
+  end
+
   test "archive! sets archived_at and archived? reflects it" do
     bait = create(:bait, user: @user)
     assert_not bait.archived?
