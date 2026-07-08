@@ -36,7 +36,7 @@ Rails.application.routes.draw do
         get  :code
       end
     end
-    resources :catches, only: [:index]
+    resources :catches, only: [:index, :show, :update]
     resources :tournament_templates do
       member { post :clone }
     end
@@ -76,7 +76,7 @@ Rails.application.routes.draw do
         get    :code
       end
     end
-    resources :catches, only: [:index]
+    resources :catches, only: [:index, :show, :update]
     resources :tournament_templates do
       member { post :clone }
     end

@@ -348,6 +348,23 @@ class Organizers::TournamentsControllerTest < ActionDispatch::IntegrationTest
     end
   end
 
+  test "creates a pro_walleye tournament with a forced 5-count Walleye slot" do
+    sign_in_as(@organizer)
+    walleye = create(:species, club: @club, name: "Walleye")
+    assert_difference -> { Tournament.count } => 1, -> { ScoringSlot.count } => 1 do
+      post organizers_tournaments_path, params: {
+        tournament: {
+          name: "Sask Slot Limit", mode: "team", format: "pro_walleye",
+          starts_at: 1.hour.from_now, ends_at: 3.hours.from_now,
+          scoring_slots_attributes: { "0" => { species_id: walleye.id, slot_count: "1" } }
+        }
+      }
+    end
+    t = Tournament.order(:id).last
+    assert t.format_pro_walleye?
+    assert_equal 5, t.scoring_slots.sole.slot_count
+  end
+
   private
 
   def sign_in_as(user)

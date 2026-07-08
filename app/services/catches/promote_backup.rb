@@ -16,7 +16,7 @@ module Catches
 
     def call
       ActiveRecord::Base.transaction do
-        @entry.lock!  # serialize with PlaceInSlots / RebalanceSlots on the same entry
+        @entry.lock!  # serialize with PlaceInSlots / ReconcileStandard on the same entry
 
         candidate = find_candidate
         return nil if candidate.nil?

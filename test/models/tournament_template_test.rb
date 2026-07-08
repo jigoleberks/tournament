@@ -264,4 +264,23 @@ class TournamentTemplateTest < ActiveSupport::TestCase
     tpl.tournament_template_scoring_slots.build(species: tagged, slot_count: 1)
     assert tpl.valid?, tpl.errors.full_messages.to_sentence
   end
+
+  test "pro_walleye template requires one Walleye scoring slot" do
+    club = create(:club)
+    walleye = create(:species, name: "Walleye")
+    tmpl = build(:tournament_template, club: club, format: :pro_walleye, mode: :team)
+    assert_not tmpl.valid?
+    tmpl.tournament_template_scoring_slots.build(species: walleye, slot_count: 5)
+    assert tmpl.valid?, tmpl.errors.full_messages.to_sentence
+  end
+
+  test "pro_walleye template pins its scoring slot to the basket size" do
+    walleye = create(:species, name: "Walleye")
+    tmpl = build(:tournament_template, club: @club, format: :pro_walleye, mode: :team)
+    # The slot_count field is "ignored" in the UI; whatever is entered, the basket
+    # is a fixed 5 (matching Tournament#force_pro_walleye_slot_count).
+    tmpl.tournament_template_scoring_slots.build(species: walleye, slot_count: 3)
+    tmpl.save!
+    assert_equal Catches::ProWalleye::BASKET_SIZE, tmpl.tournament_template_scoring_slots.first.slot_count
+  end
 end

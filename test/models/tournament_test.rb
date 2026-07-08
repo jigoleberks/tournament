@@ -205,6 +205,66 @@ class TournamentTest < ActiveSupport::TestCase
     assert t.valid?, t.errors.full_messages.to_sentence
   end
 
+  test "a scoring slot's quantity cannot be changed after the tournament has started" do
+    species = create(:species)
+    t = create(:tournament, club: @club, format: :standard, mode: :solo,
+               starts_at: 1.hour.ago, ends_at: 1.hour.from_now)
+    slot = create(:scoring_slot, tournament: t, species: species, slot_count: 2)
+
+    t.reload
+    t.scoring_slots_attributes = [{ id: slot.id, species_id: species.id, slot_count: 5 }]
+    assert_not t.valid?
+    assert_includes t.errors[:scoring_slots], "can't be changed once the tournament has started"
+  end
+
+  test "a scoring slot cannot be removed after the tournament has started" do
+    species = create(:species)
+    t = create(:tournament, club: @club, format: :standard, mode: :solo,
+               starts_at: 1.hour.ago, ends_at: 1.hour.from_now)
+    slot = create(:scoring_slot, tournament: t, species: species, slot_count: 2)
+
+    t.reload
+    t.scoring_slots_attributes = [{ id: slot.id, _destroy: "1" }]
+    assert_not t.valid?
+    assert_includes t.errors[:scoring_slots], "can't be changed once the tournament has started"
+  end
+
+  test "a scoring slot cannot be added after the tournament has started" do
+    a = create(:species)
+    b = create(:species)
+    t = create(:tournament, club: @club, format: :standard, mode: :solo,
+               starts_at: 1.hour.ago, ends_at: 1.hour.from_now)
+    create(:scoring_slot, tournament: t, species: a, slot_count: 2)
+
+    t.reload
+    t.scoring_slots_attributes = [{ species_id: b.id, slot_count: 1 }]
+    assert_not t.valid?
+    assert_includes t.errors[:scoring_slots], "can't be changed once the tournament has started"
+  end
+
+  test "scoring slots can be changed before the tournament starts" do
+    species = create(:species)
+    t = create(:tournament, club: @club, format: :standard, mode: :solo,
+               starts_at: 1.hour.from_now, ends_at: 4.hours.from_now)
+    slot = create(:scoring_slot, tournament: t, species: species, slot_count: 2)
+
+    t.reload
+    t.scoring_slots_attributes = [{ id: slot.id, species_id: species.id, slot_count: 5 }]
+    assert t.valid?, t.errors.full_messages.to_sentence
+  end
+
+  test "a started tournament still saves when its scoring slots are untouched" do
+    species = create(:species)
+    t = create(:tournament, club: @club, format: :standard, mode: :solo,
+               starts_at: 1.hour.ago, ends_at: 1.hour.from_now)
+    create(:scoring_slot, tournament: t, species: species, slot_count: 2)
+
+    t.reload
+    t.name = "Renamed mid-tournament"
+    assert t.valid?, t.errors.full_messages.to_sentence
+    assert t.save
+  end
+
   test "format enum includes hidden_length" do
     t = build(:tournament, club: @club, format: :hidden_length, mode: :solo,
               ends_at: 2.hours.from_now)
@@ -515,5 +575,48 @@ class TournamentTest < ActiveSupport::TestCase
 
     assert t.valid?, t.errors.full_messages.to_sentence
     assert t.format_smallest_fish?
+  end
+
+  test "pro_walleye requires exactly one Walleye scoring slot" do
+    club = create(:club)
+    walleye = create(:species, name: "Walleye")
+    pike = create(:species, name: "Pike")
+
+    t = build(:tournament, club: club, format: :pro_walleye, mode: :team,
+              starts_at: 1.hour.ago, ends_at: 1.hour.from_now)
+    assert_not t.valid?, "no slot => invalid"
+
+    t.scoring_slots.build(species: pike, slot_count: 1)
+    assert_not t.valid?, "wrong species => invalid"
+
+    t = build(:tournament, club: club, format: :pro_walleye, mode: :solo,
+              starts_at: 1.hour.ago, ends_at: 1.hour.from_now)
+    t.scoring_slots.build(species: walleye, slot_count: 1)
+    assert t.valid?, t.errors.full_messages.to_sentence
+  end
+
+  test "pro_walleye forces the Walleye slot count to 5" do
+    club = create(:club)
+    walleye = create(:species, name: "Walleye")
+    t = build(:tournament, club: club, format: :pro_walleye, mode: :team,
+              starts_at: 1.hour.ago, ends_at: 1.hour.from_now)
+    t.scoring_slots.build(species: walleye, slot_count: 1)
+    t.save!
+    assert_equal 5, t.scoring_slots.sole.slot_count
+  end
+
+  test "supports_forced_slot? only for slot-based formats where a forced placement is durable" do
+    # Slot-based top-N / append-only formats: slot_index is a meaningful position
+    # and no whole-basket re-derive silently reverts a manual force.
+    %i[standard big_fish_season fish_train].each do |fmt|
+      assert build(:tournament, club: @club, format: fmt).supports_forced_slot?,
+             "#{fmt} should support forced slot placement"
+    end
+    # Re-derive-from-length formats (basket is derived, not positioned) and the
+    # every-catch formats: a forced slot is meaningless and/or reverted.
+    %i[hidden_length biggest_vs_smallest tagged smallest_fish pro_walleye].each do |fmt|
+      assert_not build(:tournament, club: @club, format: fmt).supports_forced_slot?,
+                 "#{fmt} should not support forced slot placement"
+    end
   end
 end

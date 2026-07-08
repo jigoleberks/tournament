@@ -9,6 +9,7 @@ module Leaderboards
       when "fish_train"          then Leaderboards::Rankers::FishTrain.call(rows)
       when "tagged"              then Leaderboards::Rankers::Tagged.call(rows)
       when "smallest_fish"       then Leaderboards::Rankers::SmallestFish.call(rows)
+      when "pro_walleye"         then Leaderboards::Rankers::ProWalleye.call(rows)
       else                            Leaderboards::Rankers::Standard.call(rows)
       end
     end

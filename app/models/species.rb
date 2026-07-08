@@ -6,6 +6,10 @@ class Species < ApplicationRecord
   # string in different places.
   TAGGED_WALLEYE_NAME = "Tagged Walleye".freeze
 
+  # Canonical name for the ordinary Walleye species row (distinct from the
+  # "Tagged Walleye" species). Used by the Pro Walleye format's slot validation.
+  WALLEYE_NAME = "Walleye".freeze
+
   # Display order for the catch-logging dropdown only (catches/new).
   # Species not listed here fall to the end, ordered alphabetically.
   LOG_ORDER = ["Walleye", "Perch", "Pike", "Stocked Trout", "Lake Trout", "Bass", TAGGED_WALLEYE_NAME, "Other"].freeze
@@ -27,5 +31,9 @@ class Species < ApplicationRecord
 
   def tagged_walleye?
     name.to_s.casecmp?(TAGGED_WALLEYE_NAME)
+  end
+
+  def walleye?
+    name.to_s.casecmp?(WALLEYE_NAME)
   end
 end

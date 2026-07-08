@@ -2,24 +2,32 @@ module Catches
   class ApplyJudgeAction
     class SelfApprovalError < StandardError; end
     class DisqualifyNoteRequired < StandardError; end
+    class ForceSlotUnsupported < StandardError; end
 
     def self.call(tournament:, catch:, judge:, action:, note: nil,
                   length_inches: nil, length_unit: nil, species_id: nil, slot_index: nil, entry_id: nil,
-                  photo: nil, override_in_lake: nil, override_in_sask: nil, latitude: nil, longitude: nil)
+                  photo: nil, override_in_lake: nil, override_in_sask: nil, latitude: nil, longitude: nil,
+                  club: nil)
       new(tournament: tournament, catch: catch, judge: judge, action: action, note: note,
           length_inches: length_inches, length_unit: length_unit, species_id: species_id,
           slot_index: slot_index, entry_id: entry_id, photo: photo,
           override_in_lake: override_in_lake, override_in_sask: override_in_sask,
-          latitude: latitude, longitude: longitude).call
+          latitude: latitude, longitude: longitude, club: club).call
     end
 
-    def initialize(tournament:, catch:, judge:, action:, note:, length_inches:, length_unit:, species_id:, slot_index:, entry_id:, photo:, override_in_lake:, override_in_sask:, latitude:, longitude:)
+    def initialize(tournament:, catch:, judge:, action:, note:, length_inches:, length_unit:, species_id:, slot_index:, entry_id:, photo:, override_in_lake:, override_in_sask:, latitude:, longitude:, club: nil)
       @tournament, @catch, @judge, @action, @note = tournament, catch, judge, action.to_sym, note
       @length_inches, @length_unit = length_inches, length_unit
       @species_id, @slot_index, @entry_id = species_id, slot_index, entry_id
       @photo = photo
       @override_in_lake, @override_in_sask = override_in_lake, override_in_sask
       @latitude, @longitude = latitude, longitude
+      # When set, the acting user only has authority in this club: reconcile and
+      # broadcast are confined to its tournaments so the edit never reshuffles or
+      # re-broadcasts another club's baskets. The organizer/admin catch editor
+      # passes it with tournament: nil; a judge passes @tournament.club so a
+      # per-tournament correction stays within that tournament's club too.
+      @club = club
       @snapshot_old_attachment_id = nil
       @notify_owner = false
     end
@@ -54,14 +62,15 @@ module Catches
           # Order: length first, then species, then slot-force / length-shrink rebalance.
           # Length must update before the species-change block so PlaceInSlots ranks the
           # catch with its NEW length when looking for slots in the new species.
-          length_changed = @length_inches && @length_inches.to_f != prior_length.to_f
-          unit_changed   = @length_unit.present? && @length_unit != @catch.length_unit
+          length_changed  = @length_inches && @length_inches.to_f != prior_length.to_f
+          unit_changed    = @length_unit.present? && @length_unit != @catch.length_unit
+          species_changed = @species_id.present? && @species_id != prior_species
           if @length_inches && (length_changed || unit_changed)
             @catch.update!({ length_inches: @length_inches, length_unit: @length_unit }.compact)
             @notify_owner = true
           end
 
-          if @species_id && @species_id != prior_species
+          if species_changed
             @notify_owner = true
             # Update species first, then rebuild placements from scratch so
             # PlaceInSlots ranks/places the catch under the NEW species. The
@@ -74,6 +83,10 @@ module Catches
           end
 
           if @slot_index && @entry_id
+            # A forced slot is only durable/meaningful on slot-based formats. On a
+            # length-derived or every-catch format it would break the format's
+            # invariants and be reverted by the next reconcile, so reject it.
+            raise ForceSlotUnsupported unless @tournament.supports_forced_slot?
             @notify_owner = true
             entry = @tournament.tournament_entries.find(@entry_id)
             entry.lock!
@@ -84,19 +97,39 @@ module Catches
               catch: @catch, tournament: @tournament, tournament_entry: entry,
               species: @catch.species, slot_index: @slot_index, active: true
             )
-          elsif @length_inches && prior_length && @length_inches.to_f != prior_length.to_f
-            shrank = @length_inches.to_f < prior_length.to_f
-            @catch.catch_placements.active.includes(:tournament, :tournament_entry).order(:tournament_entry_id).each do |p|
-              if p.tournament.format_smallest_fish?
-                Catches::ReconcileSmallestFish.call(tournament: p.tournament, entry: p.tournament_entry, species: @catch.species)
-              elsif p.tournament.format_fish_train?
-                next
-              elsif shrank && p.tournament.format_biggest_vs_smallest?
-                Catches::ReconcileBvsExtremes.call(tournament: p.tournament, entry: p.tournament_entry, species: @catch.species)
-              elsif shrank
-                Catches::RebalanceSlots.call(tournament: p.tournament, entry: p.tournament_entry, species: @catch.species)
+          elsif !species_changed && @length_inches && prior_length && @length_inches.to_f != prior_length.to_f
+            # A length edit can change which catches make each basket — it can pull
+            # in a previously-unplaced backup (e.g. one grown past a slot threshold)
+            # or drop a now-smaller fish. So re-derive every tournament the catch is
+            # ELIGIBLE for at its capture time, not just the ones where it currently
+            # holds a placement. Re-derivation from the whole eligible set is correct
+            # for grow and shrink alike (no shrink gating). A species change already
+            # rebuilt placements via deactivate_and_replace!, so skip then.
+            candidate_rows = ::Tournaments::ActiveForUser
+              .with_entries(user: @catch.user, at: @catch.captured_at_device)
+            # Which of those tournaments actually score this species? Resolve it in
+            # one query rather than a per-row scoring_slots.exists? (an N+1 under the
+            # @catch row lock we hold here).
+            scored_tournament_ids = ::ScoringSlot
+              .where(tournament_id: candidate_rows.map { |r| r[:tournament].id }, species_id: @catch.species_id)
+              .distinct.pluck(:tournament_id).to_set
+            eligible = candidate_rows.select { |r| scored_tournament_ids.include?(r[:tournament].id) }
+
+            # ActiveForUser drops tournaments where the owner is now also a judge,
+            # or whose window no longer covers captured_at_device. A stale placement
+            # can still live in one of those, so union in every tournament where the
+            # catch currently holds an active placement. Keyed by entry id, so a
+            # tournament in both sets is reconciled once.
+            placed = @catch.catch_placements.active
+              .includes(tournament_entry: :tournament)
+              .map { |p| { tournament: p.tournament, entry: p.tournament_entry } }
+
+            rows = (eligible + placed).uniq { |r| r[:entry].id }
+            rows = rows.select { |r| r[:tournament].club_id == @club.id } if @club
+            rows.sort_by { |r| r[:entry].id }  # stable lock order
+              .each do |r|
+                Catches::ReconcileBasket.call(tournament: r[:tournament], entry: r[:entry], species: @catch.species)
               end
-            end
           end
         when :add_reference_photo
           old_ref_id = @catch.reference_photo.attached? ? @catch.reference_photo.blob.id : nil
@@ -139,6 +172,8 @@ module Catches
         )
 
         affected_tournaments = @catch.catch_placements.includes(:tournament).map(&:tournament).uniq
+        # A per-club editor edit only re-broadcasts its own club's leaderboards.
+        affected_tournaments.select! { |t| t.club_id == @club.id } if @club
       end
 
       # Broadcast AFTER the transaction commits so other DB connections see the
@@ -205,11 +240,15 @@ module Catches
     # are rebuilt from scratch. Used by geofence_override, correct_location, and
     # the species-change branch of manual_override.
     def deactivate_and_replace!
-      lock_entries!(@catch.catch_placements.active.pluck(:tournament_entry_id) + reachable_entry_ids)
-      freed = @catch.catch_placements.active.to_a
-      @catch.catch_placements.active.update_all(active: false)
+      # A per-club editor edit only rebuilds its own club's placements; a judge
+      # action (no @club) rebuilds every tournament the catch is in.
+      active = @catch.catch_placements.active
+      active = active.joins(:tournament).where(tournaments: { club_id: @club.id }) if @club
+      lock_entries!(active.pluck(:tournament_entry_id) + reachable_entry_ids)
+      freed = active.to_a
+      CatchPlacement.where(id: freed.map(&:id)).update_all(active: false)
       freed.each { |p| ::Catches::ReconcileFreedSlot.call(placement: p) }
-      ::Catches::PlaceInSlots.call(catch: @catch, broadcast: false)
+      ::Catches::PlaceInSlots.call(catch: @catch, broadcast: false, club: @club)
     end
 
     def snapshot

@@ -1,0 +1,64 @@
+<%
+  # Seed the form from the catch's own logged unit (not the viewing organizer's
+  # preference) so an untouched length round-trips to the same stored value. If
+  # we defaulted to current_user.length_unit, a species- or note-only edit of a
+  # differently-unit'd catch would re-snap length_inches and flip length_unit,
+  # silently re-scoring every tournament the catch is in.
+  unit    = catch_record.length_unit
+  prefill = unit == "centimeters" ? display_cm(catch_record.length_inches, unit) : catch_record.length_inches
+  species_options = ordered_species.map { |s| [s.name, s.id] }
+%>
+
+<div class="mb-4">
+  <% if catch_record.display_photo.attached? %>
+    <%= thumb catch_record.display_photo, class: "w-full max-h-80 object-contain rounded-lg bg-black" %>
+  <% end %>
+  <div class="mt-3 text-sm text-slate-300">
+    <div class="font-medium text-slate-100"><%= catch_record.user.name %></div>
+    <div><%= catch_record.species.name %> · <%= format_length_dual(catch_record.length_inches, catch_record.length_unit) %></div>
+    <div class="text-slate-500"><%= catch_record.captured_at_device.strftime("%b %d %Y · %l:%M %p") %></div>
+  </div>
+</div>
+
+<h2 class="text-lg font-semibold mb-2">Edit species &amp; length</h2>
+<%= form_with url: url_for(action: :update, id: catch_record.id), method: :patch,
+              local: true, data: { controller: "length-edit" } do %>
+  <%= label_tag :species_id, "Species", class: "block text-sm font-medium text-slate-300 mt-4 mb-1" %>
+  <%= select_tag :species_id, options_for_select(species_options, catch_record.species_id),
+                 class: "w-full h-12 px-3 rounded-lg bg-slate-800 border border-slate-700 text-base text-slate-100" %>
+
+  <%= label_tag :length, "Length", class: "block text-sm font-medium text-slate-300 mt-4 mb-1" %>
+  <%= number_field_tag :length, prefill, step: 0.25, min: 0,
+                       class: "w-full h-12 px-3 rounded-lg bg-slate-800 border border-slate-700 text-base text-slate-100",
+                       data: { "length-edit-target": "input", "length-edit-unit": unit } %>
+
+  <label class="block text-sm font-medium text-slate-300 mt-4 mb-1">Length unit</label>
+  <div class="flex gap-2">
+    <% User::LENGTH_UNITS.each do |u| %>
+      <label class="flex-1">
+        <%= radio_button_tag :length_unit, u, u == unit, class: "sr-only peer",
+                             data: { action: "change->length-edit#convertUnit" } %>
+        <span class="block w-full h-12 leading-[3rem] text-center rounded-lg bg-slate-700 peer-checked:bg-blue-600 text-slate-100 peer-checked:text-white cursor-pointer">
+          <%= u == "inches" ? "Inches" : "Centimeters" %>
+        </span>
+      </label>
+    <% end %>
+  </div>
+
+  <%= label_tag :note, "Note (optional)", class: "block text-sm font-medium text-slate-300 mt-4 mb-1" %>
+  <%= text_area_tag :note, nil, rows: 3,
+                    class: "w-full px-3 py-2 rounded-lg bg-slate-800 border border-slate-700 text-base text-slate-100" %>
+
+  <%= submit_tag "Save changes",
+                 class: "w-full h-14 px-6 text-lg font-semibold rounded-lg bg-blue-600 active:bg-blue-700 text-white mt-6 cursor-pointer" %>
+<% end %>
+
+<% if current_user.admin? %>
+  <section class="bg-slate-800 rounded-xl p-4 mt-6">
+    <h2 class="text-sm uppercase tracking-wide text-slate-400 mb-3">Reference photo</h2>
+    <p class="text-xs text-slate-500 mb-3">
+      <%= catch_record.reference_photo.attached? ? "Replaces the current reference photo for all viewers." : "Shown to everyone alongside the angler's original photo." %>
+    </p>
+    <%= render "catches/reference_photo_form", catch: catch_record %>
+  </section>
+<% end %>

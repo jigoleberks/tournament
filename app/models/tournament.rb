@@ -10,13 +10,14 @@ class Tournament < ApplicationRecord
   has_many :catch_placements, dependent: :destroy
   has_many :judge_users, through: :tournament_judges, source: :user
   enum :mode, { solo: 0, team: 1 }, prefix: true
-  enum :format, { standard: 0, big_fish_season: 1, hidden_length: 2, biggest_vs_smallest: 3, fish_train: 4, tagged: 5, smallest_fish: 6 }, prefix: true
+  enum :format, { standard: 0, big_fish_season: 1, hidden_length: 2, biggest_vs_smallest: 3, fish_train: 4, tagged: 5, smallest_fish: 6, pro_walleye: 7 }, prefix: true
 
   validates :name, :mode, :starts_at, :ends_at, presence: true
   validate :ends_at_after_starts_at
   validate :blind_leaderboard_locked_after_start, on: :update
   validate :format_locked_after_start, on: :update
   validate :train_cars_locked_after_start, on: :update
+  validate :scoring_slots_locked_after_start, on: :update
   validate :big_fish_season_requires_solo
   validate :big_fish_season_requires_one_scoring_slot
   validate :hidden_length_requires_one_scoring_slot
@@ -28,6 +29,8 @@ class Tournament < ApplicationRecord
   validate :fish_train_train_cars_species_in_pool
   validate :tagged_requires_solo
   validate :tagged_requires_one_tagged_walleye_scoring_slot
+  validate :pro_walleye_requires_one_walleye_scoring_slot
+  before_validation :force_pro_walleye_slot_count
 
   scope :active_at, ->(time) {
     where("starts_at <= ?", time).where("ends_at IS NULL OR ends_at >= ?", time)
@@ -51,6 +54,16 @@ class Tournament < ApplicationRecord
 
   def friendly?
     !judged?
+  end
+
+  # Whether a judge's "force into slot index" manual override is meaningful here.
+  # Only the slot-based top-N formats and append-only Fish Train have a durable,
+  # positional slot_index. The length-derived formats (BvS / Smallest Fish / Pro
+  # Walleye) re-derive the whole basket from length, and the every-catch formats
+  # (Hidden Length / Tagged) place every catch — so a forced slot is meaningless
+  # and would be silently reverted by the next reconcile.
+  def supports_forced_slot?
+    format_standard? || format_big_fish_season? || format_fish_train?
   end
 
   after_save :schedule_lifecycle_jobs
@@ -134,6 +147,20 @@ class Tournament < ApplicationRecord
     errors.add(:train_cars, "can't be changed once the tournament has started")
   end
 
+  # The species-and-quantity set is fixed once a tournament is active — the same
+  # "no changes after start" rule as format/train_cars, applied to the scoring
+  # slots. Blocks adding, removing, or editing a slot (species or slot_count).
+  # This makes the "active tournaments never change" operating rule real in code,
+  # and closes the mid-tournament slot-removal case that would otherwise strand
+  # already-scored placements for a species the tournament no longer ranks. Same-
+  # value reassignments (e.g. force_pro_walleye_slot_count pinning slot_count) are
+  # not dirty, so a plain save of a started tournament still passes.
+  def scoring_slots_locked_after_start
+    return if starts_at.blank? || starts_at > Time.current
+    return unless scoring_slots.any? { |s| s.new_record? || s.marked_for_destruction? || s.changed? }
+    errors.add(:scoring_slots, "can't be changed once the tournament has started")
+  end
+
   def fish_train_pool_size_between_1_and_3
     return unless format_fish_train?
     remaining = scoring_slots.reject(&:marked_for_destruction?)
@@ -172,5 +199,24 @@ class Tournament < ApplicationRecord
       errors.add(:scoring_slots,
                  "Tagged Walleye tournaments must have exactly one scoring slot for the Tagged Walleye species")
     end
+  end
+
+  def pro_walleye_requires_one_walleye_scoring_slot
+    return unless format_pro_walleye?
+    remaining = scoring_slots.reject(&:marked_for_destruction?)
+    unless remaining.size == 1 && remaining.first.species&.walleye?
+      errors.add(:scoring_slots,
+                 "Pro Walleye tournaments must have exactly one scoring slot for the Walleye species")
+    end
+  end
+
+  # The basket is a fixed 5 fish (at most 2 over 55 cm). PlaceInSlots/
+  # ReconcileProWalleye enforce the basket size and over-cap themselves, but the
+  # leaderboard `complete` flag and the winners/season-points capacity math read
+  # scoring_slots.sum(:slot_count) — so pin the single slot to the basket size
+  # here (the slot-count field is "ignored" in the UI).
+  def force_pro_walleye_slot_count
+    return unless format_pro_walleye?
+    scoring_slots.reject(&:marked_for_destruction?).each { |s| s.slot_count = Catches::ProWalleye::BASKET_SIZE }
   end
 end
