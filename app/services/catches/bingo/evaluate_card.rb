@@ -80,9 +80,7 @@ module Catches
       # on a local tournament a catch outside the lake never counts. A GPS-less catch
       # is kept, and judge geofence overrides are honored via Catch#in_geofence?.
       def self.excluded_by_geofence?(tournament, catch)
-        return false if catch.latitude.nil?
-        return true unless catch.in_geofence?(:sask)
-        tournament.local? && !catch.in_geofence?(:lake)
+        !catch.geofence_eligible_for?(tournament)
       end
 
       # { user_id => [CatchLite, ...] } for the given users, one catches query.

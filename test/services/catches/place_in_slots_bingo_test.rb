@@ -20,6 +20,26 @@ module Catches
       assert_includes result[:affected_tournaments].map(&:id), t.id
     end
 
+    test "a geofence-excluded bingo catch does not flag the tournament affected" do
+      club = Club.create!(name: "C")
+      walleye, = create_bingo_species!
+      t = Tournament.new(club: club, name: "B", mode: :solo, format: :bingo,
+                         starts_at: 2.hours.ago, ends_at: 2.hours.from_now)
+      t.save!
+      u = User.create!(name: "A", email: "geo@example.com")
+      e = t.tournament_entries.create!
+      e.tournament_entry_members.create!(user: u)
+
+      # (0, 0) is far outside Saskatchewan — EvaluateCard drops it, so the card
+      # can't have changed and no rebroadcast should be queued.
+      c = create(:catch, user: u, species: walleye, length_inches: 15,
+                 captured_at_device: 1.hour.ago, latitude: 0.0, longitude: 0.0)
+
+      result = Catches::PlaceInSlots.call(catch: c, broadcast: false)
+
+      refute_includes result[:affected_tournaments].map(&:id), t.id
+    end
+
     test "a lead-taking bingo catch loads the entry's catches once, not again for the before-state" do
       club = Club.create!(name: "C")
       walleye, = create_bingo_species!

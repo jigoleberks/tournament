@@ -1,8 +1,10 @@
 module Leaderboards
   class Build
-    def self.call(tournament:, entries: nil, placements: nil, total_capacity: nil)
+    def self.call(tournament:, entries: nil, placements: nil, total_capacity: nil, bingo_species_ids: nil)
       if tournament.format_bingo?
-        return Leaderboards::Rankers::Bingo.call(bingo_rows(tournament, entries: entries))
+        return Leaderboards::Rankers::Bingo.call(
+          bingo_rows(tournament, entries: entries, species_ids: bingo_species_ids)
+        )
       end
 
       rows = build_rows(tournament, entries: entries, placements: placements, total_capacity: total_capacity)
@@ -72,13 +74,14 @@ module Leaderboards
 
     private_class_method :build_rows
 
-    def self.bingo_rows(tournament, entries: nil)
+    def self.bingo_rows(tournament, entries: nil, species_ids: nil)
       entries = (entries || tournament.tournament_entries).to_a
-      # The bingo species ids are tournament-global; resolve them once and inject
-      # so EvaluateCard doesn't re-query Species for every entry. Likewise batch
-      # every entrant's in-window catches into two queries and inject them, rather
-      # than letting each EvaluateCard#load_catches re-query catches per entry.
-      species_ids = Catches::Bingo::EvaluateCard.species_id_map
+      # The bingo species ids are the same for every bingo tournament; a caller
+      # building many boards at once (WinnersFor / SeasonPoints::Standings) resolves
+      # them once and injects via species_ids: so we don't re-query Species per
+      # tournament. Each entrant's in-window catches are still loaded per tournament
+      # (its window bounds the query) but batched into two queries per tournament.
+      species_ids ||= Catches::Bingo::EvaluateCard.species_id_map
       catches_by_entry = Catches::Bingo::EvaluateCard.catches_by_entry(
         tournament: tournament, entries: entries
       )

@@ -284,8 +284,18 @@ class Tournament < ApplicationRecord
   # absent (never seeded, or renamed), those squares can never fill and blackout
   # becomes unreachable — so surface it loudly at save time instead of shipping a
   # silently broken card.
+  #
+  # Only guard when a bingo card is actually being wired up: a new tournament, or a
+  # not-yet-started tournament switching to bingo. Re-running on every later edit
+  # would lock organizers out of an existing bingo tournament the instant a global
+  # species is renamed — an unrelated edit (fixing the name, extending ends_at)
+  # can't fix that, so blocking it just strands the tournament. A post-start format
+  # switch is skipped too: format_locked_after_start already rejects it, so don't
+  # pile on a misleading "species missing" base error (mirrors
+  # bingo_layout_locked_after_start).
   def bingo_species_present
     return unless format_bingo?
+    return unless new_record? || (will_save_change_to_format? && !started?)
     missing = Catches::Bingo::EvaluateCard.species_id_map.select { |_, id| id.nil? }.keys
     return if missing.empty?
     errors.add(:base, "Bingo needs these species defined first: #{missing.map { |s| s.to_s.titleize }.join(', ')}")

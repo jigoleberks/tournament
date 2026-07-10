@@ -86,4 +86,28 @@ class TournamentBingoTest < ActiveSupport::TestCase
     assert(t.errors[:base].any? { |m| m.include?("Pike") },
            "expected a base error naming the missing Pike species, got #{t.errors[:base].inspect}")
   end
+
+  test "editing an existing bingo tournament stays allowed after a canonical species is renamed" do
+    t = build_bingo
+    t.save!
+    # A global species rename later makes the card unfillable, but that can't be
+    # fixed by editing the tournament — blocking an unrelated edit just strands it.
+    Species.where("lower(name) = ?", "pike").update_all(name: "Northern Pike")
+
+    assert t.update(name: "Renamed Bingo Night"),
+           "an unrelated edit must not be blocked by a since-renamed species: #{t.errors.full_messages.inspect}"
+    assert_equal "Renamed Bingo Night", t.reload.name
+  end
+
+  test "switching a started tournament to bingo does not re-run the species presence check" do
+    # bingo_species_present must not fire on a format change that format_locked_after_start
+    # already rejects — only the single format error should surface.
+    Species.where("lower(name) = ?", "pike").delete_all
+    t = Tournament.create!(club: club, name: "Std", mode: :solo, format: :standard,
+                           starts_at: 1.hour.ago, ends_at: 4.hours.from_now)
+    t.format = :bingo
+    assert_not t.valid?
+    assert_empty t.errors[:base],
+                 "a since-missing species must not pile a base error onto the blocked format switch"
+  end
 end

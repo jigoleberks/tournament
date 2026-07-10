@@ -11,11 +11,9 @@ module Catches
 
     # A catch counts toward a tournament only if it has no recorded location, or
     # sits inside Saskatchewan (and inside the lake when the tournament is local).
+    # Delegates to the shared Catch#geofence_eligible_for? rule.
     def slot_eligible?(catch_record)
-      return true if catch_record.latitude.nil?
-      return false unless catch_record.in_geofence?(:sask)
-      return true unless @tournament.local?
-      catch_record.in_geofence?(:lake)
+      catch_record.geofence_eligible_for?(@tournament)
     end
 
     # The tournament's catch window as a Range for captured_at_device filters.

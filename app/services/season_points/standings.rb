@@ -37,6 +37,10 @@ module SeasonPoints
         .pluck("tournament_entries.tournament_id", :user_id)
         .each_with_object(Hash.new { |h, k| h[k] = [] }) { |(tid, uid), h| h[tid] << uid }
 
+      # Resolve the bingo species ids once (same for every bingo tournament)
+      # rather than re-querying them inside each per-tournament build.
+      bingo_species_ids = ::Catches::Bingo::EvaluateCard.species_id_map if tournaments.any?(&:format_bingo?)
+
       totals = Hash.new(0)
       breakdowns = Hash.new { |h, k| h[k] = [] }
 
@@ -45,7 +49,8 @@ module SeasonPoints
           tournament: t,
           entries: entries_by_tid[t.id] || [],
           placements: placements_by_tid[t.id] || [],
-          total_capacity: capacity_by_tid[t.id] || 0
+          total_capacity: capacity_by_tid[t.id] || 0,
+          bingo_species_ids: bingo_species_ids
         )
         top_three = ::Leaderboards::QualifiedRows.call(tournament: t, rows: rows).first(3)
         awards = ::Tournaments::SeasonPointsAwarded.call(

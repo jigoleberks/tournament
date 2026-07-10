@@ -58,6 +58,30 @@ module Catches
       assert_empty result[:created]
     end
 
+    test "an equal-length offline swap stays reconcile-consistent but fires no bumped push" do
+      # Fill the 2-slot basket with a 10.0 (captured 30m ago) and a 12.0.
+      incumbent = create(:catch, user: @user, species: @walleye, length_inches: 10,
+                                 captured_at_device: 30.minutes.ago)
+      PlaceInSlots.call(catch: incumbent)
+      other = create(:catch, user: @user, species: @walleye, length_inches: 12,
+                             captured_at_device: 20.minutes.ago)
+      PlaceInSlots.call(catch: other)
+
+      # A same-length (10.0) fish captured EARLIER than the incumbent syncs late.
+      # rank_key's "earliest-captured wins" swaps it in (matching a reconcile), but
+      # the basket total (10 + 12) is unchanged — nobody was really bumped.
+      earlier = create(:catch, user: @user, species: @walleye, length_inches: 10,
+                               captured_at_device: 50.minutes.ago)
+      result = PlaceInSlots.call(catch: earlier)
+
+      # The swap still happens (reconcile consistency): the earlier 10.0 holds the slot.
+      assert earlier.catch_placements.sole.active?
+      assert_not incumbent.catch_placements.sole.reload.active?
+      # But it's score-neutral, so no "you were bumped from a slot" notification.
+      assert_empty result[:bumped],
+                   "an equal-length swap must not fire a bumped push (score unchanged)"
+    end
+
     test "when all slots are full, replaces the smallest active fish if new is bigger" do
       small = create(:catch, user: @user, species: @walleye, length_inches: 14)
       PlaceInSlots.call(catch: small)
