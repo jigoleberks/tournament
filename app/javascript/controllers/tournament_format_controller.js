@@ -49,6 +49,8 @@ export default class extends Controller {
       this._applyProWalleye()
     } else if (this.formatTarget.value === "bingo") {
       this._applyBingo()
+    } else if (this.formatTarget.value === "progressive_length") {
+      this._applyProgressiveLength()
     } else {
       this._applyStandard()
     }
@@ -217,6 +219,20 @@ export default class extends Controller {
     }
 
     if (this.hasTrainBuilderTarget) this.trainBuilderTarget.classList.add("hidden")
+  }
+
+  // Progressive Length's form UI is Biggest vs Smallest's: solo-or-team unlocked,
+  // exactly one species row, slot count ignored, no train builder. Delegate and
+  // override only the two strings that differ — the same way _applySmallestFish
+  // delegates to _applyStandard.
+  _applyProgressiveLength() {
+    this._applyBiggestVsSmallest()
+    if (this.hasFormatDescriptionTarget) {
+      this.formatDescriptionTarget.textContent = this.formatDescriptionTarget.dataset.progressiveLengthText
+    }
+    if (this.hasSlotsHelpTarget) {
+      this.slotsHelpTarget.textContent = "Pick the one species this tournament covers. The slot count is ignored — the ladder is unbounded."
+    }
   }
 
   _applyStandard() {

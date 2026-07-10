@@ -13,6 +13,8 @@ module LeaderboardsHelper
 
     return nil if scoring_value.nil? || (scoring_value.zero? && !bvs_complete_zero)
     return { tickets: scoring_value } if tournament&.format_tagged?
+    # Progressive Length's "total" is an up-size count, not a length.
+    return { up_sizes: scoring_value } if tournament&.format_progressive_length?
 
     inches_part, = format_length_parts(scoring_value)
     off = nil
@@ -29,6 +31,7 @@ module LeaderboardsHelper
     parts = leaderboard_score_parts(row, tournament)
     return "—" if parts.nil?
     return "#{parts[:tickets]} #{'ticket'.pluralize(parts[:tickets])}" if parts.key?(:tickets)
+    return "#{parts[:up_sizes]} #{'up-size'.pluralize(parts[:up_sizes])}" if parts.key?(:up_sizes)
 
     label = %(#{parts[:inches]} · #{format('%.2f', parts[:cm])} cm)
     label += %( · #{format('%.2f', parts[:off])}" off) if parts[:off]

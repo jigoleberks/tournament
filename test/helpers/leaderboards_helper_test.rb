@@ -50,4 +50,21 @@ class LeaderboardsHelperTest < ActionView::TestCase
     assert_equal "2 lines · 14/25 squares", bingo_progress_label(lines_count: 2, squares_count: 14)
     assert_equal "1 line · 6/25 squares", bingo_progress_label(lines_count: 1, squares_count: 6)
   end
+
+  test "progressive_length score parts carry up-sizes, not a length" do
+    t = build(:tournament, format: :progressive_length)
+    row = { total: 3, fish: [], complete: false }
+    assert_equal({ up_sizes: 3 }, leaderboard_score_parts(row, t))
+  end
+
+  test "progressive_length score label pluralizes up-sizes" do
+    t = build(:tournament, format: :progressive_length)
+    assert_equal "1 up-size", leaderboard_score_label({ total: 1, fish: [], complete: false }, t)
+    assert_equal "3 up-sizes", leaderboard_score_label({ total: 3, fish: [], complete: false }, t)
+  end
+
+  test "progressive_length with zero up-sizes has no score" do
+    t = build(:tournament, format: :progressive_length)
+    assert_nil leaderboard_score_parts({ total: 0, fish: [], complete: false }, t)
+  end
 end

@@ -34,6 +34,8 @@
       <th class="px-3 py-2"><%=
         if tournament&.format_biggest_vs_smallest?
           "Spread"
+        elsif tournament&.format_progressive_length?
+          "Up-sizes"
         elsif tournament&.format_big_fish_season? || tournament&.format_hidden_length?
           "Length"
         else
@@ -70,6 +72,28 @@
                     <% end %>
                   </span>
                   <% if i < last_idx %><span class="text-slate-600">·</span><% end %>
+                <% end %>
+              </div>
+            <% end %>
+          <% elsif tournament&.format_progressive_length? %>
+            <div class="font-medium"><%= row[:entry].display_name %></div>
+            <% if (roster = team_roster_line(tournament, row[:entry])) %>
+              <div class="text-xs text-slate-500 mt-1"><%= roster %></div>
+            <% end %>
+            <% if row_visible && row[:fish].present? %>
+              <div class="text-xs text-slate-400 mt-1 flex flex-wrap items-baseline gap-x-2 gap-y-1">
+                <% last_idx = row[:fish].size - 1 %>
+                <% row[:fish].each_with_index do |f, i| %>
+                  <% url, frame = catch_link_target(tournament: tournament, catch_id: f[:id]) %>
+                  <span class="<%= 'italic text-slate-200' if i == last_idx %>">
+                    <%= link_to format_length_dual(f[:length_inches], f[:length_unit]), url,
+                                class: "text-blue-300 underline-offset-2 hover:underline",
+                                data: frame ? { turbo_frame: frame } : {} %>
+                    <% if f[:approver_name] %>
+                      <span data-test="approved-check" class="text-green-400 ml-1" aria-label="approved">✓</span>
+                    <% end %>
+                  </span>
+                  <% if i < last_idx %><span class="text-slate-600">→</span><% end %>
                 <% end %>
               </div>
             <% end %>
@@ -167,6 +191,9 @@
           <% elsif parts.key?(:tickets) %>
             <%# Tagged's "total" is a ticket count, not a length — no inch/cm rendering. %>
             <div><%= parts[:tickets] %> <%= "ticket".pluralize(parts[:tickets]) %></div>
+          <% elsif parts.key?(:up_sizes) %>
+            <%# Progressive Length's score is a climb count, not a length. %>
+            <div><%= parts[:up_sizes] %> <%= "up-size".pluralize(parts[:up_sizes]) %></div>
           <% else %>
             <div><%= parts[:inches] %></div>
             <div><%= format("%.2f", parts[:cm]) %> cm</div>

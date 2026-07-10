@@ -56,9 +56,17 @@ module Catches
           # between resolution and lock acquisition. Re-verify membership now.
           next unless entry.tournament_entry_members.exists?(user_id: @catch.user_id)
 
-          active_placements = entry.catch_placements
-            .where(species_id: @catch.species_id, active: true)
-            .includes(:catch).order(:slot_index).to_a
+          # Progressive Length re-derives its whole ladder in
+          # ReconcileProgressiveLength and never reads active_placements, so skip
+          # the per-species load for it rather than querying and discarding it.
+          active_placements =
+            if tournament.format_progressive_length?
+              []
+            else
+              entry.catch_placements
+                .where(species_id: @catch.species_id, active: true)
+                .includes(:catch).order(:slot_index).to_a
+            end
 
           if tournament.format_hidden_length?
             # Hidden Length: every catch is kept; the closest-to-target catch
@@ -217,6 +225,21 @@ module Catches
             end
             # else: off-train species, locked-previous-group species, or
             # skip-ahead — no-op
+          elsif tournament.format_progressive_length?
+            # Progressive Length has no incremental branch. The ladder is a pure
+            # function of the entry's eligible catches in CAPTURE order, so we
+            # re-derive it — which is the only way a late-syncing offline catch
+            # (captured earlier than fish already on the ladder) lands at its true
+            # rung. Live placement and a later judge reconcile therefore run the
+            # exact same code and cannot disagree.
+            res = ReconcileProgressiveLength.call(
+              tournament: tournament, entry: entry, species: @catch.species
+            )
+            created.concat(res[:created])
+            bumped.concat(res[:bumped])
+            # A dink that doesn't beat the top rung changes nothing — don't
+            # rebroadcast a leaderboard that didn't move.
+            affected_tournaments << tournament if res[:created].any? || res[:bumped].any?
           elsif tournament.format_smallest_fish?
             # Smallest Fish: inverse of Standard. Fill empty slots the same way,
             # but once the basket is full a new catch only matters if it's SMALLER
@@ -376,24 +399,49 @@ module Catches
         entry_id = changed_entry_ids.fetch(t.id, []).first
         next unless entry_id
 
-        leader = leaderboards[t.id]&.first
+        board = leaderboards[t.id]
+        leader = board&.first
         next unless leader && leader[:entry].id == entry_id
 
-        before = bingo_result_without_catch(t, leader[:entry])
+        before = bingo_result_without_catch(t, leader[:entry], leader[:catches])
+        # squares_count is monotonic in catches, so a positive delta means @catch
+        # stamped a new square.
         next unless leader[:result].squares_count > before.squares_count
+
+        # Taking the lead, not merely holding it. Only the submitter's card
+        # changed this run, so compare their pre-catch headline score against the
+        # rest of the (unchanged) field: if they were already strictly ahead of
+        # everyone, this square only extends a lead they held — no push.
+        # Otherwise (tied for, or behind, the lead before) they've just taken it.
+        # An exact tie broken only by entry id is NOT a held lead, so the first
+        # angler to stamp a square from an all-even start still gets the push.
+        others = board.reject { |r| r[:entry].id == entry_id }
+        led_before = others.all? { |r| (bingo_headline(before) <=> bingo_headline(r[:result])) > 0 }
+        next if led_before
 
         { tournament: t, entry: leader[:entry] }
       end
     end
 
+    # The headline ranking score for a bingo card — blackout, then lines, then
+    # squares, higher-is-better — mirroring the leading terms of
+    # Rankers::Bingo#sort_key. Reach-time tiebreaks are intentionally omitted:
+    # two cards level on all three still read as "tied for the lead" here, which
+    # only ever errs toward an extra took-the-lead push in that rare exact tie,
+    # never toward spamming an established leader.
+    def bingo_headline(result)
+      [result.blackout ? 1 : 0, result.lines_count, result.squares_count]
+    end
+
     # The submitter's card as it stood before this catch — re-derived from the
     # entry's catches minus @catch — so we can tell whether @catch newly filled a
     # square (square count is monotonic in catches, so a positive delta == stamped).
-    def bingo_result_without_catch(tournament, entry)
-      lites = Catches::Bingo::EvaluateCard
-        .catches_by_entry(tournament: tournament, entries: [entry])[entry.id] || []
+    # `lites` are the CatchLites the leaderboard build already loaded for this
+    # entry, so we re-evaluate in memory without re-querying the catch window.
+    def bingo_result_without_catch(tournament, entry, lites)
       Catches::Bingo::EvaluateCard.call(
-        tournament: tournament, entry: entry, catches: lites.reject { |c| c.id == @catch.id }
+        tournament: tournament, entry: entry,
+        catches: (lites || []).reject { |c| c.id == @catch.id }
       )
     end
 

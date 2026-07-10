@@ -10,7 +10,7 @@ class Tournament < ApplicationRecord
   has_many :catch_placements, dependent: :destroy
   has_many :judge_users, through: :tournament_judges, source: :user
   enum :mode, { solo: 0, team: 1 }, prefix: true
-  enum :format, { standard: 0, big_fish_season: 1, hidden_length: 2, biggest_vs_smallest: 3, fish_train: 4, tagged: 5, smallest_fish: 6, pro_walleye: 7, bingo: 8 }, prefix: true
+  enum :format, { standard: 0, big_fish_season: 1, hidden_length: 2, biggest_vs_smallest: 3, fish_train: 4, tagged: 5, smallest_fish: 6, pro_walleye: 7, bingo: 8, progressive_length: 9 }, prefix: true
 
   validates :name, :mode, :starts_at, :ends_at, presence: true
   validate :ends_at_after_starts_at
@@ -31,6 +31,8 @@ class Tournament < ApplicationRecord
   validate :tagged_requires_one_tagged_walleye_scoring_slot
   validate :pro_walleye_requires_one_walleye_scoring_slot
   before_validation :force_pro_walleye_slot_count
+  validate :progressive_length_requires_one_scoring_slot
+  before_validation :force_progressive_length_slot_count
   before_validation :assign_bingo_layout
   validate :bingo_layout_well_formed
   validate :bingo_layout_locked_after_start, on: :update
@@ -223,6 +225,24 @@ class Tournament < ApplicationRecord
   def force_pro_walleye_slot_count
     return unless format_pro_walleye?
     scoring_slots.reject(&:marked_for_destruction?).each { |s| s.slot_count = Catches::ProWalleye::BASKET_SIZE }
+  end
+
+  def progressive_length_requires_one_scoring_slot
+    return unless format_progressive_length?
+    remaining = scoring_slots.reject(&:marked_for_destruction?)
+    return if remaining.size == 1
+    errors.add(:scoring_slots, "Progressive Length tournaments must have exactly one species configured")
+  end
+
+  # The ladder is unbounded, so the slot-count field is meaningless here. Pin it
+  # to 1 (the UI labels it "ignored") so the leaderboard `complete` flag and the
+  # winners/season-points capacity math, which read scoring_slots.sum(:slot_count),
+  # get a sane number. Same reasoning as force_pro_walleye_slot_count. A no-op
+  # reassignment leaves the record clean, so scoring_slots_locked_after_start
+  # still permits saving a started tournament.
+  def force_progressive_length_slot_count
+    return unless format_progressive_length?
+    scoring_slots.reject(&:marked_for_destruction?).each { |s| s.slot_count = 1 }
   end
 
   def assign_bingo_layout

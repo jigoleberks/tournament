@@ -22,6 +22,8 @@ module Catches
         ReconcileProWalleye.call(tournament: tournament, entry: entry, species: species, exclude_catch_id: exclude_catch_id)
       elsif tournament.format_biggest_vs_smallest?
         ReconcileBvsExtremes.call(tournament: tournament, entry: entry, species: species, exclude_catch_id: exclude_catch_id)
+      elsif tournament.format_progressive_length?
+        ReconcileProgressiveLength.call(tournament: tournament, entry: entry, species: species, exclude_catch_id: exclude_catch_id)
       elsif tournament.format_fish_train? || tournament.format_hidden_length? || tournament.format_tagged?
         # fish_train is append-only; hidden_length/tagged keep every catch, so a
         # length edit never changes which catches are placed.

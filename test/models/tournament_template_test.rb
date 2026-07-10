@@ -283,4 +283,22 @@ class TournamentTemplateTest < ActiveSupport::TestCase
     tmpl.save!
     assert_equal Catches::ProWalleye::BASKET_SIZE, tmpl.tournament_template_scoring_slots.first.slot_count
   end
+
+  test "progressive_length template errors with more than one scoring slot" do
+    walleye = Species.find_or_create_by!(name: "Walleye")
+    pike    = Species.find_or_create_by!(name: "Pike")
+    tpl = build(:tournament_template, club: @club, format: :progressive_length, mode: :solo)
+    tpl.tournament_template_scoring_slots.build(species: walleye, slot_count: 1)
+    tpl.tournament_template_scoring_slots.build(species: pike, slot_count: 1)
+    assert_not tpl.valid?
+    assert_includes tpl.errors[:tournament_template_scoring_slots],
+                    "Progressive Length tournaments must have exactly one species configured"
+  end
+
+  test "progressive_length template accepts exactly one scoring slot" do
+    walleye = Species.find_or_create_by!(name: "Walleye")
+    tpl = build(:tournament_template, club: @club, format: :progressive_length, mode: :solo)
+    tpl.tournament_template_scoring_slots.build(species: walleye, slot_count: 1)
+    assert tpl.valid?, tpl.errors.full_messages.inspect
+  end
 end

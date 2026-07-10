@@ -14,6 +14,7 @@ module Leaderboards
       when "tagged"              then Leaderboards::Rankers::Tagged.call(rows)
       when "smallest_fish"       then Leaderboards::Rankers::SmallestFish.call(rows)
       when "pro_walleye"         then Leaderboards::Rankers::ProWalleye.call(rows)
+      when "progressive_length"  then Leaderboards::Rankers::ProgressiveLength.call(rows)
       else                            Leaderboards::Rankers::Standard.call(rows)
       end
     end
@@ -44,8 +45,9 @@ module Leaderboards
               slot_index: p.slot_index
             }
           }
-        fish = if tournament.format_fish_train?
-          fish.sort_by { |f| f[:slot_index] }                # train order
+        fish = if tournament.format_fish_train? || tournament.format_progressive_length?
+          # Fish Train: train order. Progressive Length: ladder order, rung 0 first.
+          fish.sort_by { |f| f[:slot_index] }
         elsif tournament.format_tagged?
           # Tickets in the order they were earned — matches the angler's mental
           # model and the way tags are read off the row in the partial.
@@ -81,11 +83,15 @@ module Leaderboards
         tournament: tournament, entries: entries
       )
       entries.map do |entry|
+        catches = catches_by_entry[entry.id]
         result = Catches::Bingo::EvaluateCard.call(
           tournament: tournament, entry: entry, species_ids: species_ids,
-          catches: catches_by_entry[entry.id]
+          catches: catches
         )
-        { entry: entry, result: result }
+        # Carry the loaded CatchLites so a caller that needs a "card minus one
+        # catch" (PlaceInSlots' took-the-lead detection) can re-evaluate without
+        # re-running catches_by_entry.
+        { entry: entry, result: result, catches: catches || [] }
       end
     end
     private_class_method :bingo_rows

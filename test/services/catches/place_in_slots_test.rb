@@ -973,5 +973,74 @@ module Catches
     assert_equal 1, c.catch_placements.active.count
   end
 
+  test "progressive_length: logging climbing fish builds a ladder" do
+    club = create(:club)
+    walleye = Species.find_or_create_by!(name: "Walleye")
+    user = create(:user, club: club)
+    t = build(:tournament, club: club, format: :progressive_length, mode: :solo,
+              starts_at: 3.hours.ago, ends_at: 1.hour.from_now)
+    t.scoring_slots.build(species: walleye, slot_count: 1)
+    t.save!
+    entry = create(:tournament_entry, tournament: t)
+    create(:tournament_entry_member, tournament_entry: entry, user: user)
+
+    [[12, 120], [9, 100], [15, 80]].each do |len, mins|
+      c = create(:catch, user: user, species: walleye, length_inches: len,
+                         captured_at_device: mins.minutes.ago, status: :synced)
+      Catches::PlaceInSlots.call(catch: c)
+    end
+
+    rungs = entry.catch_placements.where(active: true).order(:slot_index)
+                 .map { |p| p.catch.length_inches.to_i }
+    assert_equal [12, 15], rungs
+  end
+
+  test "progressive_length: does not run the per-species active_placements query it never reads" do
+    club = create(:club)
+    walleye = Species.find_or_create_by!(name: "Walleye")
+    user = create(:user, club: club)
+    t = build(:tournament, club: club, format: :progressive_length, mode: :solo,
+              starts_at: 3.hours.ago, ends_at: 1.hour.from_now)
+    t.scoring_slots.build(species: walleye, slot_count: 1)
+    t.save!
+    entry = create(:tournament_entry, tournament: t)
+    create(:tournament_entry_member, tournament_entry: entry, user: user)
+
+    c = create(:catch, user: user, species: walleye, length_inches: 15,
+                       captured_at_device: 120.minutes.ago, status: :synced)
+
+    # ReconcileProgressiveLength re-derives the ladder itself, so the eager
+    # active_placements load (ordered by slot_index) is thrown away for this
+    # format — it must not run at all.
+    queries = count_queries(/FROM .?catch_placements.?.*ORDER BY.*slot_index/im) do
+      Catches::PlaceInSlots.call(catch: c, broadcast: false)
+    end
+    assert_equal 0, queries, "progressive_length must not run the unused active_placements query"
+  end
+
+  test "progressive_length: a no-op catch does not mark the tournament affected" do
+    club = create(:club)
+    walleye = Species.find_or_create_by!(name: "Walleye")
+    user = create(:user, club: club)
+    t = build(:tournament, club: club, format: :progressive_length, mode: :solo,
+              starts_at: 3.hours.ago, ends_at: 1.hour.from_now)
+    t.scoring_slots.build(species: walleye, slot_count: 1)
+    t.save!
+    entry = create(:tournament_entry, tournament: t)
+    create(:tournament_entry_member, tournament_entry: entry, user: user)
+
+    first = create(:catch, user: user, species: walleye, length_inches: 15,
+                           captured_at_device: 120.minutes.ago, status: :synced)
+    Catches::PlaceInSlots.call(catch: first)
+
+    dink = create(:catch, user: user, species: walleye, length_inches: 10,
+                          captured_at_device: 60.minutes.ago, status: :synced)
+    result = Catches::PlaceInSlots.call(catch: dink)
+
+    assert_empty result[:created]
+    assert_empty result[:bumped]
+    assert_empty result[:affected_tournaments]
+  end
+
   end
 end
