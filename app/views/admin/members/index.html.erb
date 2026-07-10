@@ -32,7 +32,21 @@
             </div>
           </td>
           <td class="px-6 py-4 text-sm text-slate-400"><%= u.email %></td>
-          <td class="px-6 py-4 text-sm text-slate-400 capitalize"><%= u.club_memberships.find { |m| m.club_id == current_club.id }&.role %></td>
+          <td class="px-6 py-4 text-sm text-slate-400">
+            <% membership = u.club_memberships.find { |m| m.club_id == current_club.id } %>
+            <div class="flex items-center gap-2">
+              <span class="capitalize"><%= membership&.role %></span>
+              <% if membership && !u.deactivated? && u != current_user && current_user.permanent_organizer_in?(current_club) %>
+                <% demote = membership.organizer? %>
+                <%= button_to (demote ? "Demote" : "Promote"),
+                              role_admin_member_path(u),
+                              method: :patch,
+                              params: { club_membership: { role: demote ? "member" : "organizer" } },
+                              data: { turbo_confirm: demote ? "Demote #{u.name} to member?" : "Promote #{u.name} to organizer?" },
+                              class: "px-2 py-1 rounded bg-slate-700 hover:bg-slate-600 text-white text-xs font-medium transition-colors" %>
+              <% end %>
+            </div>
+          </td>
           <td class="px-6 py-4 text-sm text-slate-400 text-center"><%= entries %></td>
           <td class="px-6 py-4 text-sm text-slate-400">
             <% if u.last_seen_at %>

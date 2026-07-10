@@ -39,6 +39,14 @@ module Authentication
     head :forbidden unless current_user&.admin?
   end
 
+  # Permanent-organizer gate. Distinct from `organizer_in?`, which also admits
+  # temporary tournament deputies. Any action that *grants* privilege — role
+  # changes, deputy grants — must use this, otherwise a deputy could deputize
+  # themselves onto a far-future tournament and make the badge permanent.
+  def require_permanent_organizer!
+    head :forbidden unless current_user&.permanent_organizer_in?(current_club)
+  end
+
   def sign_in!(user, club: nil)
     reset_session
     session[:user_id] = user.id

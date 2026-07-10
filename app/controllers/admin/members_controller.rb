@@ -1,5 +1,6 @@
 class Admin::MembersController < Admin::BaseController
   before_action :require_site_admin!, only: [:edit, :update, :destroy, :reactivate, :purge]
+  before_action :require_permanent_organizer!, only: [:role]
 
   def index
     @users = current_club.members.includes(:club_memberships).order(:deactivated_at, :name)
@@ -64,6 +65,40 @@ class Admin::MembersController < Admin::BaseController
       user.update!(deactivated_at: Time.current)
       redirect_to admin_members_path, notice: "#{user.name} deactivated."
     end
+  end
+
+  # Flip a member between the `member` and `organizer` roles. Deliberately
+  # separate from #update, which is site-admin-only and edits name/email: role
+  # changes are open to any permanent organizer of the club, and #update's
+  # `edit_params` must NOT be widened to include :role.
+  def role
+    membership = current_club.club_memberships.active.find_by!(user_id: params[:id])
+    new_role   = params.dig(:club_membership, :role)
+
+    unless ClubMembership.roles.key?(new_role)
+      return redirect_to admin_members_path, alert: "Unknown role."
+    end
+
+    if new_role == "member"
+      # This guard is what actually preserves "every club keeps >= 1 organizer":
+      # the actor must already be a permanent organizer, so demoting anyone
+      # *else* always leaves the actor behind.
+      if membership.user_id == current_user.id
+        return redirect_to admin_members_path, alert: "You can't demote yourself."
+      end
+
+      # Defense-in-depth, unreachable while the gate is permanent-organizer-only.
+      # It becomes load-bearing if that gate is ever widened.
+      if membership.organizer? && current_club.club_memberships.active.organizer.count <= 1
+        return redirect_to admin_members_path, alert: "A club must keep at least one organizer."
+      end
+    end
+
+    membership.update!(role: new_role)
+    label = new_role == "organizer" ? "an organizer" : "a member"
+    redirect_to admin_members_path, notice: "#{membership.user.name} is now #{label}."
+  rescue ActiveRecord::RecordNotFound
+    redirect_to admin_members_path, alert: "That member isn't in this club."
   end
 
   def reactivate

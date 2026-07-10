@@ -7,8 +7,10 @@ class Tournament < ApplicationRecord
                                 reject_if: ->(attrs) { attrs["species_id"].blank? }
   has_many :tournament_entries, dependent: :destroy
   has_many :tournament_judges, dependent: :destroy
+  has_many :tournament_deputies, dependent: :destroy
   has_many :catch_placements, dependent: :destroy
   has_many :judge_users, through: :tournament_judges, source: :user
+  has_many :deputy_users, through: :tournament_deputies, source: :user
   enum :mode, { solo: 0, team: 1 }, prefix: true
   enum :format, { standard: 0, big_fish_season: 1, hidden_length: 2, biggest_vs_smallest: 3, fish_train: 4, tagged: 5, smallest_fish: 6, pro_walleye: 7, bingo: 8 }, prefix: true
 

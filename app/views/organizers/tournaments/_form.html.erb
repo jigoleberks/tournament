@@ -1,6 +1,9 @@
 <% if @tournament.persisted? %>
   <%= render "organizers/tournament_entries/section" %>
   <%= render "organizers/tournament_judges/section" %>
+  <% if current_user.permanent_organizer_in?(current_club) %>
+    <%= render "organizers/tournament_deputies/section" %>
+  <% end %>
 <% end %>
 
 <%= form_with model: [:organizers, @tournament], local: true, class: "space-y-4",

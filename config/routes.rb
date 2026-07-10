@@ -27,7 +27,8 @@ Rails.application.routes.draw do
       resources :tournament_entries, only: [:create, :update, :destroy] do
         resources :tournament_entry_members, only: [:create, :destroy]
       end
-      resources :tournament_judges,  only: [:create, :destroy]
+      resources :tournament_judges,   only: [:create, :destroy]
+      resources :tournament_deputies, only: [:create, :destroy]
     end
     resources :members, only: [:index, :new, :create, :destroy] do
       member do
@@ -67,9 +68,11 @@ Rails.application.routes.draw do
         resources :tournament_entry_members, only: [:create, :destroy]
       end
       resources :tournament_judges,  only: [:create, :destroy]
+      resources :tournament_deputies, only: [:create, :destroy]
     end
     resources :members, only: [:index, :new, :create, :edit, :update, :destroy] do
       member do
+        patch  :role
         post   :reactivate
         delete :purge
         post   :issue_code
