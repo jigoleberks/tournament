@@ -619,4 +619,43 @@ class TournamentTest < ActiveSupport::TestCase
                  "#{fmt} should not support forced slot placement"
     end
   end
+
+  test "progressive_length requires exactly one scoring slot" do
+    club = create(:club)
+    walleye = Species.find_or_create_by!(name: "Walleye")
+    pike = Species.find_or_create_by!(name: "Pike")
+
+    t = build(:tournament, club: club, format: :progressive_length, mode: :solo,
+              starts_at: 1.hour.from_now, ends_at: 3.hours.from_now)
+    t.scoring_slots.build(species: walleye, slot_count: 1)
+    t.scoring_slots.build(species: pike, slot_count: 1)
+
+    assert_not t.valid?
+    assert_includes t.errors[:scoring_slots],
+                    "Progressive Length tournaments must have exactly one species configured"
+  end
+
+  test "progressive_length forces slot_count to 1" do
+    club = create(:club)
+    walleye = Species.find_or_create_by!(name: "Walleye")
+
+    t = build(:tournament, club: club, format: :progressive_length, mode: :team,
+              starts_at: 1.hour.from_now, ends_at: 3.hours.from_now)
+    t.scoring_slots.build(species: walleye, slot_count: 5)
+    t.save!
+
+    assert_equal 1, t.scoring_slots.first.slot_count
+  end
+
+  test "progressive_length allows both solo and team" do
+    club = create(:club)
+    walleye = Species.find_or_create_by!(name: "Walleye")
+
+    [:solo, :team].each do |mode|
+      t = build(:tournament, club: club, format: :progressive_length, mode: mode,
+                starts_at: 1.hour.from_now, ends_at: 3.hours.from_now)
+      t.scoring_slots.build(species: walleye, slot_count: 1)
+      assert t.valid?, "expected #{mode} to be valid: #{t.errors.full_messages.join(', ')}"
+    end
+  end
 end

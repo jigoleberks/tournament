@@ -37,8 +37,11 @@ module Catches
           entry      = row[:entry]
 
           # Bingo keeps no placements — a card is derived on read. Just flag the
-          # tournament so the post-commit block rebuilds & rebroadcasts it.
+          # tournament so the post-commit block rebuilds & rebroadcasts it. A
+          # geofence-excluded catch never fills a square (EvaluateCard drops it),
+          # so don't flag/rebroadcast a card that can't have changed.
           if tournament.format_bingo?
+            next unless @catch.geofence_eligible_for?(tournament)
             affected_tournaments << tournament
             bingo_changed_entry_ids[tournament.id] << entry.id
             next
@@ -46,8 +49,7 @@ module Catches
 
           slot       = tournament.scoring_slots.find_by(species_id: @catch.species_id)
           next if slot.nil?
-          next if skip_for_out_of_province?
-          next if skip_for_local_out_of_bounds?(tournament)
+          next unless @catch.geofence_eligible_for?(tournament)
 
           entry.lock!  # serialize with PromoteBackup, ReconcileStandard, other PlaceInSlots
 
@@ -56,9 +58,17 @@ module Catches
           # between resolution and lock acquisition. Re-verify membership now.
           next unless entry.tournament_entry_members.exists?(user_id: @catch.user_id)
 
-          active_placements = entry.catch_placements
-            .where(species_id: @catch.species_id, active: true)
-            .includes(:catch).order(:slot_index).to_a
+          # Progressive Length re-derives its whole ladder in
+          # ReconcileProgressiveLength and never reads active_placements, so skip
+          # the per-species load for it rather than querying and discarding it.
+          active_placements =
+            if tournament.format_progressive_length?
+              []
+            else
+              entry.catch_placements
+                .where(species_id: @catch.species_id, active: true)
+                .includes(:catch).order(:slot_index).to_a
+            end
 
           if tournament.format_hidden_length?
             # Hidden Length: every catch is kept; the closest-to-target catch
@@ -117,7 +127,7 @@ module Catches
                 # idx_active_placements_uniq_per_slot.
                 dropped = active_placements.find { |p| !keep_ids.include?(p.catch_id) }
                 dropped.update!(active: false)
-                bumped << dropped
+                bumped << dropped if score_changing_bump?(dropped)
                 created << CatchPlacement.create!(
                   catch: @catch, tournament: tournament, tournament_entry: entry,
                   species: @catch.species, slot_index: dropped.slot_index, active: true
@@ -217,6 +227,21 @@ module Catches
             end
             # else: off-train species, locked-previous-group species, or
             # skip-ahead — no-op
+          elsif tournament.format_progressive_length?
+            # Progressive Length has no incremental branch. The ladder is a pure
+            # function of the entry's eligible catches in CAPTURE order, so we
+            # re-derive it — which is the only way a late-syncing offline catch
+            # (captured earlier than fish already on the ladder) lands at its true
+            # rung. Live placement and a later judge reconcile therefore run the
+            # exact same code and cannot disagree.
+            res = ReconcileProgressiveLength.call(
+              tournament: tournament, entry: entry, species: @catch.species
+            )
+            created.concat(res[:created])
+            bumped.concat(res[:bumped])
+            # A dink that doesn't beat the top rung changes nothing — don't
+            # rebroadcast a leaderboard that didn't move.
+            affected_tournaments << tournament if res[:created].any? || res[:bumped].any?
           elsif tournament.format_smallest_fish?
             # Smallest Fish: inverse of Standard. Fill empty slots the same way,
             # but once the basket is full a new catch only matters if it's SMALLER
@@ -232,7 +257,7 @@ module Catches
               worst = worst_placement(active_placements, desc: false)
               if outranks?(worst, desc: false)
                 worst.update!(active: false)
-                bumped << worst
+                bumped << worst if score_changing_bump?(worst)
                 created << CatchPlacement.create!(
                   catch: @catch, tournament: tournament, tournament_entry: entry,
                   species: @catch.species, slot_index: worst.slot_index, active: true
@@ -283,7 +308,7 @@ module Catches
                 worst_over = worst_placement(overs, desc: true)
                 if outranks?(worst_over, desc: true)
                   worst_over.update!(active: false)
-                  bumped << worst_over
+                  bumped << worst_over if score_changing_bump?(worst_over)
                   place.call(worst_over.slot_index)
                 end
               end
@@ -296,7 +321,7 @@ module Catches
                 worst_under = worst_placement(unders, desc: true)
                 if worst_under && outranks?(worst_under, desc: true)
                   worst_under.update!(active: false)
-                  bumped << worst_under
+                  bumped << worst_under if score_changing_bump?(worst_under)
                   place.call(worst_under.slot_index)
                 end
               end
@@ -312,7 +337,7 @@ module Catches
             worst = worst_placement(active_placements, desc: true)
             if outranks?(worst, desc: true)
               worst.update!(active: false)
-              bumped << worst
+              bumped << worst if score_changing_bump?(worst)
               created << CatchPlacement.create!(
                 catch: @catch, tournament: tournament, tournament_entry: entry,
                 species: @catch.species, slot_index: worst.slot_index, active: true
@@ -376,36 +401,50 @@ module Catches
         entry_id = changed_entry_ids.fetch(t.id, []).first
         next unless entry_id
 
-        leader = leaderboards[t.id]&.first
+        board = leaderboards[t.id]
+        leader = board&.first
         next unless leader && leader[:entry].id == entry_id
 
-        before = bingo_result_without_catch(t, leader[:entry])
+        before = bingo_result_without_catch(t, leader[:entry], leader[:catches])
+        # squares_count is monotonic in catches, so a positive delta means @catch
+        # stamped a new square.
         next unless leader[:result].squares_count > before.squares_count
+
+        # Taking the lead, not merely holding it. Only the submitter's card
+        # changed this run, so compare their pre-catch headline score against the
+        # rest of the (unchanged) field: if they were already strictly ahead of
+        # everyone, this square only extends a lead they held — no push.
+        # Otherwise (tied for, or behind, the lead before) they've just taken it.
+        # An exact tie broken only by entry id is NOT a held lead, so the first
+        # angler to stamp a square from an all-even start still gets the push.
+        others = board.reject { |r| r[:entry].id == entry_id }
+        led_before = others.all? { |r| (bingo_headline(before) <=> bingo_headline(r[:result])) > 0 }
+        next if led_before
 
         { tournament: t, entry: leader[:entry] }
       end
     end
 
+    # The headline ranking score for a bingo card — blackout, then lines, then
+    # squares, higher-is-better — mirroring the leading terms of
+    # Rankers::Bingo#sort_key. Reach-time tiebreaks are intentionally omitted:
+    # two cards level on all three still read as "tied for the lead" here, which
+    # only ever errs toward an extra took-the-lead push in that rare exact tie,
+    # never toward spamming an established leader.
+    def bingo_headline(result)
+      [result.blackout ? 1 : 0, result.lines_count, result.squares_count]
+    end
+
     # The submitter's card as it stood before this catch — re-derived from the
     # entry's catches minus @catch — so we can tell whether @catch newly filled a
     # square (square count is monotonic in catches, so a positive delta == stamped).
-    def bingo_result_without_catch(tournament, entry)
-      lites = Catches::Bingo::EvaluateCard
-        .catches_by_entry(tournament: tournament, entries: [entry])[entry.id] || []
+    # `lites` are the CatchLites the leaderboard build already loaded for this
+    # entry, so we re-evaluate in memory without re-querying the catch window.
+    def bingo_result_without_catch(tournament, entry, lites)
       Catches::Bingo::EvaluateCard.call(
-        tournament: tournament, entry: entry, catches: lites.reject { |c| c.id == @catch.id }
+        tournament: tournament, entry: entry,
+        catches: (lites || []).reject { |c| c.id == @catch.id }
       )
-    end
-
-    def skip_for_out_of_province?
-      return false if @catch.latitude.nil?
-      !@catch.in_geofence?(:sask)
-    end
-
-    def skip_for_local_out_of_bounds?(tournament)
-      return false unless tournament.local?
-      return false if @catch.latitude.nil?
-      !@catch.in_geofence?(:lake)
     end
 
     # The lowest 0-based slot index in [0, count) not already held by an active
@@ -436,6 +475,18 @@ module Catches
     # no-op, matching "first-to-set wins".
     def outranks?(placement, desc:)
       (rank_key(@catch, desc: desc) <=> rank_key(placement.catch, desc: desc)) < 0
+    end
+
+    # A full basket bumps the incumbent @catch beats. When the two are the SAME
+    # length the swap is score-neutral — outranks? still fires (the tiebreak keeps
+    # the earliest-captured of two equal fish, matching a reconcile), so the credited
+    # fish moves but the basket's total doesn't. Only such a swap should count as a
+    # "bump" for notification purposes; otherwise a teammate's equal-length offline
+    # catch sends a misleading "you were bumped from a slot" push despite no score
+    # change. The DB swap and rebroadcast still happen (the earliest_catch_at
+    # tiebreak can shift); only the push is suppressed.
+    def score_changing_bump?(placement)
+      @catch.length_inches != placement.catch.length_inches
     end
   end
 end

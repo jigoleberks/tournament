@@ -104,7 +104,34 @@ module CatchesHelper
     # map (not pluck) so the controller's :catch_placements preload is used —
     # pluck always issues a fresh query, N+1ing the listing it was preloaded for.
     catch_tournament_ids = catch_record.catch_placements.map(&:tournament_id).uniq
-    (judged_tournament_ids & catch_tournament_ids).any?
+    return true if (judged_tournament_ids & catch_tournament_ids).any?
+    # Bingo keeps no CatchPlacement rows, so the placed-in check above can't connect
+    # a dedicated judge to an entrant's catch. Fall back to the bingo tournaments
+    # this viewer judges: the catch is reviewable if its owner is an entrant and it
+    # falls in the window (mirroring EvaluateCard's load).
+    reviewable_via_judged_bingo?(catch_record)
+  end
+
+  # For a dedicated judge, the bingo tournaments they judge — each as its catch
+  # window plus the set of its entrant user ids. Loaded once per request so the
+  # per-catch check in can_review_catch? doesn't N+1 the listing.
+  def judged_bingo_review_contexts
+    @judged_bingo_review_contexts ||=
+      Tournament.format_bingo.where(id: judged_tournament_ids.to_a).map do |t|
+        entrant_ids = TournamentEntryMember
+          .joins(:tournament_entry)
+          .where(tournament_entries: { tournament_id: t.id })
+          .pluck(:user_id).to_set
+        { window: t.starts_at..t.ends_at, entrant_ids: entrant_ids }
+      end
+  end
+
+  def reviewable_via_judged_bingo?(catch_record)
+    at = catch_record.captured_at_device
+    return false if at.nil?
+    judged_bingo_review_contexts.any? do |ctx|
+      ctx[:entrant_ids].include?(catch_record.user_id) && ctx[:window].cover?(at)
+    end
   end
 
   # Flags judges/organizers see but members must not — either to avoid tipping

@@ -57,6 +57,8 @@
               Hidden length 12"-22" <%= slot.species.name.downcase %>
             <% elsif @tournament.format_tagged? %>
               Tagged fish raffle
+            <% elsif @tournament.format_progressive_length? %>
+              Progressive ladder — most up-sizes of <%= slot.species.name.downcase %>
             <% elsif slot.slot_count == 1 %>
               Largest <%= slot.species.name.downcase %>
             <% else %>

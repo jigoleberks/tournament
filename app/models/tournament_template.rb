@@ -4,7 +4,7 @@ class TournamentTemplate < ApplicationRecord
   accepts_nested_attributes_for :tournament_template_scoring_slots, allow_destroy: true,
                                 reject_if: ->(attrs) { attrs["species_id"].blank? }
   enum :mode, { solo: 0, team: 1 }, prefix: true
-  enum :format, { standard: 0, big_fish_season: 1, hidden_length: 2, biggest_vs_smallest: 3, fish_train: 4, tagged: 5, smallest_fish: 6, pro_walleye: 7 }, prefix: true
+  enum :format, { standard: 0, big_fish_season: 1, hidden_length: 2, biggest_vs_smallest: 3, fish_train: 4, tagged: 5, smallest_fish: 6, pro_walleye: 7, progressive_length: 9 }, prefix: true
   validates :name, presence: true
   validates :default_weekday, inclusion: { in: 0..6 }, allow_nil: true
   validate :default_schedule_all_or_nothing
@@ -20,6 +20,7 @@ class TournamentTemplate < ApplicationRecord
   validate :tagged_requires_one_tagged_walleye_scoring_slot
   validate :pro_walleye_requires_one_walleye_scoring_slot
   before_validation :force_pro_walleye_slot_count
+  validate :progressive_length_requires_one_scoring_slot
 
   def scheduled?
     default_weekday.present? && default_start_time.present? && default_end_time.present?
@@ -147,5 +148,13 @@ class TournamentTemplate < ApplicationRecord
     tournament_template_scoring_slots.reject(&:marked_for_destruction?).each do |s|
       s.slot_count = Catches::ProWalleye::BASKET_SIZE
     end
+  end
+
+  def progressive_length_requires_one_scoring_slot
+    return unless format_progressive_length?
+    remaining = tournament_template_scoring_slots.reject(&:marked_for_destruction?)
+    return if remaining.size == 1
+    errors.add(:tournament_template_scoring_slots,
+               "Progressive Length tournaments must have exactly one species configured")
   end
 end

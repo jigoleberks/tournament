@@ -43,6 +43,11 @@ module Placements
     def bumped_users
       submitter = @result[:submitter]
       @result[:bumped].flat_map do |placement|
+        # Progressive Length: a deactivated rung means a late offline sync
+        # re-derived the ladder in capture order, not that a rival displaced you.
+        # "You were bumped from a slot" would be nonsense.
+        next [] if placement.tournament.format_progressive_length?
+
         placement.tournament_entry.users.reject { |u| u == submitter }.map do |user|
           { user: user, tournament: placement.tournament }
         end
@@ -54,6 +59,11 @@ module Placements
         # Hidden Length pre-reveal: leaderboard is sorted by length, but length
         # isn't the winning metric, so a "took the lead" push would mislead.
         next [] if t.format_hidden_length? && t.hidden_length_target.nil?
+
+        # Progressive Length: a created placement doesn't imply a score increase
+        # here. A late-syncing catch can add one rung to the ladder while
+        # invalidating several rungs above it, net-decreasing the score.
+        next [] if t.format_progressive_length?
 
         leaderboard = @leaderboards[t.id] || Leaderboards::Build.call(tournament: t)
         leader_entry = leaderboard.first&.dig(:entry)

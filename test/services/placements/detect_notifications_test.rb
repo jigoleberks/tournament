@@ -224,5 +224,90 @@ module Placements
       assert_empty payloads.select { |p| p[:reason] == "took_the_lead" },
                    "a stamping catch that doesn't take the lead must not push"
     end
+
+    test "bingo: an established leader is not re-notified when they stamp another square" do
+      walleye, = create_bingo_species!
+      t = create(:tournament, club: @club, mode: :solo, format: :bingo,
+                 starts_at: 1.hour.ago, ends_at: 1.hour.from_now)
+      alice = create(:user, club: @club, name: "Alice")
+      bob = create(:user, club: @club, name: "Bob")
+      ea = create(:tournament_entry, tournament: t)
+      create(:tournament_entry_member, tournament_entry: ea, user: alice)
+      eb = create(:tournament_entry, tournament: t)
+      create(:tournament_entry_member, tournament_entry: eb, user: bob)
+
+      # Alice takes the lead with her first walleye.
+      Catches::PlaceInSlots.call(catch: create(:catch, user: alice, species: walleye,
+        length_inches: 16, captured_at_device: 40.minutes.ago, status: :synced))
+
+      # Still comfortably ahead of empty-carded Bob, she stamps a NEW square
+      # (her second walleye fills "Catch a second Walleye"). Holding the lead is
+      # not taking it — no push.
+      result = Catches::PlaceInSlots.call(catch: create(:catch, user: alice, species: walleye,
+        length_inches: 16, captured_at_device: 38.minutes.ago, status: :synced))
+
+      payloads = DetectNotifications.call(result: result)
+      assert_empty payloads.select { |p| p[:reason] == "took_the_lead" },
+                   "an angler who already leads must not be re-notified for holding the lead"
+    end
+
+    test "progressive_length sends no bumped push when a rung falls off the ladder" do
+      club = create(:club)
+      walleye = Species.find_or_create_by!(name: "Walleye")
+      angler = create(:user, club: club)
+      teammate = create(:user, club: club)
+      t = build(:tournament, club: club, format: :progressive_length, mode: :team,
+                starts_at: 3.hours.ago, ends_at: 1.hour.from_now)
+      t.scoring_slots.build(species: walleye, slot_count: 1)
+      t.save!
+      entry = create(:tournament_entry, tournament: t)
+      create(:tournament_entry_member, tournament_entry: entry, user: angler)
+      create(:tournament_entry_member, tournament_entry: entry, user: teammate)
+
+      [[12, 120], [15, 60]].each do |len, mins|
+        c = create(:catch, user: angler, species: walleye, length_inches: len,
+                           captured_at_device: mins.minutes.ago, status: :synced)
+        Catches::PlaceInSlots.call(catch: c, broadcast: false)
+      end
+
+      # A 20" captured between the 12" and the 15" knocks the 15" off the ladder.
+      late = create(:catch, user: angler, species: walleye, length_inches: 20,
+                            captured_at_device: 90.minutes.ago, status: :synced)
+      result = Catches::PlaceInSlots.call(catch: late, broadcast: false)
+
+      assert result[:bumped].any?, "expected the 15\" rung to be bumped"
+      payloads = Placements::DetectNotifications.call(result: result)
+      assert_empty payloads.select { |p| p[:reason] == "bumped" }
+    end
+
+    test "progressive_length sends no took_the_lead push when the sole entry climbs the ladder" do
+      club = create(:club)
+      walleye = Species.find_or_create_by!(name: "Walleye")
+      angler = create(:user, club: club)
+      t = build(:tournament, club: club, format: :progressive_length, mode: :solo,
+                starts_at: 3.hours.ago, ends_at: 1.hour.from_now)
+      t.scoring_slots.build(species: walleye, slot_count: 1)
+      t.save!
+      entry = create(:tournament_entry, tournament: t)
+      create(:tournament_entry_member, tournament_entry: entry, user: angler)
+
+      first = create(:catch, user: angler, species: walleye, length_inches: 12,
+                             captured_at_device: 30.minutes.ago, status: :synced)
+      Catches::PlaceInSlots.call(catch: first, broadcast: false)
+
+      # 15" beats 12", adding a rung: the entry (the tournament's sole entry,
+      # hence its leader) receives a created placement.
+      climbing = create(:catch, user: angler, species: walleye, length_inches: 15,
+                                captured_at_device: 20.minutes.ago, status: :synced)
+      result = Catches::PlaceInSlots.call(catch: climbing, broadcast: false)
+
+      assert result[:created].any?, "expected the 15\" rung to be a created placement"
+      leaderboard = Leaderboards::Build.call(tournament: t)
+      assert_equal entry.id, leaderboard.first&.dig(:entry)&.id, "expected the sole entry to be the leader"
+
+      payloads = Placements::DetectNotifications.call(result: result)
+      assert_empty payloads.select { |p| p[:reason] == "took_the_lead" },
+                   "progressive_length should never push took_the_lead (a created placement doesn't imply a score increase)"
+    end
   end
 end

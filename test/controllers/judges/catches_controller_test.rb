@@ -255,6 +255,19 @@ class Judges::CatchesControllerTest < ActionDispatch::IntegrationTest
     assert_response :success
   end
 
+  test "index shows review-only flags to a dedicated judge on a bingo tournament" do
+    # Bingo keeps no CatchPlacement rows, so the placement-based can_review_catch?
+    # check can't connect a dedicated (non-organizer) judge to the catch. The
+    # entrant/window fallback must still surface the review-only flag.
+    bingo, judge, clean = bingo_tournament_with_clean_catch
+    clean.update!(flags: %w[screenshot_suspect])
+    sign_in_as(judge)
+    get judges_tournament_catches_path(tournament_id: bingo.id)
+    assert_response :success
+    assert_includes response.body, "possible screenshot",
+                     "a dedicated judge must see the review-only flag on a bingo entrant's catch"
+  end
+
   private
 
   # A bingo tournament with an assigned judge and one entrant whose synced,

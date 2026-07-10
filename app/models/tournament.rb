@@ -12,7 +12,7 @@ class Tournament < ApplicationRecord
   has_many :judge_users, through: :tournament_judges, source: :user
   has_many :deputy_users, through: :tournament_deputies, source: :user
   enum :mode, { solo: 0, team: 1 }, prefix: true
-  enum :format, { standard: 0, big_fish_season: 1, hidden_length: 2, biggest_vs_smallest: 3, fish_train: 4, tagged: 5, smallest_fish: 6, pro_walleye: 7, bingo: 8 }, prefix: true
+  enum :format, { standard: 0, big_fish_season: 1, hidden_length: 2, biggest_vs_smallest: 3, fish_train: 4, tagged: 5, smallest_fish: 6, pro_walleye: 7, bingo: 8, progressive_length: 9 }, prefix: true
 
   validates :name, :mode, :starts_at, :ends_at, presence: true
   validate :ends_at_after_starts_at
@@ -33,6 +33,8 @@ class Tournament < ApplicationRecord
   validate :tagged_requires_one_tagged_walleye_scoring_slot
   validate :pro_walleye_requires_one_walleye_scoring_slot
   before_validation :force_pro_walleye_slot_count
+  validate :progressive_length_requires_one_scoring_slot
+  before_validation :force_progressive_length_slot_count
   before_validation :assign_bingo_layout
   validate :bingo_layout_well_formed
   validate :bingo_layout_locked_after_start, on: :update
@@ -227,6 +229,24 @@ class Tournament < ApplicationRecord
     scoring_slots.reject(&:marked_for_destruction?).each { |s| s.slot_count = Catches::ProWalleye::BASKET_SIZE }
   end
 
+  def progressive_length_requires_one_scoring_slot
+    return unless format_progressive_length?
+    remaining = scoring_slots.reject(&:marked_for_destruction?)
+    return if remaining.size == 1
+    errors.add(:scoring_slots, "Progressive Length tournaments must have exactly one species configured")
+  end
+
+  # The ladder is unbounded, so the slot-count field is meaningless here. Pin it
+  # to 1 (the UI labels it "ignored") so the leaderboard `complete` flag and the
+  # winners/season-points capacity math, which read scoring_slots.sum(:slot_count),
+  # get a sane number. Same reasoning as force_pro_walleye_slot_count. A no-op
+  # reassignment leaves the record clean, so scoring_slots_locked_after_start
+  # still permits saving a started tournament.
+  def force_progressive_length_slot_count
+    return unless format_progressive_length?
+    scoring_slots.reject(&:marked_for_destruction?).each { |s| s.slot_count = 1 }
+  end
+
   def assign_bingo_layout
     return unless format_bingo?
     return if bingo_layout.present?
@@ -266,8 +286,18 @@ class Tournament < ApplicationRecord
   # absent (never seeded, or renamed), those squares can never fill and blackout
   # becomes unreachable — so surface it loudly at save time instead of shipping a
   # silently broken card.
+  #
+  # Only guard when a bingo card is actually being wired up: a new tournament, or a
+  # not-yet-started tournament switching to bingo. Re-running on every later edit
+  # would lock organizers out of an existing bingo tournament the instant a global
+  # species is renamed — an unrelated edit (fixing the name, extending ends_at)
+  # can't fix that, so blocking it just strands the tournament. A post-start format
+  # switch is skipped too: format_locked_after_start already rejects it, so don't
+  # pile on a misleading "species missing" base error (mirrors
+  # bingo_layout_locked_after_start).
   def bingo_species_present
     return unless format_bingo?
+    return unless new_record? || (will_save_change_to_format? && !started?)
     missing = Catches::Bingo::EvaluateCard.species_id_map.select { |_, id| id.nil? }.keys
     return if missing.empty?
     errors.add(:base, "Bingo needs these species defined first: #{missing.map { |s| s.to_s.titleize }.join(', ')}")

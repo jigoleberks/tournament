@@ -18,6 +18,11 @@ module Catches
       smallest_fish: ReconcileSmallestFish,
       pro_walleye: ReconcileProWalleye,
       biggest_vs_smallest: ReconcileBvsExtremes,
+      # Progressive Length has no separate incremental branch — PlaceInSlots calls
+      # the reconciler directly — so this pairing is true by construction. It stays
+      # in the map so the generative fuzz test below covers the format, and so
+      # anyone who later reintroduces an incremental branch is caught immediately.
+      progressive_length: ReconcileProgressiveLength,
     }.freeze
 
     # Places each length incrementally, then reconciles the same eligible set.
