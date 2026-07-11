@@ -26,6 +26,17 @@
   <% end %>
 <% end %>
 
+<% if tournament&.format_beat_the_average? && tournament.ended?(at: Time.current) %>
+  <% bta_avg = Leaderboards::Rankers::BeatTheAverage.average_for(tournament) %>
+  <div id="beat-the-average-banner" class="bg-amber-900 rounded-xl p-3 mb-3 text-amber-100 text-sm">
+    <% if bta_avg %>
+      🎯 The average was <%= format_length_dual(bta_avg) %> — the closest catch wins.
+    <% else %>
+      🎯 Tournament ended — no fish were logged.
+    <% end %>
+  </div>
+<% end %>
+
 <table class="w-full text-base">
   <thead>
     <tr class="text-left text-sm text-slate-300 border-b border-slate-700">
@@ -36,7 +47,7 @@
           "Spread"
         elsif tournament&.format_progressive_length?
           "Up-sizes"
-        elsif tournament&.format_big_fish_season? || tournament&.format_hidden_length?
+        elsif tournament&.format_big_fish_season? || tournament&.format_hidden_length? || tournament&.format_beat_the_average?
           "Length"
         else
           "Total"

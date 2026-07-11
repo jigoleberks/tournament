@@ -20,8 +20,17 @@ module LeaderboardsHelper
     off = nil
     if tournament&.format_hidden_length? && tournament.hidden_length_target.present?
       off = (scoring_value.to_d - tournament.hidden_length_target.to_d).abs
+    elsif tournament&.format_beat_the_average?
+      off = row[:distance]   # present only on revealed (per-catch) rows
     end
-    { inches: inches_part, cm: total_display_cm(row[:fish], biggest_vs_smallest: bvs), off: off }
+    cm = if tournament&.format_beat_the_average?
+      # The shown inches is either the entry's average (play) or a single catch
+      # length (reveal); derive cm from that same value so the two units agree.
+      scoring_value.to_f * LengthHelper::CM_PER_INCH
+    else
+      total_display_cm(row[:fish], biggest_vs_smallest: bvs)
+    end
+    { inches: inches_part, cm: cm, off: off }
   end
 
   # Flat one-line score label for the admin/print results sheet.

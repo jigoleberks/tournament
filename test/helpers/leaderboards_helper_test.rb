@@ -3,6 +3,15 @@ require "test_helper"
 class LeaderboardsHelperTest < ActionView::TestCase
   include LengthHelper
 
+  FakeT = Struct.new(:fmt) do
+    def format_beat_the_average? = fmt == :bta
+    def format_hidden_length? = false
+    def format_tagged? = false
+    def format_progressive_length? = false
+    def format_biggest_vs_smallest? = false
+    def hidden_length_target = nil
+  end
+
   test "standard format shows inches and cm" do
     t = build(:tournament, format: :standard)
     row = { total: 44.0, complete: true,
@@ -66,5 +75,22 @@ class LeaderboardsHelperTest < ActionView::TestCase
   test "progressive_length with zero up-sizes has no score" do
     t = build(:tournament, format: :progressive_length)
     assert_nil leaderboard_score_parts({ total: 0, fish: [], complete: false }, t)
+  end
+
+  test "beat_the_average revealed row shows distance as off and cm from the shown inches" do
+    row = { total: BigDecimal("20"), fish: [{ length_inches: BigDecimal("20"), length_unit: "inches" }],
+            distance: BigDecimal("2.17"), complete: false }
+    parts = leaderboard_score_parts(row, FakeT.new(:bta))
+    assert_equal BigDecimal("2.17"), parts[:off]
+    assert_in_delta 20 * 2.54, parts[:cm], 0.001
+  end
+
+  test "beat_the_average during-play row has no off" do
+    row = { total: BigDecimal("15"), fish: [{ length_inches: BigDecimal("10"), length_unit: "inches" },
+                                            { length_inches: BigDecimal("20"), length_unit: "inches" }],
+            complete: false }
+    parts = leaderboard_score_parts(row, FakeT.new(:bta))
+    assert_nil parts[:off]
+    assert_in_delta 15 * 2.54, parts[:cm], 0.001   # cm from the avg, NOT summed fish
   end
 end
