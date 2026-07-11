@@ -17,7 +17,8 @@ export default class extends Controller {
     "mode", "modeNote",
     "slotsHeading", "slotsHelp", "slotRow", "slotCountLabel", "slotsSection",
     "trainBuilder",
-    "localCheckbox"
+    "localCheckbox",
+    "blindCheckbox"
   ]
 
   connect() {
@@ -51,6 +52,8 @@ export default class extends Controller {
       this._applyBingo()
     } else if (this.formatTarget.value === "progressive_length") {
       this._applyProgressiveLength()
+    } else if (this.formatTarget.value === "beat_the_average") {
+      this._applyBeatTheAverage()
     } else {
       this._applyStandard()
     }
@@ -235,6 +238,26 @@ export default class extends Controller {
     }
   }
 
+  // Beat the Average's slot behavior is Standard's: multi-species rows,
+  // slot count meaningless but harmless. Delegate and override the
+  // description/help copy, then force + lock the blind checkbox since this
+  // format is always blind during play (enforced server-side too).
+  _applyBeatTheAverage() {
+    this._applyStandard()
+    if (this.hasFormatDescriptionTarget) {
+      this.formatDescriptionTarget.textContent = this.formatDescriptionTarget.dataset.beatTheAverageText
+    }
+    if (this.hasSlotsHelpTarget) {
+      this.slotsHelpTarget.textContent = "Pick one or more species. Every catch counts toward one combined average; the slot count is ignored."
+    }
+    // Beat the Average is always blind — force the checkbox on and lock it.
+    if (this.hasBlindCheckboxTarget && !this.blindCheckboxTarget.disabled) {
+      this.blindCheckboxTarget.checked = true
+      this.blindCheckboxTarget.classList.add("opacity-60", "pointer-events-none")
+      this._blindForced = true
+    }
+  }
+
   _applyStandard() {
     if (this.hasFormatDescriptionTarget) {
       this.formatDescriptionTarget.textContent = this.formatDescriptionTarget.dataset.standardText
@@ -264,6 +287,14 @@ export default class extends Controller {
     }
 
     if (this.hasTrainBuilderTarget) this.trainBuilderTarget.classList.add("hidden")
+
+    // Restore the blind checkbox if Beat the Average forced it. Only remove
+    // the visual lock — leave `checked` as-is, since the user may still want
+    // blind for a Standard tournament.
+    if (this.hasBlindCheckboxTarget && this._blindForced) {
+      this.blindCheckboxTarget.classList.remove("opacity-60", "pointer-events-none")
+      this._blindForced = false
+    }
   }
 
   _applySmallestFish() {
