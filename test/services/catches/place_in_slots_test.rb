@@ -209,6 +209,33 @@ module Catches
                  "expected new placement to land at max(active)+1, never reusing an occupied index"
   end
 
+  test "beat_the_average keeps every catch across multiple species" do
+    pike = create(:species, club: @club, name: "Pike")
+    t = build(:tournament, club: @club, format: :beat_the_average,
+              starts_at: 1.hour.ago, ends_at: 1.hour.from_now)
+    t.scoring_slots.build(species: @walleye, slot_count: 1)
+    t.scoring_slots.build(species: pike, slot_count: 1)
+    t.save!
+    entry = create(:tournament_entry, tournament: t)
+    create(:tournament_entry_member, tournament_entry: entry, user: @user)
+
+    walleye_c1 = create(:catch, user: @user, species: @walleye, length_inches: 20,
+                                 captured_at_device: 30.minutes.ago)
+    walleye_c2 = create(:catch, user: @user, species: @walleye, length_inches: 16,
+                                 captured_at_device: 30.minutes.ago)
+    pike_c1 = create(:catch, user: @user, species: pike, length_inches: 24,
+                              captured_at_device: 30.minutes.ago)
+
+    [walleye_c1, walleye_c2, pike_c1].each { |c| Catches::PlaceInSlots.call(catch: c, broadcast: false) }
+
+    placements = CatchPlacement.active.where(tournament_id: t.id)
+    assert_equal 3, placements.count, "every catch should be placed"
+    # slot_index is scoped per (entry, species) — see idx_active_placements_uniq_per_slot
+    # — so each species indexes independently rather than sharing one counter.
+    assert_equal [0, 1], placements.where(species: @walleye).order(:slot_index).pluck(:slot_index)
+    assert_equal [0], placements.where(species: pike).order(:slot_index).pluck(:slot_index)
+  end
+
   test "biggest_vs_smallest: first catch creates one placement at slot_index 0" do
     club = create(:club)
     walleye = create(:species, club: club)

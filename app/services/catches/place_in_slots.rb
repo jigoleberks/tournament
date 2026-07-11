@@ -70,9 +70,9 @@ module Catches
                 .includes(:catch).order(:slot_index).to_a
             end
 
-          if tournament.format_hidden_length?
-            # Hidden Length: every catch is kept; the closest-to-target catch
-            # per entry is selected at reveal time. No bumping, slot_count irrelevant.
+          if tournament.format_hidden_length? || tournament.format_beat_the_average?
+            # Hidden Length / Beat the Average: every catch is kept; the winning
+            # catch is selected at reveal time. No bumping, slot_count irrelevant.
             # Use max(active slot_index)+1 (not size) so a deactivated middle
             # placement (e.g. judge DQ) doesn't make the next index collide with
             # an existing active row under idx_active_placements_uniq_per_slot.
