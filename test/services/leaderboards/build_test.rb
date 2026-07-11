@@ -239,94 +239,65 @@ module Leaderboards
       assert_in_delta early.captured_at_device, result.first[:earliest_catch_at], 1.second
     end
 
-    test "dispatches to Rankers::Standard for standard tournaments" do
-      t = create(:tournament, club: @club, format: :standard, starts_at: 1.hour.ago, ends_at: 1.hour.from_now)
-
-      called = []
-      with_class_method_stub(Leaderboards::Rankers::Standard,      :call, ->(rows) { called << :standard;        rows }) do
-        with_class_method_stub(Leaderboards::Rankers::BigFishSeason, :call, ->(rows) { called << :big_fish_season; rows }) do
-          Build.call(tournament: t)
-        end
-      end
-
-      assert_equal [:standard], called
-    end
-
-    test "dispatches to Rankers::BigFishSeason for big_fish_season tournaments" do
+    test "dispatches each format to its matching ranker" do
       walleye = create(:species)
-      t = build(:tournament, club: @club, format: :big_fish_season, mode: :solo,
-                starts_at: 1.hour.ago, ends_at: 1.hour.from_now)
-      t.save!(validate: false)
-      create(:scoring_slot, tournament: t, species: walleye, slot_count: 3)
-      t.reload
+      # Per-format tournament builders; several formats skip validation and add a
+      # scoring slot, matching how those records are really persisted.
+      builders = {
+        standard: -> {
+          create(:tournament, club: @club, format: :standard,
+                 starts_at: 1.hour.ago, ends_at: 1.hour.from_now)
+        },
+        big_fish_season: -> {
+          t = build(:tournament, club: @club, format: :big_fish_season, mode: :solo,
+                    starts_at: 1.hour.ago, ends_at: 1.hour.from_now)
+          t.save!(validate: false)
+          create(:scoring_slot, tournament: t, species: walleye, slot_count: 3)
+          t.reload
+        },
+        hidden_length: -> {
+          t = build(:tournament, club: @club, format: :hidden_length, mode: :solo,
+                    starts_at: 1.hour.ago, ends_at: 1.hour.from_now)
+          t.save!(validate: false)
+          create(:scoring_slot, tournament: t, species: walleye, slot_count: 1)
+          t.reload
+        },
+        biggest_vs_smallest: -> {
+          t = build(:tournament, club: @club, format: :biggest_vs_smallest, mode: :solo,
+                    starts_at: 1.hour.ago, ends_at: 1.hour.from_now)
+          t.save!(validate: false)
+          create(:scoring_slot, tournament: t, species: walleye, slot_count: 1)
+          t.reload
+        },
+        fish_train: -> {
+          t = build(:tournament, club: @club, format: :fish_train, mode: :solo,
+                    starts_at: 1.hour.ago, ends_at: 1.hour.from_now,
+                    train_cars: [walleye.id, walleye.id, walleye.id])
+          t.save!(validate: false)
+          create(:scoring_slot, tournament: t, species: walleye, slot_count: 1)
+          t.reload
+        }
+      }
 
       called = []
-      with_class_method_stub(Leaderboards::Rankers::Standard,      :call, ->(rows) { called << :standard;        rows }) do
-        with_class_method_stub(Leaderboards::Rankers::BigFishSeason, :call, ->(rows) { called << :big_fish_season; rows }) do
-          Build.call(tournament: t)
-        end
-      end
-
-      assert_equal [:big_fish_season], called
-    end
-
-    test "dispatches to Rankers::HiddenLength for hidden_length tournaments" do
-      walleye = create(:species)
-      t = build(:tournament, club: @club, format: :hidden_length, mode: :solo,
-                starts_at: 1.hour.ago, ends_at: 1.hour.from_now)
-      t.save!(validate: false)
-      create(:scoring_slot, tournament: t, species: walleye, slot_count: 1)
-      t.reload
-
-      called = []
-      with_class_method_stub(Leaderboards::Rankers::Standard,      :call, ->(rows) { called << :standard;        rows }) do
-        with_class_method_stub(Leaderboards::Rankers::BigFishSeason, :call, ->(rows) { called << :big_fish_season; rows }) do
-          with_class_method_stub(Leaderboards::Rankers::HiddenLength, :call, ->(rows, tournament: nil) { called << :hidden_length;  rows }) do
-            Build.call(tournament: t)
-          end
-        end
-      end
-
-      assert_equal [:hidden_length], called
-    end
-
-    test "dispatches to Rankers::BiggestVsSmallest for biggest_vs_smallest tournaments" do
-      walleye = create(:species)
-      t = build(:tournament, club: @club, format: :biggest_vs_smallest, mode: :solo,
-                starts_at: 1.hour.ago, ends_at: 1.hour.from_now)
-      t.save!(validate: false)
-      create(:scoring_slot, tournament: t, species: walleye, slot_count: 1)
-      t.reload
-
-      called = []
-      with_class_method_stub(Leaderboards::Rankers::Standard,         :call, ->(rows) { called << :standard;          rows }) do
-        with_class_method_stub(Leaderboards::Rankers::BigFishSeason,  :call, ->(rows) { called << :big_fish_season;   rows }) do
-          with_class_method_stub(Leaderboards::Rankers::HiddenLength, :call, ->(rows, tournament: nil) { called << :hidden_length;   rows }) do
-            with_class_method_stub(Leaderboards::Rankers::BiggestVsSmallest, :call, ->(rows) { called << :biggest_vs_smallest; rows }) do
-              Build.call(tournament: t)
+      # Stub every ranker to record its own name (accepting any extra kwargs, e.g.
+      # HiddenLength's `tournament:`), then check each format routes to exactly one.
+      recorder = ->(name) { ->(rows, **) { called << name; rows } }
+      with_class_method_stub(Leaderboards::Rankers::Standard,          :call, recorder.call(:standard)) do
+        with_class_method_stub(Leaderboards::Rankers::BigFishSeason,     :call, recorder.call(:big_fish_season)) do
+          with_class_method_stub(Leaderboards::Rankers::HiddenLength,     :call, recorder.call(:hidden_length)) do
+            with_class_method_stub(Leaderboards::Rankers::BiggestVsSmallest, :call, recorder.call(:biggest_vs_smallest)) do
+              with_class_method_stub(Leaderboards::Rankers::FishTrain,        :call, recorder.call(:fish_train)) do
+                builders.each do |format, build_tournament|
+                  called.clear
+                  Build.call(tournament: build_tournament.call)
+                  assert_equal [format], called, "expected #{format} to dispatch to Rankers::#{format.to_s.camelize}"
+                end
+              end
             end
           end
         end
       end
-
-      assert_equal [:biggest_vs_smallest], called
-    end
-
-    test "dispatches to Rankers::FishTrain for fish_train tournaments" do
-      walleye = create(:species)
-      t = build(:tournament, club: @club, format: :fish_train, mode: :solo,
-                starts_at: 1.hour.ago, ends_at: 1.hour.from_now,
-                train_cars: [walleye.id, walleye.id, walleye.id])
-      t.save!(validate: false)
-      create(:scoring_slot, tournament: t, species: walleye, slot_count: 1)
-      t.reload
-
-      called = []
-      with_class_method_stub(Leaderboards::Rankers::FishTrain, :call, ->(rows) { called << :fish_train; rows }) do
-        Build.call(tournament: t)
-      end
-
-      assert_equal [:fish_train], called
     end
 
     test "dispatches to Rankers::Tagged for tagged tournaments and ranks by ticket count" do

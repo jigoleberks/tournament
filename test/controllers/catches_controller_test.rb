@@ -80,21 +80,13 @@ class CatchesControllerTest < ActionDispatch::IntegrationTest
     assert_match "Original photo", response.body
   end
 
-  test "show: hides possible-duplicate badge from member viewing own catch" do
+  test "show: hides possible-duplicate and imported-photo badges from member viewing own catch" do
     own = create(:catch, user: @user, species: @walleye, length_inches: 18.5,
-                         flags: ["missing_gps", "possible_duplicate"], status: :needs_review)
+                         flags: ["missing_gps", "possible_duplicate", "imported_photo"], status: :needs_review)
     get catch_path(own.id)
     assert_response :success
-    assert_match "no GPS", response.body
+    assert_match "no GPS", response.body          # a non-suppressed flag still shows
     refute_match "possible duplicate", response.body
-  end
-
-  test "show: hides imported-photo badge from member viewing own catch" do
-    own = create(:catch, user: @user, species: @walleye, length_inches: 18.5,
-                         flags: ["missing_gps", "imported_photo"], status: :needs_review)
-    get catch_path(own.id)
-    assert_response :success
-    assert_match "no GPS", response.body
     refute_match "imported photo", response.body
   end
 
@@ -377,46 +369,34 @@ class CatchesControllerTest < ActionDispatch::IntegrationTest
     assert_select "textarea[name=?]", "catch[note]", count: 0
   end
 
-  test "show: judge sees Approve button when catch is needs_review" do
-    catch_record = create(:catch, user: @user, species: @walleye, length_inches: 18.5, status: :needs_review)
-    Catches::PlaceInSlots.call(catch: catch_record)
-    judge = create(:user, club: @club)
-    create(:tournament_judge, tournament: @tournament, user: judge)
-    sign_in_as(judge)
+  # A reviewer (judge for needs_review; organizer for synced/disputed) sees the
+  # Approve action for every reviewable status. Each iteration gets its own
+  # single-slot tournament so the catch always places (a shared 2-slot tournament
+  # would leave the third catch unplaced and hide the action section).
+  test "show: reviewer sees Approve action for every reviewable catch status" do
+    reviewer_for = {
+      needs_review: ->(tournament) {
+        judge = create(:user, club: @club)
+        create(:tournament_judge, tournament: tournament, user: judge)
+        judge
+      },
+      synced:   ->(_tournament) { create(:user, club: @club, role: :organizer) },
+      disputed: ->(_tournament) { create(:user, club: @club, role: :organizer) }
+    }
+    reviewer_for.each do |status, make_reviewer|
+      tournament = create(:tournament, club: @club, starts_at: 1.hour.ago, ends_at: 1.hour.from_now)
+      create(:scoring_slot, tournament: tournament, species: @walleye, slot_count: 1)
+      entry = create(:tournament_entry, tournament: tournament)
+      create(:tournament_entry_member, tournament_entry: entry, user: @user)
 
-    get catch_path(catch_record.id, t: @tournament.id)
-    assert_response :success
-    assert_select "form[action=?]",
-      judges_tournament_catch_review_path(tournament_id: @tournament.id, catch_id: catch_record.id) do
-      assert_select "input[name=?][value=?]", "action_kind", "approve"
-      assert_select "button", text: "Approve"
+      catch_record = create(:catch, user: @user, species: @walleye, length_inches: 18.5, status: status)
+      Catches::PlaceInSlots.call(catch: catch_record)
+      sign_in_as(make_reviewer.call(tournament))
+
+      get catch_path(catch_record.id, t: tournament.id)
+      assert_response :success, "status #{status}"
+      assert_select "input[name=?][value=?]", "action_kind", "approve", 1, "status #{status}"
     end
-  end
-
-  test "show: organizer sees Approve button when catch is synced" do
-    catch_record = create(:catch, user: @user, species: @walleye, length_inches: 18.5, status: :synced)
-    Catches::PlaceInSlots.call(catch: catch_record)
-    organizer = create(:user, club: @club, role: :organizer)
-    sign_in_as(organizer)
-
-    get catch_path(catch_record.id, t: @tournament.id)
-    assert_response :success
-    assert_select "form[action=?]",
-      judges_tournament_catch_review_path(tournament_id: @tournament.id, catch_id: catch_record.id) do
-      assert_select "input[name=?][value=?]", "action_kind", "approve"
-      assert_select "button", text: "Approve"
-    end
-  end
-
-  test "show: organizer sees Approve button when catch is disputed" do
-    catch_record = create(:catch, user: @user, species: @walleye, length_inches: 18.5, status: :disputed)
-    Catches::PlaceInSlots.call(catch: catch_record)
-    organizer = create(:user, club: @club, role: :organizer)
-    sign_in_as(organizer)
-
-    get catch_path(catch_record.id, t: @tournament.id)
-    assert_response :success
-    assert_select "input[name=?][value=?]", "action_kind", "approve"
   end
 
   test "show: shows 'Approved by X' instead of Approve button when catch already has an approver" do

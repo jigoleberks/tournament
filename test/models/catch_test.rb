@@ -118,59 +118,28 @@ class CatchTest < ActiveSupport::TestCase
     assert_includes catch_record.errors[:photo].join, "larger"
   end
 
-  test "walleye over 50 inches is invalid" do
-    too_big = build(:catch, user: @user, species: @walleye, length_inches: 50.5)
-    assert_not too_big.valid?
-    assert_includes too_big.errors[:length_inches].join, "Walleye"
+  # One row per capped species; a catch over the cap is invalid and the error
+  # names the species. Boundary (== cap is valid) cases are kept explicit below.
+  LENGTH_CAPS = {
+    "Walleye" => 50, "Perch" => 20, "Pike" => 70, "Bass" => 35,
+    "Lake Trout" => 55, "Stocked Trout" => 35, "Tagged Walleye" => 50,
+    "Other" => 200
+  }.freeze
+
+  test "a catch over its species length cap is invalid and the error names the species" do
+    LENGTH_CAPS.each do |name, cap|
+      species = name == "Walleye" ? @walleye : create(:species, club: @club, name: name)
+      attrs = { user: @user, species: species, length_inches: cap + 0.5 }
+      attrs[:tag_number] = "A1" if name == "Tagged Walleye"
+      too_big = build(:catch, **attrs)
+      assert_not too_big.valid?, "#{name} over #{cap}\" should be invalid"
+      assert_includes too_big.errors[:length_inches].join, name
+    end
   end
 
   test "walleye at exactly 50 inches is valid" do
     boundary = build(:catch, user: @user, species: @walleye, length_inches: 50)
     assert boundary.valid?
-  end
-
-  test "perch over 20 inches is invalid" do
-    perch = create(:species, club: @club, name: "Perch")
-    too_big = build(:catch, user: @user, species: perch, length_inches: 20.25)
-    assert_not too_big.valid?
-  end
-
-  test "pike over 70 inches is invalid" do
-    pike = create(:species, club: @club, name: "Pike")
-    too_big = build(:catch, user: @user, species: pike, length_inches: 70.5)
-    assert_not too_big.valid?
-  end
-
-  test "bass over 35 inches is invalid" do
-    bass = create(:species, club: @club, name: "Bass")
-    too_big = build(:catch, user: @user, species: bass, length_inches: 35.25)
-    assert_not too_big.valid?
-    assert_includes too_big.errors[:length_inches].join, "Bass"
-  end
-
-  test "lake trout over 55 inches is invalid" do
-    trout = create(:species, club: @club, name: "Lake Trout")
-    too_big = build(:catch, user: @user, species: trout, length_inches: 55.5)
-    assert_not too_big.valid?
-  end
-
-  test "stocked trout over 35 inches is invalid" do
-    trout = create(:species, club: @club, name: "Stocked Trout")
-    too_big = build(:catch, user: @user, species: trout, length_inches: 35.25)
-    assert_not too_big.valid?
-  end
-
-  test "tagged walleye over 50 inches is invalid" do
-    tagged = create(:species, club: @club, name: "Tagged Walleye")
-    too_big = build(:catch, user: @user, species: tagged, length_inches: 50.5,
-                    tag_number: "A1")
-    assert_not too_big.valid?
-  end
-
-  test "other over 200 inches is invalid" do
-    other = create(:species, club: @club, name: "Other")
-    too_big = build(:catch, user: @user, species: other, length_inches: 200.25)
-    assert_not too_big.valid?
   end
 
   test "other at exactly 200 inches is valid" do
