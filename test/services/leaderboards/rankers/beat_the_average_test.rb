@@ -25,13 +25,16 @@ module Leaderboards
 
       test "during play: one row per entry, total is that entry's own mean" do
         t = FakeTournament.new(false)
-        a = entry_row(entry_id: 1, catches: [[101, 10, 2.hours.ago], [102, 20, 1.hour.ago]])
+        # Own means (20, 15) deliberately diverge from the pooled mean of all
+        # fish ((10+30+15)/3 = 18.33...), so this fails if during_play leaked
+        # the overall pooled average instead of each entry's own mean.
+        a = entry_row(entry_id: 1, catches: [[101, 10, 2.hours.ago], [102, 30, 1.hour.ago]])
         b = entry_row(entry_id: 2, catches: [[201, 15, 90.minutes.ago]])
 
         result = BeatTheAverage.call([a, b], tournament: t)
 
         by_entry = result.index_by { |r| r[:entry].id }
-        assert_equal BigDecimal("15"), by_entry[1][:total]   # (10+20)/2
+        assert_equal BigDecimal("20"), by_entry[1][:total]   # (10+30)/2
         assert_equal BigDecimal("15"), by_entry[2][:total]   # 15/1
         assert_nil by_entry[1][:distance], "no overall distance leaked during play"
       end
@@ -45,7 +48,7 @@ module Leaderboards
 
       test "revealed: one row per catch ranked by distance to combined average" do
         t = FakeTournament.new(true)
-        # walleye + pike combined: 12,14,15,28,31,33 -> avg 22.166...
+        # two entries' catches pooled into one combined average: 12,14,15,28,31,33 -> avg 22.166...
         a = entry_row(entry_id: 1, catches: [[101, 12, 5.hours.ago], [102, 14, 4.hours.ago], [103, 15, 3.hours.ago]])
         b = entry_row(entry_id: 2, catches: [[201, 28, 2.hours.ago], [202, 31, 90.minutes.ago], [203, 33, 1.hour.ago]])
 
