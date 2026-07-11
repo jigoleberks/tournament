@@ -35,6 +35,8 @@ class Tournament < ApplicationRecord
   before_validation :force_pro_walleye_slot_count
   validate :progressive_length_requires_one_scoring_slot
   before_validation :force_progressive_length_slot_count
+  before_validation :force_beat_the_average_blind
+  validate :beat_the_average_requires_scoring_slots
   before_validation :assign_bingo_layout
   validate :bingo_layout_well_formed
   validate :bingo_layout_locked_after_start, on: :update
@@ -245,6 +247,26 @@ class Tournament < ApplicationRecord
   def force_progressive_length_slot_count
     return unless format_progressive_length?
     scoring_slots.reject(&:marked_for_destruction?).each { |s| s.slot_count = 1 }
+  end
+
+  # Beat the Average is inherently blind: catches are hidden between teams during
+  # play and the winning average is revealed only at the end. Force the flag on so
+  # the whole blind machinery (ViewerScope own-entry-only view, reveal at ends_at,
+  # push suppression) engages without the organizer having to remember the checkbox.
+  # Idempotent, so a plain save of a started tournament stays clean and passes
+  # blind_leaderboard_locked_after_start.
+  def force_beat_the_average_blind
+    return unless format_beat_the_average?
+    self.blind_leaderboard = true
+  end
+
+  # One or more species, like Standard. Every catch of any configured species
+  # counts toward the single combined average.
+  def beat_the_average_requires_scoring_slots
+    return unless format_beat_the_average?
+    remaining = scoring_slots.reject(&:marked_for_destruction?)
+    return if remaining.any?
+    errors.add(:scoring_slots, "Beat the Average tournaments must have at least one species configured")
   end
 
   def assign_bingo_layout
