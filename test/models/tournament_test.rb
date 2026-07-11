@@ -658,4 +658,9 @@ class TournamentTest < ActiveSupport::TestCase
       assert t.valid?, "expected #{mode} to be valid: #{t.errors.full_messages.join(', ')}"
     end
   end
+
+  test "beat_the_average is enum value 10 on Tournament and TournamentTemplate" do
+    assert_equal 10, Tournament.formats["beat_the_average"]
+    assert_equal 10, TournamentTemplate.formats["beat_the_average"]
+  end
 end
