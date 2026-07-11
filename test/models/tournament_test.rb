@@ -701,4 +701,30 @@ class TournamentTest < ActiveSupport::TestCase
     entry = TournamentEntry.new
     assert_nil entry.random_bag_target_inches
   end
+
+  test "random_bag forces blind leaderboard on" do
+    t = build(:tournament, format: :random_bag, blind_leaderboard: false)
+    t.scoring_slots.build(species: create(:species), slot_count: 1)
+    assert t.valid?, t.errors.full_messages.to_sentence
+    assert t.blind_leaderboard, "blind should be forced true"
+  end
+
+  test "random_bag requires at least one scoring slot" do
+    t = build(:tournament, format: :random_bag)
+    assert_not t.valid?
+    assert t.errors[:scoring_slots].any? { |m| m.include?("at least one species") }
+  end
+
+  test "random_bag allows equal min and max (fixed shared target)" do
+    t = build(:tournament, format: :random_bag, target_min_inches: 85, target_max_inches: 85)
+    t.scoring_slots.build(species: create(:species), slot_count: 1)
+    assert t.valid?, t.errors.full_messages.to_sentence
+  end
+
+  test "random_bag rejects max below min" do
+    t = build(:tournament, format: :random_bag, target_min_inches: 100, target_max_inches: 70)
+    t.scoring_slots.build(species: create(:species), slot_count: 1)
+    assert_not t.valid?
+    assert t.errors[:target_max_inches].any?
+  end
 end

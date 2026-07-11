@@ -37,6 +37,9 @@ class Tournament < ApplicationRecord
   before_validation :force_progressive_length_slot_count
   before_validation :force_beat_the_average_blind
   validate :beat_the_average_requires_scoring_slots
+  before_validation :force_random_bag_blind
+  validate :random_bag_requires_scoring_slots
+  validate :random_bag_range_valid
   before_validation :assign_bingo_layout
   validate :bingo_layout_well_formed
   validate :bingo_layout_locked_after_start, on: :update
@@ -267,6 +270,38 @@ class Tournament < ApplicationRecord
     remaining = scoring_slots.reject(&:marked_for_destruction?)
     return if remaining.any?
     errors.add(:scoring_slots, "Beat the Average tournaments must have at least one species configured")
+  end
+
+  # Random Bag is blind during play (each team sees only its own target and bag);
+  # the full ranking is revealed at ends_at. Force the flag on exactly like
+  # force_beat_the_average_blind so the blind machinery engages automatically.
+  def force_random_bag_blind
+    return unless format_random_bag?
+    self.blind_leaderboard = true
+  end
+
+  # One or more species, like Standard/Beat the Average. Every catch of any
+  # configured species is eligible for the bag.
+  def random_bag_requires_scoring_slots
+    return unless format_random_bag?
+    remaining = scoring_slots.reject(&:marked_for_destruction?)
+    return if remaining.any?
+    errors.add(:scoring_slots, "Random Bag tournaments must have at least one species configured")
+  end
+
+  # Per-tournament target bounds. Equal min == max is a legal "fixed shared
+  # target" configuration (every team draws the same number), so the rule is
+  # max >= min, not max > min.
+  def random_bag_range_valid
+    return unless format_random_bag?
+    if target_min_inches.blank? || target_max_inches.blank?
+      errors.add(:base, "Random Bag tournaments need a target range")
+      return
+    end
+    errors.add(:target_min_inches, "must be at least 0") if target_min_inches.to_d.negative?
+    if target_max_inches.to_d < target_min_inches.to_d
+      errors.add(:target_max_inches, "must be greater than or equal to the minimum")
+    end
   end
 
   def assign_bingo_layout
