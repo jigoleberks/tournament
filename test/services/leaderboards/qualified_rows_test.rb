@@ -35,5 +35,15 @@ module Leaderboards
       kept = QualifiedRows.call(tournament: t, rows: rows)
       assert_equal [1], kept.map { |r| r[:entry].id }
     end
+
+    test "beat the average dedupes per-catch rows to one row per entry, keeping the closest" do
+      t = Tournament.new(format: :beat_the_average)
+      # Revealed board is one row PER CATCH, sorted closest-to-average first.
+      # Entry 1 owns the two closest catches (rows 0 and 1); entry 2 owns the third.
+      rows = [length_row(1, 1), length_row(1, 1), length_row(2, 1)]
+      kept = QualifiedRows.call(tournament: t, rows: rows)
+      assert_equal [1, 2], kept.map { |r| r[:entry].id },
+        "each entry should place at most once, by its closest catch, not once per catch"
+    end
   end
 end

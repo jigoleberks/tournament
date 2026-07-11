@@ -14,6 +14,13 @@ module Leaderboards
         rows.reject { |r| r[:squares_count].to_i <= 1 }
       elsif tournament.format_progressive_length?
         rows.reject { |r| r[:fish].size <= 1 }
+      elsif tournament.format_beat_the_average?
+        # Beat the Average's revealed board is one row PER CATCH (sorted closest-first),
+        # so one entry can hold several of the closest catches. The winner / top-three /
+        # season-points consumers must rank DISTINCT entries — an entry places once, by its
+        # closest catch — so dedupe by entry, keeping the first (closest) row per entry.
+        # (During play, Build already returns one row per entry, so uniq is a harmless no-op.)
+        rows.reject { |r| r[:fish].empty? }.uniq { |r| r[:entry].id }
       else
         rows.reject { |r| r[:fish].empty? }
       end
