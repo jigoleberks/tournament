@@ -11,6 +11,7 @@ class User < ApplicationRecord
            foreign_key: :granted_by_user_id, dependent: :destroy
   has_many :catches, dependent: :restrict_with_error
   has_many :push_subscriptions, dependent: :destroy
+  has_many :sign_in_tokens, dependent: :destroy
   has_many :judge_actions, foreign_key: :judge_user_id, dependent: :destroy
   has_many :user_events, dependent: :delete_all
 
