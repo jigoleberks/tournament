@@ -34,6 +34,12 @@ export default class extends Controller {
     // it back to visible so switching away from Bingo restores it.
     if (this.hasSlotsSectionTarget) this.slotsSectionTarget.classList.remove("hidden")
 
+    // Beat the Average is the only format that forces + locks the blind
+    // checkbox. Unconditionally undo that before the per-format dispatch
+    // below, so every format switch starts from a clean slate; if the new
+    // format is Beat the Average again, _applyBeatTheAverage() re-forces it.
+    this._restoreBlindCheckbox()
+
     if (this.formatTarget.value === "big_fish_season") {
       this._applyBigFishSeason()
     } else if (this.formatTarget.value === "hidden_length") {
@@ -251,7 +257,11 @@ export default class extends Controller {
       this.slotsHelpTarget.textContent = "Pick one or more species. Every catch counts toward one combined average; the slot count is ignored."
     }
     // Beat the Average is always blind — force the checkbox on and lock it.
+    // Capture the pre-forced checked value so _restoreBlindCheckbox() can put
+    // it back when the user switches to another format; guard the capture so
+    // a re-entrant sync() while already forced doesn't overwrite it with `true`.
     if (this.hasBlindCheckboxTarget && !this.blindCheckboxTarget.disabled) {
+      if (!this._blindForced) this._blindPriorChecked = this.blindCheckboxTarget.checked
       this.blindCheckboxTarget.checked = true
       this.blindCheckboxTarget.classList.add("opacity-60", "pointer-events-none")
       this._blindForced = true
@@ -287,14 +297,6 @@ export default class extends Controller {
     }
 
     if (this.hasTrainBuilderTarget) this.trainBuilderTarget.classList.add("hidden")
-
-    // Restore the blind checkbox if Beat the Average forced it. Only remove
-    // the visual lock — leave `checked` as-is, since the user may still want
-    // blind for a Standard tournament.
-    if (this.hasBlindCheckboxTarget && this._blindForced) {
-      this.blindCheckboxTarget.classList.remove("opacity-60", "pointer-events-none")
-      this._blindForced = false
-    }
   }
 
   _applySmallestFish() {
@@ -344,6 +346,18 @@ export default class extends Controller {
     // Bingo needs no scoring slots or train — hide the whole slots section.
     if (this.hasSlotsSectionTarget) this.slotsSectionTarget.classList.add("hidden")
     if (this.hasTrainBuilderTarget) this.trainBuilderTarget.classList.add("hidden")
+  }
+
+  // Undoes the force-checked + locked state Beat the Average applies to the
+  // blind checkbox, restoring whatever the checkbox was set to before it was
+  // forced (not just unlocking) — so the forced-on value doesn't linger onto
+  // another format, e.g. Bingo, whose bingo_not_blind validation forbids
+  // blind_leaderboard = true.
+  _restoreBlindCheckbox() {
+    if (!this.hasBlindCheckboxTarget || !this._blindForced) return
+    this.blindCheckboxTarget.checked = this._blindPriorChecked ?? false
+    this.blindCheckboxTarget.classList.remove("opacity-60", "pointer-events-none")
+    this._blindForced = false
   }
 
   _suppressRow(el) {

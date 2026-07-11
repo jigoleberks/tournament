@@ -18,6 +18,23 @@ class BeatTheAverageTournamentTest < ApplicationSystemTestCase
     assert blind.checked?
   end
 
+  test "switching away from Beat the Average restores the blind checkbox" do
+    sign_in_as @organizer
+    visit new_organizers_tournament_path
+
+    select "Beat the Average", from: "Format"
+    blind = find("input[type=checkbox][name='tournament[blind_leaderboard]']")
+    assert blind.checked?
+
+    # Bingo is the sharpest case: Tournament's bingo_not_blind validation
+    # forbids blind_leaderboard = true for Bingo, so if the forced-checked
+    # state lingers here the form becomes unsubmittable with no in-UI fix.
+    select "Bingo", from: "Format"
+    blind = find("input[type=checkbox][name='tournament[blind_leaderboard]']")
+    assert_not blind.checked?
+    assert_not blind.matches_css?(".pointer-events-none")
+  end
+
   private
 
   # Mirrors the helper used by test/system/progressive_length_tournament_test.rb.
