@@ -434,6 +434,31 @@ module Leaderboards
       assert_equal %w[EARLY MID LATE], row[:fish].map { |f| f[:tag_number] }
     end
 
+    test "routes beat_the_average to the BeatTheAverage ranker and returns the winner first" do
+      t = build(:tournament, club: @club, format: :beat_the_average, mode: :solo,
+                starts_at: 3.hours.ago, ends_at: 1.hour.ago)
+      t.scoring_slots.build(species: @walleye, slot_count: 1)
+      t.save!
+
+      a = create(:user, club: @club, name: "A")
+      b = create(:user, club: @club, name: "B")
+      ea = create(:tournament_entry, tournament: t)
+      eb = create(:tournament_entry, tournament: t)
+      create(:tournament_entry_member, tournament_entry: ea, user: a)
+      create(:tournament_entry_member, tournament_entry: eb, user: b)
+
+      # Combined average = (12 + 30 + 18) / 3 = 20.00
+      # Distances: 12 -> 8, 30 -> 10, 18 -> 2 -> the 18" catch is the unambiguous winner.
+      Catches::PlaceInSlots.call(catch: create(:catch, user: a, species: @walleye, length_inches: 12, captured_at_device: 2.hours.ago))
+      Catches::PlaceInSlots.call(catch: create(:catch, user: a, species: @walleye, length_inches: 30, captured_at_device: 2.hours.ago))
+      winner = create(:catch, user: b, species: @walleye, length_inches: 18, captured_at_device: 2.hours.ago)
+      Catches::PlaceInSlots.call(catch: winner)
+
+      result = Leaderboards::Build.call(tournament: t)
+      assert_equal 3, result.size
+      assert_equal winner.id, result.first[:fish].first[:id]
+    end
+
     test "smallest_fish ranks complete entries by lowest total and orders row fish smallest-first" do
       t = create(:tournament, club: @club, format: :smallest_fish, mode: :solo, starts_at: 1.hour.ago, ends_at: 1.hour.from_now)
       create(:scoring_slot, tournament: t, species: @walleye, slot_count: 2)

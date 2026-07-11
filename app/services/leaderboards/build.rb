@@ -17,6 +17,7 @@ module Leaderboards
       when "smallest_fish"       then Leaderboards::Rankers::SmallestFish.call(rows)
       when "pro_walleye"         then Leaderboards::Rankers::ProWalleye.call(rows)
       when "progressive_length"  then Leaderboards::Rankers::ProgressiveLength.call(rows)
+      when "beat_the_average"    then Leaderboards::Rankers::BeatTheAverage.call(rows, tournament: tournament)
       else                            Leaderboards::Rankers::Standard.call(rows)
       end
     end
