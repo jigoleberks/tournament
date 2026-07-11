@@ -689,4 +689,16 @@ class TournamentTest < ActiveSupport::TestCase
     t.scoring_slots.build(species: species_b, slot_count: 1)
     assert t.valid?, t.errors.full_messages.to_sentence
   end
+
+  test "random_bag is a registered format with a target range and per-entry target" do
+    t = build(:tournament, format: :random_bag)
+    assert t.format_random_bag?
+    assert_equal 11, Tournament.formats["random_bag"]
+    # column defaults
+    fresh = Tournament.new
+    assert_equal BigDecimal("70.0"), fresh.target_min_inches
+    assert_equal BigDecimal("100.0"), fresh.target_max_inches
+    entry = TournamentEntry.new
+    assert_nil entry.random_bag_target_inches
+  end
 end
