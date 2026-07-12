@@ -481,5 +481,25 @@ module Leaderboards
       assert_equal near.id, board.first[:entry].id, "closest bag ranks first"
       assert_equal BigDecimal("1"), board.first[:distance]
     end
+
+    test "random_bag QualifiedRows ranks the closest team as the winner" do
+      club = create(:club); species = create(:species)
+      t = build(:tournament, club: club, format: :random_bag, mode: :team,
+                target_min_inches: 85, target_max_inches: 85,
+                starts_at: 1.hour.ago, ends_at: 1.hour.from_now)
+      t.scoring_slots.build(species: species, slot_count: 1); t.save!
+      winner = create(:tournament_entry, tournament: t)  # 43+43 = 86, 1 off
+      runner = create(:tournament_entry, tournament: t)  # 40+40 = 80, 5 off
+      [[winner, 43], [runner, 40]].each do |entry, len|
+        2.times do |i|
+          create(:catch_placement, tournament: t, tournament_entry: entry, species: species, slot_index: i,
+                 catch: create(:catch, species: species, length_inches: len, captured_at_device: 30.minutes.ago))
+        end
+      end
+      board = Leaderboards::Build.call(tournament: t)
+      qualified = Leaderboards::QualifiedRows.call(tournament: t, rows: board)
+      assert_equal winner.id, qualified.first[:entry].id
+      assert_equal 2, qualified.size, "both teams qualify (one row per entry)"
+    end
   end
 end
