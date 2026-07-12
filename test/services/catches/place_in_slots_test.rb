@@ -1093,5 +1093,27 @@ module Catches
     assert_empty result[:affected_tournaments]
   end
 
+  test "random_bag: every catch creates a placement, no bumping" do
+    club = create(:club)
+    walleye = create(:species, club: club)
+    user = create(:user, club: club)
+    t = build(:tournament, club: club, format: :random_bag, mode: :solo,
+              starts_at: 1.hour.ago, ends_at: 1.hour.from_now)
+    t.scoring_slots.build(species: walleye, slot_count: 1)
+    t.save!
+    entry = create(:tournament_entry, tournament: t)
+    create(:tournament_entry_member, tournament_entry: entry, user: user)
+
+    [15, 16, 17].each do |len|
+      c = create(:catch, user: user, species: walleye, length_inches: len,
+                 captured_at_device: 30.minutes.ago)
+      Catches::PlaceInSlots.call(catch: c, broadcast: false)
+    end
+
+    active = entry.catch_placements.where(active: true)
+    assert_equal 3, active.count, "no bumping — all three fish are kept"
+    assert_equal [0, 1, 2], active.order(:slot_index).pluck(:slot_index)
+  end
+
   end
 end

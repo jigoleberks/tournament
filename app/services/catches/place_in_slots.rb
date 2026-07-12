@@ -70,12 +70,13 @@ module Catches
                 .includes(:catch).order(:slot_index).to_a
             end
 
-          if tournament.format_hidden_length? || tournament.format_beat_the_average?
-            # Hidden Length / Beat the Average: every catch is kept; the winning
-            # catch is selected at reveal time. No bumping, slot_count irrelevant.
-            # Use max(active slot_index)+1 (not size) so a deactivated middle
-            # placement (e.g. judge DQ) doesn't make the next index collide with
-            # an existing active row under idx_active_placements_uniq_per_slot.
+          if tournament.format_hidden_length? || tournament.format_beat_the_average? || tournament.format_random_bag?
+            # Hidden Length / Beat the Average / Random Bag: every catch is kept;
+            # the winning catch(es) are selected at reveal time. No bumping,
+            # slot_count irrelevant. Use max(active slot_index)+1 (not size) so a
+            # deactivated middle placement (e.g. judge DQ) doesn't make the next
+            # index collide with an existing active row under
+            # idx_active_placements_uniq_per_slot.
             next_index = active_placements.empty? ? 0 : active_placements.map(&:slot_index).max + 1
             created << CatchPlacement.create!(
               catch: @catch, tournament: tournament, tournament_entry: entry,
