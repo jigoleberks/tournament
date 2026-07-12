@@ -8,6 +8,17 @@ module RandomBag
   class BestBag
     MAX_FISH = 5
 
+    # PERF: this is O(C(n,5)) per entry (n = the entry's caught fish), recomputed
+    # on every leaderboard Build — i.e. on every catch broadcast and page view.
+    # Fine at club scale (<~20 fish/team it's sub-ms), but Random Bag uniquely
+    # rewards logging more fish (every extra catch can only improve the best bag),
+    # so n trends higher than other formats. It gets noticeable ~25-30+ fish/team
+    # and painful at 40+. If a high-volume/all-day event is planned, replace the
+    # brute force with an O(n) DP over reachable sums — bucket at HUNDREDTHS, not
+    # quarter-inches: cm-logged catches land off the 1/4" grid (see InferLoggedUnit),
+    # so 1/4" buckets would approximate. Keep this method as the exact test oracle:
+    # assert optimized(fish, target) == BestBag.call(...) over random inputs, and
+    # preserve the tie rule below (smallest/earliest subset wins on equal distance).
     def self.call(fish:, target:)
       return { subset: [], sum: nil, distance: nil } if fish.empty? || target.nil?
 
