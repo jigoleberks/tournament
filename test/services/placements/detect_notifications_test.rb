@@ -251,6 +251,61 @@ module Placements
                    "an angler who already leads must not be re-notified for holding the lead"
     end
 
+    test "beat_the_average sends no took_the_lead push after the event ends (blind? no longer suppresses)" do
+      club = create(:club)
+      walleye = create(:species, club: club)
+      user = create(:user, club: club)
+      # Ended tournament: active? is false, so blind? is false and the line-38
+      # reject no longer suppresses. A late offline sync must still not push.
+      t = build(:tournament, club: club, format: :beat_the_average, mode: :solo,
+                starts_at: 2.hours.ago, ends_at: 1.minute.ago)
+      t.scoring_slots.build(species: walleye, slot_count: 1)
+      t.save!
+      assert_not t.blind?, "tournament should no longer be blind once ended"
+      entry = create(:tournament_entry, tournament: t)
+      create(:tournament_entry_member, tournament_entry: entry, user: user)
+
+      caught = create(:catch, user: user, species: walleye, length_inches: 22,
+                      captured_at_device: 30.minutes.ago)
+      placement = CatchPlacement.create!(catch: caught, tournament: t,
+                                         tournament_entry: entry, species: walleye,
+                                         slot_index: 0, active: true)
+
+      assert_equal entry.id, Leaderboards::Build.call(tournament: t).first&.dig(:entry)&.id
+
+      result = { created: [placement], bumped: [], affected_tournaments: [t] }
+      payloads = DetectNotifications.call(result: result)
+      assert_empty payloads.select { |p| p[:reason] == "took_the_lead" },
+                   "Beat the Average must not push a lead change after the event ends"
+    end
+
+    test "random_bag sends no took_the_lead push after the event ends (blind? no longer suppresses)" do
+      club = create(:club)
+      walleye = create(:species, club: club)
+      user = create(:user, club: club)
+      t = build(:tournament, club: club, format: :random_bag, mode: :solo,
+                starts_at: 2.hours.ago, ends_at: 1.minute.ago,
+                target_min_inches: 70, target_max_inches: 100)
+      t.scoring_slots.build(species: walleye, slot_count: 1)
+      t.save!
+      assert_not t.blind?, "tournament should no longer be blind once ended"
+      entry = create(:tournament_entry, tournament: t)
+      create(:tournament_entry_member, tournament_entry: entry, user: user)
+
+      caught = create(:catch, user: user, species: walleye, length_inches: 22,
+                      captured_at_device: 30.minutes.ago)
+      placement = CatchPlacement.create!(catch: caught, tournament: t,
+                                         tournament_entry: entry, species: walleye,
+                                         slot_index: 0, active: true)
+
+      assert_equal entry.id, Leaderboards::Build.call(tournament: t).first&.dig(:entry)&.id
+
+      result = { created: [placement], bumped: [], affected_tournaments: [t] }
+      payloads = DetectNotifications.call(result: result)
+      assert_empty payloads.select { |p| p[:reason] == "took_the_lead" },
+                   "Random Bag must not push a lead change after the event ends"
+    end
+
     test "progressive_length sends no bumped push when a rung falls off the ladder" do
       club = create(:club)
       walleye = Species.find_or_create_by!(name: "Walleye")

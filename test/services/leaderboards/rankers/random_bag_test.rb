@@ -37,6 +37,20 @@ module Leaderboards
         assert_equal 2, result.first[:entry].id
       end
 
+      test "distance-tie tiebreak uses the bag's earliest catch, not a throwaway non-bag catch" do
+        # Both end 0.5 from target 80 via a single 80.5 fish.
+        # Entry 1 also logged an early 10" throwaway that is NOT in its best bag;
+        # its actual bag catch is the latest of the three. Entry 2's bag catch is
+        # earlier than entry 1's bag catch. Ranking must favor entry 2 — the
+        # throwaway's early time must not win the tie for entry 1.
+        a = entry_row(entry_id: 1, target: 80,
+                      catches: [[101, 10, 6.hours.ago], [102, 80.5, 1.hour.ago]])
+        b = entry_row(entry_id: 2, target: 80,
+                      catches: [[201, 80.5, 3.hours.ago]])
+        result = RandomBag.call([a, b])
+        assert_equal 2, result.first[:entry].id
+      end
+
       test "entry with no fish sinks to the bottom with nil distance" do
         a = entry_row(entry_id: 1, target: 80, catches: [[101, 79, 1.hour.ago]])
         empty = entry_row(entry_id: 2, target: 80, catches: [])

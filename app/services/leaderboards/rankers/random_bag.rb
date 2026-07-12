@@ -13,8 +13,6 @@ module Leaderboards
     # with no target yet (pre-first-view) or no fish have nil distance and sink to
     # the bottom (their score column renders "—").
     class RandomBag
-      FAR_FUTURE = Time.utc(9999, 1, 1)
-
       def self.call(entry_rows, tournament: nil)
         rows = entry_rows.map do |row|
           bag = ::RandomBag::BestBag.call(fish: row[:fish], target: row[:target])
@@ -24,7 +22,11 @@ module Leaderboards
             total: bag[:sum],
             fish: bag[:subset],
             fish_lengths: bag[:subset].map { |f| f[:length_inches] },
-            earliest_catch_at: row[:earliest_catch_at],
+            # Tiebreak on when the *scoring bag* was completed, not the entry's
+            # overall earliest catch — a throwaway fish that isn't in the best bag
+            # must not decide the tie (see class doc: "earliest qualifying-catch
+            # time"). Matches the pattern in BiggestVsSmallest / HiddenLength.
+            earliest_catch_at: bag[:subset].map { |f| f[:captured_at_device] }.compact.min,
             distance: bag[:distance],
             complete: false
           }

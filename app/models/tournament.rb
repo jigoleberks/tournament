@@ -303,6 +303,18 @@ class Tournament < ApplicationRecord
     if target_max_inches.to_d < target_min_inches.to_d
       errors.add(:target_max_inches, "must be greater than or equal to the minimum")
     end
+    # Targets are drawn on the 1/4-inch grid anchored at the minimum
+    # (RandomBag::AssignTarget), so an off-grid bound is never drawable and would
+    # silently narrow the announced range — e.g. a 100.10" max can't be hit from a
+    # 70" min. Require both bounds on the 1/4-inch grid so every configured value
+    # is reachable.
+    step = RandomBag::AssignTarget::STEP
+    if (target_min_inches.to_d % step).nonzero?
+      errors.add(:target_min_inches, "must be in 1/4-inch steps")
+    end
+    if (target_max_inches.to_d % step).nonzero?
+      errors.add(:target_max_inches, "must be in 1/4-inch steps")
+    end
   end
 
   # The per-team target draw depends on target_min_inches/target_max_inches, and

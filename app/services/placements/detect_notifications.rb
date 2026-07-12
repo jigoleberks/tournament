@@ -65,6 +65,15 @@ module Placements
         # invalidating several rungs above it, net-decreasing the score.
         next [] if t.format_progressive_length?
 
+        # Beat the Average / Random Bag: "closest to X" formats whose leaderboard
+        # order is meaningless until reveal. During play the blind? reject below
+        # suppresses their pushes, but blind? goes false the instant ends_at
+        # passes — so a late offline sync landing after the event would otherwise
+        # fire a spurious post-event "took the lead" push (and for Beat the
+        # Average the late catch can even move the final average and mis-target
+        # it). These formats have no meaningful live lead change, so skip them.
+        next [] if t.format_beat_the_average? || t.format_random_bag?
+
         leaderboard = @leaderboards[t.id] || Leaderboards::Build.call(tournament: t)
         leader_entry = leaderboard.first&.dig(:entry)
         next [] unless leader_entry

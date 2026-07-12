@@ -4,8 +4,6 @@ module Leaderboards
     # most squares (earliest to that count) > entry id. Built as a single
     # ascending sort_by so the leaderboard is a plain ordered list.
     class Bingo
-      FAR_FUTURE = Time.utc(9999, 1, 1)
-
       def self.call(rows)
         rows
           .map { |row| decorate(row) }

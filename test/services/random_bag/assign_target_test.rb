@@ -36,6 +36,23 @@ module RandomBag
       assert_nil entry.reload.random_bag_target_inches
     end
 
+    test "does not mint a new target once the tournament has ended" do
+      t = random_bag_tournament
+      t.update_columns(starts_at: 3.hours.ago, ends_at: 1.hour.ago)
+      entry = create(:tournament_entry, tournament: t)
+      assert_nil AssignTarget.call(entry: entry, tournament: t.reload),
+                 "no post-hoc target after the event is over"
+      assert_nil entry.reload.random_bag_target_inches
+    end
+
+    test "still returns a target assigned during play after the tournament ends" do
+      t = random_bag_tournament
+      entry = create(:tournament_entry, tournament: t)
+      assigned = AssignTarget.call(entry: entry, tournament: t)   # assigned while active
+      t.update_columns(starts_at: 3.hours.ago, ends_at: 1.hour.ago)
+      assert_equal assigned, AssignTarget.call(entry: entry, tournament: t.reload)
+    end
+
     test "equal min and max always yields that number" do
       t = random_bag_tournament(min: 85, max: 85)
       entry = create(:tournament_entry, tournament: t)

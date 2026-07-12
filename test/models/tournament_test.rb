@@ -735,6 +735,23 @@ class TournamentTest < ActiveSupport::TestCase
     assert t.errors[:target_min_inches].any? { |m| m.include?("must be at least 0") }
   end
 
+  test "random_bag rejects off-grid bounds so the announced max stays drawable" do
+    t = build(:tournament, format: :random_bag, target_min_inches: 70, target_max_inches: 100.10)
+    t.scoring_slots.build(species: create(:species), slot_count: 1)
+    assert_not t.valid?
+    assert t.errors[:target_max_inches].any? { |m| m.include?("1/4-inch") }
+
+    t.target_min_inches = 70.1
+    assert_not t.valid?
+    assert t.errors[:target_min_inches].any? { |m| m.include?("1/4-inch") }
+  end
+
+  test "random_bag accepts on-grid quarter-inch bounds" do
+    t = build(:tournament, format: :random_bag, target_min_inches: 70.25, target_max_inches: 100.75)
+    t.scoring_slots.build(species: create(:species), slot_count: 1)
+    assert t.valid?, t.errors.full_messages.to_sentence
+  end
+
   test "random_bag target range is locked once the tournament has started" do
     t = build(:tournament, format: :random_bag, starts_at: 1.hour.ago, ends_at: 1.hour.from_now)
     t.scoring_slots.build(species: create(:species), slot_count: 1)
