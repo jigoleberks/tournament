@@ -18,7 +18,8 @@ export default class extends Controller {
     "slotsHeading", "slotsHelp", "slotRow", "slotCountLabel", "slotsSection",
     "trainBuilder",
     "localCheckbox",
-    "blindCheckbox"
+    "blindCheckbox",
+    "rangeSection"
   ]
 
   connect() {
@@ -33,6 +34,10 @@ export default class extends Controller {
     // Bingo is the only format that hides the whole slots section; default
     // it back to visible so switching away from Bingo restores it.
     if (this.hasSlotsSectionTarget) this.slotsSectionTarget.classList.remove("hidden")
+
+    // Random Bag is the only format with a target-range section; default it
+    // back to hidden so switching away from Random Bag hides it again.
+    if (this.hasRangeSectionTarget) this.rangeSectionTarget.classList.add("hidden")
 
     // Beat the Average is the only format that forces + locks the blind
     // checkbox. Unconditionally undo that before the per-format dispatch
@@ -60,6 +65,8 @@ export default class extends Controller {
       this._applyProgressiveLength()
     } else if (this.formatTarget.value === "beat_the_average") {
       this._applyBeatTheAverage()
+    } else if (this.formatTarget.value === "random_bag") {
+      this._applyRandomBag()
     } else {
       this._applyStandard()
     }
@@ -257,15 +264,21 @@ export default class extends Controller {
       this.slotsHelpTarget.textContent = "Pick one or more species. Every catch counts toward one combined average; the slot count is ignored."
     }
     // Beat the Average is always blind — force the checkbox on and lock it.
-    // Capture the pre-forced checked value so _restoreBlindCheckbox() can put
-    // it back when the user switches to another format; guard the capture so
-    // a re-entrant sync() while already forced doesn't overwrite it with `true`.
-    if (this.hasBlindCheckboxTarget && !this.blindCheckboxTarget.disabled) {
-      if (!this._blindForced) this._blindPriorChecked = this.blindCheckboxTarget.checked
-      this.blindCheckboxTarget.checked = true
-      this.blindCheckboxTarget.classList.add("opacity-60", "pointer-events-none")
-      this._blindForced = true
+    this._forceBlind()
+  }
+
+  // Random Bag's slot behaviour is Standard's (multi-species). It additionally
+  // reveals the target-range fields and forces the blind checkbox on.
+  _applyRandomBag() {
+    this._applyStandard()
+    if (this.hasFormatDescriptionTarget) {
+      this.formatDescriptionTarget.textContent = this.formatDescriptionTarget.dataset.randomBagText
     }
+    if (this.hasSlotsHelpTarget) {
+      this.slotsHelpTarget.textContent = "Pick one or more species. Every catch is eligible for the bag; the slot count is ignored."
+    }
+    if (this.hasRangeSectionTarget) this.rangeSectionTarget.classList.remove("hidden")
+    this._forceBlind()
   }
 
   _applyStandard() {
@@ -358,6 +371,18 @@ export default class extends Controller {
     this.blindCheckboxTarget.checked = this._blindPriorChecked ?? false
     this.blindCheckboxTarget.classList.remove("opacity-60", "pointer-events-none")
     this._blindForced = false
+  }
+
+  // Force + lock the blind checkbox on (Beat the Average / Random Bag are always
+  // blind during play). Captures the pre-forced value so _restoreBlindCheckbox()
+  // can put it back on a later format switch.
+  _forceBlind() {
+    if (this.hasBlindCheckboxTarget && !this.blindCheckboxTarget.disabled) {
+      if (!this._blindForced) this._blindPriorChecked = this.blindCheckboxTarget.checked
+      this.blindCheckboxTarget.checked = true
+      this.blindCheckboxTarget.classList.add("opacity-60", "pointer-events-none")
+      this._blindForced = true
+    }
   }
 
   _suppressRow(el) {

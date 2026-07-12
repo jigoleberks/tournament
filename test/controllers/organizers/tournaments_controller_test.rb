@@ -379,6 +379,26 @@ class Organizers::TournamentsControllerTest < ActionDispatch::IntegrationTest
     assert_equal 5, t.scoring_slots.sole.slot_count
   end
 
+  test "organizer creates a random_bag tournament with a custom target range" do
+    sign_in_as(@organizer)
+    species = create(:species, club: @club, name: "Walleye")
+    assert_difference -> { Tournament.count } => 1 do
+      post organizers_tournaments_path, params: {
+        tournament: {
+          name: "Random Bag Night", mode: "team", format: "random_bag",
+          starts_at: 1.hour.from_now, ends_at: 3.hours.from_now,
+          target_min_inches: "72.5", target_max_inches: "95",
+          scoring_slots_attributes: { "0" => { species_id: species.id, slot_count: 1 } }
+        }
+      }
+    end
+    t = Tournament.order(:created_at).last
+    assert t.format_random_bag?
+    assert t.blind_leaderboard, "blind forced on"
+    assert_equal BigDecimal("72.5"), t.target_min_inches
+    assert_equal BigDecimal("95"), t.target_max_inches
+  end
+
   private
 
   def sign_in_as(user)
