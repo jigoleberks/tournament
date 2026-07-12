@@ -453,5 +453,33 @@ module Leaderboards
       # Top row (B) fish ordered smallest-first.
       assert_equal [8, 9], result.first[:fish].map { |f| f[:length_inches].to_i }
     end
+
+    test "random_bag build assigns targets and ranks entries by closest bag" do
+      club = create(:club)
+      species = create(:species)
+      t = build(:tournament, club: club, format: :random_bag, mode: :solo,
+                target_min_inches: 85, target_max_inches: 85,      # fixed target -> deterministic
+                starts_at: 1.hour.ago, ends_at: 1.hour.from_now)
+      t.scoring_slots.build(species: species, slot_count: 1)
+      t.save!
+
+      near = create(:tournament_entry, tournament: t)
+      far  = create(:tournament_entry, tournament: t)
+      # near: 43+43 = 86 (1 off 85). far: 40+40 = 80 (5 off 85).
+      [[near, 43], [far, 40]].each do |entry, len|
+        2.times do
+          idx = entry.catch_placements.count
+          create(:catch_placement, tournament: t, tournament_entry: entry, species: species,
+                 slot_index: idx,
+                 catch: create(:catch, species: species, length_inches: len,
+                               captured_at_device: 30.minutes.ago))
+        end
+      end
+
+      board = Leaderboards::Build.call(tournament: t)
+      assert_equal BigDecimal("85"), near.reload.random_bag_target_inches, "target lazily assigned"
+      assert_equal near.id, board.first[:entry].id, "closest bag ranks first"
+      assert_equal BigDecimal("1"), board.first[:distance]
+    end
   end
 end

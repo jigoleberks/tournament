@@ -18,12 +18,17 @@ module Leaderboards
       when "pro_walleye"         then Leaderboards::Rankers::ProWalleye.call(rows)
       when "progressive_length"  then Leaderboards::Rankers::ProgressiveLength.call(rows)
       when "beat_the_average"    then Leaderboards::Rankers::BeatTheAverage.call(rows, tournament: tournament)
+      when "random_bag"          then Leaderboards::Rankers::RandomBag.call(rows, tournament: tournament)
       else                            Leaderboards::Rankers::Standard.call(rows)
       end
     end
 
     def self.build_rows(tournament, entries: nil, placements: nil, total_capacity: nil)
       entries ||= tournament.tournament_entries.includes(:users)
+      if tournament.format_random_bag?
+        entries = entries.to_a
+        entries.each { |e| RandomBag::AssignTarget.call(entry: e, tournament: tournament) }
+      end
       placements ||= CatchPlacement.active
         .where(tournament_id: tournament.id)
         .includes(catch: [:species, :user, :logged_by_user, { judge_actions: :judge_user }])
@@ -68,6 +73,7 @@ module Leaderboards
           fish: fish,
           fish_lengths: fish.map { |f| f[:length_inches] },
           earliest_catch_at: earliest,
+          target: entry.random_bag_target_inches,
           complete: total_capacity > 0 && placements.size >= total_capacity
         }
       end
