@@ -727,4 +727,30 @@ class TournamentTest < ActiveSupport::TestCase
     assert_not t.valid?
     assert t.errors[:target_max_inches].any?
   end
+
+  test "random_bag rejects a negative minimum" do
+    t = build(:tournament, format: :random_bag, target_min_inches: -5, target_max_inches: 100)
+    t.scoring_slots.build(species: create(:species), slot_count: 1)
+    assert_not t.valid?
+    assert t.errors[:target_min_inches].any? { |m| m.include?("must be at least 0") }
+  end
+
+  test "random_bag target range is locked once the tournament has started" do
+    t = build(:tournament, format: :random_bag, starts_at: 1.hour.ago, ends_at: 1.hour.from_now)
+    t.scoring_slots.build(species: create(:species), slot_count: 1)
+    t.save!
+
+    t.target_max_inches = t.target_max_inches.to_d + 10
+    assert_not t.valid?
+    assert t.errors[:base].any? { |m| m.include?("Target range can't be changed") }
+  end
+
+  test "random_bag target range can still be edited before the tournament starts" do
+    t = build(:tournament, format: :random_bag, starts_at: 1.hour.from_now, ends_at: 2.hours.from_now)
+    t.scoring_slots.build(species: create(:species), slot_count: 1)
+    t.save!
+
+    t.target_max_inches = t.target_max_inches.to_d + 10
+    assert t.valid?, t.errors.full_messages.to_sentence
+  end
 end

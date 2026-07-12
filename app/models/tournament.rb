@@ -40,6 +40,7 @@ class Tournament < ApplicationRecord
   before_validation :force_random_bag_blind
   validate :random_bag_requires_scoring_slots
   validate :random_bag_range_valid
+  validate :target_range_locked_after_start, on: :update
   before_validation :assign_bingo_layout
   validate :bingo_layout_well_formed
   validate :bingo_layout_locked_after_start, on: :update
@@ -302,6 +303,18 @@ class Tournament < ApplicationRecord
     if target_max_inches.to_d < target_min_inches.to_d
       errors.add(:target_max_inches, "must be greater than or equal to the minimum")
     end
+  end
+
+  # The per-team target draw depends on target_min_inches/target_max_inches, and
+  # targets are assigned lazily once the tournament starts. Editing the range mid-
+  # tournament would desync already-drawn targets from newly-assigned ones, so lock
+  # it at start like format/blind/scoring_slots. Same-value re-saves stay clean
+  # (not dirty), so a plain save of a started tournament still passes.
+  def target_range_locked_after_start
+    return unless format_random_bag?
+    return unless will_save_change_to_target_min_inches? || will_save_change_to_target_max_inches?
+    return if starts_at.blank? || starts_at > Time.current
+    errors.add(:base, "Target range can't be changed once the tournament has started")
   end
 
   def assign_bingo_layout
