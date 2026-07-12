@@ -213,6 +213,28 @@ class CatchesControllerTest < ActionDispatch::IntegrationTest
     end
   end
 
+  test "show: owner sees exact GPS coords linked to Google Maps" do
+    own = create(:catch, user: @user, species: @walleye, length_inches: 18.5,
+                         latitude: 49.123456, longitude: -103.987654)
+    get catch_path(own.id)
+    assert_response :success
+    assert_select "a[href=?]", "https://maps.google.com/?q=49.123456,-103.987654"
+    assert_match "49.12346, -103.98765", response.body   # full precision, not fuzzed
+    assert_match "Open in Maps", response.body
+  end
+
+  test "show: organizer viewing a member's catch sees the fuzzed coords, no map link" do
+    own = create(:catch, user: @user, species: @walleye, length_inches: 18.5,
+                         latitude: 49.123456, longitude: -103.987654)
+    organizer = create(:user, club: @club, role: :organizer)
+    sign_in_as(organizer)
+
+    get catch_path(own.id)
+    assert_response :success
+    assert_match "~49.12, -103.99", response.body        # fuzzed to ~1km
+    assert_no_match %r{maps\.google\.com}, response.body
+  end
+
   test "show: member cannot view another member's catch detail" do
     other_user = create(:user, club: @club)
     foreign = create(:catch, user: other_user, species: @walleye, length_inches: 22)

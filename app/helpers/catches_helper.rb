@@ -1,4 +1,12 @@
 module CatchesHelper
+  # Google Maps query URL for a catch's exact coordinates. Universal link:
+  # hands off to the Maps app on a phone (Google Maps if installed, else web),
+  # opens web maps on a laptop. Only ever shown to the catch's own angler —
+  # other viewers see the fuzzed ~approximate coords, never this link.
+  def maps_url_for(catch)
+    "https://maps.google.com/?q=#{catch.latitude.to_f},#{catch.longitude.to_f}"
+  end
+
   # A resized JPEG variant of an attachment. Catch photos are full-resolution
   # phone stills (multi-MB, HEIC on iOS); resizing AND transcoding to JPEG means
   # every browser can render them. Generated on first request, cached on disk.
