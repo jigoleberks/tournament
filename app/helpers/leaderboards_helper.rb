@@ -22,6 +22,8 @@ module LeaderboardsHelper
       off = (scoring_value.to_d - tournament.hidden_length_target.to_d).abs
     elsif tournament&.format_beat_the_average?
       off = row[:distance]   # present only on revealed (per-catch) rows
+    elsif tournament&.format_random_bag?
+      off = row[:distance]   # |bag_sum - team target|
     end
     cm = if tournament&.format_beat_the_average?
       # The shown inches is either the entry's average (play) or a single catch

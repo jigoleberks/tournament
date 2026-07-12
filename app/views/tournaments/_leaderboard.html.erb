@@ -49,6 +49,8 @@
           "Up-sizes"
         elsif tournament&.format_big_fish_season? || tournament&.format_hidden_length? || tournament&.format_beat_the_average?
           "Length"
+        elsif tournament&.format_random_bag?
+          "Bag"
         else
           "Total"
         end
@@ -141,6 +143,30 @@
                     <span data-test="approved-check" class="text-green-400 ml-1" aria-label="approved">✓</span>
                   <% end %>
                   — need 1 more catch
+                </div>
+              <% end %>
+            <% end %>
+          <% elsif tournament&.format_random_bag? %>
+            <div class="font-medium"><%= row[:entry].display_name %></div>
+            <% if (roster = team_roster_line(tournament, row[:entry])) %>
+              <div class="text-xs text-slate-500 mt-1"><%= roster %></div>
+            <% end %>
+            <% if row_visible %>
+              <% if row[:target].present? %>
+                <div class="text-xs text-amber-200 mt-1">🎯 Target: <%= format_length_dual(row[:target]) %></div>
+              <% end %>
+              <% if row[:fish].present? %>
+                <div class="text-xs text-slate-400 mt-1 flex flex-wrap items-baseline gap-x-2 gap-y-1">
+                  <% last_idx = row[:fish].size - 1 %>
+                  <% row[:fish].each_with_index do |f, i| %>
+                    <% url, frame = catch_link_target(tournament: tournament, catch_id: f[:id]) %>
+                    <span>
+                      <%= link_to format_length_dual(f[:length_inches], f[:length_unit]), url,
+                                  class: "text-blue-300 underline-offset-2 hover:underline",
+                                  data: frame ? { turbo_frame: frame } : {} %>
+                    </span>
+                    <% if i < last_idx %><span class="text-slate-600">+</span><% end %>
+                  <% end %>
                 </div>
               <% end %>
             <% end %>

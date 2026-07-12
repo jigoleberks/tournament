@@ -9,6 +9,7 @@ class LeaderboardsHelperTest < ActionView::TestCase
     def format_tagged? = false
     def format_progressive_length? = false
     def format_biggest_vs_smallest? = false
+    def format_random_bag? = fmt == :random_bag
     def hidden_length_target = nil
   end
 
@@ -92,5 +93,15 @@ class LeaderboardsHelperTest < ActionView::TestCase
     parts = leaderboard_score_parts(row, FakeT.new(:bta))
     assert_nil parts[:off]
     assert_in_delta 15 * 2.54, parts[:cm], 0.001   # cm from the avg, NOT summed fish
+  end
+
+  test "random_bag score parts include distance as :off" do
+    row = { total: BigDecimal("86"),
+            fish: [{ length_inches: BigDecimal("43"), length_unit: "inches" },
+                   { length_inches: BigDecimal("43"), length_unit: "inches" }],
+            distance: BigDecimal("1"), target: BigDecimal("85") }
+    parts = leaderboard_score_parts(row, FakeT.new(:random_bag))
+    assert_equal BigDecimal("1"), parts[:off]
+    assert parts[:inches].present?
   end
 end
