@@ -27,7 +27,7 @@ module Leaderboards
       entries ||= tournament.tournament_entries.includes(:users)
       if tournament.format_random_bag?
         entries = entries.to_a
-        entries.each { |e| RandomBag::AssignTarget.call(entry: e, tournament: tournament) }
+        entries.each { |e| ::RandomBag::AssignTarget.call(entry: e, tournament: tournament) }
       end
       placements ||= CatchPlacement.active
         .where(tournament_id: tournament.id)
