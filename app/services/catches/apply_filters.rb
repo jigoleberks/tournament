@@ -109,7 +109,13 @@ module Catches
       finish_date = self.class.parse_date(end_param) || start_date
       return s if start_date.nil?
       start_date, finish_date = finish_date, start_date if start_date > finish_date
-      s.where(captured_at_device: start_date.beginning_of_day..finish_date.end_of_day)
+      # Resolve the day boundaries in the app time zone, not the system zone
+      # (container is UTC). Date#beginning_of_day/#end_of_day use the system zone,
+      # which mis-aligns with the calendar counts (bucketed in Time.zone) at every
+      # day boundary on a non-UTC deploy. captured_at_device stores UTC, so the
+      # TimeWithZone range compares correctly.
+      range = start_date.in_time_zone(@time_zone).beginning_of_day..finish_date.in_time_zone(@time_zone).end_of_day
+      s.where(captured_at_device: range)
     end
 
     def apply_min_length(s)

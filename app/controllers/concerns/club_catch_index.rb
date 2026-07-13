@@ -20,7 +20,7 @@ module ClubCatchIndex
 
   def load_club_catch_index(club)
     @catches = club_catch_base(club)
-      .includes(:user, :logged_by_user, :species, :catch_placements, photo_attachment: :blob, reference_photo_attachment: :blob)
+      .includes(:user, :logged_by_user, :species, :catch_placements, :judge_actions, photo_attachment: :blob, reference_photo_attachment: :blob)
       .order(captured_at_device: :desc)
   end
 end

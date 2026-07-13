@@ -14,7 +14,7 @@ class Admin::CatchesController < Admin::BaseController
     @available_species = Species.order(:name)
 
     scoped = club_catch_base(current_club)
-    base = scoped.includes(:user, :logged_by_user, :species, :catch_placements, photo_attachment: :blob, reference_photo_attachment: :blob)
+    base = scoped.includes(:user, :logged_by_user, :species, :catch_placements, :judge_actions, photo_attachment: :blob, reference_photo_attachment: :blob)
     filtered = Catches::ApplyFilters.call(scope: base, params: effective_filter_params)
     @catches = sort_catches(filtered)
     @counts_by_date = counts_by_date(scoped, @month_start)
