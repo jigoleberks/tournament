@@ -284,6 +284,20 @@ class Organizers::TournamentsControllerTest < ActionDispatch::IntegrationTest
     assert_equal [perch.id, pike.id, perch.id], created.train_cars
   end
 
+  test "organizer can create a bingo tournament with no scoring slots" do
+    sign_in_as(@organizer)
+    create_bingo_species!
+    assert_difference -> { Tournament.count }, 1 do
+      post organizers_tournaments_path, params: { tournament: {
+        name: "Bingo Night", format: "bingo", mode: "solo",
+        starts_at: 1.hour.from_now, ends_at: 4.hours.from_now
+      } }
+    end
+    t = Tournament.order(:id).last
+    assert t.format_bingo?
+    assert_equal 25, t.bingo_layout.size
+  end
+
   test "draw: organizer can trigger the tagged draw and is redirected with notice" do
     club = create(:club)
     organizer = create(:user, club: club, role: :organizer)
@@ -363,6 +377,26 @@ class Organizers::TournamentsControllerTest < ActionDispatch::IntegrationTest
     t = Tournament.order(:id).last
     assert t.format_pro_walleye?
     assert_equal 5, t.scoring_slots.sole.slot_count
+  end
+
+  test "organizer creates a random_bag tournament with a custom target range" do
+    sign_in_as(@organizer)
+    species = create(:species, club: @club, name: "Walleye")
+    assert_difference -> { Tournament.count } => 1 do
+      post organizers_tournaments_path, params: {
+        tournament: {
+          name: "Random Bag Night", mode: "team", format: "random_bag",
+          starts_at: 1.hour.from_now, ends_at: 3.hours.from_now,
+          target_min_inches: "72.5", target_max_inches: "95",
+          scoring_slots_attributes: { "0" => { species_id: species.id, slot_count: 1 } }
+        }
+      }
+    end
+    t = Tournament.order(:created_at).last
+    assert t.format_random_bag?
+    assert t.blind_leaderboard, "blind forced on"
+    assert_equal BigDecimal("72.5"), t.target_min_inches
+    assert_equal BigDecimal("95"), t.target_max_inches
   end
 
   private

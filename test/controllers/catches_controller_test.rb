@@ -80,21 +80,13 @@ class CatchesControllerTest < ActionDispatch::IntegrationTest
     assert_match "Original photo", response.body
   end
 
-  test "show: hides possible-duplicate badge from member viewing own catch" do
+  test "show: hides possible-duplicate and imported-photo badges from member viewing own catch" do
     own = create(:catch, user: @user, species: @walleye, length_inches: 18.5,
-                         flags: ["missing_gps", "possible_duplicate"], status: :needs_review)
+                         flags: ["missing_gps", "possible_duplicate", "imported_photo"], status: :needs_review)
     get catch_path(own.id)
     assert_response :success
-    assert_match "no GPS", response.body
+    assert_match "no GPS", response.body          # a non-suppressed flag still shows
     refute_match "possible duplicate", response.body
-  end
-
-  test "show: hides imported-photo badge from member viewing own catch" do
-    own = create(:catch, user: @user, species: @walleye, length_inches: 18.5,
-                         flags: ["missing_gps", "imported_photo"], status: :needs_review)
-    get catch_path(own.id)
-    assert_response :success
-    assert_match "no GPS", response.body
     refute_match "imported photo", response.body
   end
 
@@ -219,6 +211,28 @@ class CatchesControllerTest < ActionDispatch::IntegrationTest
       assert_match %r{reference\.jpg}, containers.first["data-photo-save-url-value"],
                    "expected the public photo to be the reference image"
     end
+  end
+
+  test "show: owner sees exact GPS coords linked to Google Maps" do
+    own = create(:catch, user: @user, species: @walleye, length_inches: 18.5,
+                         latitude: 49.123456, longitude: -103.987654)
+    get catch_path(own.id)
+    assert_response :success
+    assert_select "a[href=?]", "https://maps.google.com/?q=49.123456,-103.987654"
+    assert_match "49.12346, -103.98765", response.body   # full precision, not fuzzed
+    assert_match "Open in Maps", response.body
+  end
+
+  test "show: organizer viewing a member's catch sees the fuzzed coords, no map link" do
+    own = create(:catch, user: @user, species: @walleye, length_inches: 18.5,
+                         latitude: 49.123456, longitude: -103.987654)
+    organizer = create(:user, club: @club, role: :organizer)
+    sign_in_as(organizer)
+
+    get catch_path(own.id)
+    assert_response :success
+    assert_match "~49.12, -103.99", response.body        # fuzzed to ~1km
+    assert_no_match %r{maps\.google\.com}, response.body
   end
 
   test "show: member cannot view another member's catch detail" do
@@ -377,46 +391,34 @@ class CatchesControllerTest < ActionDispatch::IntegrationTest
     assert_select "textarea[name=?]", "catch[note]", count: 0
   end
 
-  test "show: judge sees Approve button when catch is needs_review" do
-    catch_record = create(:catch, user: @user, species: @walleye, length_inches: 18.5, status: :needs_review)
-    Catches::PlaceInSlots.call(catch: catch_record)
-    judge = create(:user, club: @club)
-    create(:tournament_judge, tournament: @tournament, user: judge)
-    sign_in_as(judge)
+  # A reviewer (judge for needs_review; organizer for synced/disputed) sees the
+  # Approve action for every reviewable status. Each iteration gets its own
+  # single-slot tournament so the catch always places (a shared 2-slot tournament
+  # would leave the third catch unplaced and hide the action section).
+  test "show: reviewer sees Approve action for every reviewable catch status" do
+    reviewer_for = {
+      needs_review: ->(tournament) {
+        judge = create(:user, club: @club)
+        create(:tournament_judge, tournament: tournament, user: judge)
+        judge
+      },
+      synced:   ->(_tournament) { create(:user, club: @club, role: :organizer) },
+      disputed: ->(_tournament) { create(:user, club: @club, role: :organizer) }
+    }
+    reviewer_for.each do |status, make_reviewer|
+      tournament = create(:tournament, club: @club, starts_at: 1.hour.ago, ends_at: 1.hour.from_now)
+      create(:scoring_slot, tournament: tournament, species: @walleye, slot_count: 1)
+      entry = create(:tournament_entry, tournament: tournament)
+      create(:tournament_entry_member, tournament_entry: entry, user: @user)
 
-    get catch_path(catch_record.id, t: @tournament.id)
-    assert_response :success
-    assert_select "form[action=?]",
-      judges_tournament_catch_review_path(tournament_id: @tournament.id, catch_id: catch_record.id) do
-      assert_select "input[name=?][value=?]", "action_kind", "approve"
-      assert_select "button", text: "Approve"
+      catch_record = create(:catch, user: @user, species: @walleye, length_inches: 18.5, status: status)
+      Catches::PlaceInSlots.call(catch: catch_record)
+      sign_in_as(make_reviewer.call(tournament))
+
+      get catch_path(catch_record.id, t: tournament.id)
+      assert_response :success, "status #{status}"
+      assert_select "input[name=?][value=?]", "action_kind", "approve", 1, "status #{status}"
     end
-  end
-
-  test "show: organizer sees Approve button when catch is synced" do
-    catch_record = create(:catch, user: @user, species: @walleye, length_inches: 18.5, status: :synced)
-    Catches::PlaceInSlots.call(catch: catch_record)
-    organizer = create(:user, club: @club, role: :organizer)
-    sign_in_as(organizer)
-
-    get catch_path(catch_record.id, t: @tournament.id)
-    assert_response :success
-    assert_select "form[action=?]",
-      judges_tournament_catch_review_path(tournament_id: @tournament.id, catch_id: catch_record.id) do
-      assert_select "input[name=?][value=?]", "action_kind", "approve"
-      assert_select "button", text: "Approve"
-    end
-  end
-
-  test "show: organizer sees Approve button when catch is disputed" do
-    catch_record = create(:catch, user: @user, species: @walleye, length_inches: 18.5, status: :disputed)
-    Catches::PlaceInSlots.call(catch: catch_record)
-    organizer = create(:user, club: @club, role: :organizer)
-    sign_in_as(organizer)
-
-    get catch_path(catch_record.id, t: @tournament.id)
-    assert_response :success
-    assert_select "input[name=?][value=?]", "action_kind", "approve"
   end
 
   test "show: shows 'Approved by X' instead of Approve button when catch already has an approver" do
@@ -725,15 +727,15 @@ class CatchesControllerTest < ActionDispatch::IntegrationTest
 
     get select_teammate_catches_path
     assert_response :success
-    assert_select "a[href=?]", new_catch_path, text: "Myself"
-    assert_select "a[href=?]", new_catch_path(teammate_user_id: teammate.id), text: "Boatmate"
+    assert_select "a[href=?]", select_species_catches_path, text: "Myself"
+    assert_select "a[href=?]", select_species_catches_path(teammate_user_id: teammate.id), text: "Boatmate"
     assert_no_match "Other Boat", response.body
   end
 
-  test "GET /catches/select_teammate redirects to new catch when the user has no teammates" do
+  test "GET /catches/select_teammate redirects to the species step when the user has no teammates" do
     # @tournament is solo by default, so the user has no team teammates.
     get select_teammate_catches_path
-    assert_redirected_to new_catch_path
+    assert_redirected_to select_species_catches_path
   end
 
   test "GET /catches/select_teammate aggregates teammates flat, with no tournament grouping" do
@@ -768,7 +770,7 @@ class CatchesControllerTest < ActionDispatch::IntegrationTest
 
     get select_teammate_catches_path
     assert_response :success
-    assert_select "a[href=?]", new_catch_path(teammate_user_id: mate.id), count: 1
+    assert_select "a[href=?]", select_species_catches_path(teammate_user_id: mate.id), count: 1
   end
 
   test "GET /catches/select_teammate shows only current-club teammates, not another club's" do
@@ -793,10 +795,30 @@ class CatchesControllerTest < ActionDispatch::IntegrationTest
     assert_no_match "Other Club Mate", response.body
   end
 
+  test "GET /catches/select_species lists species linking into the catch form" do
+    get select_species_catches_path
+    assert_response :success
+    first = Species.in_log_order.first
+    assert_select "a[href=?]", new_catch_path(species_id: first.id), text: first.name
+  end
+
+  test "GET /catches/select_species threads teammate_user_id onto the species links" do
+    @tournament.update!(mode: :team)
+    teammate = create(:user, club: @club, name: "Boatmate")
+    create(:tournament_entry_member, tournament_entry: @entry, user: teammate)
+
+    get select_species_catches_path(teammate_user_id: teammate.id)
+    assert_response :success
+    first = Species.in_log_order.first
+    assert_select "a[href=?]",
+                  new_catch_path(species_id: first.id, teammate_user_id: teammate.id),
+                  text: first.name
+  end
+
   test "tournament show routes 'Log Catch' to the form for a solo tournament" do
     get tournament_path(@tournament)
     assert_response :success
-    assert_select "a[href=?]", new_catch_path, text: "Log Catch"
+    assert_select "a[href=?]", select_species_catches_path, text: "Log Catch"
     assert_no_match "Log for teammate", response.body
   end
 
@@ -814,7 +836,7 @@ class CatchesControllerTest < ActionDispatch::IntegrationTest
     @tournament.update!(mode: :team)
     get tournament_path(@tournament)
     assert_response :success
-    assert_select "a[href=?]", new_catch_path, text: "Log Catch"
+    assert_select "a[href=?]", select_species_catches_path, text: "Log Catch"
     assert_no_match "Log for teammate", response.body
   end
 
@@ -833,7 +855,7 @@ class CatchesControllerTest < ActionDispatch::IntegrationTest
 
     get tournament_path(@tournament)
     assert_response :success
-    assert_select "a[href=?]", new_catch_path, text: "Log Catch"
+    assert_select "a[href=?]", select_species_catches_path, text: "Log Catch"
     assert_no_match "Log for teammate", response.body
   end
 
@@ -848,12 +870,59 @@ class CatchesControllerTest < ActionDispatch::IntegrationTest
     assert_match "Boatmate", response.body
   end
 
+  test "GET /catches/new with species_id and teammate_user_id threads teammate into the Change link" do
+    @tournament.update!(mode: :team)
+    teammate = create(:user, club: @club, name: "Boatmate")
+    create(:tournament_entry_member, tournament_entry: @entry, user: teammate)
+    species = Species.in_log_order.first
+    get new_catch_path(species_id: species.id, teammate_user_id: teammate.id)
+    assert_response :success
+    assert_select "a[href=?]", select_species_catches_path(teammate_user_id: teammate.id), text: "Change"
+  end
+
   test "GET /catches/new with foreign-club teammate redirects with alert" do
     other_club = create(:club)
     foreigner = create(:user, club: other_club)
     get new_catch_path(teammate_user_id: foreigner.id)
     assert_redirected_to new_catch_path
     assert_equal "Teammate not found.", flash[:alert]
+  end
+
+  test "GET /catches/new with a valid species_id assigns @selected_species" do
+    species = Species.in_log_order.first
+    get new_catch_path(species_id: species.id)
+    assert_response :success
+    assert_equal species, assigns(:selected_species)
+  end
+
+  test "GET /catches/new without species_id leaves @selected_species nil" do
+    get new_catch_path
+    assert_response :success
+    assert_nil assigns(:selected_species)
+  end
+
+  test "GET /catches/new with an unknown species_id leaves @selected_species nil" do
+    get new_catch_path(species_id: 0)
+    assert_response :success
+    assert_nil assigns(:selected_species)
+  end
+
+  test "GET /catches/new with species_id renders a read-only species banner and hidden select" do
+    species = Species.in_log_order.first
+    get new_catch_path(species_id: species.id)
+    assert_response :success
+    assert_select "a[href=?]", select_species_catches_path, text: "Change"
+    assert_match "Species:", response.body
+    # The select is still present (so the JS controller keeps working) but hidden.
+    assert_select "select#catch_species_id.hidden option[selected][value=?]",
+                  species.id.to_s, text: species.name
+  end
+
+  test "GET /catches/new without species_id renders the editable species dropdown" do
+    get new_catch_path
+    assert_response :success
+    assert_select "label[for=catch_species_id]", text: "Species"
+    assert_select "select#catch_species_id:not(.hidden)"
   end
 
   test "POST /catches with valid teammate files catch under teammate and stamps logger" do

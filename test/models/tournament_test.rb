@@ -619,4 +619,155 @@ class TournamentTest < ActiveSupport::TestCase
                  "#{fmt} should not support forced slot placement"
     end
   end
+
+  test "progressive_length requires exactly one scoring slot" do
+    club = create(:club)
+    walleye = Species.find_or_create_by!(name: "Walleye")
+    pike = Species.find_or_create_by!(name: "Pike")
+
+    t = build(:tournament, club: club, format: :progressive_length, mode: :solo,
+              starts_at: 1.hour.from_now, ends_at: 3.hours.from_now)
+    t.scoring_slots.build(species: walleye, slot_count: 1)
+    t.scoring_slots.build(species: pike, slot_count: 1)
+
+    assert_not t.valid?
+    assert_includes t.errors[:scoring_slots],
+                    "Progressive Length tournaments must have exactly one species configured"
+  end
+
+  test "progressive_length forces slot_count to 1" do
+    club = create(:club)
+    walleye = Species.find_or_create_by!(name: "Walleye")
+
+    t = build(:tournament, club: club, format: :progressive_length, mode: :team,
+              starts_at: 1.hour.from_now, ends_at: 3.hours.from_now)
+    t.scoring_slots.build(species: walleye, slot_count: 5)
+    t.save!
+
+    assert_equal 1, t.scoring_slots.first.slot_count
+  end
+
+  test "progressive_length allows both solo and team" do
+    club = create(:club)
+    walleye = Species.find_or_create_by!(name: "Walleye")
+
+    [:solo, :team].each do |mode|
+      t = build(:tournament, club: club, format: :progressive_length, mode: mode,
+                starts_at: 1.hour.from_now, ends_at: 3.hours.from_now)
+      t.scoring_slots.build(species: walleye, slot_count: 1)
+      assert t.valid?, "expected #{mode} to be valid: #{t.errors.full_messages.join(', ')}"
+    end
+  end
+
+  test "beat_the_average is enum value 10 on Tournament and TournamentTemplate" do
+    assert_equal 10, Tournament.formats["beat_the_average"]
+    assert_equal 10, TournamentTemplate.formats["beat_the_average"]
+  end
+
+  test "beat_the_average forces blind_leaderboard true even if left unchecked" do
+    species = create(:species)
+    t = build(:tournament, club: @club, format: :beat_the_average, mode: :solo,
+              starts_at: 1.hour.from_now, ends_at: 3.hours.from_now, blind_leaderboard: false)
+    t.scoring_slots.build(species: species, slot_count: 1)
+    assert t.valid?, t.errors.full_messages.to_sentence
+    assert t.blind_leaderboard?, "expected blind_leaderboard forced true"
+  end
+
+  test "beat_the_average requires at least one scoring slot" do
+    t = build(:tournament, club: @club, format: :beat_the_average, mode: :solo,
+              starts_at: 1.hour.from_now, ends_at: 3.hours.from_now)
+    assert_not t.valid?
+    assert_includes t.errors[:scoring_slots], "Beat the Average tournaments must have at least one species configured"
+  end
+
+  test "beat_the_average allows multiple species and team mode" do
+    species_a = create(:species)
+    species_b = create(:species)
+    t = build(:tournament, club: @club, format: :beat_the_average, mode: :team,
+              starts_at: 1.hour.from_now, ends_at: 3.hours.from_now)
+    t.scoring_slots.build(species: species_a, slot_count: 1)
+    t.scoring_slots.build(species: species_b, slot_count: 1)
+    assert t.valid?, t.errors.full_messages.to_sentence
+  end
+
+  test "random_bag is a registered format with a target range and per-entry target" do
+    t = build(:tournament, format: :random_bag)
+    assert t.format_random_bag?
+    assert_equal 11, Tournament.formats["random_bag"]
+    # column defaults
+    fresh = Tournament.new
+    assert_equal BigDecimal("70.0"), fresh.target_min_inches
+    assert_equal BigDecimal("100.0"), fresh.target_max_inches
+    entry = TournamentEntry.new
+    assert_nil entry.random_bag_target_inches
+  end
+
+  test "random_bag forces blind leaderboard on" do
+    t = build(:tournament, format: :random_bag, blind_leaderboard: false)
+    t.scoring_slots.build(species: create(:species), slot_count: 1)
+    assert t.valid?, t.errors.full_messages.to_sentence
+    assert t.blind_leaderboard, "blind should be forced true"
+  end
+
+  test "random_bag requires at least one scoring slot" do
+    t = build(:tournament, format: :random_bag)
+    assert_not t.valid?
+    assert t.errors[:scoring_slots].any? { |m| m.include?("at least one species") }
+  end
+
+  test "random_bag allows equal min and max (fixed shared target)" do
+    t = build(:tournament, format: :random_bag, target_min_inches: 85, target_max_inches: 85)
+    t.scoring_slots.build(species: create(:species), slot_count: 1)
+    assert t.valid?, t.errors.full_messages.to_sentence
+  end
+
+  test "random_bag rejects max below min" do
+    t = build(:tournament, format: :random_bag, target_min_inches: 100, target_max_inches: 70)
+    t.scoring_slots.build(species: create(:species), slot_count: 1)
+    assert_not t.valid?
+    assert t.errors[:target_max_inches].any?
+  end
+
+  test "random_bag rejects a negative minimum" do
+    t = build(:tournament, format: :random_bag, target_min_inches: -5, target_max_inches: 100)
+    t.scoring_slots.build(species: create(:species), slot_count: 1)
+    assert_not t.valid?
+    assert t.errors[:target_min_inches].any? { |m| m.include?("must be at least 0") }
+  end
+
+  test "random_bag rejects off-grid bounds so the announced max stays drawable" do
+    t = build(:tournament, format: :random_bag, target_min_inches: 70, target_max_inches: 100.10)
+    t.scoring_slots.build(species: create(:species), slot_count: 1)
+    assert_not t.valid?
+    assert t.errors[:target_max_inches].any? { |m| m.include?("1/4-inch") }
+
+    t.target_min_inches = 70.1
+    assert_not t.valid?
+    assert t.errors[:target_min_inches].any? { |m| m.include?("1/4-inch") }
+  end
+
+  test "random_bag accepts on-grid quarter-inch bounds" do
+    t = build(:tournament, format: :random_bag, target_min_inches: 70.25, target_max_inches: 100.75)
+    t.scoring_slots.build(species: create(:species), slot_count: 1)
+    assert t.valid?, t.errors.full_messages.to_sentence
+  end
+
+  test "random_bag target range is locked once the tournament has started" do
+    t = build(:tournament, format: :random_bag, starts_at: 1.hour.ago, ends_at: 1.hour.from_now)
+    t.scoring_slots.build(species: create(:species), slot_count: 1)
+    t.save!
+
+    t.target_max_inches = t.target_max_inches.to_d + 10
+    assert_not t.valid?
+    assert t.errors[:base].any? { |m| m.include?("Target range can't be changed") }
+  end
+
+  test "random_bag target range can still be edited before the tournament starts" do
+    t = build(:tournament, format: :random_bag, starts_at: 1.hour.from_now, ends_at: 2.hours.from_now)
+    t.scoring_slots.build(species: create(:species), slot_count: 1)
+    t.save!
+
+    t.target_max_inches = t.target_max_inches.to_d + 10
+    assert t.valid?, t.errors.full_messages.to_sentence
+  end
 end

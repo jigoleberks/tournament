@@ -20,14 +20,19 @@ module Tournaments
         .group(:tournament_id)
         .sum(:slot_count)
 
+      # Resolve the bingo species ids once (they're the same for every bingo
+      # tournament) rather than letting each per-tournament build re-query them.
+      bingo_species_ids = Catches::Bingo::EvaluateCard.species_id_map if tournaments.any?(&:format_bingo?)
+
       tournaments.each_with_object({}) do |t, h|
         rows = ::Leaderboards::Build.call(
           tournament: t,
           entries: entries_by_tid[t.id] || [],
           placements: placements_by_tid[t.id] || [],
-          total_capacity: capacity_by_tid[t.id] || 0
+          total_capacity: capacity_by_tid[t.id] || 0,
+          bingo_species_ids: bingo_species_ids
         )
-        h[t.id] = rows.reject { |r| r[:fish].empty? }.first&.dig(:entry)
+        h[t.id] = ::Leaderboards::QualifiedRows.call(tournament: t, rows: rows).first&.dig(:entry)
       end
     end
   end

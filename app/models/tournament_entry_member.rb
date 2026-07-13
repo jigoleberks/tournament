@@ -6,6 +6,7 @@ class TournamentEntryMember < ApplicationRecord
 
   validate :respect_team_cap
   validate :user_not_already_in_tournament
+  validate :user_not_a_judge
 
   private
 
@@ -36,5 +37,17 @@ class TournamentEntryMember < ApplicationRecord
       .exists?
 
     errors.add(:user, "is already entered in this tournament") if already_in
+  end
+
+  # A judge reviews the field; they can't also compete in the tournament they
+  # judge. Enforced on both sides (see TournamentJudge#user_not_an_entrant).
+  def user_not_a_judge
+    return if tournament_entry.nil? || user.nil?
+
+    judging = TournamentJudge
+      .where(tournament_id: tournament_entry.tournament_id, user_id: user.id)
+      .exists?
+
+    errors.add(:user, "is judging this tournament and can't be entered in it") if judging
   end
 end

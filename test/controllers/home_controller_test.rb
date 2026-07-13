@@ -109,7 +109,7 @@ class HomeControllerTest < ActionDispatch::IntegrationTest
     sign_in_as(@member)
     get root_path
     assert_response :success
-    assert_select "a[href=?]", new_catch_path, text: "Log Catch"
+    assert_select "a[href=?]", select_species_catches_path, text: "Log Catch"
     assert_no_match "Log for teammate", response.body
   end
 

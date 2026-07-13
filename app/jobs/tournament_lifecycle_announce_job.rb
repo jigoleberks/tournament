@@ -26,6 +26,13 @@ class TournamentLifecycleAnnounceJob < ApplicationJob
 
     body = if kind == "ended" && tournament.format_hidden_length?
       "Target was #{format("%.2f", tournament.hidden_length_target)}\" — see final standings."
+    elsif kind == "ended" && tournament.format_beat_the_average?
+      avg = Leaderboards::Rankers::BeatTheAverage.average_for(tournament)
+      if avg
+        "The average was #{format("%.2f", avg)}\" — see who landed closest."
+      else
+        "#{tournament.name} has ended — no fish were logged."
+      end
     elsif kind == "ended" && tournament.blind_leaderboard?
       "Results are in, GO CHECK YOUR STANDINGS"
     elsif kind == "ended"

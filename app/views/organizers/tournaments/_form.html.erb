@@ -1,6 +1,9 @@
 <% if @tournament.persisted? %>
   <%= render "organizers/tournament_entries/section" %>
   <%= render "organizers/tournament_judges/section" %>
+  <% if current_user.permanent_organizer_in?(current_club) %>
+    <%= render "organizers/tournament_deputies/section" %>
+  <% end %>
 <% end %>
 
 <%= form_with model: [:organizers, @tournament], local: true, class: "space-y-4",
@@ -81,7 +84,7 @@
       </label>
     <% else %>
       <label class="flex items-center gap-3 mt-2">
-        <%= f.check_box :blind_leaderboard, class: "h-5 w-5" %>
+        <%= f.check_box :blind_leaderboard, class: "h-5 w-5", data: { tournament_format_target: "blindCheckbox" } %>
         <span class="text-slate-200">Blind leaderboard</span>
       </label>
     <% end %>
@@ -99,7 +102,7 @@
     <p class="text-xs text-slate-500 -mt-2">When on, only members added to this tournament (plus judges and organizers) can open its leaderboard. Other members see the tournament listed but can't click through.</p>
   </div>
 
-  <div class="bg-slate-800 rounded-xl p-4 space-y-3">
+  <div class="bg-slate-800 rounded-xl p-4 space-y-3" data-tournament-format-target="slotsSection">
     <h3 class="text-lg font-semibold" data-tournament-format-target="slotsHeading">Scoring slots</h3>
     <p class="text-sm text-slate-400" data-tournament-format-target="slotsHelp">Pick a species and how many of that fish counts. Blank rows are ignored.</p>
 
@@ -129,6 +132,26 @@
     </p>
 
     <%= render "organizers/shared/fish_train_builder", f: f, record: @tournament, club: current_club %>
+  </div>
+
+  <div class="bg-slate-800 rounded-xl p-4 space-y-3 hidden" data-tournament-format-target="rangeSection">
+    <h3 class="text-lg font-semibold">Random Bag target range</h3>
+    <p class="text-sm text-slate-400">
+      Each team gets a random target length (drawn in ¼″ steps) between these bounds when the tournament starts.
+      Set min and max to the same number to give every team the identical target.
+    </p>
+    <div class="grid grid-cols-2 gap-3">
+      <div>
+        <%= f.label :target_min_inches, "Min (inches)", class: "block text-sm text-slate-400 mb-1" %>
+        <%= f.number_field :target_min_inches, step: "0.25", value: (f.object.target_min_inches || 70),
+                           class: "w-full h-12 px-3 rounded-lg bg-slate-900 border border-slate-700 text-base" %>
+      </div>
+      <div>
+        <%= f.label :target_max_inches, "Max (inches)", class: "block text-sm text-slate-400 mb-1" %>
+        <%= f.number_field :target_max_inches, step: "0.25", value: (f.object.target_max_inches || 100),
+                           class: "w-full h-12 px-3 rounded-lg bg-slate-900 border border-slate-700 text-base" %>
+      </div>
+    </div>
   </div>
 
   <%= f.submit class: "w-full h-14 px-6 text-lg font-semibold rounded-lg bg-blue-600 active:bg-blue-700 text-white" %>

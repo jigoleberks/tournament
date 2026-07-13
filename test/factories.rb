@@ -62,6 +62,12 @@ FactoryBot.define do
     association :user
   end
 
+  factory :tournament_deputy do
+    association :tournament
+    association :user
+    association :granted_by_user, factory: :user
+  end
+
   factory :catch do
     association :user
     association :species

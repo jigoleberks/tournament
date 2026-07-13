@@ -44,6 +44,11 @@ class CatchesHelperTest < ActionView::TestCase
     assert_equal [d, d], call(d, s, e)
   end
 
+  test "maps_url_for builds a Google Maps query URL from full-precision coords" do
+    c = Struct.new(:latitude, :longitude).new(49.123456, -103.987654)
+    assert_equal "https://maps.google.com/?q=49.123456,-103.987654", maps_url_for(c)
+  end
+
   test "month_calendar_link_url — no current selection, returns URL with start=end=tapped" do
     url = month_calendar_link_url(Date.new(2026, 5, 5),
                                   current_start: nil, current_end: nil,

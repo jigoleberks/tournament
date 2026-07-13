@@ -26,6 +26,19 @@ class Catch < ApplicationRecord
     overridden || ::Geofence.includes?(region, latitude, longitude)
   end
 
+  # Single source of the geofence *scoring* rule: whether this catch counts toward
+  # `tournament`. A catch with no recorded location is always eligible (kept for
+  # judge review); otherwise it must sit inside Saskatchewan, and inside the lake
+  # when the tournament is local. Judge geofence overrides are honored via
+  # #in_geofence?. Shared by PlaceInSlots, SlotPlacement, and the bingo
+  # EvaluateCard so every format scores the same set of catches.
+  def geofence_eligible_for?(tournament)
+    return true if latitude.nil?
+    return false unless in_geofence?(:sask)
+    return true unless tournament.local?
+    in_geofence?(:lake)
+  end
+
   # Atomically add `flag` to the flags array in a single UPDATE (no-op if it's
   # already present). The previous `flags + [...]` then `update_columns` pattern
   # was a read-modify-write from an in-memory snapshot: two concurrent flag

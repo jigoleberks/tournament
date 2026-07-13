@@ -107,4 +107,83 @@ class UserTest < ActiveSupport::TestCase
       assert_equal original_updated_at, u.reload.updated_at
     end
   end
+
+  test "permanent_organizer_in? is true for an active organizer membership" do
+    u = create(:user, club: @club, role: :organizer)
+    assert u.permanent_organizer_in?(@club)
+  end
+
+  test "permanent_organizer_in? is false for a plain member" do
+    u = create(:user, club: @club, role: :member)
+    assert_not u.permanent_organizer_in?(@club)
+  end
+
+  test "permanent_organizer_in? ignores deactivated memberships" do
+    u = create(:user)
+    create(:club_membership, user: u, club: @club, role: :organizer, deactivated_at: Time.current)
+    assert_not u.permanent_organizer_in?(@club)
+  end
+
+  test "permanent_organizer_in? returns false for nil club" do
+    u = create(:user, club: @club, role: :organizer)
+    assert_not u.permanent_organizer_in?(nil)
+  end
+
+  test "organizer_in? is true for a deputy before the tournament starts" do
+    u = create(:user, club: @club, role: :member)
+    t = create(:tournament, club: @club, starts_at: 1.hour.from_now, ends_at: 3.hours.from_now)
+    create(:tournament_deputy, tournament: t, user: u, granted_by_user: create(:user, club: @club, role: :organizer))
+    assert User.find(u.id).organizer_in?(@club)
+  end
+
+  test "organizer_in? is false for a deputy once the tournament has started" do
+    u = create(:user, club: @club, role: :member)
+    t = create(:tournament, club: @club, starts_at: 1.hour.ago, ends_at: 1.hour.from_now)
+    create(:tournament_deputy, tournament: t, user: u, granted_by_user: create(:user, club: @club, role: :organizer))
+    assert_not User.find(u.id).organizer_in?(@club)
+  end
+
+  test "the deputy badge expires exactly at starts_at" do
+    u = create(:user, club: @club, role: :member)
+    starts = 30.minutes.from_now
+    t = create(:tournament, club: @club, starts_at: starts, ends_at: starts + 2.hours)
+    create(:tournament_deputy, tournament: t, user: u, granted_by_user: create(:user, club: @club, role: :organizer))
+
+    travel_to(starts - 1.second) { assert User.find(u.id).organizer_in?(@club) }
+    travel_to(starts + 1.second) { assert_not User.find(u.id).organizer_in?(@club) }
+  end
+
+  test "a deputy whose club membership is deactivated is not an organizer" do
+    u = create(:user, club: @club, role: :member)
+    t = create(:tournament, club: @club, starts_at: 1.hour.from_now, ends_at: 3.hours.from_now)
+    create(:tournament_deputy, tournament: t, user: u, granted_by_user: create(:user, club: @club, role: :organizer))
+    u.club_memberships.find_by(club: @club).update!(deactivated_at: Time.current)
+    assert_not User.find(u.id).organizer_in?(@club)
+  end
+
+  test "a deputy grant in another club does not confer organizer here" do
+    other = create(:club)
+    u = create(:user, club: @club, role: :member)
+    create(:club_membership, user: u, club: other, role: :member)
+    t = create(:tournament, club: other, starts_at: 1.hour.from_now, ends_at: 3.hours.from_now)
+    create(:tournament_deputy, tournament: t, user: u, granted_by_user: create(:user, club: other, role: :organizer))
+    assert_not User.find(u.id).organizer_in?(@club)
+  end
+
+  test "permanent_organizer_in? stays false for a deputy" do
+    u = create(:user, club: @club, role: :member)
+    t = create(:tournament, club: @club, starts_at: 1.hour.from_now, ends_at: 3.hours.from_now)
+    create(:tournament_deputy, tournament: t, user: u, granted_by_user: create(:user, club: @club, role: :organizer))
+    fresh = User.find(u.id)
+    assert fresh.organizer_in?(@club)
+    assert_not fresh.permanent_organizer_in?(@club)
+  end
+
+  test "organizer_in? memoizes per club and reload clears the memo" do
+    u = create(:user, club: @club, role: :member)
+    assert_not u.organizer_in?(@club)
+    u.club_memberships.find_by(club: @club).update!(role: :organizer)
+    assert_not u.organizer_in?(@club), "the memoized value should survive within the instance"
+    assert u.reload.organizer_in?(@club), "reload must clear the memo"
+  end
 end

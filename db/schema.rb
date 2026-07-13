@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_06_30_135843) do
+ActiveRecord::Schema[8.1].define(version: 2026_07_11_222830) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -337,9 +337,22 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_30_135843) do
     t.index "lower((name)::text)", name: "index_species_on_lower_name", unique: true
   end
 
+  create_table "tournament_deputies", force: :cascade do |t|
+    t.datetime "created_at", null: false
+    t.bigint "granted_by_user_id", null: false
+    t.bigint "tournament_id", null: false
+    t.datetime "updated_at", null: false
+    t.bigint "user_id", null: false
+    t.index ["granted_by_user_id"], name: "index_tournament_deputies_on_granted_by_user_id"
+    t.index ["tournament_id", "user_id"], name: "index_tournament_deputies_on_tournament_id_and_user_id", unique: true
+    t.index ["tournament_id"], name: "index_tournament_deputies_on_tournament_id"
+    t.index ["user_id"], name: "index_tournament_deputies_on_user_id"
+  end
+
   create_table "tournament_entries", force: :cascade do |t|
     t.datetime "created_at", null: false
     t.string "name"
+    t.decimal "random_bag_target_inches", precision: 5, scale: 2
     t.bigint "tournament_id", null: false
     t.datetime "updated_at", null: false
     t.index ["tournament_id"], name: "index_tournament_entries_on_tournament_id"
@@ -396,6 +409,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_30_135843) do
 
   create_table "tournaments", force: :cascade do |t|
     t.boolean "awards_season_points", default: false, null: false
+    t.jsonb "bingo_layout"
     t.boolean "blind_leaderboard", default: false, null: false
     t.bigint "club_id", null: false
     t.datetime "created_at", null: false
@@ -414,6 +428,8 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_30_135843) do
     t.boolean "requires_release_video", default: false, null: false
     t.string "season_tag"
     t.datetime "starts_at", null: false
+    t.decimal "target_max_inches", precision: 5, scale: 2, default: "100.0", null: false
+    t.decimal "target_min_inches", precision: 5, scale: 2, default: "70.0", null: false
     t.integer "template_source_id"
     t.integer "train_cars", default: [], null: false, array: true
     t.datetime "updated_at", null: false
@@ -474,6 +490,9 @@ ActiveRecord::Schema[8.1].define(version: 2026_06_30_135843) do
   add_foreign_key "solid_queue_ready_executions", "solid_queue_jobs", column: "job_id", on_delete: :cascade
   add_foreign_key "solid_queue_recurring_executions", "solid_queue_jobs", column: "job_id", on_delete: :cascade
   add_foreign_key "solid_queue_scheduled_executions", "solid_queue_jobs", column: "job_id", on_delete: :cascade
+  add_foreign_key "tournament_deputies", "tournaments"
+  add_foreign_key "tournament_deputies", "users"
+  add_foreign_key "tournament_deputies", "users", column: "granted_by_user_id"
   add_foreign_key "tournament_entries", "tournaments"
   add_foreign_key "tournament_entry_members", "tournament_entries"
   add_foreign_key "tournament_entry_members", "users"

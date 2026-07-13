@@ -11,7 +11,7 @@
               import_paths.select { |p| p.start_with?("/") } %>
 const CACHE = <%= ("shell-" + ::AppVersion.current).to_json.html_safe %>;
 const SHELL = <%= precache.to_json.html_safe %>;
-const NAV_TIMEOUT_MS = 3000;
+const NAV_TIMEOUT_MS = 6000;
 
 self.addEventListener("install", (event) => {
   event.waitUntil(caches.open(CACHE).then((c) => c.addAll(SHELL)));

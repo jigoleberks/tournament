@@ -7,16 +7,20 @@ module ClubCatchIndex
 
   private
 
-  def load_club_catch_index(club)
+  # Base club-scoped relation: catches by members of `club`, optionally narrowed
+  # by ?user_id. Also sets @members (for the filter dropdown) and
+  # @selected_user_id. Callers add their own eager-loads / ordering / filtering.
+  def club_catch_base(club)
     club_catches = Catch.where(user_id: club.members.select(:id))
-
     @members = User.where(id: club_catches.select(:user_id)).order(:name)
     @selected_user_id = params[:user_id].presence
-
     club_catches = club_catches.where(user_id: @selected_user_id) if @selected_user_id
+    club_catches
+  end
 
-    @catches = club_catches
-      .includes(:user, :logged_by_user, :species, :catch_placements, photo_attachment: :blob, reference_photo_attachment: :blob)
+  def load_club_catch_index(club)
+    @catches = club_catch_base(club)
+      .includes(:user, :logged_by_user, :species, :catch_placements, :judge_actions, photo_attachment: :blob, reference_photo_attachment: :blob)
       .order(captured_at_device: :desc)
   end
 end

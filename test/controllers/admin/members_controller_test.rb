@@ -237,6 +237,80 @@ class Admin::MembersControllerTest < ActionDispatch::IntegrationTest
     assert_match "Safari", response.body
   end
 
+  test "a plain member cannot change a role" do
+    other = create(:user, club: @club, role: :member)
+    sign_in_as(other)
+    patch role_admin_member_path(@member), params: { club_membership: { role: "organizer" } }
+    assert_response :forbidden
+  end
+
+  test "an organizer promotes a member to organizer" do
+    sign_in_as(@organizer)
+    patch role_admin_member_path(@member), params: { club_membership: { role: "organizer" } }
+    assert_redirected_to admin_members_path
+    assert @member.reload.permanent_organizer_in?(@club)
+  end
+
+  test "an organizer demotes another organizer to member" do
+    victim = create(:user, club: @club, role: :organizer)
+    sign_in_as(@organizer)
+    patch role_admin_member_path(victim), params: { club_membership: { role: "member" } }
+    assert_redirected_to admin_members_path
+    assert_not victim.reload.permanent_organizer_in?(@club)
+  end
+
+  test "an organizer cannot demote themselves" do
+    sign_in_as(@organizer)
+    patch role_admin_member_path(@organizer), params: { club_membership: { role: "member" } }
+    assert_redirected_to admin_members_path
+    assert_equal "You can't demote yourself.", flash[:alert]
+    assert @organizer.reload.permanent_organizer_in?(@club)
+  end
+
+  test "an unknown role is rejected" do
+    sign_in_as(@organizer)
+    patch role_admin_member_path(@member), params: { club_membership: { role: "wizard" } }
+    assert_redirected_to admin_members_path
+    assert_equal "Unknown role.", flash[:alert]
+    assert_not @member.reload.permanent_organizer_in?(@club)
+  end
+
+  test "a member of another club cannot be re-roled from this club" do
+    outsider = create(:user, club: create(:club), role: :member)
+    sign_in_as(@organizer)
+    patch role_admin_member_path(outsider), params: { club_membership: { role: "organizer" } }
+    assert_redirected_to admin_members_path
+    assert_equal "That member isn't in this club.", flash[:alert]
+  end
+
+  test "index shows a role toggle to an organizer" do
+    sign_in_as(@organizer)
+    get admin_members_path
+    assert_response :success
+    assert_select "form[action=?]", role_admin_member_path(@member)
+  end
+
+  test "index hides the role toggle on the current user's own row" do
+    sign_in_as(@organizer)
+    get admin_members_path
+    assert_select "form[action=?]", role_admin_member_path(@organizer), count: 0
+  end
+
+  test "a live deputy cannot change roles" do
+    upcoming = create(:tournament, club: @club, starts_at: 1.hour.from_now, ends_at: 3.hours.from_now)
+    deputy   = create(:user, club: @club, role: :member)
+    create(:tournament_deputy, tournament: upcoming, user: deputy, granted_by_user: @organizer)
+
+    sign_in_as(deputy)
+    # Sanity: the deputy really does reach the admin area.
+    get admin_members_path
+    assert_response :success
+
+    patch role_admin_member_path(@member), params: { club_membership: { role: "organizer" } }
+    assert_response :forbidden
+    assert_not @member.reload.permanent_organizer_in?(@club)
+  end
+
   private
 
   def sign_in_as(user)

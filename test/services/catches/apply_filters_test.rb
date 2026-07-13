@@ -12,6 +12,11 @@ class Catches::ApplyFiltersTest < ActiveSupport::TestCase
     Catches::ApplyFilters.call(scope: Catch.where(user: @user), params: ActionController::Parameters.new(params))
   end
 
+  # Walleye catch with the given condition attrs; used by the band tables below.
+  def catch_with(**attrs)
+    create(:catch, **{ user: @user, species: @walleye, length_inches: 18, captured_at_device: 1.day.ago }.merge(attrs))
+  end
+
   test "no params returns scope unchanged" do
     c = create(:catch, user: @user, species: @walleye, length_inches: 18, captured_at_device: 1.day.ago)
     assert_includes call({}), c
@@ -145,66 +150,41 @@ class Catches::ApplyFiltersTest < ActiveSupport::TestCase
     assert_includes call(wind_dir: "up"), c
   end
 
-  test "wind_speed calm matches < 5" do
-    calm  = create(:catch, user: @user, species: @walleye, length_inches: 18, captured_at_device: 1.day.ago, wind_speed_kph: 3)
-    light = create(:catch, user: @user, species: @walleye, length_inches: 18, captured_at_device: 1.day.ago, wind_speed_kph: 5)
-    result = call(wind_speed: "calm")
-    assert_includes result, calm
-    refute_includes result, light
+  test "wind_speed bands select catches by kph range (boundaries inclusive/exclusive)" do
+    bands = {
+      "calm"   => { match: [3],        miss: [5] },
+      "light"  => { match: [5, 15],    miss: [16] },
+      "mod"    => { match: [15.5, 25], miss: [15] },
+      "strong" => { match: [30],       miss: [25] }
+    }
+    bands.each do |band, spec|
+      spec[:match].each do |kph|
+        c = catch_with(wind_speed_kph: kph)
+        assert_includes call(wind_speed: band), c, "#{band}: #{kph} kph should match"
+      end
+      spec[:miss].each do |kph|
+        c = catch_with(wind_speed_kph: kph)
+        refute_includes call(wind_speed: band), c, "#{band}: #{kph} kph should not match"
+      end
+    end
   end
 
-  test "wind_speed light matches 5..15 inclusive" do
-    light_lo = create(:catch, user: @user, species: @walleye, length_inches: 18, captured_at_device: 1.day.ago, wind_speed_kph: 5)
-    light_hi = create(:catch, user: @user, species: @walleye, length_inches: 18, captured_at_device: 1.day.ago, wind_speed_kph: 15)
-    over     = create(:catch, user: @user, species: @walleye, length_inches: 18, captured_at_device: 1.day.ago, wind_speed_kph: 16)
-    result = call(wind_speed: "light")
-    assert_includes result, light_lo
-    assert_includes result, light_hi
-    refute_includes result, over
-  end
-
-  test "wind_speed mod matches >15 and <=25" do
-    just_over_15 = create(:catch, user: @user, species: @walleye, length_inches: 18, captured_at_device: 1.day.ago, wind_speed_kph: 15.5)
-    twenty_five  = create(:catch, user: @user, species: @walleye, length_inches: 18, captured_at_device: 1.day.ago, wind_speed_kph: 25)
-    fifteen      = create(:catch, user: @user, species: @walleye, length_inches: 18, captured_at_device: 1.day.ago, wind_speed_kph: 15)
-    result = call(wind_speed: "mod")
-    assert_includes result, just_over_15
-    assert_includes result, twenty_five
-    refute_includes result, fifteen
-  end
-
-  test "wind_speed strong matches > 25" do
-    strong = create(:catch, user: @user, species: @walleye, length_inches: 18, captured_at_device: 1.day.ago, wind_speed_kph: 30)
-    edge   = create(:catch, user: @user, species: @walleye, length_inches: 18, captured_at_device: 1.day.ago, wind_speed_kph: 25)
-    result = call(wind_speed: "strong")
-    assert_includes result, strong
-    refute_includes result, edge
-  end
-
-  test "pressure low matches < 1010" do
-    low = create(:catch, user: @user, species: @walleye, length_inches: 18, captured_at_device: 1.day.ago, barometric_pressure_hpa: 1005)
-    norm = create(:catch, user: @user, species: @walleye, length_inches: 18, captured_at_device: 1.day.ago, barometric_pressure_hpa: 1010)
-    result = call(pressure: "low")
-    assert_includes result, low
-    refute_includes result, norm
-  end
-
-  test "pressure normal matches 1010..1020 inclusive" do
-    n1 = create(:catch, user: @user, species: @walleye, length_inches: 18, captured_at_device: 1.day.ago, barometric_pressure_hpa: 1010)
-    n2 = create(:catch, user: @user, species: @walleye, length_inches: 18, captured_at_device: 1.day.ago, barometric_pressure_hpa: 1020)
-    high = create(:catch, user: @user, species: @walleye, length_inches: 18, captured_at_device: 1.day.ago, barometric_pressure_hpa: 1021)
-    result = call(pressure: "normal")
-    assert_includes result, n1
-    assert_includes result, n2
-    refute_includes result, high
-  end
-
-  test "pressure high matches > 1020" do
-    high = create(:catch, user: @user, species: @walleye, length_inches: 18, captured_at_device: 1.day.ago, barometric_pressure_hpa: 1025)
-    edge = create(:catch, user: @user, species: @walleye, length_inches: 18, captured_at_device: 1.day.ago, barometric_pressure_hpa: 1020)
-    result = call(pressure: "high")
-    assert_includes result, high
-    refute_includes result, edge
+  test "pressure bands select catches by hpa range (boundaries inclusive/exclusive)" do
+    bands = {
+      "low"    => { match: [1005],       miss: [1010] },
+      "normal" => { match: [1010, 1020], miss: [1021] },
+      "high"   => { match: [1025],       miss: [1020] }
+    }
+    bands.each do |band, spec|
+      spec[:match].each do |hpa|
+        c = catch_with(barometric_pressure_hpa: hpa)
+        assert_includes call(pressure: band), c, "#{band}: #{hpa} hpa should match"
+      end
+      spec[:miss].each do |hpa|
+        c = catch_with(barometric_pressure_hpa: hpa)
+        refute_includes call(pressure: band), c, "#{band}: #{hpa} hpa should not match"
+      end
+    end
   end
 
   test "wind_speed/pressure: NULL columns excluded when filter active" do
@@ -213,30 +193,22 @@ class Catches::ApplyFiltersTest < ActiveSupport::TestCase
     refute_includes call(pressure: "low"),    nilled
   end
 
-  test "moon q1 matches 0.125..<0.375" do
-    inside  = create(:catch, user: @user, species: @walleye, length_inches: 18, captured_at_device: 1.day.ago, moon_phase_fraction: 0.25)
-    edge_lo = create(:catch, user: @user, species: @walleye, length_inches: 18, captured_at_device: 1.day.ago, moon_phase_fraction: 0.125)
-    edge_hi = create(:catch, user: @user, species: @walleye, length_inches: 18, captured_at_device: 1.day.ago, moon_phase_fraction: 0.375)
-    result = call(moon: "q1")
-    assert_includes result, inside
-    assert_includes result, edge_lo
-    refute_includes result, edge_hi  # exclusive top
-  end
-
-  test "moon full matches 0.375..<0.625" do
-    inside = create(:catch, user: @user, species: @walleye, length_inches: 18, captured_at_device: 1.day.ago, moon_phase_fraction: 0.5)
-    result = call(moon: "full")
-    assert_includes result, inside
-  end
-
-  test "moon new wraps across 0/1" do
-    early = create(:catch, user: @user, species: @walleye, length_inches: 18, captured_at_device: 1.day.ago, moon_phase_fraction: 0.05)
-    late  = create(:catch, user: @user, species: @walleye, length_inches: 18, captured_at_device: 1.day.ago, moon_phase_fraction: 0.95)
-    mid   = create(:catch, user: @user, species: @walleye, length_inches: 18, captured_at_device: 1.day.ago, moon_phase_fraction: 0.5)
-    result = call(moon: "new")
-    assert_includes result, early
-    assert_includes result, late
-    refute_includes result, mid
+  test "moon bands select catches by phase fraction (q1 top-exclusive, new wraps 0/1)" do
+    bands = {
+      "q1"   => { match: [0.25, 0.125], miss: [0.375] }, # bottom inclusive, top exclusive
+      "full" => { match: [0.5],         miss: [] },
+      "new"  => { match: [0.05, 0.95],  miss: [0.5] }     # wraps across 0/1
+    }
+    bands.each do |band, spec|
+      spec[:match].each do |frac|
+        c = catch_with(moon_phase_fraction: frac)
+        assert_includes call(moon: band), c, "#{band}: #{frac} should match"
+      end
+      spec[:miss].each do |frac|
+        c = catch_with(moon_phase_fraction: frac)
+        refute_includes call(moon: band), c, "#{band}: #{frac} should not match"
+      end
+    end
   end
 
   test "moon: NULL fraction excluded when filter active" do
@@ -244,32 +216,23 @@ class Catches::ApplyFiltersTest < ActiveSupport::TestCase
     refute_includes call(moon: "full"), nilled
   end
 
-  test "tod dawn matches 4..6" do
-    five  = create(:catch, user: @user, species: @walleye, length_inches: 18, captured_at_device: Time.zone.local(2025, 5, 10, 5, 30))
-    seven = create(:catch, user: @user, species: @walleye, length_inches: 18, captured_at_device: Time.zone.local(2025, 5, 10, 7, 0))
-    result = call(tod: "dawn")
-    assert_includes result, five
-    refute_includes result, seven
-  end
-
-  test "tod noon matches 11..13" do
-    eleven   = create(:catch, user: @user, species: @walleye, length_inches: 18, captured_at_device: Time.zone.local(2025, 5, 10, 11, 0))
-    thirteen = create(:catch, user: @user, species: @walleye, length_inches: 18, captured_at_device: Time.zone.local(2025, 5, 10, 13, 59))
-    fourteen = create(:catch, user: @user, species: @walleye, length_inches: 18, captured_at_device: Time.zone.local(2025, 5, 10, 14, 0))
-    result = call(tod: "noon")
-    assert_includes result, eleven
-    assert_includes result, thirteen
-    refute_includes result, fourteen
-  end
-
-  test "tod night wraps across midnight (23..3)" do
-    eleven_pm = create(:catch, user: @user, species: @walleye, length_inches: 18, captured_at_device: Time.zone.local(2025, 5, 10, 23, 30))
-    two_am    = create(:catch, user: @user, species: @walleye, length_inches: 18, captured_at_device: Time.zone.local(2025, 5, 11,  2, 0))
-    five_am   = create(:catch, user: @user, species: @walleye, length_inches: 18, captured_at_device: Time.zone.local(2025, 5, 10,  5, 0))
-    result = call(tod: "night")
-    assert_includes result, eleven_pm
-    assert_includes result, two_am
-    refute_includes result, five_am
+  test "tod bands select catches by hour-of-day range (night wraps midnight)" do
+    at = ->(hour, min = 0, day = 10) { Time.zone.local(2025, 5, day, hour, min) }
+    bands = {
+      "dawn"  => { match: [at.(5, 30)],            miss: [at.(7)] },
+      "noon"  => { match: [at.(11), at.(13, 59)],  miss: [at.(14)] },
+      "night" => { match: [at.(23, 30), at.(2, 0, 11)], miss: [at.(5)] } # wraps across midnight
+    }
+    bands.each do |band, spec|
+      spec[:match].each do |time|
+        c = catch_with(captured_at_device: time)
+        assert_includes call(tod: band), c, "#{band}: #{time} should match"
+      end
+      spec[:miss].each do |time|
+        c = catch_with(captured_at_device: time)
+        refute_includes call(tod: band), c, "#{band}: #{time} should not match"
+      end
+    end
   end
 
   test "active_filter_keys: empty when no condition params" do

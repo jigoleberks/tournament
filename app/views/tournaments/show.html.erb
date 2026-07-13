@@ -18,7 +18,7 @@
   <% elsif is_entered %>
     <% has_teammates = @tournament.mode_team? && Tournaments::TeammatesFor.call(user: current_user, tournament: @tournament).exists? %>
     <%= link_to "Log Catch",
-                (has_teammates ? select_teammate_catches_path : new_catch_path),
+                (has_teammates ? select_teammate_catches_path : select_species_catches_path),
                 class: "block w-full h-14 px-6 text-lg font-semibold rounded-lg bg-blue-600 active:bg-blue-700 text-white text-center leading-[3.5rem] mb-4" %>
   <% else %>
     <p class="text-slate-400 italic">You're not entered. Ask an organizer to add you.</p>
@@ -57,6 +57,8 @@
               Hidden length 12"-22" <%= slot.species.name.downcase %>
             <% elsif @tournament.format_tagged? %>
               Tagged fish raffle
+            <% elsif @tournament.format_progressive_length? %>
+              Progressive ladder — most up-sizes of <%= slot.species.name.downcase %>
             <% elsif slot.slot_count == 1 %>
               Largest <%= slot.species.name.downcase %>
             <% else %>
@@ -87,7 +89,13 @@
 <% when :entries_only %>
   <%= turbo_stream_from "tournament:#{@tournament.id}:leaderboard:reveal" %>
 <% end %>
-<% if @tournament.format_tagged? %>
+<% if @tournament.format_bingo? %>
+  <% if is_entered && !@tournament.ended? %>
+    <%= link_to "Open your card", bingo_card_tournament_path(@tournament),
+        class: "block w-full h-14 px-6 text-lg font-semibold rounded-lg bg-emerald-600 active:bg-emerald-700 text-white text-center leading-[3.5rem] mb-4" %>
+  <% end %>
+  <%= render "tournaments/bingo_leaderboard", leaderboard: @leaderboard, tournament: @tournament %>
+<% elsif @tournament.format_tagged? %>
   <%= render "tournaments/tagged_leaderboard",
              tournament: @tournament, leaderboard: @leaderboard, viewer_scope: @viewer_scope %>
 <% else %>

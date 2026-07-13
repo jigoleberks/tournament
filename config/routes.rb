@@ -27,7 +27,8 @@ Rails.application.routes.draw do
       resources :tournament_entries, only: [:create, :update, :destroy] do
         resources :tournament_entry_members, only: [:create, :destroy]
       end
-      resources :tournament_judges,  only: [:create, :destroy]
+      resources :tournament_judges,   only: [:create, :destroy]
+      resources :tournament_deputies, only: [:create, :destroy]
     end
     resources :members, only: [:index, :new, :create, :destroy] do
       member do
@@ -67,9 +68,11 @@ Rails.application.routes.draw do
         resources :tournament_entry_members, only: [:create, :destroy]
       end
       resources :tournament_judges,  only: [:create, :destroy]
+      resources :tournament_deputies, only: [:create, :destroy]
     end
     resources :members, only: [:index, :new, :create, :edit, :update, :destroy] do
       member do
+        patch  :role
         post   :reactivate
         delete :purge
         post   :issue_code
@@ -90,6 +93,7 @@ Rails.application.routes.draw do
 
   resources :tournaments, only: [:index, :show] do
     collection { get :archived }
+    get :bingo_card, on: :member
     scope module: :tournaments do
       resources :catches, only: [:show]
     end
@@ -98,6 +102,7 @@ Rails.application.routes.draw do
     collection do
       get :map
       get :select_teammate
+      get :select_species
     end
     member do
       patch :reference_photo

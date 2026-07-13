@@ -161,6 +161,27 @@ class TournamentLifecycleAnnounceJobTest < ActiveJob::TestCase
     Placements::BroadcastLeaderboard.singleton_class.send(:remove_method, :call_orig)
   end
 
+  test "ended on a beat_the_average tournament pushes the final average and broadcasts a reveal" do
+    walleye = create(:species, club: @club)
+    @t.scoring_slots.create!(species: walleye, slot_count: 1)
+    @t.update!(format: :beat_the_average, mode: :solo)
+    @t.update_columns(starts_at: 2.hours.ago, ends_at: 1.minute.ago)
+
+    Catches::PlaceInSlots.call(catch: create(:catch, user: @user, species: walleye, length_inches: 12, captured_at_device: 1.hour.ago), broadcast: false)
+    Catches::PlaceInSlots.call(catch: create(:catch, user: @user, species: walleye, length_inches: 18, captured_at_device: 1.hour.ago), broadcast: false)
+
+    with_perform_later_capture do |enqueued|
+      assert_broadcasts("tournament:#{@t.id}:leaderboard:reveal", 1) do
+        TournamentLifecycleAnnounceJob.perform_now(tournament_id: @t.id, kind: "ended")
+      end
+      assert_equal 1, enqueued.size
+      assert_match(/average was/i, enqueued.first[:body])
+      assert_match "15.00", enqueued.first[:body]
+    end
+
+    assert_not_nil @t.reload.lifecycle_ended_announced_at
+  end
+
   test "ended hidden_length retries successfully if RollHiddenLengthTarget raises on first attempt" do
     walleye = create(:species, club: @club)
     @t.scoring_slots.create!(species: walleye, slot_count: 1)

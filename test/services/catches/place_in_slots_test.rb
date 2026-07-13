@@ -58,6 +58,30 @@ module Catches
       assert_empty result[:created]
     end
 
+    test "an equal-length offline swap stays reconcile-consistent but fires no bumped push" do
+      # Fill the 2-slot basket with a 10.0 (captured 30m ago) and a 12.0.
+      incumbent = create(:catch, user: @user, species: @walleye, length_inches: 10,
+                                 captured_at_device: 30.minutes.ago)
+      PlaceInSlots.call(catch: incumbent)
+      other = create(:catch, user: @user, species: @walleye, length_inches: 12,
+                             captured_at_device: 20.minutes.ago)
+      PlaceInSlots.call(catch: other)
+
+      # A same-length (10.0) fish captured EARLIER than the incumbent syncs late.
+      # rank_key's "earliest-captured wins" swaps it in (matching a reconcile), but
+      # the basket total (10 + 12) is unchanged — nobody was really bumped.
+      earlier = create(:catch, user: @user, species: @walleye, length_inches: 10,
+                               captured_at_device: 50.minutes.ago)
+      result = PlaceInSlots.call(catch: earlier)
+
+      # The swap still happens (reconcile consistency): the earlier 10.0 holds the slot.
+      assert earlier.catch_placements.sole.active?
+      assert_not incumbent.catch_placements.sole.reload.active?
+      # But it's score-neutral, so no "you were bumped from a slot" notification.
+      assert_empty result[:bumped],
+                   "an equal-length swap must not fire a bumped push (score unchanged)"
+    end
+
     test "when all slots are full, replaces the smallest active fish if new is bigger" do
       small = create(:catch, user: @user, species: @walleye, length_inches: 14)
       PlaceInSlots.call(catch: small)
@@ -183,6 +207,33 @@ module Catches
     active_indexes = CatchPlacement.where(tournament: t, active: true).order(:slot_index).pluck(:slot_index)
     assert_equal [0, 2, 3], active_indexes,
                  "expected new placement to land at max(active)+1, never reusing an occupied index"
+  end
+
+  test "beat_the_average keeps every catch across multiple species" do
+    pike = create(:species, club: @club, name: "Pike")
+    t = build(:tournament, club: @club, format: :beat_the_average,
+              starts_at: 1.hour.ago, ends_at: 1.hour.from_now)
+    t.scoring_slots.build(species: @walleye, slot_count: 1)
+    t.scoring_slots.build(species: pike, slot_count: 1)
+    t.save!
+    entry = create(:tournament_entry, tournament: t)
+    create(:tournament_entry_member, tournament_entry: entry, user: @user)
+
+    walleye_c1 = create(:catch, user: @user, species: @walleye, length_inches: 20,
+                                 captured_at_device: 30.minutes.ago)
+    walleye_c2 = create(:catch, user: @user, species: @walleye, length_inches: 16,
+                                 captured_at_device: 30.minutes.ago)
+    pike_c1 = create(:catch, user: @user, species: pike, length_inches: 24,
+                              captured_at_device: 30.minutes.ago)
+
+    [walleye_c1, walleye_c2, pike_c1].each { |c| Catches::PlaceInSlots.call(catch: c, broadcast: false) }
+
+    placements = CatchPlacement.active.where(tournament_id: t.id)
+    assert_equal 3, placements.count, "every catch should be placed"
+    # slot_index is scoped per (entry, species) — see idx_active_placements_uniq_per_slot
+    # — so each species indexes independently rather than sharing one counter.
+    assert_equal [0, 1], placements.where(species: @walleye).order(:slot_index).pluck(:slot_index)
+    assert_equal [0], placements.where(species: pike).order(:slot_index).pluck(:slot_index)
   end
 
   test "biggest_vs_smallest: first catch creates one placement at slot_index 0" do
@@ -971,6 +1022,97 @@ module Catches
                        override_in_sask: true, override_in_lake: true)
     Catches::PlaceInSlots.call(catch: c)
     assert_equal 1, c.catch_placements.active.count
+  end
+
+  test "progressive_length: logging climbing fish builds a ladder" do
+    club = create(:club)
+    walleye = Species.find_or_create_by!(name: "Walleye")
+    user = create(:user, club: club)
+    t = build(:tournament, club: club, format: :progressive_length, mode: :solo,
+              starts_at: 3.hours.ago, ends_at: 1.hour.from_now)
+    t.scoring_slots.build(species: walleye, slot_count: 1)
+    t.save!
+    entry = create(:tournament_entry, tournament: t)
+    create(:tournament_entry_member, tournament_entry: entry, user: user)
+
+    [[12, 120], [9, 100], [15, 80]].each do |len, mins|
+      c = create(:catch, user: user, species: walleye, length_inches: len,
+                         captured_at_device: mins.minutes.ago, status: :synced)
+      Catches::PlaceInSlots.call(catch: c)
+    end
+
+    rungs = entry.catch_placements.where(active: true).order(:slot_index)
+                 .map { |p| p.catch.length_inches.to_i }
+    assert_equal [12, 15], rungs
+  end
+
+  test "progressive_length: does not run the per-species active_placements query it never reads" do
+    club = create(:club)
+    walleye = Species.find_or_create_by!(name: "Walleye")
+    user = create(:user, club: club)
+    t = build(:tournament, club: club, format: :progressive_length, mode: :solo,
+              starts_at: 3.hours.ago, ends_at: 1.hour.from_now)
+    t.scoring_slots.build(species: walleye, slot_count: 1)
+    t.save!
+    entry = create(:tournament_entry, tournament: t)
+    create(:tournament_entry_member, tournament_entry: entry, user: user)
+
+    c = create(:catch, user: user, species: walleye, length_inches: 15,
+                       captured_at_device: 120.minutes.ago, status: :synced)
+
+    # ReconcileProgressiveLength re-derives the ladder itself, so the eager
+    # active_placements load (ordered by slot_index) is thrown away for this
+    # format — it must not run at all.
+    queries = count_queries(/FROM .?catch_placements.?.*ORDER BY.*slot_index/im) do
+      Catches::PlaceInSlots.call(catch: c, broadcast: false)
+    end
+    assert_equal 0, queries, "progressive_length must not run the unused active_placements query"
+  end
+
+  test "progressive_length: a no-op catch does not mark the tournament affected" do
+    club = create(:club)
+    walleye = Species.find_or_create_by!(name: "Walleye")
+    user = create(:user, club: club)
+    t = build(:tournament, club: club, format: :progressive_length, mode: :solo,
+              starts_at: 3.hours.ago, ends_at: 1.hour.from_now)
+    t.scoring_slots.build(species: walleye, slot_count: 1)
+    t.save!
+    entry = create(:tournament_entry, tournament: t)
+    create(:tournament_entry_member, tournament_entry: entry, user: user)
+
+    first = create(:catch, user: user, species: walleye, length_inches: 15,
+                           captured_at_device: 120.minutes.ago, status: :synced)
+    Catches::PlaceInSlots.call(catch: first)
+
+    dink = create(:catch, user: user, species: walleye, length_inches: 10,
+                          captured_at_device: 60.minutes.ago, status: :synced)
+    result = Catches::PlaceInSlots.call(catch: dink)
+
+    assert_empty result[:created]
+    assert_empty result[:bumped]
+    assert_empty result[:affected_tournaments]
+  end
+
+  test "random_bag: every catch creates a placement, no bumping" do
+    club = create(:club)
+    walleye = create(:species, club: club)
+    user = create(:user, club: club)
+    t = build(:tournament, club: club, format: :random_bag, mode: :solo,
+              starts_at: 1.hour.ago, ends_at: 1.hour.from_now)
+    t.scoring_slots.build(species: walleye, slot_count: 1)
+    t.save!
+    entry = create(:tournament_entry, tournament: t)
+    create(:tournament_entry_member, tournament_entry: entry, user: user)
+
+    [15, 16, 17].each do |len|
+      c = create(:catch, user: user, species: walleye, length_inches: len,
+                 captured_at_device: 30.minutes.ago)
+      Catches::PlaceInSlots.call(catch: c, broadcast: false)
+    end
+
+    active = entry.catch_placements.where(active: true)
+    assert_equal 3, active.count, "no bumping — all three fish are kept"
+    assert_equal [0, 1, 2], active.order(:slot_index).pluck(:slot_index)
   end
 
   end

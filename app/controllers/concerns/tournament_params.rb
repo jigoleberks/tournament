@@ -11,6 +11,7 @@ module TournamentParams
     params.require(:tournament).permit(
       :name, :mode, :format, :starts_at, :ends_at, :season_tag, :requires_release_video, :judged, :local,
       :awards_season_points, :blind_leaderboard, :entrants_only_leaderboard,
+      :target_min_inches, :target_max_inches,
       train_cars: [],
       scoring_slots_attributes: [:id, :species_id, :slot_count, :_destroy]
     )

@@ -22,9 +22,24 @@ module Catches
         ReconcileProWalleye.call(tournament: tournament, entry: entry, species: species, exclude_catch_id: exclude_catch_id)
       elsif tournament.format_biggest_vs_smallest?
         ReconcileBvsExtremes.call(tournament: tournament, entry: entry, species: species, exclude_catch_id: exclude_catch_id)
-      elsif tournament.format_fish_train? || tournament.format_hidden_length? || tournament.format_tagged?
-        # fish_train is append-only; hidden_length/tagged keep every catch, so a
-        # length edit never changes which catches are placed.
+      elsif tournament.format_progressive_length?
+        ReconcileProgressiveLength.call(tournament: tournament, entry: entry, species: species, exclude_catch_id: exclude_catch_id)
+      elsif tournament.format_fish_train? || tournament.format_hidden_length? || tournament.format_tagged? || tournament.format_beat_the_average? || tournament.format_random_bag?
+        # Two different reasons these are a no-op, both intentional:
+        #
+        # hidden_length/tagged/beat_the_average/random_bag keep EVERY catch, so a
+        # length edit never changes which catches are placed (the winning
+        # selection is re-derived on read; a DQ deactivates its placement through
+        # the normal deactivation path).
+        #
+        # fish_train is different: within a full car-group it IS length-selective
+        # (largest kept, smallest bumped), so a length edit *could* change the
+        # basket. It deliberately does not, because Fish Train is an append-only
+        # state machine — a bumped/vacated car stays a permanent hole and the
+        # angler recovers by catching forward, not by a backfill. This is a
+        # tested product decision, not an oversight; see
+        # test/services/catches/fish_train_reconcile_test.rb (the length-shrink
+        # case asserts the shrunk fish stays and no backup is promoted).
         nil
       else
         ReconcileStandard.call(tournament: tournament, entry: entry, species: species, exclude_catch_id: exclude_catch_id)
