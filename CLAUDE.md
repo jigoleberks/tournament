@@ -51,6 +51,16 @@ Base controller patterns enforce access:
 - `Admin::BaseController` — requires organizer in the current club (laptop admin UI)
 - `Admin::Clubs::BaseController` — requires `admin: true` on `User` (cross-club operations)
 
+### Temporary deputy organizers (accepted-risk widening of the organizer gate)
+
+A `TournamentDeputy` grant gives a member full organizer access until the target tournament's `starts_at`, at which point it lapses lazily (evaluated on read via `User#active_deputy_in?` — no expiry job). This is intentional: a deputy helps build the field for a league night, then becomes a competitor again at kickoff.
+
+`User#organizer_in?` — the gate checked by `Organizers::BaseController`, `Admin::BaseController`, `Judges::BaseController`, the home-page nav, `CatchesHelper`, and `Leaderboards::ViewerScope` — deliberately admits deputies. `User#permanent_organizer_in?` is the narrower gate: it excludes deputies and is what `require_permanent_organizer!` enforces.
+
+**Only privilege-*granting* actions are hardened with `require_permanent_organizer!`** (role changes at `PATCH /admin/members/:id/role`, and deputy grants themselves) — this stops a deputy from making their own badge permanent. **Every other organizer action is reachable by a deputy during their pre-`starts_at` window**, including `Admin::MembersController#issue_code` (mint a sign-in code for any member → impersonation), self-assigning as a judge, and adding members.
+
+This is an **accepted risk** — the model assumes small, trusted clubs and a soft anti-cheat posture. Do NOT tighten these gates (e.g. move `#issue_code` behind `require_permanent_organizer!`) without asking first. Conversely, when adding a new privilege-granting action, gate it with `require_permanent_organizer!`, not the widened `organizer_in?`.
+
 ## Routing
 
 Namespaced areas plus public routes:

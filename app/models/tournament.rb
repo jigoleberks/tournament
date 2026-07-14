@@ -270,7 +270,7 @@ class Tournament < ApplicationRecord
     return unless format_beat_the_average?
     remaining = scoring_slots.reject(&:marked_for_destruction?)
     return if remaining.any?
-    errors.add(:scoring_slots, "Beat the Average tournaments must have at least one species configured")
+    errors.add(:scoring_slots, "Catch the Average tournaments must have at least one species configured")
   end
 
   # Random Bag is blind during play (each team sees only its own target and bag);
