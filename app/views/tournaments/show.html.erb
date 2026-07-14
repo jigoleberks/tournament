@@ -59,6 +59,14 @@
               Tagged fish raffle
             <% elsif @tournament.format_progressive_length? %>
               Progressive ladder — most up-sizes of <%= slot.species.name.downcase %>
+            <% elsif @tournament.format_beat_the_average? %>
+              Catch the average <%= slot.species.name.downcase %>
+            <% elsif @tournament.format_pro_walleye? %>
+              Pro Rules. 3 under, 2 over 55cm.
+            <% elsif @tournament.format_smallest_fish? %>
+              <%= slot.slot_count == 1 ? "Smallest #{slot.species.name.downcase}" : "Smallest #{slot.slot_count} #{slot.species.name.downcase.pluralize}" %>
+            <% elsif @tournament.format_random_bag? %>
+              Random bag of <%= slot.species.name.downcase %> — aim for your random target
             <% elsif slot.slot_count == 1 %>
               Largest <%= slot.species.name.downcase %>
             <% else %>

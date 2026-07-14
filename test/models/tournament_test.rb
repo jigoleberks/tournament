@@ -677,7 +677,7 @@ class TournamentTest < ActiveSupport::TestCase
     t = build(:tournament, club: @club, format: :beat_the_average, mode: :solo,
               starts_at: 1.hour.from_now, ends_at: 3.hours.from_now)
     assert_not t.valid?
-    assert_includes t.errors[:scoring_slots], "Beat the Average tournaments must have at least one species configured"
+    assert_includes t.errors[:scoring_slots], "Catch the Average tournaments must have at least one species configured"
   end
 
   test "beat_the_average allows multiple species and team mode" do

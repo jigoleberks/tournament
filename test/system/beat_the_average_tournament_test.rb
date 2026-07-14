@@ -6,11 +6,11 @@ class BeatTheAverageTournamentTest < ApplicationSystemTestCase
     @organizer = create(:user, club: @club, role: :organizer)
   end
 
-  test "organizer sees Beat the Average in the format select with forced blind checkbox" do
+  test "organizer sees Catch the Average in the format select with forced blind checkbox" do
     sign_in_as @organizer
     visit new_organizers_tournament_path
 
-    select "Beat the Average", from: "Format"
+    select "Catch the Average", from: "Format"
     assert_text "hidden running average"
     assert_text "Every catch counts toward one combined average; the slot count is ignored."
 
@@ -18,11 +18,11 @@ class BeatTheAverageTournamentTest < ApplicationSystemTestCase
     assert blind.checked?
   end
 
-  test "switching away from Beat the Average restores the blind checkbox" do
+  test "switching away from Catch the Average restores the blind checkbox" do
     sign_in_as @organizer
     visit new_organizers_tournament_path
 
-    select "Beat the Average", from: "Format"
+    select "Catch the Average", from: "Format"
     blind = find("input[type=checkbox][name='tournament[blind_leaderboard]']")
     assert blind.checked?
 
