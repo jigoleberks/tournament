@@ -75,11 +75,30 @@ class RecoverTest < ApplicationSystemTestCase
     visit root_path
     assert_no_selector "[data-pending-catches-target='recoverLink']", visible: true
 
-    seed_catch(uuid: SecureRandom.uuid, status: "pending")
+    # Queued long enough ago to be stuck rather than in-flight. The age is what
+    # makes this the pending-STUCK case: seeded at Date.now() it would be
+    # indistinguishable from a catch that is simply mid-upload.
+    seed_catch(uuid: SecureRandom.uuid, status: "pending", queued_ago_ms: 10 * 60 * 1000)
     # Re-render the widget without firing drain() (which would upload the record
     # and empty the pending bucket). The controller refreshes on this event.
     page.execute_script("window.dispatchEvent(new CustomEvent('bsfamilies:catch-failed', { detail: {} }))")
     assert_selector "[data-pending-catches-target='recoverLink']", visible: true, wait: 5
+  end
+
+  # The complement of the test above, and the reason the age check exists: a
+  # catch queued a moment ago is just syncing. Offering "Recover these with
+  # photos" for the second or two drain() takes trains anglers to reach for the
+  # recovery tool during perfectly healthy operation.
+  test "the home link stays hidden for a catch that is merely mid-upload" do
+    sign_in_as(@user)
+    visit root_path
+
+    seed_catch(uuid: SecureRandom.uuid, status: "pending", queued_ago_ms: 0)
+    page.execute_script("window.dispatchEvent(new CustomEvent('bsfamilies:catch-failed', { detail: {} }))")
+    # The widget re-renders on that event; wait for the pending row to prove the
+    # render happened, so the link assertion isn't just winning a race.
+    assert_selector "[data-pending-catches-target='list'] li", wait: 5
+    assert_no_selector "[data-pending-catches-target='recoverLink']", visible: true
   end
 
   private
@@ -110,7 +129,9 @@ class RecoverTest < ApplicationSystemTestCase
     visit consume_session_path(token: SignInToken.last.token)
   end
 
-  def seed_catch(uuid:, status: "failed")
+  # queued_ago_ms backdates queued_at, which is what the widget uses to tell a
+  # stuck pending catch from one that is merely mid-upload.
+  def seed_catch(uuid:, status: "failed", queued_ago_ms: 0)
     page.execute_script <<~JS
       window.__seeded = false;
       (async () => {
@@ -137,7 +158,7 @@ class RecoverTest < ApplicationSystemTestCase
           photo: photo,
           status: "#{status}",
           reason: "test",
-          queued_at: Date.now()
+          queued_at: Date.now() - #{queued_ago_ms}
         });
         await new Promise((res, rej) => { tx.oncomplete = res; tx.onerror = rej; });
         window.__seeded = true;
