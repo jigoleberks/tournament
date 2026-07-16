@@ -20,14 +20,24 @@ export default class extends Controller {
     if (this.hasEmptyTarget) this.emptyTarget.hidden = true
     if (this.hasErrorTarget) this.errorTarget.hidden = true
     this.objectUrls = []
+    // This render loop awaits once per row, so a navigation can land between
+    // rows — or mid-row, while rematerialize() is still reading bytes. Every
+    // step past an await is guarded on this token so a superseded run stops
+    // instead of racing the live one. disconnect() bumps it too.
+    const gen = this.generation = (this.generation || 0) + 1
     try {
       const records = [...await pendingCatches(), ...await failedCatches()]
+      if (gen !== this.generation) return
       if (records.length === 0) {
         if (this.hasEmptyTarget) this.emptyTarget.hidden = false
         return
       }
-      for (const rec of records) await this.renderRow(rec)
+      for (const rec of records) {
+        if (gen !== this.generation) return
+        await this.renderRow(rec, gen)
+      }
     } catch (e) {
+      if (gen !== this.generation) return
       if (this.hasErrorTarget) {
         this.errorTarget.hidden = false
         this.errorTarget.textContent = `Could not read saved catches on this device: ${e}`
@@ -36,11 +46,15 @@ export default class extends Controller {
   }
 
   disconnect() {
-    (this.objectUrls || []).forEach((u) => URL.revokeObjectURL(u))
+    // Bumping the token strands any in-flight connect(): it returns before
+    // creating a URL rather than pushing one into an array we've already
+    // drained, which would leak it for the life of the document.
+    this.generation = (this.generation || 0) + 1
+    ;(this.objectUrls || []).forEach((u) => URL.revokeObjectURL(u))
     this.objectUrls = []
   }
 
-  async renderRow(rec) {
+  async renderRow(rec, gen) {
     const li = document.createElement("li")
     li.className = "flex flex-wrap items-center gap-3 py-2 border-b border-slate-700"
 
@@ -50,6 +64,9 @@ export default class extends Controller {
     info.textContent = `${rec.length_inches}″ — ${new Date(rec.captured_at_device).toLocaleString()} · ${size} bytes`
 
     const fresh = await rematerialize(rec.photo)
+    // Bail before createObjectURL, not after: a URL minted now would be pushed
+    // into an objectUrls array that disconnect() has already drained.
+    if (gen !== this.generation) return
     if (!fresh) {
       const dead = document.createElement("span")
       dead.className = "text-amber-400 text-sm"
