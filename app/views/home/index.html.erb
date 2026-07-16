@@ -7,6 +7,10 @@
   <h2 class="text-lg font-semibold mb-2">Pending sync</h2>
   <p data-pending-catches-target="empty" hidden class="text-slate-400 text-sm">None — you're all caught up.</p>
   <ul data-pending-catches-target="list" class="text-sm text-slate-300"></ul>
+  <% if current_club&.recovery_tool_enabled? %>
+    <a href="/recover" data-pending-catches-target="recoverLink" hidden
+       class="mt-3 inline-flex items-center h-9 px-3 rounded-lg bg-emerald-600 active:bg-emerald-700 text-white text-sm">Recover these with photos →</a>
+  <% end %>
 </section>
 
 <% if current_membership&.show_banner? && current_club&.banner_message.present? %>

@@ -51,6 +51,6 @@ class Admin::ClubsController < ApplicationController
   end
 
   def club_params
-    params.require(:club).permit(:name)
+    params.require(:club).permit(:name, :recovery_tool_enabled)
   end
 end

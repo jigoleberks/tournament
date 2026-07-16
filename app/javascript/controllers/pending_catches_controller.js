@@ -1,8 +1,8 @@
 import { Controller } from "@hotwired/stimulus"
-import { pendingCatches, failedCatches, markPending, removeRecord } from "offline/db"
+import { pendingCatches, failedCatches, markPending } from "offline/db"
 
 export default class extends Controller {
-  static targets = ["list", "empty", "failedList", "failedSection"]
+  static targets = ["list", "empty", "failedList", "failedSection", "recoverLink"]
 
   async connect() {
     this.boundRefresh = () => this.refresh()
@@ -37,16 +37,22 @@ export default class extends Controller {
         this.failedSectionTarget.hidden = false
         this.failedListTarget.innerHTML = failed.map((f) => `
           <li class="flex items-center justify-between gap-2 py-1">
-            <span>⚠️ ${f.length_inches}″ — captured ${new Date(f.captured_at_device).toLocaleString()}</span>
-            <span class="flex gap-1">
-              <button type="button" data-action="pending-catches#retry" data-uuid="${f.client_uuid}"
-                      class="h-9 px-3 rounded-lg bg-amber-600 active:bg-amber-700 text-white text-sm">Retry</button>
-              <button type="button" data-action="pending-catches#dismiss" data-uuid="${f.client_uuid}"
-                      class="h-9 px-3 rounded-lg bg-slate-700 active:bg-slate-600 text-slate-100 text-sm">Dismiss</button>
+            <span>
+              ⚠️ ${f.length_inches}″ — captured ${new Date(f.captured_at_device).toLocaleString()}
+              ${f.reason ? `<span class="block text-xs text-amber-400">${escapeHtml(f.reason)}</span>` : ""}
             </span>
+            <button type="button" data-action="pending-catches#retry" data-uuid="${f.client_uuid}"
+                    class="h-9 px-3 rounded-lg bg-amber-600 active:bg-amber-700 text-white text-sm">Retry</button>
           </li>
         `).join("")
       }
+    }
+
+    // The link only exists when a site admin has enabled the recovery tool.
+    // Reveal it only to anglers who actually have something stuck — either
+    // bucket counts (a pending-stuck catch must surface too).
+    if (this.hasRecoverLinkTarget) {
+      this.recoverLinkTarget.hidden = (pending.length + failed.length) === 0
     }
   }
 
@@ -57,11 +63,13 @@ export default class extends Controller {
     window.dispatchEvent(new Event("bsfamilies:try-sync"))
     await this.refresh()
   }
+}
 
-  async dismiss(event) {
-    const uuid = event.currentTarget.dataset.uuid
-    if (!uuid) return
-    await removeRecord(uuid)
-    await this.refresh()
-  }
+// The reason comes out of IndexedDB — either our own copy or a server error
+// body — and is interpolated into innerHTML, so escape it instead of trusting
+// it as markup.
+function escapeHtml(value) {
+  return String(value).replace(/[&<>"']/g, (c) => (
+    { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]
+  ))
 }

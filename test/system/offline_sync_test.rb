@@ -30,6 +30,42 @@ class OfflineSyncTest < ApplicationSystemTestCase
     assert_catch_received(uuid)
   end
 
+  test "a catch whose photo cannot be read is failed on-device and never POSTed" do
+    uuid = SecureRandom.uuid
+    sign_in_as(@user)
+    seed_unreadable_photo_catch(uuid: uuid)
+    page.execute_script("window.dispatchEvent(new Event('bsfamilies:try-sync'))")
+
+    # sync.js marks it failed and fires bsfamilies:catch-failed, which the
+    # pending-catches widget listens for and re-renders.
+    # NOTE: the failure *reason* is asserted below, not here — this test is
+    # about the on-device photo-unreadable branch, not the server 4xx branch.
+    assert_selector "[data-pending-catches-target='failedList'] li", wait: 5
+    assert_nil Catch.find_by(client_uuid: uuid),
+               "sync.js must not POST a catch whose photo can't be read"
+  end
+
+  # A real server 422 (Walleye's length cap is 50″ — MAX_LENGTH_BY_SPECIES in
+  # app/models/catch.rb) used to be shown to the angler as the raw response
+  # body: {"errors":["Length inches for Walleye can't exceed 50\""]}. sync.js
+  # must extract body.errors and join it into readable text before it ever
+  # reaches markFailed / the bsfamilies:catch-failed detail.
+  test "a server 422 shows a readable reason, not raw JSON" do
+    uuid = SecureRandom.uuid
+    sign_in_as(@user)
+    seed_pending_catch_and_trigger(
+      uuid: uuid,
+      length_inches: "60",
+      trigger_js: "window.dispatchEvent(new Event('bsfamilies:try-sync'))"
+    )
+
+    assert_selector "[data-pending-catches-target='failedList'] li", wait: 5
+    assert_text(/can't exceed/, wait: 5)
+    assert_no_text('{"errors"')
+    assert_no_text('"errors":')
+    assert_nil Catch.find_by(client_uuid: uuid)
+  end
+
   private
 
   def sign_in_as(user)
@@ -41,7 +77,7 @@ class OfflineSyncTest < ApplicationSystemTestCase
   # tiny synthetic JPEG, then fires the supplied JS to trigger drain().
   # Polls window.__seeded so the Ruby side knows the JS finished before we
   # start polling the server.
-  def seed_pending_catch_and_trigger(uuid:, trigger_js:)
+  def seed_pending_catch_and_trigger(uuid:, trigger_js:, length_inches: "18")
     page.execute_script <<~JS
       window.__seeded = false;
       (async () => {
@@ -62,7 +98,7 @@ class OfflineSyncTest < ApplicationSystemTestCase
         tx.objectStore("catches").put({
           client_uuid: "#{uuid}",
           species_id: "#{@walleye.id}",
-          length_inches: "18",
+          length_inches: "#{length_inches}",
           captured_at_device: new Date().toISOString(),
           photo: photo,
           status: "pending",
@@ -78,6 +114,51 @@ class OfflineSyncTest < ApplicationSystemTestCase
       loop do
         seeded = page.evaluate_script("window.__seeded === true")
         break if seeded
+        err = page.evaluate_script("window.__seedError || null")
+        flunk "IDB seeding errored: #{err}" if err
+        sleep 0.1
+      end
+    end
+  end
+
+  # A 0-byte photo blob stands in for WebKit's unreadable file-backed blob:
+  # rematerialize() returns null for both, which is the branch under test.
+  def seed_unreadable_photo_catch(uuid:)
+    page.execute_script <<~JS
+      window.__seeded = false;
+      (async () => {
+        const dbReq = indexedDB.open("bsfamilies", 1);
+        const db = await new Promise((res, rej) => {
+          dbReq.onupgradeneeded = (e) => {
+            const d = e.target.result;
+            if (!d.objectStoreNames.contains("catches")) {
+              const s = d.createObjectStore("catches", { keyPath: "client_uuid" });
+              s.createIndex("status", "status");
+            }
+          };
+          dbReq.onsuccess = (e) => res(e.target.result);
+          dbReq.onerror   = (e) => rej(e);
+        });
+        const photo = new Blob([], { type: "image/jpeg" });   // 0 bytes = unreadable
+        const tx = db.transaction("catches", "readwrite");
+        tx.objectStore("catches").put({
+          client_uuid: "#{uuid}",
+          species_id: "#{@walleye.id}",
+          length_inches: "18",
+          length_unit: "inches",
+          captured_at_device: new Date().toISOString(),
+          photo: photo,
+          status: "pending",
+          queued_at: Date.now()
+        });
+        await new Promise((res, rej) => { tx.oncomplete = res; tx.onerror = rej; });
+        window.__seeded = true;
+      })().catch((err) => { window.__seedError = String(err); });
+    JS
+
+    Timeout.timeout(5) do
+      loop do
+        break if page.evaluate_script("window.__seeded === true")
         err = page.evaluate_script("window.__seedError || null")
         flunk "IDB seeding errored: #{err}" if err
         sleep 0.1
