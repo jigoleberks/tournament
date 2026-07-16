@@ -179,6 +179,30 @@ class Admin::ClubsControllerTest < ActionDispatch::IntegrationTest
     assert_select "a", text: /Back to club/, count: 0
   end
 
+  test "recovery tool defaults to off" do
+    assert_not create(:club).recovery_tool_enabled?
+  end
+
+  test "site admin can enable the recovery tool" do
+    sign_in_as(@admin)
+    patch admin_club_path(@club), params: { club: { name: @club.name, recovery_tool_enabled: "1" } }
+    assert @club.reload.recovery_tool_enabled?
+  end
+
+  test "site admin can disable the recovery tool" do
+    @club.update!(recovery_tool_enabled: true)
+    sign_in_as(@admin)
+    patch admin_club_path(@club), params: { club: { name: @club.name, recovery_tool_enabled: "0" } }
+    assert_not @club.reload.recovery_tool_enabled?
+  end
+
+  test "organizer without admin flag cannot enable the recovery tool" do
+    sign_in_as(@organizer)
+    patch admin_club_path(@club), params: { club: { name: @club.name, recovery_tool_enabled: "1" } }
+    assert_response :forbidden
+    assert_not @club.reload.recovery_tool_enabled?
+  end
+
   private
 
   def sign_in_as(user)

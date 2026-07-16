@@ -1,4 +1,5 @@
 import { pendingCatches, markSynced, markFailed } from "offline/db"
+import { rematerialize } from "offline/blob"
 
 const ENDPOINT = "/api/catches"
 
@@ -14,6 +15,20 @@ async function drain() {
     const pending = await pendingCatches()
     for (const rec of pending) {
       try {
+        // Re-materialize BEFORE building the body. A file-backed IndexedDB blob
+        // can make WebKit send an empty-bodied request instead of throwing, so
+        // we prove we can read the bytes first and never POST if we can't.
+        const photo = await rematerialize(rec.photo)
+        if (!photo) {
+          const reason = "Photo could not be read from this device"
+          await markFailed(rec.client_uuid, reason)
+          window.dispatchEvent(new CustomEvent("bsfamilies:catch-failed", { detail: { client_uuid: rec.client_uuid, reason } }))
+          continue
+        }
+        // An unreadable video must not strand the catch — the photo is the
+        // required part and video is Phase-2-unused. Send without it.
+        const video = rec.video ? await rematerialize(rec.video) : null
+
         const fd = new FormData()
         fd.append("catch[client_uuid]", rec.client_uuid)
         fd.append("catch[species_id]", rec.species_id)
@@ -28,10 +43,10 @@ async function drain() {
         if (rec.note) fd.append("catch[note]", rec.note)
         if (rec.tag_number) fd.append("catch[tag_number]", rec.tag_number)
         if (rec.weight_text) fd.append("catch[weight_text]", rec.weight_text)
-        if (rec.photo) fd.append("catch[photo]", rec.photo, rec.photo.name || "photo.jpg")
-        if (rec.video) {
-          const ext = (rec.video.type || "").includes("mp4") ? "mp4" : "webm"
-          fd.append("catch[video]", rec.video, `video.${ext}`)
+        fd.append("catch[photo]", photo, rec.photo.name || "photo.jpg")
+        if (video) {
+          const ext = (video.type || "").includes("mp4") ? "mp4" : "webm"
+          fd.append("catch[video]", video, `video.${ext}`)
         }
         if (rec.teammate_user_id) fd.append("teammate_user_id", rec.teammate_user_id)
 
@@ -50,8 +65,9 @@ async function drain() {
           // user would think it was lost.
         } else if (resp.status >= 400 && resp.status < 500 && resp.status !== 408 && resp.status !== 429) {
           const body = await resp.json().catch(() => ({}))
-          await markFailed(rec.client_uuid, JSON.stringify(body))
-          window.dispatchEvent(new CustomEvent("bsfamilies:catch-failed", { detail: { client_uuid: rec.client_uuid, reason: JSON.stringify(body) } }))
+          const reason = Array.isArray(body.errors) ? body.errors.join(", ") : JSON.stringify(body)
+          await markFailed(rec.client_uuid, reason)
+          window.dispatchEvent(new CustomEvent("bsfamilies:catch-failed", { detail: { client_uuid: rec.client_uuid, reason } }))
         }
       } catch (_) {
         // network error — leave queued for next attempt

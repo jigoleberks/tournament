@@ -20,6 +20,7 @@ Rails.application.routes.draw do
   get "/manifest.webmanifest", to: "pwa#manifest"
   get "/service-worker.js", to: "pwa#service_worker"
   get "/offline", to: "pwa#offline"
+  get "/recover", to: "recover#index"
 
   namespace :organizers do
     resources :tournaments do

@@ -13,6 +13,21 @@
                      class: "w-full h-11 px-4 rounded-lg bg-slate-900 border border-slate-700 text-slate-100 focus:ring-2 focus:ring-blue-500 outline-none transition-all" %>
   </div>
 
+  <% unless club.new_record? %>
+    <div class="flex items-start gap-3">
+      <%= f.check_box :recovery_tool_enabled,
+                      class: "mt-1 h-5 w-5 rounded bg-slate-900 border-slate-700" %>
+      <div>
+        <%= f.label :recovery_tool_enabled, "Enable stuck-catch recovery tool",
+                    class: "block text-sm font-semibold text-slate-300" %>
+        <p class="text-xs text-slate-400 mt-0.5">
+          Turns on /recover and shows a recovery link to members who have stuck catches.
+          Leave off unless a sync incident is in progress.
+        </p>
+      </div>
+    </div>
+  <% end %>
+
   <div class="pt-4">
     <%= f.submit submit_label,
                  class: "w-full h-12 px-6 text-base font-bold rounded-lg bg-blue-600 hover:bg-blue-700 text-white shadow-lg shadow-blue-900/20 transition-all cursor-pointer" %>
