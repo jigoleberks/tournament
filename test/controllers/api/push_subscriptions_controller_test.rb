@@ -56,6 +56,20 @@ class Api::PushSubscriptionsControllerTest < ActionDispatch::IntegrationTest
     end
   end
 
+  test "re-registering an endpoint that belonged to another user reassigns it" do
+    other = create(:user)
+    stale = PushSubscription.create!(user: other, endpoint: "https://push.example/shared-ep",
+                                     p256dh: "oldkey", auth: "oldauth")
+    post "/api/push_subscriptions", params: {
+      subscription: { endpoint: "https://push.example/shared-ep",
+                      keys: { p256dh: "newkey", auth: "newauth" } }
+    }, as: :json
+    assert_response :created
+    stale.reload
+    assert_equal @user.id, stale.user_id
+    assert_equal "newkey", stale.p256dh
+  end
+
   test "destroying a subscription records push_unsubscribed" do
     user = create(:user)
     sign_in_as(user)
