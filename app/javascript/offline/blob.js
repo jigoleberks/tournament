@@ -16,3 +16,19 @@ export async function rematerialize(blob) {
     return null
   }
 }
+
+// New-format records store { bytes: ArrayBuffer, type, name, size } instead of
+// a Blob — ArrayBuffers serialize inline in the IndexedDB record, so the
+// file-backed-blob failure mode above can't occur for them. Legacy records
+// (a bare Blob/File) still go through rematerialize. The instanceof check must
+// come FIRST: Blob has a .bytes() METHOD, so a "does it have bytes?" probe
+// would misroute every legacy record into the ArrayBuffer branch.
+export async function materialize(stored) {
+  if (!stored) return null
+  if (stored instanceof Blob) return rematerialize(stored)
+  if (stored.bytes instanceof ArrayBuffer) {
+    if (stored.bytes.byteLength === 0) return null
+    return new Blob([stored.bytes], { type: stored.type || "image/jpeg" })
+  }
+  return null
+}

@@ -1,6 +1,6 @@
 import { Controller } from "@hotwired/stimulus"
 import { pendingCatches, failedCatches, markSynced } from "offline/db"
-import { rematerialize } from "offline/blob"
+import { materialize } from "offline/blob"
 
 // Reads stuck catch records from IndexedDB, re-materializes each photo blob
 // (see offline/blob.js for why), shows a thumbnail, and re-submits via the
@@ -63,7 +63,7 @@ export default class extends Controller {
     const size = rec.photo ? rec.photo.size : 0
     info.textContent = `${rec.length_inches}″ — ${new Date(rec.captured_at_device).toLocaleString()} · ${size} bytes`
 
-    const fresh = await rematerialize(rec.photo)
+    const fresh = await materialize(rec.photo)
     // Bail before createObjectURL, not after: a URL minted now would be pushed
     // into an objectUrls array that disconnect() has already drained.
     if (gen !== this.generation) return

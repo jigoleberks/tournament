@@ -1,0 +1,9 @@
+<%# Hidden until offline/sync.js dispatches bsfamilies:sync-auth-required — a
+    queue drain got a 401, so catches are sitting in IndexedDB waiting for a
+    valid session. Same styling as a warning flash. %>
+<div data-controller="sync-auth-notice" hidden
+     class="bg-yellow-500/20 border-yellow-500/40 text-yellow-200 border rounded-lg px-3 py-2 my-2 mx-4">
+  You have saved catches waiting to upload —
+  <%= link_to "sign in", new_session_path, class: "underline font-semibold" %>
+  to send them.
+</div>

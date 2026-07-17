@@ -14,7 +14,7 @@
 </section>
 
 <% if current_membership&.show_banner? && current_club&.banner_message.present? %>
-  <p class="<%= banner_strip_classes(current_club.banner_style) %> border rounded-lg px-3 py-2 my-2">
+  <p id="club-banner" class="<%= banner_strip_classes(current_club.banner_style) %> border rounded-lg px-3 py-2 my-2">
     <%= current_club.banner_message %>
   </p>
 <% end %>

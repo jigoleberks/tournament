@@ -15,8 +15,8 @@ class HomeBannerTest < ActionDispatch::IntegrationTest
     get root_path
 
     assert_response :success
-    assert_includes response.body, "Weigh-in moved to 6pm"
-    assert_includes response.body, "border-red-500/40"
+    assert_select "#club-banner", text: /Weigh-in moved to 6pm/
+    assert_select "#club-banner.border-red-500\\/40"
   end
 
   test "untargeted member does not see the banner" do
@@ -38,7 +38,9 @@ class HomeBannerTest < ActionDispatch::IntegrationTest
     get root_path
 
     assert_response :success
-    assert_not_includes response.body, "border-yellow-500/40"
+    # Scoped to the club banner: the (hidden) sync-auth notice in the layout
+    # legitimately uses the same yellow warning classes on every page.
+    assert_select "#club-banner", count: 0
   end
 
   private

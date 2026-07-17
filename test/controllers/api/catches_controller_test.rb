@@ -324,6 +324,57 @@ class Api::CatchesControllerTest < ActionDispatch::IntegrationTest
     assert_nil Catch.find_by(client_uuid: uuid).weight_text
   end
 
+  # WebKit can send a request with NO body at all when it fails to stream a
+  # file-backed IndexedDB blob (the 2026-07-15 incident: 595 empty-bodied
+  # 400s). Rails' default ParameterMissing response is an HTML page, which
+  # sync.js can't parse — the angler saw "{}" as the failure reason. The API
+  # must answer with readable JSON so the pending-catches widget can show
+  # something actionable.
+  test "POST /api/catches with an empty body returns readable JSON 400" do
+    post "/api/catches", params: {}, headers: { "Accept" => "application/json" }
+
+    assert_response :bad_request
+    body = JSON.parse(response.body)
+    assert_kind_of Array, body["errors"]
+    assert_match(/empty/i, body["errors"].join(", "))
+  end
+
+  # Regression lock: Api::CatchesController#create calls save BEFORE its
+  # photo.attached? check — only the model's photo_must_be_attached validation
+  # stops a photo-less row from persisting. If that validation is ever removed,
+  # a photo-less 422 would leave a row behind and the client_uuid retry would
+  # return 200 for a catch with no photo (poisoned idempotency, catch never
+  # placed). These two tests keep that from regressing silently.
+  test "POST /api/catches without a photo persists no row" do
+    assert_no_difference "Catch.count" do
+      post "/api/catches", params: {
+        catch: { species_id: @walleye.id, length_inches: 18,
+                 captured_at_device: Time.current.iso8601, client_uuid: "uuid-NOPHOTO" }
+      }, headers: { "Accept" => "application/json" }
+    end
+    assert_response :unprocessable_entity
+    assert_match(/photo/i, JSON.parse(response.body)["errors"].join(", "))
+  end
+
+  test "retry with photo succeeds after a photo-less attempt with the same client_uuid" do
+    post "/api/catches", params: {
+      catch: { species_id: @walleye.id, length_inches: 18,
+               captured_at_device: Time.current.iso8601, client_uuid: "uuid-RETRY-PHOTO" }
+    }, headers: { "Accept" => "application/json" }
+    assert_response :unprocessable_entity
+
+    photo = fixture_file_upload("sample_walleye.jpg", "image/jpeg")
+    assert_difference "Catch.count", 1 do
+      post "/api/catches", params: {
+        catch: { species_id: @walleye.id, length_inches: 18,
+                 captured_at_device: Time.current.iso8601,
+                 client_uuid: "uuid-RETRY-PHOTO", photo: photo }
+      }, headers: { "Accept" => "application/json" }
+    end
+    assert_response :created
+    assert Catch.find_by(client_uuid: "uuid-RETRY-PHOTO").photo.attached?
+  end
+
   private
 
   def sign_in_as(user)

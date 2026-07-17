@@ -13,6 +13,10 @@ Capybara.register_driver :tournament_cuprite do |app|
   )
 end
 
+require_relative "support/ios_web_quirks"
+
 class ApplicationSystemTestCase < ActionDispatch::SystemTestCase
+  include IosWebQuirks
+
   driven_by :tournament_cuprite
 end

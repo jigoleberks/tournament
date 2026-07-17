@@ -33,21 +33,7 @@ class OfflineCatchFormTest < ApplicationSystemTestCase
     count_before = Catch.count
     sign_in_as(@user)
 
-    page.driver.browser.page.command(
-      "Page.addScriptToEvaluateOnNewDocument",
-      source: <<~JS
-        Object.defineProperty(navigator, "onLine", {
-          configurable: true,
-          get: () => location.pathname !== "/offline"
-        });
-        try {
-          navigator.geolocation.getCurrentPosition = function (ok, err) {
-            if (typeof err === "function") setTimeout(() => err({ code: 1, message: "denied" }), 0);
-          };
-        } catch (e) {}
-        try { delete window.SyncManager; } catch (e) {}
-      JS
-    )
+    apply_ios_shims(online: :except_offline_shell, deny_geolocation: true, remove_sync_manager: true)
 
     visit "/offline"
     assert_selector "h1", text: "Log Catch"
@@ -79,6 +65,39 @@ class OfflineCatchFormTest < ApplicationSystemTestCase
     assert_equal 18, catch_record.length_inches.to_i
   end
 
+  # WebKit's file-backed-blob bug means a photo can become unreadable AFTER
+  # it's queued — and by drain time the fish is released and the photo is
+  # unrecoverable (the iOS camera-through-web flow never saves to the camera
+  # roll). Reading the bytes at submit time moves the failure to the moment
+  # the angler is still holding the fish and can retake the shot.
+  test "an unreadable photo fails at submit time with a retake prompt" do
+    count_before = Catch.count
+    sign_in_as(@user)
+
+    apply_ios_shims(online: :except_offline_shell, deny_geolocation: true, remove_sync_manager: true)
+
+    visit "/offline"
+    assert_selector "h1", text: "Log Catch"
+
+    find("select#catch_species_id").select("Walleye")
+    fill_in "catch_length_inches", with: "18"
+
+    # A 0-byte blob stands in for WebKit's unreadable file-backed blob — the
+    # same stand-in offline_sync_test uses for the drain-side guard.
+    page.execute_script <<~JS
+      const el = document.querySelector("[data-controller~='catch-form']");
+      const blob = new Blob([], { type: "image/jpeg" });
+      el.dispatchEvent(new CustomEvent("photo-capture:captured", { detail: { blob } }));
+    JS
+
+    click_button "Submit"
+
+    assert_text(/photo couldn.?t be read.*retake/i, wait: 5)
+    assert_current_path "/offline"
+    assert_equal count_before, Catch.count
+    assert_equal 0, idb_pending_count, "an unreadable photo must not be enqueued"
+  end
+
   # Regression: navigator.onLine only reports that a network interface is up, not
   # that our server is reachable. On a real device the shell is shown precisely
   # when the server is unreachable while onLine stays true (wifi up, no route to
@@ -89,20 +108,16 @@ class OfflineCatchFormTest < ApplicationSystemTestCase
   test "offline shell does not redirect-loop when online but the server is unreachable" do
     sign_in_as(@user)
 
-    page.driver.browser.page.command(
-      "Page.addScriptToEvaluateOnNewDocument",
-      source: <<~JS
-        Object.defineProperty(navigator, "onLine", { configurable: true, get: () => true });
-        const realFetch = window.fetch.bind(window);
-        window.fetch = (input, init = {}) => {
-          const method = (init.method || (input && input.method) || "GET").toUpperCase();
-          // Simulate "interface up, server unreachable": the reachability probe
-          // (a HEAD request) fails, while every other request still works.
-          if (method === "HEAD") return Promise.reject(new TypeError("unreachable"));
-          return realFetch(input, init);
-        };
-      JS
-    )
+    apply_ios_shims(online: true, extra_js: <<~JS)
+      const realFetch = window.fetch.bind(window);
+      window.fetch = (input, init = {}) => {
+        const method = (init.method || (input && input.method) || "GET").toUpperCase();
+        // Simulate "interface up, server unreachable": the reachability probe
+        // (a HEAD request) fails, while every other request still works.
+        if (method === "HEAD") return Promise.reject(new TypeError("unreachable"));
+        return realFetch(input, init);
+      };
+    JS
 
     visit "/offline"
     assert_selector "h1", text: "Log Catch"
@@ -139,10 +154,6 @@ class OfflineCatchFormTest < ApplicationSystemTestCase
     assert_no_current_path "/offline"
   end
 
-  private
-
-  def sign_in_as(user)
-    SignInToken.issue!(user: user)
-    visit consume_session_path(token: SignInToken.last.token)
-  end
+  # sign_in_as, apply_ios_shims, and idb_pending_count come from IosWebQuirks
+  # (test/support/ios_web_quirks.rb).
 end

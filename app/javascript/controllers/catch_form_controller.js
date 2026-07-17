@@ -66,6 +66,20 @@ export default class extends Controller {
 
     this._setSubmitting(true)
     try {
+      // Read the photo bytes NOW, while the angler is still holding the fish
+      // and can retake the shot. WebKit stores IndexedDB blobs as file
+      // references that can become unreadable later — by drain time the fish
+      // is released and the photo is unrecoverable. Storing the bytes inline
+      // (ArrayBuffer, not Blob) sidesteps that failure mode entirely.
+      const photo = await this._packBlob(this.photoBlob, "photo.jpg")
+      if (!photo) {
+        this._setSubmitting(false)
+        this.statusTarget.textContent = "That photo couldn't be read — retake it and submit again."
+        return
+      }
+      // Video is optional: an unreadable one is dropped rather than blocking the catch.
+      const video = this.videoBlob ? await this._packBlob(this.videoBlob, "video") : null
+
       const position = await this.tryGeolocate()
       const record = {
         client_uuid: this.clientUuid,
@@ -81,8 +95,8 @@ export default class extends Controller {
         note: this.noteInputTarget.value,
         tag_number: (this.hasTagInputTarget ? this.tagInputTarget.value : "").trim().toUpperCase() || null,
         weight_text: (this.hasWeightInputTarget ? this.weightInputTarget.value : "").trim() || null,
-        photo: this.photoBlob,
-        video: this.videoBlob,
+        photo: photo,
+        video: video,
         video_failed: this.videoFailed,
         teammate_user_id: this.teammateUserIdValue || null
       }
@@ -104,6 +118,20 @@ export default class extends Controller {
       this._setSubmitting(false)
       this.statusTarget.textContent = "Couldn't save your catch — try again."
       throw err
+    }
+  }
+
+  // Packs a Blob/File into { bytes, type, name, size } for inline IndexedDB
+  // storage. Returns null when the blob is missing, unreadable, or empty —
+  // the same three cases offline/blob.js#materialize refuses to upload.
+  async _packBlob(blob, fallbackName) {
+    if (!blob) return null
+    try {
+      const bytes = await blob.arrayBuffer()
+      if (!bytes || bytes.byteLength === 0) return null
+      return { bytes: bytes, type: blob.type || "image/jpeg", name: blob.name || fallbackName, size: bytes.byteLength }
+    } catch (_) {
+      return null
     }
   }
 
