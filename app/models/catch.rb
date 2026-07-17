@@ -81,6 +81,11 @@ class Catch < ApplicationRecord
   # high-res shot can reach ~20 MB, and a 200 MP sensor more. 50 MB leaves
   # headroom so a legitimate full-resolution catch photo is never rejected.
   PHOTO_MAX_BYTES = 50.megabytes
+  VIDEO_CONTENT_TYPES = %w[video/mp4 video/webm video/quicktime].freeze
+  # The client only ever records mp4/webm (video_capture_controller candidates
+  # list); quicktime covers iOS re-submits of camera-roll files. A few minutes
+  # of 1080p release video fits comfortably under this.
+  VIDEO_MAX_BYTES = 100.megabytes
 
   validates :length_inches, numericality: { greater_than: 0 }
   validates :length_unit, inclusion: { in: %w[inches centimeters] }
@@ -89,6 +94,7 @@ class Catch < ApplicationRecord
   validate :photo_must_be_attached
   validate :photo_within_limits
   validate :reference_photo_within_limits
+  validate :video_within_limits
   validate :length_within_species_cap
   validates :note, length: { maximum: 500 }, allow_blank: true
 
@@ -172,6 +178,19 @@ class Catch < ApplicationRecord
     end
     if attachment.byte_size.to_i > PHOTO_MAX_BYTES
       errors.add(field, "is larger than #{PHOTO_MAX_BYTES / 1.megabyte}MB")
+    end
+  end
+
+  # `video` was permitted through the API with zero validation — an unbounded
+  # authenticated upload of arbitrary bytes. Same shape of gate as the photos,
+  # with video types/cap.
+  def video_within_limits
+    return unless video.attached?
+    unless VIDEO_CONTENT_TYPES.include?(video.content_type)
+      errors.add(:video, "must be an MP4, WebM, or QuickTime video")
+    end
+    if video.byte_size.to_i > VIDEO_MAX_BYTES
+      errors.add(:video, "is larger than #{VIDEO_MAX_BYTES / 1.megabyte}MB")
     end
   end
 
