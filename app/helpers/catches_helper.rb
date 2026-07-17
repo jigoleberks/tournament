@@ -9,9 +9,12 @@ module CatchesHelper
 
   # A resized JPEG variant of an attachment. Catch photos are full-resolution
   # phone stills (multi-MB, HEIC on iOS); resizing AND transcoding to JPEG means
-  # every browser can render them. Generated on first request, cached on disk.
+  # every browser can render them. Metadata is stripped: the original EXIF
+  # carries full-precision GPS, and any club member can save a rival's catch
+  # photo from the modal — the coordinate fuzzing in the views is pointless if
+  # the pixels ship the honey hole. Generated on first request, cached on disk.
   def jpeg_variant(attachment, size)
-    attachment.variant(resize_to_limit: size, format: :jpeg)
+    attachment.variant(resize_to_limit: size, format: :jpeg, saver: { strip: true })
   end
 
   # Renders a resized, lazy-loaded <img> for an Active Storage attachment.
@@ -38,7 +41,7 @@ module CatchesHelper
   # .jpg download name.
   def photo_download_url(attachment)
     return url_for(attachment) if attachment.content_type == "image/jpeg"
-    url_for(attachment.variant(format: :jpeg))
+    url_for(attachment.variant(format: :jpeg, saver: { strip: true }))
   end
 
   # The photo(s) to show on a single-catch detail/modal page, as an ordered list

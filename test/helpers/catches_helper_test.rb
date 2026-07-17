@@ -164,4 +164,38 @@ class CatchesHelperTest < ActionView::TestCase
     processed = photo.variant(resize_to_limit: [400, 400], format: :jpeg).processed
     assert_equal "image/jpeg", processed.image.blob.content_type
   end
+
+  # --- EXIF (GPS) stripping from served variants (privacy: defeats saved-photo GPS leak) ---
+
+  test "jpeg_variant strips metadata from served variants" do
+    # Minitest::Mock isn't available in this environment (minitest 6.0.6 split
+    # Mock/Stub into a separate gem that isn't a dependency here), so this
+    # matches the file's existing define_singleton_method stubbing style
+    # (see visible_flags_for tests above) rather than the brief's Mock example.
+    captured = nil
+    attachment = Object.new
+    attachment.define_singleton_method(:variant) { |**opts| captured = opts; :a_variant }
+    jpeg_variant(attachment, [400, 400])
+    assert_equal({ strip: true }, captured[:saver])
+    assert_equal :jpeg, captured[:format]
+    assert_equal [400, 400], captured[:resize_to_limit]
+  end
+
+  test "vips variant pipeline with strip removes EXIF GPS end-to-end" do
+    require "image_processing/vips"
+    src = Vips::Image.new_from_file(file_fixture("sample_walleye.jpg").to_s)
+    tagged = src.mutate do |m|
+      m.set_type!(GObject::GSTR_TYPE, "exif-ifd3-GPSLatitude", "49/1 24/1 30/1")
+    end
+    Dir.mktmpdir do |dir|
+      tagged_path = File.join(dir, "gps.jpg")
+      tagged.write_to_file(tagged_path)
+      assert Vips::Image.new_from_file(tagged_path).get_fields.any? { |f| f.include?("GPS") },
+             "precondition: tagged source must carry GPS EXIF"
+      out = ImageProcessing::Vips.source(tagged_path)
+        .resize_to_limit(400, 400).convert("jpg").saver(strip: true).call
+      fields = Vips::Image.new_from_file(out.path).get_fields
+      assert fields.none? { |f| f.include?("GPS") }, "GPS EXIF survived: #{fields.grep(/GPS/)}"
+    end
+  end
 end
