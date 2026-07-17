@@ -5,7 +5,9 @@ class SessionsControllerTest < ActionDispatch::IntegrationTest
   setup { @user = create(:user, email: "joe@example.com", club: nil) }
 
   test "POST /session creates a token and emails it" do
-    assert_difference "SignInToken.count", 1 do
+    # One "link" token for the tap-to-sign-in flow, plus one "code" token
+    # (the iOS standalone-PWA rescue path) included in the same email.
+    assert_difference "SignInToken.count", 2 do
       assert_emails 1 do
         post session_path, params: { email: "joe@example.com" }
       end

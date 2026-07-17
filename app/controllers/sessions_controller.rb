@@ -15,7 +15,8 @@ class SessionsController < ApplicationController
     email = params[:email].to_s.downcase.strip
     user = User.find_by(email: email)
     if user
-      SignInToken.issue!(user: user).tap { |t| SignInMailer.magic_link(t).deliver_later }
+      code = SignInToken.issue_code!(user: user)
+      SignInToken.issue!(user: user).tap { |t| SignInMailer.magic_link(t, code: code).deliver_later }
       login_log "link_sent", email: email, ip: request.remote_ip
     else
       login_log "email_not_found", email: email, ip: request.remote_ip
