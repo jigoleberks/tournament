@@ -27,6 +27,18 @@ module Catches
         @catch.lock!  # serialize with ApplyJudgeAction on the same catch
         return { created: [], bumped: [], affected_tournaments: [], submitter: @catch.user } if @catch.disqualified?
 
+        # Tournament ids where this catch already holds an active placement.
+        # A concurrent duplicate POST's dedup-reconcile can race the original
+        # request's still-uncommitted placement run; the @catch.lock! above
+        # serializes us behind it, and skipping already-placed tournaments
+        # makes the second run a no-op instead of a double-place (the
+        # append-only formats create one placement per run). Scoped to ACTIVE
+        # placements: judge reinstate/correction flows deactivate before
+        # re-placing and must still re-place.
+        already_placed_ids = CatchPlacement
+          .where(catch_id: @catch.id, active: true)
+          .distinct.pluck(:tournament_id).to_set
+
         rows = Tournaments::ActiveForUser
           .with_entries(user: @catch.user, at: @catch.captured_at_device)
           .sort_by { |r| r[:entry].id }  # stable lock order across concurrent calls
@@ -35,6 +47,7 @@ module Catches
         rows.each do |row|
           tournament = row[:tournament]
           entry      = row[:entry]
+          next if already_placed_ids.include?(tournament.id)
 
           # Bingo keeps no placements — a card is derived on read. Just flag the
           # tournament so the post-commit block rebuilds & rebroadcasts it. A

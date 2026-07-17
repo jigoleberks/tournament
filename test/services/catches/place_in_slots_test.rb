@@ -1093,6 +1093,41 @@ module Catches
     assert_empty result[:affected_tournaments]
   end
 
+  test "re-running PlaceInSlots for an already-placed catch is a no-op (dedup race guard)" do
+    catch_record = create(:catch, user: @user, species: @walleye, length_inches: 20)
+
+    first = Catches::PlaceInSlots.call(catch: catch_record)
+    assert_equal 1, first[:created].size
+
+    assert_no_difference "CatchPlacement.count" do
+      second = Catches::PlaceInSlots.call(catch: catch_record)
+      assert_empty second[:created]
+    end
+  end
+
+  test "re-running PlaceInSlots for an already-placed hidden_length catch is a no-op (dedup race guard)" do
+    club = create(:club)
+    walleye = create(:species, club: club)
+    user = create(:user, club: club)
+    t = build(:tournament, club: club, format: :hidden_length, mode: :solo,
+              starts_at: 1.hour.ago, ends_at: 1.hour.from_now)
+    t.scoring_slots.build(species: walleye, slot_count: 1)
+    t.save!
+    entry = create(:tournament_entry, tournament: t)
+    create(:tournament_entry_member, tournament_entry: entry, user: user)
+
+    catch_record = create(:catch, user: user, species: walleye, length_inches: 20,
+                                   captured_at_device: 30.minutes.ago)
+
+    first = Catches::PlaceInSlots.call(catch: catch_record)
+    assert_equal 1, first[:created].size
+
+    assert_no_difference "CatchPlacement.count" do
+      second = Catches::PlaceInSlots.call(catch: catch_record)
+      assert_empty second[:created]
+    end
+  end
+
   test "random_bag: every catch creates a placement, no bumping" do
     club = create(:club)
     walleye = create(:species, club: club)
