@@ -7,7 +7,7 @@ module Catches
     # in this set was written out-of-band (e.g. imported_photo and
     # screenshot_suspect by FlagImportedPhotoJob) and must survive a recompute —
     # see .recompute.
-    OWNED_FLAGS = %w[missing_gps clock_skew out_of_bounds out_of_province possible_duplicate].freeze
+    OWNED_FLAGS = %w[missing_gps clock_skew out_of_bounds out_of_province possible_duplicate video_missing].freeze
 
     def self.call(catch_record)
       flags = []
@@ -23,6 +23,7 @@ module Catches
         flags << "out_of_province"
       end
       flags << "possible_duplicate" if duplicate_neighbor?(catch_record)
+      flags << "video_missing" if video_missing?(catch_record)
       flags
     end
 
@@ -57,6 +58,18 @@ module Catches
         .pluck(:tournament_entry_id)
       return [ user_id ] if shared_entry_ids.empty?
       TournamentEntryMember.where(tournament_entry_id: shared_entry_ids).pluck(:user_id).uniq
+    end
+
+    # The tournament "Anglers must record video evidence" checkbox was purely
+    # decorative — nothing enforced it anywhere. Soft-enforce it the way every
+    # other integrity signal works here: a judge-review flag, not a rejection.
+    # Owned (re-derivable) so a recompute after a judge edit keeps it honest.
+    def self.video_missing?(catch_record)
+      return false if catch_record.user.nil? || catch_record.captured_at_device.nil?
+      return false if catch_record.video.attached?
+      Tournaments::ActiveForUser
+        .call(user: catch_record.user, at: catch_record.captured_at_device)
+        .any?(&:requires_release_video)
     end
   end
 end

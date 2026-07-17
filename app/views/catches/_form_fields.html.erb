@@ -6,6 +6,8 @@
                            release-video block, which needs live tournament data
 %>
 <% offline   = local_assigns.fetch(:offline, false) %>
+<% video_required = !offline && current_user &&
+     Tournaments::ActiveForUser.call(user: current_user).any?(&:requires_release_video) %>
 <% teammate  = local_assigns.fetch(:teammate, nil) %>
 <% selected_species = local_assigns.fetch(:selected_species, nil) %>
 <% all_species = Species.in_log_order %>
@@ -21,6 +23,7 @@
      data-catch-form-caps-by-species-id-value="<%= length_caps.to_json %>"
      data-catch-form-tagged-species-id-value="<%= tagged_species_id %>"
      data-catch-form-teammate-user-id-value="<%= teammate&.id %>"
+     data-catch-form-video-required-value="<%= video_required %>"
      data-action="photo-capture:captured->catch-form#onPhotoCaptured
                   video-capture:captured->catch-form#onVideoCaptured
                   video-capture:failed->catch-form#onVideoFailed">
@@ -114,23 +117,20 @@
             class="hidden flex-1 h-12 px-4 rounded-lg bg-slate-700 active:bg-slate-600 text-slate-100">Retake</button>
   </div>
 
-  <% unless offline %>
-    <% video_required = Tournaments::ActiveForUser.call(user: current_user).any?(&:requires_release_video) %>
-    <% if video_required %>
-      <h3 class="text-lg font-semibold mt-6 mb-2">Release video</h3>
-      <video data-video-capture-target="video" autoplay muted playsinline
-             class="w-full max-h-80 object-cover rounded-lg bg-black"></video>
-      <div class="flex gap-2 mt-2">
-        <button type="button" data-action="video-capture#start"
-                class="flex-1 h-12 px-4 rounded-lg bg-slate-700 active:bg-slate-600 text-slate-100">Start recording</button>
-        <button type="button" data-action="video-capture#stop"
-                class="flex-1 h-12 px-4 rounded-lg bg-slate-700 active:bg-slate-600 text-slate-100">Stop</button>
-      </div>
-      <button type="button" data-action="video-capture#markFailed"
-              class="w-full h-12 px-4 rounded-lg bg-slate-700 active:bg-slate-600 text-slate-100 mt-2">Mark video failed and submit anyway</button>
-      <video data-video-capture-target="preview" controls
-             class="w-full max-h-80 object-contain rounded-lg bg-black mt-2"></video>
-    <% end %>
+  <% if video_required %>
+    <h3 class="text-lg font-semibold mt-6 mb-2">Release video</h3>
+    <video data-video-capture-target="video" autoplay muted playsinline
+           class="w-full max-h-80 object-cover rounded-lg bg-black"></video>
+    <div class="flex gap-2 mt-2">
+      <button type="button" data-action="video-capture#start"
+              class="flex-1 h-12 px-4 rounded-lg bg-slate-700 active:bg-slate-600 text-slate-100">Start recording</button>
+      <button type="button" data-action="video-capture#stop"
+              class="flex-1 h-12 px-4 rounded-lg bg-slate-700 active:bg-slate-600 text-slate-100">Stop</button>
+    </div>
+    <button type="button" data-action="video-capture#markFailed"
+            class="w-full h-12 px-4 rounded-lg bg-slate-700 active:bg-slate-600 text-slate-100 mt-2">Mark video failed and submit anyway</button>
+    <video data-video-capture-target="preview" controls
+           class="w-full max-h-80 object-contain rounded-lg bg-black mt-2"></video>
   <% end %>
 
   <p data-catch-form-target="status" class="text-amber-300 text-sm mb-2 mt-4"></p>

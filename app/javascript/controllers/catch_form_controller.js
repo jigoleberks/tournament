@@ -4,7 +4,7 @@ import { convertLength, snapToGrid } from "lib/length_convert"
 
 export default class extends Controller {
   static targets = ["speciesSelect", "lengthInput", "lengthLabel", "noteInput", "submitButton", "status", "tagWrapper", "tagInput", "weightInput"]
-  static values = { csrfToken: String, capsBySpeciesId: Object, teammateUserId: String, taggedSpeciesId: String }
+  static values = { csrfToken: String, capsBySpeciesId: Object, teammateUserId: String, taggedSpeciesId: String, videoRequired: Boolean }
 
   connect() {
     this.photoBlob = null
@@ -56,6 +56,9 @@ export default class extends Controller {
       return "Enter the tag number on the fish."
     }
     if (!this.photoBlob) return "Take a photo first."
+    if (this.hasVideoRequiredValue && this.videoRequiredValue && !this.videoBlob && !this.videoFailed) {
+      return "Record the release video, or tap “Mark video failed”."
+    }
     return null
   }
 

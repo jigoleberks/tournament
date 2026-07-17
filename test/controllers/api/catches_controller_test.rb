@@ -425,6 +425,43 @@ class Api::CatchesControllerTest < ActionDispatch::IntegrationTest
     assert_includes JSON.parse(response.body)["flags"], "missing_gps"
   end
 
+  test "catch without video in a requires_release_video tournament is flagged video_missing" do
+    @tournament.update!(requires_release_video: true)
+    photo = fixture_file_upload("sample_walleye.jpg", "image/jpeg")
+    post "/api/catches", params: {
+      catch: { species_id: @walleye.id, length_inches: 20, captured_at_device: Time.current.iso8601,
+               latitude: 49.41, longitude: -103.62, gps_accuracy_m: 8,
+               captured_at_gps: Time.current.iso8601,
+               client_uuid: "uuid-VMISS", photo: photo }
+    }, headers: { "Accept" => "application/json" }
+    body = JSON.parse(response.body)
+    assert_includes body["flags"], "video_missing"
+    assert_equal "needs_review", body["status"]
+  end
+
+  test "video_failed param records an external video_failed flag" do
+    @tournament.update!(requires_release_video: true)
+    photo = fixture_file_upload("sample_walleye.jpg", "image/jpeg")
+    post "/api/catches", params: {
+      catch: { species_id: @walleye.id, length_inches: 20, captured_at_device: Time.current.iso8601,
+               client_uuid: "uuid-VFAIL", photo: photo, video_failed: "true" }
+    }, headers: { "Accept" => "application/json" }
+    flags = JSON.parse(response.body)["flags"]
+    assert_includes flags, "video_failed"
+    # And it survives a recompute (external flag semantics):
+    c = Catch.find_by!(client_uuid: "uuid-VFAIL")
+    assert_includes Catches::ComputeFlags.recompute(c), "video_failed"
+  end
+
+  test "no video flag when no active tournament requires video" do
+    photo = fixture_file_upload("sample_walleye.jpg", "image/jpeg")
+    post "/api/catches", params: {
+      catch: { species_id: @walleye.id, length_inches: 20, captured_at_device: Time.current.iso8601,
+               client_uuid: "uuid-NOVREQ", photo: photo }
+    }, headers: { "Accept" => "application/json" }
+    assert_not_includes JSON.parse(response.body)["flags"], "video_missing"
+  end
+
   test "teammate submission with no active club membership returns 422, not 500" do
     @user.club_memberships.destroy_all
     photo = fixture_file_upload("sample_walleye.jpg", "image/jpeg")

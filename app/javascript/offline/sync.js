@@ -68,6 +68,7 @@ async function drainOnce() {
         fd.append("catch[video]", video, `video.${ext}`)
       }
       if (rec.teammate_user_id) fd.append("teammate_user_id", rec.teammate_user_id)
+      if (rec.video_failed) fd.append("catch[video_failed]", "true")
 
       const resp = await fetch(ENDPOINT, {
         method: "POST",

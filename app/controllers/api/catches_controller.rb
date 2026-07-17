@@ -24,6 +24,11 @@ class Api::CatchesController < Api::BaseController
     end
 
     catch_record.flags  = Catches::ComputeFlags.call(catch_record)
+    # "Mark video failed and submit anyway" — an explicit angler declaration,
+    # not derivable from state, so it's an external flag (survives recompute).
+    if ActiveModel::Type::Boolean.new.cast(params.dig(:catch, :video_failed))
+      catch_record.flags |= ["video_failed"]
+    end
     catch_record.lake   = Catches::DetectLake.call(catch_record)
     catch_record.status = catch_record.flags.empty? ? :synced : :needs_review
     catch_record.synced_at = Time.current
