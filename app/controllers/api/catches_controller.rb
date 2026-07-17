@@ -3,10 +3,13 @@ class Api::CatchesController < Api::BaseController
     uuid = params.dig(:catch, :client_uuid)
     existing = idempotent_existing(uuid)
     if existing
-      return render(json: serialize(existing), status: :ok)
+      return render(json: serialize_existing(existing), status: :ok)
     end
 
     teammate_id = params[:teammate_user_id].presence
+    if teammate_id && current_club.nil?
+      return render json: { errors: ["You have no active club membership."] }, status: :unprocessable_entity
+    end
     teammate = teammate_id ? current_club.members.find_by(id: teammate_id) : nil
     if teammate_id && teammate.nil?
       return render json: { errors: ["Teammate not found"] }, status: :unprocessable_entity
@@ -31,7 +34,7 @@ class Api::CatchesController < Api::BaseController
       # Parallel retry from a flaky-LTE client raced past the find_by above.
       # The unique index on client_uuid prevented the duplicate; return the winner.
       existing = idempotent_existing(uuid)
-      return render(json: serialize(existing), status: :ok) if existing
+      return render(json: serialize_existing(existing), status: :ok) if existing
       raise
     end
 
@@ -56,6 +59,26 @@ class Api::CatchesController < Api::BaseController
     Catch.where(client_uuid: uuid)
       .where("user_id = :id OR logged_by_user_id = :id", id: current_user.id)
       .first
+  end
+
+  # The save at line ~29 commits OUTSIDE PlaceInSlots' transaction, so a 500
+  # between them (deadlock on a busy night) leaves a committed catch with no
+  # placements. The client's retry lands here — if we answered "ok" without
+  # placing, the queued row would be deleted and the fish silently never
+  # scores. Re-run placement when the catch has none: PlaceInSlots yields the
+  # exact same placements a first run would (or zero again, harmlessly, when
+  # the catch legitimately matches no slot), and the flag/condition jobs are
+  # idempotent (add_flag! is a guarded single UPDATE).
+  def serialize_existing(existing)
+    if existing.photo.attached? && existing.catch_placements.none?
+      placements = Catches::PlaceInSlots.call(catch: existing)
+      Catches::FlagDuplicates.call(catch: existing) if existing.flags.include?("possible_duplicate")
+      FetchCatchConditionsJob.perform_later(catch_id: existing.id)
+      FlagImportedPhotoJob.perform_later(catch_id: existing.id)
+      serialize(existing, placements: placements[:created], flags: existing.flags)
+    else
+      serialize(existing, flags: existing.flags)
+    end
   end
 
   def shares_entry_at?(teammate, at)

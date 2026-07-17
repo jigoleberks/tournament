@@ -375,6 +375,67 @@ class Api::CatchesControllerTest < ActionDispatch::IntegrationTest
     assert Catch.find_by(client_uuid: "uuid-RETRY-PHOTO").photo.attached?
   end
 
+  test "dedup retry places a saved-but-unplaced catch (post-500 recovery)" do
+    photo = fixture_file_upload("sample_walleye.jpg", "image/jpeg")
+    payload = lambda {
+      post "/api/catches", params: {
+        catch: { species_id: @walleye.id, length_inches: 20, captured_at_device: Time.current.iso8601,
+                 client_uuid: "uuid-RECONCILE", photo: photo }
+      }, headers: { "Accept" => "application/json" }
+    }
+    payload.call
+    catch_record = Catch.find_by!(client_uuid: "uuid-RECONCILE")
+    # Simulate the crash window: catch committed, PlaceInSlots' transaction rolled back.
+    catch_record.catch_placements.destroy_all
+
+    assert_difference "CatchPlacement.count", 1 do
+      payload.call
+    end
+    assert_response :ok
+    body = JSON.parse(response.body)
+    assert_equal 1, body["placements"].size
+  end
+
+  test "dedup retry does NOT double-place a catch that already has placements" do
+    photo = fixture_file_upload("sample_walleye.jpg", "image/jpeg")
+    payload = lambda {
+      post "/api/catches", params: {
+        catch: { species_id: @walleye.id, length_inches: 20, captured_at_device: Time.current.iso8601,
+                 client_uuid: "uuid-NODOUBLE", photo: photo }
+      }, headers: { "Accept" => "application/json" }
+    }
+    payload.call
+    assert_no_difference "CatchPlacement.count" do
+      payload.call
+    end
+    assert_response :ok
+  end
+
+  test "dedup response reports the catch's real flags" do
+    photo = fixture_file_upload("sample_walleye.jpg", "image/jpeg")
+    payload = lambda {
+      post "/api/catches", params: {
+        catch: { species_id: @walleye.id, length_inches: 20, captured_at_device: Time.current.iso8601,
+                 client_uuid: "uuid-FLAGS", photo: photo } # no GPS -> missing_gps flag
+      }, headers: { "Accept" => "application/json" }
+    }
+    payload.call
+    payload.call
+    assert_response :ok
+    assert_includes JSON.parse(response.body)["flags"], "missing_gps"
+  end
+
+  test "teammate submission with no active club membership returns 422, not 500" do
+    @user.club_memberships.destroy_all
+    photo = fixture_file_upload("sample_walleye.jpg", "image/jpeg")
+    post "/api/catches", params: {
+      teammate_user_id: 999_999,
+      catch: { species_id: @walleye.id, length_inches: 20, captured_at_device: Time.current.iso8601,
+               client_uuid: "uuid-NOCLUB", photo: photo }
+    }, headers: { "Accept" => "application/json" }
+    assert_response :unprocessable_entity
+  end
+
   private
 
   def sign_in_as(user)
