@@ -4,6 +4,11 @@ export default class extends Controller {
   static targets = ["preview", "video", "recordButton", "stopButton", "failedButton"]
 
   async start() {
+    // Double-tap guard: a second getUserMedia would orphan the first stream's
+    // tracks (camera light pinned on; iOS's single-capture-session rule can
+    // wedge the camera until the tab dies) and cross-wire this.chunks.
+    if (this.recorder && this.recorder.state !== "inactive") return
+    this.stopStream()
     // A getUserMedia rejection (permission denied, no camera) must route
     // through markFailed like every other failure — an uncaught throw here
     // wedges the video UI and the catch form never hears the failed event.
@@ -41,7 +46,9 @@ export default class extends Controller {
     this.recorder.ondataavailable = (e) => { if (e.data.size) this.chunks.push(e.data) }
     this.recorder.onstop = () => {
       this.blob = new Blob(this.chunks, { type: mimeType })
-      this.previewTarget.src = URL.createObjectURL(this.blob)
+      if (this.previewUrl) URL.revokeObjectURL(this.previewUrl)
+      this.previewUrl = URL.createObjectURL(this.blob)
+      this.previewTarget.src = this.previewUrl
       this.previewTarget.dataset.captured = "true"
       this.dispatch("captured", { detail: { blob: this.blob } })
       this.stopStream()
@@ -67,5 +74,12 @@ export default class extends Controller {
     }
   }
 
-  disconnect() { this.stop(); this.stopStream() }
+  disconnect() {
+    this.stop()
+    this.stopStream()
+    if (this.previewUrl) {
+      URL.revokeObjectURL(this.previewUrl)
+      this.previewUrl = null
+    }
+  }
 }

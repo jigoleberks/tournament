@@ -22,6 +22,8 @@ export default class extends Controller {
     } else {
       url.searchParams.delete("mc")
     }
-    window.history.replaceState({}, "", url)
+    // Preserve history.state: replacing it with {} wipes Turbo's
+    // restorationIdentifier, breaking Back-navigation to this entry.
+    window.history.replaceState(window.history.state, "", url)
   }
 }

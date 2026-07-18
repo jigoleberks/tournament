@@ -20,6 +20,7 @@ export default class extends Controller {
     }
 
     const map = L.map(mapElement).setView([points[0].lat, points[0].lng], 13)
+    this.map = map
 
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
       attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
@@ -37,6 +38,17 @@ export default class extends Controller {
     if (markers.length > 0) {
       const group = new L.featureGroup(markers)
       map.fitBounds(group.getBounds().pad(0.1))
+    }
+  }
+
+  // Tear the map down so its tile layer and listeners don't leak, and so a
+  // Turbo Drive restore that reuses this element doesn't stack a second map
+  // on top of the snapshot's rendered panes (doubled markers, broken hit
+  // testing). Mirrors location_edit_controller.
+  disconnect() {
+    if (this.map) {
+      this.map.remove()
+      this.map = null
     }
   }
 }

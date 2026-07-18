@@ -7,6 +7,7 @@ export default class extends Controller {
   }
 
   disconnect() {
+    clearTimeout(this.hideTimeout)
     window.removeEventListener("bsfamilies:catch-synced", this.handler)
   }
 
