@@ -1,5 +1,5 @@
 import { Controller } from "@hotwired/stimulus"
-import { enqueueCatch } from "offline/db"
+import { enqueueCatch, updateCoords, releaseHold } from "offline/db"
 import { convertLength, snapToGrid } from "lib/length_convert"
 
 export default class extends Controller {
@@ -83,17 +83,22 @@ export default class extends Controller {
       // Video is optional: an unreadable one is dropped rather than blocking the catch.
       const video = this.videoBlob ? await this._packBlob(this.videoBlob, "video") : null
 
-      const position = await this.tryGeolocate()
+      // Persist FIRST, geolocate second. The GPS wait can run 8-10s and the
+      // angler's natural next move is to lock the phone and release the fish;
+      // before this reorder, an iOS jetsam during that window lost the catch
+      // and the photo permanently (camera-input files never reach the Photos
+      // library). hold_until keeps drains off the record while we wait, and
+      // expires on its own if this page dies mid-geolocate.
       const record = {
         client_uuid: this.clientUuid,
         species_id: this.speciesSelectTarget.value,
         length_inches: this._toInches(this.lengthInputTarget.value),
         length_unit: this.lengthInputTarget.dataset.catchFormUnit,
         captured_at_device: new Date().toISOString(),
-        captured_at_gps: position?.gpsTime ?? null,
-        latitude: position?.coords?.latitude ?? null,
-        longitude: position?.coords?.longitude ?? null,
-        gps_accuracy_m: position?.coords?.accuracy ?? null,
+        captured_at_gps: null,
+        latitude: null,
+        longitude: null,
+        gps_accuracy_m: null,
         app_build: document.documentElement.dataset.appBuild,
         note: this.noteInputTarget.value,
         tag_number: (this.hasTagInputTarget ? this.tagInputTarget.value : "").trim().toUpperCase() || null,
@@ -102,10 +107,21 @@ export default class extends Controller {
         video: video,
         video_failed: this.videoFailed,
         teammate_user_id: this.teammateUserIdValue || null,
-        queued_by_user_id: document.querySelector("meta[name='current-user-id']")?.content || null
+        queued_by_user_id: document.querySelector("meta[name='current-user-id']")?.content || null,
+        hold_until: Date.now() + 12000
       }
-
       await enqueueCatch(record)
+
+      const position = await this.tryGeolocate()
+      if (position) {
+        await updateCoords(this.clientUuid, {
+          captured_at_gps: position.gpsTime,
+          latitude: position.coords.latitude,
+          longitude: position.coords.longitude,
+          gps_accuracy_m: position.coords.accuracy
+        }).catch(() => {})
+      }
+      await releaseHold(this.clientUuid).catch(() => {})
 
       if ("serviceWorker" in navigator && "SyncManager" in window) {
         try {

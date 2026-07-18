@@ -81,3 +81,22 @@ export async function deferRetry(client_uuid) {
   const delayMs = Math.min(45000 * 2 ** attempts, 15 * 60 * 1000);
   await db.put("catches", { ...rec, attempts, next_attempt_at: Date.now() + delayMs });
 }
+
+// submit() persists the catch BEFORE waiting up to ~10s for a GPS fix (the
+// old order lost catch+photo entirely if iOS jetsammed the tab mid-geolocate
+// — the normal lock-phone-and-release-the-fish gesture). hold_until keeps the
+// coordless record out of drains while the fix is pending; it self-expires,
+// so a killed page still syncs the catch (GPS-less, missing_gps-flagged).
+export async function updateCoords(client_uuid, coords) {
+  const db = await getDB();
+  const rec = await db.get("catches", client_uuid);
+  if (!rec) return;
+  await db.put("catches", { ...rec, ...coords });
+}
+
+export async function releaseHold(client_uuid) {
+  const db = await getDB();
+  const rec = await db.get("catches", client_uuid);
+  if (!rec || rec.hold_until == null) return;
+  await db.put("catches", { ...rec, hold_until: null });
+}
