@@ -30,7 +30,17 @@ export default class extends Controller {
 
   onPhotoCaptured(event) { this.photoBlob = event.detail.blob; this.refresh() }
   onVideoCaptured(event) { this.videoBlob = event.detail.blob; this.videoFailed = false; this.refresh() }
-  onVideoFailed()        { this.videoBlob = null; this.videoFailed = true; this.refresh() }
+
+  onVideoFailed(event) {
+    this.videoBlob = null
+    this.videoFailed = true
+    this.refresh()
+    // An interruption reason (call/lock/app-switch killed the recording, video
+    // too large) must be shown — the angler believes they recorded and would
+    // otherwise submit a video-less catch without noticing.
+    const reason = event && event.detail && event.detail.reason
+    if (reason) this.statusTarget.textContent = reason
+  }
 
   refresh() {
     const isTagged = this.hasTaggedSpeciesIdValue
@@ -74,14 +84,14 @@ export default class extends Controller {
       // references that can become unreadable later — by drain time the fish
       // is released and the photo is unrecoverable. Storing the bytes inline
       // (ArrayBuffer, not Blob) sidesteps that failure mode entirely.
-      const photo = await this._packBlob(this.photoBlob, "photo.jpg")
+      const photo = await this._packBlob(this.photoBlob, "photo.jpg", "image/jpeg")
       if (!photo) {
         this._setSubmitting(false)
         this.statusTarget.textContent = "That photo couldn't be read — retake it and submit again."
         return
       }
       // Video is optional: an unreadable one is dropped rather than blocking the catch.
-      const video = this.videoBlob ? await this._packBlob(this.videoBlob, "video") : null
+      const video = this.videoBlob ? await this._packBlob(this.videoBlob, "video", "video/mp4") : null
 
       // Persist FIRST, geolocate second. The GPS wait can run 8-10s and the
       // angler's natural next move is to lock the phone and release the fish;
@@ -144,12 +154,12 @@ export default class extends Controller {
   // Packs a Blob/File into { bytes, type, name, size } for inline IndexedDB
   // storage. Returns null when the blob is missing, unreadable, or empty —
   // the same three cases offline/blob.js#materialize refuses to upload.
-  async _packBlob(blob, fallbackName) {
+  async _packBlob(blob, fallbackName, fallbackType) {
     if (!blob) return null
     try {
       const bytes = await blob.arrayBuffer()
       if (!bytes || bytes.byteLength === 0) return null
-      return { bytes: bytes, type: blob.type || "image/jpeg", name: blob.name || fallbackName, size: bytes.byteLength }
+      return { bytes: bytes, type: blob.type || fallbackType, name: blob.name || fallbackName, size: bytes.byteLength }
     } catch (_) {
       return null
     }

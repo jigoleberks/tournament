@@ -60,6 +60,42 @@ class RecoverTest < ApplicationSystemTestCase
     assert_equal 1, stable_li_count
   end
 
+  # iOS restores /recover from the bfcache with whatever CSRF meta token the
+  # page was first rendered with; re-submitting with it fails on every tap
+  # until a hard reload — on the tool of last resort. resubmit() therefore
+  # preflights GET /api/session (same pattern as offline/sync.js) for a fresh
+  # token. The stale-token 422 itself can't be reproduced here (test env
+  # disables forgery protection, and with it the csrf meta tag), so this locks
+  # in the preflight behaviorally: a dead session must halt with a sign-in
+  # message BEFORE any photo-body POST is attempted.
+  test "re-submit preflights the session and halts with a sign-in message on 401" do
+    uuid = SecureRandom.uuid
+    sign_in_as(@user)
+    seed_catch(uuid: uuid)
+    visit "/recover"
+    assert_selector "li img", wait: 5
+
+    page.execute_script <<~JS
+      const realFetch = window.fetch.bind(window);
+      window.__catchPosts = 0;
+      window.fetch = (input, init = {}) => {
+        const url = String(input.url || input);
+        if (url.includes("/api/session")) {
+          return Promise.resolve(new Response("{}", { status: 401, headers: { "Content-Type": "application/json" } }));
+        }
+        if (url.includes("/api/catches")) window.__catchPosts++;
+        return realFetch(input, init);
+      };
+    JS
+    click_button "Re-submit"
+
+    assert_text(/signed out.*sign in/i, wait: 5)
+    assert_equal 0, page.evaluate_script("window.__catchPosts"),
+                 "a dead session must halt resubmit before the photo-body POST"
+    assert_nil Catch.find_by(client_uuid: uuid)
+    assert_selector "button", text: "Retry"
+  end
+
   test "the home link appears only when the angler has stuck catches" do
     sign_in_as(@user)
     visit root_path

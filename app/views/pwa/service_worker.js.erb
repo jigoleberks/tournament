@@ -126,6 +126,42 @@ self.addEventListener("push", (event) => {
   )
 })
 
+// APNs/FCM rotate push subscriptions behind our back (SW updates, OS events).
+// Without this, the next send hits ExpiredSubscription, the server deletes the
+// row, and the angler silently stops getting bumped/took-the-lead alerts while
+// the home-page toggle still reads "on". Re-subscribe and swap the stored row.
+const VAPID_PUBLIC_KEY = <%= VAPID[:public_key].to_json.html_safe %>;
+
+self.addEventListener("pushsubscriptionchange", (event) => {
+  event.waitUntil((async () => {
+    try {
+      const sub = event.newSubscription || await self.registration.pushManager.subscribe({
+        userVisibleOnly: true,
+        applicationServerKey: urlB64ToUint8Array(VAPID_PUBLIC_KEY)
+      })
+      await fetch("/api/push_subscriptions/refresh", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({
+          old_endpoint: event.oldSubscription && event.oldSubscription.endpoint,
+          subscription: sub.toJSON()
+        })
+      })
+    } catch (_) {
+      // Signed out or offline: the home page's push toggle shows the true
+      // state on next open; nothing useful to do from the SW.
+    }
+  })())
+})
+
+function urlB64ToUint8Array(b64) {
+  const padding = "=".repeat((4 - (b64.length % 4)) % 4)
+  const base64 = (b64 + padding).replace(/-/g, "+").replace(/_/g, "/")
+  const raw = atob(base64)
+  return new Uint8Array([...raw].map((c) => c.charCodeAt(0)))
+}
+
 self.addEventListener("notificationclick", (event) => {
   event.notification.close()
   const target = event.notification.data?.url || "/"

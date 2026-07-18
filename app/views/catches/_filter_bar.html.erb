@@ -25,7 +25,7 @@
                    [["All species", ""]] + available_species.map { |s| [s.name, s.id] },
                    species_filter_id&.to_s
                  ),
-                 class: "h-10 px-2 rounded-lg bg-slate-800 border border-slate-700 text-slate-100" %>
+                 class: "h-10 px-2 rounded-lg bg-slate-800 border border-slate-700 text-base text-slate-100" %>
 
   <label class="text-slate-300">Lake</label>
   <%= select_tag :lake,
@@ -35,7 +35,7 @@
                    [["Other (no lake match)", "other"]],
                    lake_filter_key.to_s
                  ),
-                 class: "h-10 px-2 rounded-lg bg-slate-800 border border-slate-700 text-slate-100" %>
+                 class: "h-10 px-2 rounded-lg bg-slate-800 border border-slate-700 text-base text-slate-100" %>
 
   <% if show_sort %>
     <label class="text-slate-300">Sort</label>
@@ -44,12 +44,13 @@
                      [["Newest first", "newest"], ["Longest first", "longest"], ["Shortest first", "shortest"]],
                      sort.to_s
                    ),
-                   class: "h-10 px-2 rounded-lg bg-slate-800 border border-slate-700 text-slate-100" %>
+                   class: "h-10 px-2 rounded-lg bg-slate-800 border border-slate-700 text-base text-slate-100" %>
   <% end %>
 
   <label class="text-slate-300">≥</label>
   <%= number_field_tag :min_length, params[:min_length].presence,
                        min: 0, step: "0.5", placeholder: "in",
+                       inputmode: "decimal",
                        "data-test": "min-length",
-                       class: "h-10 w-20 px-2 rounded-lg bg-slate-800 border border-slate-700 text-slate-100" %>
+                       class: "h-10 w-20 px-2 rounded-lg bg-slate-800 border border-slate-700 text-base text-slate-100" %>
 <% end %>

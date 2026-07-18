@@ -129,6 +129,7 @@ Rails.application.routes.draw do
     resource :session, only: [:show], controller: "sessions"
     resources :catches, only: [:create]
     post   "push_subscriptions", to: "push_subscriptions#create"
+    post   "push_subscriptions/refresh", to: "push_subscriptions#refresh"
     delete "push_subscriptions", to: "push_subscriptions#destroy"
   end
 

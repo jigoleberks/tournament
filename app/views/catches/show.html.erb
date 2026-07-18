@@ -19,7 +19,9 @@
         <div data-controller="photo-save"
              data-photo-save-url-value="<%= photo_download_url(p[:attachment]) %>"
              data-photo-save-filename-value="<%= download_filename %>">
-          <%= thumb p[:attachment], size: [1200, 1200], class: "w-full max-h-96 object-contain rounded-lg bg-black" %>
+          <%# min-h: reserve space so the Save button and details don't jump
+              down when the photo lands over slow lake cellular %>
+          <%= thumb p[:attachment], size: [1200, 1200], class: "w-full min-h-64 max-h-96 object-contain rounded-lg bg-black" %>
           <button type="button"
                   data-action="photo-save#save"
                   class="mt-3 h-12 px-4 rounded-lg bg-blue-600 active:bg-blue-700 text-white font-semibold w-full">
@@ -33,7 +35,16 @@
   <% end %>
 
   <% if @catch.video.attached? %>
-    <%= video_tag url_for(@catch.video), controls: true, class: "w-full max-h-96 rounded-lg bg-black" %>
+    <%# playsinline: without it iOS forces the native fullscreen player %>
+    <%= video_tag url_for(@catch.video), controls: true, playsinline: true, preload: "metadata",
+                  class: "w-full max-h-96 rounded-lg bg-black" %>
+    <% if @catch.video.content_type == "video/webm" %>
+      <p class="text-xs text-slate-400">
+        This video is webm, which iPhones can't play —
+        <%= link_to "download it", url_for(@catch.video), class: "text-blue-400 underline" %>
+        to view on a computer.
+      </p>
+    <% end %>
   <% end %>
 
   <dl class="text-slate-300 text-sm space-y-1">
@@ -196,6 +207,7 @@
 
       <label for="length" class="block text-xs text-slate-400">Length</label>
       <%= number_field_tag :length, prefill, step: step, min: 0,
+                           inputmode: "decimal",
                            data: { "length-edit-target": "input", "length-edit-unit": unit },
                            class: "w-full h-12 px-3 rounded-lg bg-slate-900 border border-slate-700 text-base text-slate-100" %>
       <div class="flex gap-2 items-stretch justify-between">

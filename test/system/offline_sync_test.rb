@@ -222,6 +222,20 @@ class OfflineSyncTest < ApplicationSystemTestCase
     assert_idb_row_gone(uuid)
   end
 
+  # WebKit can report navigator.onLine === false on a device that is actually
+  # online (stale flag after backgrounding, standalone PWAs). The flag must be
+  # a hint at most — a drain trigger firing while onLine is wrongly false must
+  # still attempt the upload (the preflight fetch handles the truly-offline
+  # case by failing silently).
+  test "pending catch uploads even when navigator.onLine reports false" do
+    uuid = SecureRandom.uuid
+    apply_ios_shims(extra_js: 'Object.defineProperty(navigator, "onLine", { configurable: true, get: () => false });')
+    sign_in_as(@user)
+    seed_idb_catch(uuid: uuid, species_id: @walleye.id,
+                   trigger_js: "document.dispatchEvent(new Event('visibilitychange'))")
+    assert_catch_received(uuid)
+  end
+
   private
 
   def assert_catch_received(uuid)

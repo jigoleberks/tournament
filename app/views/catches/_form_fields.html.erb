@@ -53,7 +53,7 @@
   <label for="catch_length_inches" data-catch-form-target="lengthLabel" class="block text-sm font-medium text-slate-300 mt-4 mb-1">
     <%= current_user&.metric? ? "Length (cm)" : "Length (in)" %>
   </label>
-  <input id="catch_length_inches" type="number"
+  <input id="catch_length_inches" type="number" inputmode="decimal"
          step="0.25"
          min="0"
          data-catch-form-target="lengthInput"
@@ -123,13 +123,18 @@
            class="w-full max-h-80 object-cover rounded-lg bg-black"></video>
     <div class="flex gap-2 mt-2">
       <button type="button" data-action="video-capture#start"
-              class="flex-1 h-12 px-4 rounded-lg bg-slate-700 active:bg-slate-600 text-slate-100">Start recording</button>
-      <button type="button" data-action="video-capture#stop"
-              class="flex-1 h-12 px-4 rounded-lg bg-slate-700 active:bg-slate-600 text-slate-100">Stop</button>
+              data-video-capture-target="recordButton"
+              class="flex-1 h-12 px-4 rounded-lg bg-slate-700 active:bg-slate-600 text-slate-100 disabled:opacity-60">Start recording</button>
+      <button type="button" data-action="video-capture#stop" disabled
+              data-video-capture-target="stopButton"
+              class="flex-1 h-12 px-4 rounded-lg bg-slate-700 active:bg-slate-600 text-slate-100 disabled:opacity-60">Stop</button>
     </div>
     <button type="button" data-action="video-capture#markFailed"
+            data-video-capture-target="failedButton"
             class="w-full h-12 px-4 rounded-lg bg-slate-700 active:bg-slate-600 text-slate-100 mt-2">Mark video failed and submit anyway</button>
-    <video data-video-capture-target="preview" controls
+    <%# playsinline: without it, iOS hijacks preview playback into the native
+        fullscreen player, yanking the angler out of the half-filled form %>
+    <video data-video-capture-target="preview" controls playsinline
            class="w-full max-h-80 object-contain rounded-lg bg-black mt-2"></video>
   <% end %>
 

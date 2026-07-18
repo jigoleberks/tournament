@@ -1,4 +1,12 @@
 class Api::PushSubscriptionsController < Api::BaseController
+  # refresh is called from the service worker's pushsubscriptionchange
+  # handler, which has no page and therefore no CSRF token. Skipping
+  # verification (for this action only) keeps the real session instead of
+  # null_session, so the cookie still authenticates; ownership is proven by
+  # possession of a previously-registered endpoint — an unguessable
+  # capability URL, the same reasoning as create's reassign-on-possession.
+  skip_before_action :verify_authenticity_token, only: :refresh
+
   def create
     endpoint = params.dig(:subscription, :endpoint)
     # Look the endpoint up UNSCOPED: on a shared phone the browser returns the
@@ -19,6 +27,27 @@ class Api::PushSubscriptionsController < Api::BaseController
                           endpoint_host: endpoint_host(sub.endpoint))
       end
       render json: { id: sub.id }, status: :created
+    else
+      render json: { errors: sub.errors.full_messages }, status: :unprocessable_entity
+    end
+  end
+
+  # APNs/FCM rotated the subscription behind our back: swap the stored row to
+  # the new endpoint/keys so notifications keep flowing instead of dying on
+  # ExpiredSubscription.
+  def refresh
+    old = PushSubscription.find_by(endpoint: params[:old_endpoint])
+    return head :not_found unless old
+
+    sub = PushSubscription.find_or_initialize_by(endpoint: params.dig(:subscription, :endpoint))
+    sub.user = current_user
+    sub.assign_attributes(
+      p256dh: params.dig(:subscription, :keys, :p256dh),
+      auth:   params.dig(:subscription, :keys, :auth)
+    )
+    if sub.save
+      old.destroy unless old.id == sub.id
+      head :no_content
     else
       render json: { errors: sub.errors.full_messages }, status: :unprocessable_entity
     end

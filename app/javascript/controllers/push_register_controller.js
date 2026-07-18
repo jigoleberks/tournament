@@ -7,7 +7,11 @@ export default class extends Controller {
 
   async refresh() {
     if (!("PushManager" in window)) {
-      this.statusTarget.textContent = "push not supported"
+      // iOS only exposes PushManager to installed home-screen apps: a plain
+      // Safari tab must point at the fix (install), not read as broken.
+      this.statusTarget.textContent = this.iosBrowserTab()
+        ? "available after install — tap Share, then “Add to Home Screen”"
+        : "push not supported"
       this.setEnabled(false)
       return
     }
@@ -32,6 +36,15 @@ export default class extends Controller {
     }
   }
 
+  // iPadOS 13+ masquerades as Macintosh in the UA; maxTouchPoints tells it apart.
+  iosBrowserTab() {
+    const ios = /iPhone|iPad|iPod/.test(navigator.userAgent) ||
+      (/Macintosh/.test(navigator.userAgent) && navigator.maxTouchPoints > 1)
+    const standalone = window.matchMedia("(display-mode: standalone)").matches ||
+      window.navigator.standalone === true
+    return ios && !standalone
+  }
+
   setEnabled(on) {
     if (!this.hasEnableButtonTarget) return
     const btn = this.enableButtonTarget
@@ -42,6 +55,14 @@ export default class extends Controller {
   }
 
   async enable() {
+    // In an iOS Safari tab neither Notification nor PushManager exists —
+    // without this guard the tap surfaced a raw ReferenceError in the status.
+    if (!("Notification" in window) || !("PushManager" in window)) {
+      this.statusTarget.textContent = this.iosBrowserTab()
+        ? "available after install — tap Share, then “Add to Home Screen”"
+        : "push not supported on this browser"
+      return
+    }
     let step = "requestPermission"
     try {
       this.statusTarget.textContent = "asking permission…"

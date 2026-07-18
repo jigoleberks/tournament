@@ -82,6 +82,14 @@ class Judges::CatchesControllerTest < ActionDispatch::IntegrationTest
     assert_response :not_found
   end
 
+  test "show renders the release video with playsinline for iPhone reviewers" do
+    @needs_review.video.attach(io: StringIO.new("fake-mp4-bytes"), filename: "video.mp4", content_type: "video/mp4")
+
+    get judges_tournament_catch_path(tournament_id: @t.id, id: @needs_review.id)
+    assert_response :success
+    assert_select "video[playsinline][preload=metadata]"
+  end
+
   test "show renders styled action buttons (color-coded by action)" do
     get judges_tournament_catch_path(tournament_id: @t.id, id: @needs_review.id)
     assert_response :success

@@ -1,9 +1,9 @@
 import { pendingCatches, markSynced, markFailed, pruneSynced, deferRetry } from "offline/db"
 import { materialize } from "offline/blob"
+import { MAX_VIDEO_BYTES } from "offline/limits"
 
 const ENDPOINT = "/api/catches"
 const SESSION_ENDPOINT = "/api/session"
-const MAX_VIDEO_BYTES = 100 * 1024 * 1024  // keep in sync with Catch::VIDEO_MAX_BYTES
 
 let draining = false
 let rerunRequested = false
@@ -142,24 +142,29 @@ async function drainOnce() {
 
 window.addEventListener("online", () => { drain().catch(() => {}) })
 window.addEventListener("bsfamilies:try-sync", () => { drain().catch(() => {}) })
-window.addEventListener("load", () => { if (navigator.onLine) drain().catch(() => {}) })
+window.addEventListener("load", () => { drain().catch(() => {}) })
 
 // iOS has no Background Sync, so foregrounding the app is our main retry trigger
 // for catches queued during the event. Without this, pendings can sit until the
 // user manually reopens the page (see 2026-05-13 wrong-winner incident).
+// NOTE: no navigator.onLine gate on any trigger — WebKit's flag goes stale
+// (false while actually online) after backgrounding, and a wrongly-false flag
+// here stranded queued catches on phones with working connectivity. The
+// preflight fetch in drainOnce() is the real reachability check; when truly
+// offline it fails silently and the next trigger retries.
 document.addEventListener("visibilitychange", () => {
-  if (document.visibilityState === "visible" && navigator.onLine) drain().catch(() => {})
+  if (document.visibilityState === "visible") drain().catch(() => {})
 })
 
 // iOS back-navigation restores pages from the bfcache without firing load;
 // pageshow with persisted=true is the only signal those restores emit.
 window.addEventListener("pageshow", (e) => {
-  if (e.persisted && navigator.onLine) drain().catch(() => {})
+  if (e.persisted) drain().catch(() => {})
 })
 
 // Turbo Drive visits don't fire load either — retry as the user browses in-app.
 document.addEventListener("turbo:load", () => {
-  if (navigator.onLine) drain().catch(() => {})
+  drain().catch(() => {})
 })
 
 // Safety net for the no-lifecycle-event case (angler parked on the leaderboard
@@ -168,7 +173,7 @@ document.addEventListener("turbo:load", () => {
 // window.__syncRetryMs is a test override; real clients always use 45s.
 const RETRY_MS = Number(window.__syncRetryMs) || 45000
 setInterval(() => {
-  if (navigator.onLine && document.visibilityState === "visible") drain().catch(() => {})
+  if (document.visibilityState === "visible") drain().catch(() => {})
 }, RETRY_MS)
 
 navigator.serviceWorker?.addEventListener("message", (e) => {

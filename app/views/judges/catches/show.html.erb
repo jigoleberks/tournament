@@ -7,7 +7,17 @@
   <%= photo_full p[:attachment], size: [1600, 1600], class: "w-full rounded-lg bg-black mb-3" %>
 <% end %>
 <% if @catch.video.attached? %>
-  <%= video_tag url_for(@catch.video), controls: true, class: "w-full rounded-lg bg-black mb-3" %>
+  <%# playsinline: reviewers are on iPhones; without it playback hijacks into
+      the fullscreen player and you can't compare video against the details %>
+  <%= video_tag url_for(@catch.video), controls: true, playsinline: true, preload: "metadata",
+                class: "w-full rounded-lg bg-black mb-3" %>
+  <% if @catch.video.content_type == "video/webm" %>
+    <p class="text-xs text-slate-400 mb-3">
+      This video is webm, which iPhones can't play —
+      <%= link_to "download it", url_for(@catch.video), class: "text-blue-400 underline" %>
+      to view on a computer.
+    </p>
+  <% end %>
 <% end %>
 
 <p class="text-slate-300 mb-4">Status: <span class="text-slate-100 font-medium"><%= @catch.status.to_s.humanize %></span></p>

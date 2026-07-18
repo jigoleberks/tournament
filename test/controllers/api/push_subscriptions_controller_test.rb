@@ -70,6 +70,71 @@ class Api::PushSubscriptionsControllerTest < ActionDispatch::IntegrationTest
     assert_equal "newkey", stale.p256dh
   end
 
+  # POST /api/push_subscriptions/refresh — the service worker's
+  # pushsubscriptionchange self-heal. APNs/FCM rotate endpoints behind our
+  # back; the SW re-subscribes and swaps the stored row so alerts keep
+  # arriving instead of dying silently on ExpiredSubscription.
+
+  test "refresh rotates an existing subscription to the new endpoint and keys" do
+    create(:push_subscription, user: @user, endpoint: "https://e/old", p256dh: "p", auth: "a")
+    assert_no_difference "PushSubscription.count" do
+      post "/api/push_subscriptions/refresh", params: {
+        old_endpoint: "https://e/old",
+        subscription: { endpoint: "https://e/new", keys: { p256dh: "p2", auth: "a2" } }
+      }, as: :json
+    end
+    assert_response :no_content
+    assert_nil PushSubscription.find_by(endpoint: "https://e/old")
+    sub = PushSubscription.find_by(endpoint: "https://e/new")
+    assert_equal @user.id, sub.user_id
+    assert_equal "p2", sub.p256dh
+  end
+
+  # Possession of a previously-registered endpoint is the ownership proof
+  # (endpoints are unguessable capability URLs). Without a matching row the
+  # request proves nothing and must not create anything.
+  test "refresh with an unknown old endpoint is a 404 no-op" do
+    assert_no_difference "PushSubscription.count" do
+      post "/api/push_subscriptions/refresh", params: {
+        old_endpoint: "https://e/never-registered",
+        subscription: { endpoint: "https://e/new", keys: { p256dh: "p", auth: "a" } }
+      }, as: :json
+    end
+    assert_response :not_found
+  end
+
+  test "refresh requires sign-in" do
+    create(:push_subscription, user: @user, endpoint: "https://e/old")
+    reset!
+    post "/api/push_subscriptions/refresh", params: {
+      old_endpoint: "https://e/old",
+      subscription: { endpoint: "https://e/new", keys: { p256dh: "p", auth: "a" } }
+    }, as: :json
+    assert_response :unauthorized
+  end
+
+  # A service worker has no page, no csrf meta tag, no token. refresh must be
+  # exempt from CSRF verification (while create stays protected — its
+  # null_session turns a tokenless POST into a 401).
+  test "refresh works without a CSRF token while create stays protected" do
+    old_setting = ActionController::Base.allow_forgery_protection
+    ActionController::Base.allow_forgery_protection = true
+    create(:push_subscription, user: @user, endpoint: "https://e/old")
+
+    post "/api/push_subscriptions/refresh", params: {
+      old_endpoint: "https://e/old",
+      subscription: { endpoint: "https://e/new", keys: { p256dh: "p", auth: "a" } }
+    }, as: :json
+    assert_response :no_content
+
+    post "/api/push_subscriptions", params: {
+      subscription: { endpoint: "https://e/other", keys: { p256dh: "p", auth: "a" } }
+    }, as: :json
+    assert_response :unauthorized
+  ensure
+    ActionController::Base.allow_forgery_protection = old_setting
+  end
+
   test "destroying a subscription records push_unsubscribed" do
     user = create(:user)
     sign_in_as(user)

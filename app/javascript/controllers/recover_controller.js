@@ -1,6 +1,7 @@
 import { Controller } from "@hotwired/stimulus"
 import { pendingCatches, failedCatches, markSynced } from "offline/db"
 import { materialize } from "offline/blob"
+import { MAX_VIDEO_BYTES } from "offline/limits"
 
 // Reads stuck catch records from IndexedDB, re-materializes each photo blob
 // (see offline/blob.js for why), shows a thumbnail, and re-submits via the
@@ -132,16 +133,37 @@ export default class extends Controller {
     if (rec.video_failed) fd.append("catch[video_failed]", "true")
     if (rec.video) {
       const vid = await materialize(rec.video)
-      if (vid && (vid.size == null || vid.size <= 100 * 1024 * 1024)) {
+      if (vid && (vid.size == null || vid.size <= MAX_VIDEO_BYTES)) {
         const ext = (vid.type || "").includes("mp4") ? "mp4" : "webm"
         fd.append("catch[video]", vid, `video.${ext}`)
       }
     }
 
+    // Same preflight as offline/sync.js: iOS restores this page from the
+    // bfcache with a stale CSRF meta token, and re-submitting with it fails on
+    // every tap until a hard reload — on the tool of last resort. One cheap
+    // GET answers auth and returns a fresh token; the meta token is only the
+    // network-flake fallback.
+    let csrf
+    try {
+      const s = await fetch("/api/session", {
+        headers: { "Accept": "application/json" }, credentials: "same-origin"
+      })
+      if (s.status === 401) {
+        btn.disabled = false
+        btn.textContent = "Retry"
+        this.showError(li, "You're signed out — sign in, then tap Re-submit again.")
+        return
+      }
+      csrf = s.ok ? (await s.json()).csrf_token : this.csrfToken()
+    } catch (_) {
+      csrf = this.csrfToken()
+    }
+
     try {
       const resp = await fetch("/api/catches", {
         method: "POST",
-        headers: { "Accept": "application/json", "X-CSRF-Token": this.csrfToken() },
+        headers: { "Accept": "application/json", "X-CSRF-Token": csrf },
         body: fd,
         credentials: "same-origin"
       })

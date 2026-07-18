@@ -9,15 +9,22 @@ export default class extends Controller {
   async save(event) {
     event.preventDefault()
 
-    let blob
-    try {
-      const response = await fetch(this.urlValue)
-      if (!response.ok) throw new Error(`HTTP ${response.status}`)
-      blob = await response.blob()
-    } catch (err) {
-      console.warn("photo-save: fetch failed", err)
-      alert("Couldn't load photo. Try again when online.")
-      return
+    // Cache the blob across taps: on slow cellular the fetch below can outlive
+    // iOS's transient user activation, making share() reject NotAllowedError.
+    // The second tap then shares the cached blob immediately, well inside its
+    // own activation window.
+    let blob = this._blob
+    if (!blob) {
+      try {
+        const response = await fetch(this.urlValue)
+        if (!response.ok) throw new Error(`HTTP ${response.status}`)
+        blob = await response.blob()
+        this._blob = blob
+      } catch (err) {
+        console.warn("photo-save: fetch failed", err)
+        alert("Couldn't load photo. Try again when online.")
+        return
+      }
     }
 
     // Android's share sheet hides "Save image" behind a list of apps on
@@ -37,6 +44,13 @@ export default class extends Controller {
           return
         } catch (err) {
           if (err.name === "AbortError") return
+          // Activation expired during the fetch — the blob is cached now, so a
+          // second tap opens the sheet instantly. Don't fall through to the
+          // anchor download, which is a silent no-op in iOS standalone mode.
+          if (err.name === "NotAllowedError") {
+            alert("Tap “Save photo” once more to open the share sheet.")
+            return
+          }
           console.warn("photo-save: share failed, falling back", err)
         }
       }
