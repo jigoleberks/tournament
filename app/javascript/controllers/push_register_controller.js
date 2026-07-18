@@ -21,10 +21,15 @@ export default class extends Controller {
       this.setEnabled(false)
       return
     }
-    const reg = await navigator.serviceWorker.ready
-    const sub = await reg.pushManager.getSubscription()
-    this.statusTarget.textContent = sub ? "on" : "off"
-    this.setEnabled(!!sub)
+    try {
+      const reg = await withTimeout(navigator.serviceWorker.ready, 10000, "serviceWorker.ready")
+      const sub = await reg.pushManager.getSubscription()
+      this.statusTarget.textContent = sub ? "on" : "off"
+      this.setEnabled(!!sub)
+    } catch (_) {
+      this.statusTarget.textContent = "service worker unavailable"
+      this.setEnabled(false)
+    }
   }
 
   setEnabled(on) {
@@ -75,7 +80,8 @@ export default class extends Controller {
   }
 
   async disable() {
-    const reg = await navigator.serviceWorker.ready
+    let reg
+    try { reg = await withTimeout(navigator.serviceWorker.ready, 10000, "serviceWorker.ready") } catch (_) { return this.refresh() }
     const sub = await reg.pushManager.getSubscription()
     if (sub) {
       await sub.unsubscribe()

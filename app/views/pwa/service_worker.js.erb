@@ -7,7 +7,9 @@
   atomically, so a cross-origin pin (the leaflet CDN) would brick the install.
 %>
 <% import_paths = JSON.parse(Rails.application.importmap.to_json(resolver: self))["imports"].values %>
-<% precache = ["/offline", "/manifest.webmanifest", "/icon.png", asset_path("tailwind.css"), asset_path("leaflet.css")] +
+<% precache = ["/offline", "/manifest.webmanifest", "/icon.png",
+               "/icons/icon-180.png", "/icons/icon-192.png",
+               asset_path("tailwind.css"), asset_path("leaflet.css")] +
               import_paths.select { |p| p.start_with?("/") } %>
 const CACHE = <%= ("shell-" + ::AppVersion.current).to_json.html_safe %>;
 const SHELL = <%= precache.to_json.html_safe %>;
@@ -32,7 +34,7 @@ self.addEventListener("fetch", (event) => {
   if (url.origin !== location.origin) return;
 
   // Cache-first for immutable fingerprinted assets.
-  if (url.pathname.startsWith("/assets/") || url.pathname === "/manifest.webmanifest" || url.pathname === "/icon.png") {
+  if (url.pathname.startsWith("/assets/") || url.pathname.startsWith("/icons/") || url.pathname === "/manifest.webmanifest" || url.pathname === "/icon.png") {
     event.respondWith(
       caches.match(event.request).then((cached) => cached || fetch(event.request).then((res) => {
         if (res.status === 200) {
@@ -95,9 +97,25 @@ self.addEventListener("sync", (event) => {
   }
 });
 
+// The /offline shell embeds the species list and length caps server-side at
+// precache time; without this, "add a species for Saturday" never reaches
+// offline shells until the next AppVersion bump. Pages ping this once per
+// load while online (sw_register.js).
+self.addEventListener("message", (event) => {
+  if (event.data?.type !== "refresh-shell") return
+  event.waitUntil(
+    fetch("/offline").then((res) => {
+      if (res.status === 200) return caches.open(CACHE).then((c) => c.put("/offline", res))
+    }).catch(() => {})
+  )
+})
+
 self.addEventListener("push", (event) => {
   if (!event.data) return
-  const data = event.data.json()
+  // A non-JSON payload must degrade to a generic notification, not an
+  // unhandled rejection that shows nothing.
+  let data
+  try { data = event.data.json() } catch (_) { data = { title: "Tournament update", body: event.data.text() } }
   event.waitUntil(
     self.registration.showNotification(data.title, {
       body: data.body,
@@ -111,8 +129,11 @@ self.addEventListener("push", (event) => {
 self.addEventListener("notificationclick", (event) => {
   event.notification.close()
   const target = event.notification.data?.url || "/"
+  // Match on exact pathname: includes("/") matched EVERY same-origin client,
+  // focusing whatever page happened to be open instead of navigating.
+  const targetPath = new URL(target, self.location.origin).pathname
   event.waitUntil(self.clients.matchAll({ type: "window" }).then((clients) => {
-    const open = clients.find((c) => c.url.includes(target))
+    const open = clients.find((c) => new URL(c.url).pathname === targetPath)
     if (open) return open.focus()
     return self.clients.openWindow(target)
   }))
