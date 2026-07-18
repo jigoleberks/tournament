@@ -88,6 +88,8 @@
   </section>
 <% end %>
 
+<div data-controller="stream-refresh" hidden></div>
+
 <% case @viewer_scope.visibility
    when :full %>
   <%= turbo_stream_from "tournament:#{@tournament.id}:leaderboard:full" %>
