@@ -7,7 +7,11 @@
     <%= csp_meta_tag %>
 
     <%= stylesheet_link_tag "tailwind", "data-turbo-track": "reload" %>
-    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="">
+    <%# Vendored (was unpkg): a render-blocking cross-origin stylesheet in every
+        page's head meant 1-bar lake connectivity could stall first paint for
+        tens of seconds on pages with no map, and the SW deliberately never
+        caches cross-origin. Same-origin assets are SW-cache-first. %>
+    <%= stylesheet_link_tag "leaflet" %>
     <%= javascript_importmap_tags %>
   </head>
 
