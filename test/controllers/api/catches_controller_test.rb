@@ -385,8 +385,11 @@ class Api::CatchesControllerTest < ActionDispatch::IntegrationTest
     }
     payload.call
     catch_record = Catch.find_by!(client_uuid: "uuid-RECONCILE")
-    # Simulate the crash window: catch committed, PlaceInSlots' transaction rolled back.
+    # Simulate the crash window: catch committed, PlaceInSlots' transaction
+    # rolled back. In a real crash the evaluated stamp is never written (it
+    # lands after the pipeline), so clear it along with the placements.
     catch_record.catch_placements.destroy_all
+    catch_record.update_column(:placements_evaluated_at, nil)
 
     assert_difference "CatchPlacement.count", 1 do
       payload.call
@@ -406,6 +409,39 @@ class Api::CatchesControllerTest < ActionDispatch::IntegrationTest
     }
     payload.call
     assert_no_difference "CatchPlacement.count" do
+      payload.call
+    end
+    assert_response :ok
+  end
+
+  # A bingo catch legitimately keeps zero placements (the card is derived on
+  # read), so "no placements yet" cannot mean "not yet processed". Without the
+  # placements_evaluated_at stamp, every dedup retry (flaky LTE losing the 201,
+  # 45s ticks) re-ran the whole pipeline — rebroadcasting the card and
+  # re-enqueueing the flag/condition jobs indefinitely.
+  test "a dedup retry for a bingo catch does not re-run the placement pipeline" do
+    create_bingo_species!
+    bingo_user = create(:user, club: @club)
+    bingo = build(:tournament, club: @club, mode: :solo, format: :bingo,
+                  starts_at: 1.hour.ago, ends_at: 1.hour.from_now)
+    bingo.save!
+    entry = create(:tournament_entry, tournament: bingo)
+    create(:tournament_entry_member, tournament_entry: entry, user: bingo_user)
+    sign_in_as(bingo_user)
+
+    walleye = Species.find_by!(name: "Walleye")
+    photo = fixture_file_upload("sample_walleye.jpg", "image/jpeg")
+    payload = lambda {
+      post "/api/catches", params: {
+        catch: { species_id: walleye.id, length_inches: 18, captured_at_device: Time.current.iso8601,
+                 client_uuid: "uuid-BINGO-DEDUP", photo: photo }
+      }, headers: { "Accept" => "application/json" }
+    }
+    payload.call
+    assert_response :created
+    assert_not_nil Catch.find_by!(client_uuid: "uuid-BINGO-DEDUP").placements_evaluated_at
+
+    assert_no_enqueued_jobs only: [FetchCatchConditionsJob, FlagImportedPhotoJob] do
       payload.call
     end
     assert_response :ok

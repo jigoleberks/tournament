@@ -139,9 +139,19 @@ self.addEventListener("pushsubscriptionchange", (event) => {
         userVisibleOnly: true,
         applicationServerKey: urlB64ToUint8Array(VAPID_PUBLIC_KEY)
       })
+      // The server may have already destroyed the old row (delivery deletes on
+      // ExpiredSubscription), and oldSubscription can be null — possession of
+      // the old endpoint then proves nothing, and refresh would 404 the fresh
+      // subscription away. A CSRF token from /api/session is the fallback
+      // same-origin proof that lets the server accept it anyway.
+      let csrf = null
+      try {
+        const sess = await fetch("/api/session", { headers: { "Accept": "application/json" }, credentials: "include" })
+        if (sess.ok) csrf = (await sess.json()).csrf_token
+      } catch (_) {}
       await fetch("/api/push_subscriptions/refresh", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: Object.assign({ "Content-Type": "application/json" }, csrf ? { "X-CSRF-Token": csrf } : {}),
         credentials: "include",
         body: JSON.stringify({
           old_endpoint: event.oldSubscription && event.oldSubscription.endpoint,

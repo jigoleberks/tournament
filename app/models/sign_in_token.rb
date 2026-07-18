@@ -21,8 +21,11 @@ class SignInToken < ApplicationRecord
     )
   end
 
+  # Open codes coexist — issuing must NOT invalidate the others. The magic-link
+  # email path auto-issues a code from the public sign-in form, so invalidation
+  # would let anyone who knows a member's email kill an organizer-issued code
+  # mid-read-out. TTL and the attempt counter bound the open set instead.
   def self.issue_code!(user:, club: nil, issued_by: nil)
-    where(user: user, kind: "code").open.update_all(used_at: Time.current)
     create!(
       user: user,
       club: club || user.club_memberships.active.order(:created_at).first&.club,
@@ -50,15 +53,18 @@ class SignInToken < ApplicationRecord
     return nil unless user
     return nil if user.deactivated?
 
-    record = where(user: user, kind: "code").open.order(created_at: :desc).first
-    return nil unless record
+    records = where(user: user, kind: "code").open.order(created_at: :desc).to_a
+    return nil if records.empty?
 
-    if ActiveSupport::SecurityUtils.secure_compare(record.token, code.to_s.strip)
-      return claim(record) ? record : nil
+    match = records.find { |r| ActiveSupport::SecurityUtils.secure_compare(r.token, code.to_s.strip) }
+    return claim(match) ? match : nil if match
+
+    # A wrong try burns an attempt on EVERY open code — otherwise requesting a
+    # fresh code would hand a brute-forcer a clean counter.
+    records.each do |record|
+      record.increment!(:attempts)
+      claim(record) if record.attempts >= CODE_MAX_ATTEMPTS
     end
-
-    record.increment!(:attempts)
-    claim(record) if record.attempts >= CODE_MAX_ATTEMPTS
     nil
   end
 

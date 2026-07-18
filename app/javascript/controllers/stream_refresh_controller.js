@@ -42,7 +42,22 @@ export default class extends Controller {
     window.removeEventListener("pageshow", this.onPageshow)
   }
 
-  refresh() {
+  async refresh() {
+    // Probe reachability before visiting. Offline, the SW answers fetches
+    // with a 503 (or the /offline shell), and a replace-visit would wipe a
+    // stale-but-readable leaderboard — and its history entry — with it.
+    // navigator.onLine can't be trusted here (see the note in offline/sync.js:
+    // WebKit's flag goes stale after backgrounding), so a real fetch is the
+    // check: not-ok or thrown → stay on the snapshot; the next foreground
+    // retries.
+    try {
+      const resp = await fetch(window.location.href, {
+        method: "HEAD", cache: "no-store", credentials: "same-origin"
+      })
+      if (!resp.ok) return
+    } catch (_) {
+      return
+    }
     if (window.Turbo) {
       window.Turbo.visit(window.location.href, { action: "replace" })
     } else {

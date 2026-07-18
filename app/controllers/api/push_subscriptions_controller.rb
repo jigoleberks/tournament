@@ -37,7 +37,13 @@ class Api::PushSubscriptionsController < Api::BaseController
   # ExpiredSubscription.
   def refresh
     old = PushSubscription.find_by(endpoint: params[:old_endpoint])
-    return head :not_found unless old
+    # The old row is legitimately gone in the common rotation case: delivery
+    # destroys rows on ExpiredSubscription before the browser ever fires
+    # pushsubscriptionchange, and the event can carry no oldSubscription at
+    # all. Possession can't be proven then, so accept the new subscription
+    # only with a valid CSRF token (the SW fetches one from /api/session) —
+    # the same same-origin proof create relies on. No proof at all → 404.
+    return head :not_found unless old || csrf_token_valid?
 
     sub = PushSubscription.find_or_initialize_by(endpoint: params.dig(:subscription, :endpoint))
     sub.user = current_user
@@ -46,7 +52,7 @@ class Api::PushSubscriptionsController < Api::BaseController
       auth:   params.dig(:subscription, :keys, :auth)
     )
     if sub.save
-      old.destroy unless old.id == sub.id
+      old.destroy if old && old.id != sub.id
       head :no_content
     else
       render json: { errors: sub.errors.full_messages }, status: :unprocessable_entity
@@ -64,6 +70,13 @@ class Api::PushSubscriptionsController < Api::BaseController
   end
 
   private
+
+  # Manual CSRF check for refresh's no-old-row fallback (the action skips the
+  # automatic one). Mirrors verify_authenticity_token's semantics, including
+  # being a pass when forgery protection is globally off (tests).
+  def csrf_token_valid?
+    !protect_against_forgery? || any_authenticity_token_valid?
+  end
 
   def endpoint_host(endpoint)
     URI.parse(endpoint.to_s).host

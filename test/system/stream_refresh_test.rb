@@ -34,4 +34,43 @@ class StreamRefreshTest < ApplicationSystemTestCase
     # server re-render shows the new name.
     assert_text "Renamed Boat", wait: 5
   end
+
+  # Offline on the water, the service worker answers fetches with a bare 503
+  # ("offline"); an unguarded replace-visit on foreground/restore would render
+  # that over a stale-but-readable leaderboard — strictly worse than doing
+  # nothing. The controller must probe reachability and keep the snapshot.
+  test "an offline restore visit keeps the stale leaderboard instead of wiping it" do
+    club = create(:club)
+    walleye = create(:species, club: club)
+    angler = create(:user, club: club, name: "Angler A")
+
+    tournament = create(:tournament, club: club, name: "League Night",
+                        starts_at: 1.hour.ago, ends_at: 1.hour.from_now)
+    create(:scoring_slot, tournament: tournament, species: walleye, slot_count: 1)
+    entry = create(:tournament_entry, tournament: tournament, name: "Zebra Boat")
+    create(:tournament_entry_member, tournament_entry: entry, user: angler)
+
+    sign_in_as(angler)
+    visit tournament_path(tournament)
+    assert_text "Zebra Boat"
+
+    find("a[aria-label='Home']").click
+    assert_text "Hello, #{angler.name}", wait: 5
+
+    # Simulate network loss the way the SW presents it: every fetch resolves
+    # to a 503 "offline" response. Both the reachability probe and Turbo's
+    # visit fetch see this.
+    page.execute_script(<<~JS)
+      window.fetch = () => Promise.resolve(
+        new Response("offline", { status: 503, headers: { "Content-Type": "text/html" } })
+      )
+    JS
+
+    page.go_back
+
+    # The restored snapshot must survive. Before the guard, Turbo rendered the
+    # 503 body and the leaderboard was wiped.
+    sleep 1
+    assert_text "Zebra Boat", wait: 5
+  end
 end

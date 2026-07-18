@@ -59,6 +59,9 @@ class Api::CatchesController < Api::BaseController
       Catches::FlagDuplicates.call(catch: catch_record) if catch_record.flags.include?("possible_duplicate")
       FetchCatchConditionsJob.perform_later(catch_id: catch_record.id)
       FlagImportedPhotoJob.perform_later(catch_id: catch_record.id)
+      # Stamped LAST: a crash anywhere above leaves it nil, so the dedup retry
+      # knows to re-run the pipeline (see serialize_existing).
+      catch_record.update_column(:placements_evaluated_at, Time.current)
       render json: serialize(catch_record, placements: placements[:created], flags: catch_record.flags), status: :created
     else
       catch_record.errors.add(:photo, "is required") unless catch_record.photo.attached?
@@ -81,16 +84,21 @@ class Api::CatchesController < Api::BaseController
   # between them (deadlock on a busy night) leaves a committed catch with no
   # placements. The client's retry lands here — if we answered "ok" without
   # placing, the queued row would be deleted and the fish silently never
-  # scores. Re-run placement when the catch has none: PlaceInSlots yields the
-  # exact same placements a first run would (or zero again, harmlessly, when
-  # the catch legitimately matches no slot), and the flag/condition jobs are
-  # idempotent (add_flag! is a guarded single UPDATE).
+  # scores. Re-run placement when the pipeline never completed: PlaceInSlots
+  # yields the exact same placements a first run would, and the
+  # flag/condition jobs are idempotent (add_flag! is a guarded single
+  # UPDATE). "No placements" alone can't be the signal — bingo keeps none by
+  # design and a catch can legitimately match no slot, and re-running for
+  # those on every flaky-LTE retry meant endless rebroadcast/job churn —
+  # hence the placements_evaluated_at stamp, written only after a completed
+  # run.
   def serialize_existing(existing)
-    if existing.photo.attached? && existing.catch_placements.none?
+    if existing.photo.attached? && existing.placements_evaluated_at.nil? && existing.catch_placements.none?
       placements = Catches::PlaceInSlots.call(catch: existing)
       Catches::FlagDuplicates.call(catch: existing) if existing.flags.include?("possible_duplicate")
       FetchCatchConditionsJob.perform_later(catch_id: existing.id)
       FlagImportedPhotoJob.perform_later(catch_id: existing.id)
+      existing.update_column(:placements_evaluated_at, Time.current)
       serialize(existing, placements: placements[:created], flags: existing.flags)
     else
       serialize(existing, flags: existing.flags)

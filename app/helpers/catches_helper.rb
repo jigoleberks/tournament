@@ -34,13 +34,12 @@ module CatchesHelper
   end
 
   # URL for the "Save photo" download — FULL resolution, never the resized
-  # display variant. A JPEG original (Android native camera) is served as-is,
-  # so the user gets the exact full-size file with no re-encode or quality
-  # loss. A non-JPEG original (iOS HEIC, PNG, WebP) is transcoded to a
-  # full-resolution JPEG so the saved file opens anywhere and matches the
-  # .jpg download name.
+  # display variant. Always a stripped JPEG variant, including for JPEG
+  # originals: an Android native-camera JPEG carries full-precision GPS EXIF,
+  # and serving it raw would hand any club member the honey hole the
+  # coordinate fuzzing hides. The re-encode costs a little quality; the
+  # metadata strip is the point.
   def photo_download_url(attachment)
-    return url_for(attachment) if attachment.content_type == "image/jpeg"
     url_for(attachment.variant(format: :jpeg, saver: { strip: true }))
   end
 

@@ -24,6 +24,17 @@ class SessionsControllerTest < ActionDispatch::IntegrationTest
     assert_redirected_to "/session/check_email"
   end
 
+  # The email form is public — a magic-link request (from the member, or from
+  # anyone at all who knows the address) must not kill a code an organizer
+  # just read out to the member.
+  test "a magic-link request does not invalidate an organizer-issued code" do
+    organizer_code = SignInToken.issue_code!(user: @user)
+    post session_path, params: { email: "joe@example.com" }
+    post code_session_path, params: { email: "joe@example.com", code: organizer_code.token }
+    assert_redirected_to root_path
+    assert_equal @user.id, session[:user_id]
+  end
+
   test "GET consume signs the user in for a valid token" do
     token = SignInToken.issue!(user: @user)
     get consume_session_path(token: token.token)

@@ -47,10 +47,34 @@ class SignInTokenTest < ActiveSupport::TestCase
     assert_in_delta 10.minutes.from_now, code.expires_at, 5
   end
 
-  test "issue_code! invalidates any prior open code for the user" do
+  # Issuing must NOT invalidate other open codes: the magic-link email path
+  # auto-issues a code from the public, unauthenticated sign-in form, so
+  # invalidation would let anyone who knows a member's email kill an
+  # organizer-issued code before the member can type it in.
+  test "issue_code! leaves prior open codes valid" do
     first = SignInToken.issue_code!(user: @user)
     SignInToken.issue_code!(user: @user)
+    assert_nil first.reload.used_at
+  end
+
+  test "consume_code! accepts an older open code after a newer one was issued" do
+    first = SignInToken.issue_code!(user: @user)
+    SignInToken.issue_code!(user: @user)
+    record = SignInToken.consume_code!(email: @user.email, code: first.token)
+    assert_equal first, record
     assert_not_nil first.reload.used_at
+  end
+
+  # With codes coexisting, a wrong try must burn an attempt on every open code —
+  # otherwise issuing fresh codes would hand a brute-forcer a clean counter.
+  test "wrong tries count against every open code" do
+    first  = SignInToken.issue_code!(user: @user)
+    second = SignInToken.issue_code!(user: @user)
+    SignInToken::CODE_MAX_ATTEMPTS.times do
+      assert_nil SignInToken.consume_code!(email: @user.email, code: "00000000")
+    end
+    assert_not_nil first.reload.used_at
+    assert_not_nil second.reload.used_at
   end
 
   test "consume_code! signs in when email and code match" do

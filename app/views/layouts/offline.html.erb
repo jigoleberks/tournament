@@ -3,6 +3,11 @@
   <head>
     <title><%= ENV.fetch("APP_NAME", "Tournament") %></title>
     <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+    <%# catch_form_controller stamps queued_by_user_id from this meta (same as
+        layouts/application). The SW re-caches this shell on every page load,
+        so it tracks the signed-in user; without it, offline-shell catches get
+        a null stamp and bypass the shared-phone wrong-account guards. %>
+    <% if signed_in? %><meta name="current-user-id" content="<%= current_user.id %>"><% end %>
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="mobile-web-app-capable" content="yes">
 

@@ -144,10 +144,12 @@ class CatchesHelperTest < ActionView::TestCase
     refute_includes url, "/rails/active_storage/blobs/"
   end
 
-  test "photo_download_url serves a JPEG original raw (full size, no resize variant)" do
+  test "photo_download_url serves a JPEG original through a stripped variant, never the raw blob" do
+    # The raw original ships full-precision GPS EXIF — an Android native-camera
+    # JPEG saved by a rival is the honey-hole leak the strip exists to close.
     url = photo_download_url(attached_photo)
-    assert_includes url, "/rails/active_storage/blobs/"
-    refute_includes url, "/representations/"
+    assert_includes url, "/rails/active_storage/representations/"
+    refute_includes url, "/rails/active_storage/blobs/"
   end
 
   test "photo_download_url transcodes a non-JPEG original to a full-resolution JPEG" do
