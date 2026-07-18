@@ -21,6 +21,10 @@
       // detect a stale PWA shell (a cached shell carries an old data-app-build).
       document.cookie = "app_build=" + encodeURIComponent(document.documentElement.dataset.appBuild || "") + "; path=/; max-age=31536000; samesite=lax";
     </script>
+    <%# The drain preflight can dispatch bsfamilies:sync-auth-required from this
+        shell too (signed-out user parked here when signal returns). Without
+        this partial the event had no listener and the notice was silent. %>
+    <%= render "shared/sync_auth_notice" %>
     <main class="max-w-md mx-auto px-4 pb-24">
       <%= yield %>
     </main>

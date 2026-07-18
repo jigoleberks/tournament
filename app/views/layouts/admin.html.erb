@@ -5,6 +5,10 @@
     <meta name="viewport" content="width=device-width,initial-scale=1">
     <%= csrf_meta_tags %>
     <%= csp_meta_tag %>
+    <%# Shared club laptop: after sign-out, Back must not replay member emails /
+        sign-in codes from Turbo's in-memory snapshot cache (restoration visits
+        never hit the server). %>
+    <meta name="turbo-cache-control" content="no-cache">
 
     <%= stylesheet_link_tag "tailwind", "data-turbo-track": "reload" %>
     <%# Vendored (was unpkg): a render-blocking cross-origin stylesheet in every
