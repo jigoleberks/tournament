@@ -101,7 +101,8 @@ export default class extends Controller {
         photo: photo,
         video: video,
         video_failed: this.videoFailed,
-        teammate_user_id: this.teammateUserIdValue || null
+        teammate_user_id: this.teammateUserIdValue || null,
+        queued_by_user_id: document.querySelector("meta[name='current-user-id']")?.content || null
       }
 
       await enqueueCatch(record)

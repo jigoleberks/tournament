@@ -8,6 +8,7 @@
     <%= csrf_meta_tags %>
     <%= csp_meta_tag %>
     <meta name="vapid-public-key" content="<%= VAPID[:public_key] %>">
+    <% if signed_in? %><meta name="current-user-id" content="<%= current_user.id %>"><% end %>
 
     <%= yield :head %>
 

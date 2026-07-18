@@ -128,6 +128,15 @@ export default class extends Controller {
     if (rec.weight_text) fd.append("catch[weight_text]", rec.weight_text)
     fd.append("catch[photo]", fresh, `recovered.${this.extensionFor(fresh.type)}`)
     if (rec.teammate_user_id) fd.append("teammate_user_id", rec.teammate_user_id)
+    if (rec.queued_by_user_id) fd.append("catch[queued_by_user_id]", rec.queued_by_user_id)
+    if (rec.video_failed) fd.append("catch[video_failed]", "true")
+    if (rec.video) {
+      const vid = await materialize(rec.video)
+      if (vid && (vid.size == null || vid.size <= 100 * 1024 * 1024)) {
+        const ext = (vid.type || "").includes("mp4") ? "mp4" : "webm"
+        fd.append("catch[video]", vid, `video.${ext}`)
+      }
+    }
 
     try {
       const resp = await fetch("/api/catches", {

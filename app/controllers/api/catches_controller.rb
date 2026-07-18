@@ -6,6 +6,17 @@ class Api::CatchesController < Api::BaseController
       return render(json: serialize_existing(existing), status: :ok)
     end
 
+    # The offline queue stamps who was signed in at capture. If a different
+    # account is signed in at drain time (shared family phone), refuse rather
+    # than credit the wrong angler on a live leaderboard. The record stays on
+    # the device for the right user to sync later. Dedup runs first: a catch
+    # the server already owns is answered normally regardless.
+    queued_by = params.dig(:catch, :queued_by_user_id)
+    if queued_by.present? && queued_by.to_s != current_user.id.to_s
+      return render json: { errors: ["This catch was logged under a different account. Sign in as that member and retry from Pending catches."] },
+                    status: :unprocessable_entity
+    end
+
     teammate_id = params[:teammate_user_id].presence
     if teammate_id && current_club.nil?
       return render json: { errors: ["You have no active club membership."] }, status: :unprocessable_entity

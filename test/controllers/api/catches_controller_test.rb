@@ -462,6 +462,27 @@ class Api::CatchesControllerTest < ActionDispatch::IntegrationTest
     assert_not_includes JSON.parse(response.body)["flags"], "video_missing"
   end
 
+  test "queued_by_user_id mismatch is rejected so a shared phone can't misattribute a catch" do
+    photo = fixture_file_upload("sample_walleye.jpg", "image/jpeg")
+    post "/api/catches", params: {
+      catch: { species_id: @walleye.id, length_inches: 20, captured_at_device: Time.current.iso8601,
+               client_uuid: "uuid-WRONGUSER", photo: photo,
+               queued_by_user_id: @user.id + 1 }
+    }, headers: { "Accept" => "application/json" }
+    assert_response :unprocessable_entity
+    assert_match(/different account/i, JSON.parse(response.body)["errors"].join)
+  end
+
+  test "matching queued_by_user_id is accepted" do
+    photo = fixture_file_upload("sample_walleye.jpg", "image/jpeg")
+    post "/api/catches", params: {
+      catch: { species_id: @walleye.id, length_inches: 20, captured_at_device: Time.current.iso8601,
+               client_uuid: "uuid-RIGHTUSER", photo: photo,
+               queued_by_user_id: @user.id }
+    }, headers: { "Accept" => "application/json" }
+    assert_response :created
+  end
+
   test "teammate submission with no active club membership returns 422, not 500" do
     @user.club_memberships.destroy_all
     photo = fixture_file_upload("sample_walleye.jpg", "image/jpeg")

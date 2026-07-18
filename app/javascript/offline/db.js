@@ -65,5 +65,19 @@ export async function markFailed(client_uuid, reason) {
 export async function markPending(client_uuid) {
   const db = await getDB();
   const rec = await db.get("catches", client_uuid);
-  if (rec) await db.put("catches", { ...rec, status: "pending", reason: null, failed_at: null });
+  if (rec) await db.put("catches", { ...rec, status: "pending", reason: null, failed_at: null, attempts: 0, next_attempt_at: null });
+}
+
+// Exponential backoff for records the server keeps 5xx/408/429-ing: without
+// it, every 45s tick re-uploads the full multi-MB photo body of a
+// deterministically failing record — a battery/data drain on the water.
+// Network-level failures do NOT defer (signal returning should sync
+// immediately); only "server reachable but erroring" does.
+export async function deferRetry(client_uuid) {
+  const db = await getDB();
+  const rec = await db.get("catches", client_uuid);
+  if (!rec || rec.status !== "pending") return;
+  const attempts = (rec.attempts || 0) + 1;
+  const delayMs = Math.min(45000 * 2 ** attempts, 15 * 60 * 1000);
+  await db.put("catches", { ...rec, attempts, next_attempt_at: Date.now() + delayMs });
 }
