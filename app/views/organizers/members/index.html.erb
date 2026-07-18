@@ -1,3 +1,11 @@
+<% content_for :head do %>
+  <%# Shared club laptop: after sign-out, Back must not replay member emails /
+      live sign-in codes from Turbo's snapshot cache (restoration visits never
+      hit the server). Scoped here rather than the whole application layout so
+      normal member pages keep instant back-nav. %>
+  <meta name="turbo-cache-control" content="no-cache">
+<% end %>
+
 <h1 class="text-2xl font-semibold mt-4 mb-4">Members</h1>
 <%= link_to "Invite", new_organizers_member_path,
             class: "inline-block h-12 px-4 leading-[3rem] rounded-lg bg-blue-600 text-white" %>
