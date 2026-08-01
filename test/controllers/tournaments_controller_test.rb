@@ -107,12 +107,14 @@ class TournamentsControllerTest < ActionDispatch::IntegrationTest
     assert_no_match "Ask an organizer to add you", response.body
   end
 
-  test "archived shows the leaderboard hint on a locked entrants-only row" do
-    create(:tournament, club: @club, name: "Closed Archive",
+  test "archived renders a clickable link (no hint) for an ended entrants-only tournament" do
+    tournament = create(:tournament, club: @club, name: "Closed Archive",
            starts_at: 6.days.ago, ends_at: 5.days.ago, entrants_only_leaderboard: true)
     get archived_tournaments_path
     assert_response :success
-    assert_match "Ask an organizer to add you", response.body
+    assert_match "Closed Archive", response.body
+    assert_no_match "Ask an organizer to add you", response.body
+    assert_select "a[href=?]", tournament_path(tournament)
   end
 
   test "show with entrants_only_leaderboard on: non-entered member is redirected with a flash" do
@@ -123,11 +125,19 @@ class TournamentsControllerTest < ActionDispatch::IntegrationTest
     assert_match(/Ask an organizer to add you/, flash[:alert].to_s)
   end
 
-  test "show with entrants_only_leaderboard on: redirect still applies after the tournament ends" do
+  test "show with entrants_only_leaderboard on: non-entered member is allowed after the tournament ends" do
     tournament = create(:tournament, club: @club, starts_at: 2.hours.ago, ends_at: 1.hour.ago,
                                      entrants_only_leaderboard: true)
     get tournament_path(tournament)
-    assert_redirected_to root_path
+    assert_response :success
+  end
+
+  test "show with entrants_only_leaderboard on: signed-out visitor is still blocked after the tournament ends" do
+    tournament = create(:tournament, club: @club, starts_at: 2.hours.ago, ends_at: 1.hour.ago,
+                                     entrants_only_leaderboard: true)
+    delete session_path
+    get tournament_path(tournament)
+    assert_redirected_to new_session_path
   end
 
   test "show with entrants_only_leaderboard on: entered member is allowed" do

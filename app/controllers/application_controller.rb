@@ -10,6 +10,9 @@ class ApplicationController < ActionController::Base
   def tournament_leaderboard_visible?(tournament)
     return false unless current_user && tournament
     return true unless tournament.entrants_only_leaderboard?
+    # The entrants-only restriction only applies while the tournament is
+    # running; once it ends the leaderboard opens to every signed-in member.
+    return true if tournament.ended?
     return true if current_user.admin?
     return true if organizer_club_ids.include?(tournament.club_id)
     return true if judged_tournament_ids.include?(tournament.id)
