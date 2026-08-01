@@ -56,7 +56,8 @@ module SeasonPoints
         awards = ::Tournaments::SeasonPointsAwarded.call(
           tournament: t,
           top_three: top_three,
-          member_ids: member_ids_by_tid[t.id] || []
+          member_ids: member_ids_by_tid[t.id] || [],
+          entry_count: (entries_by_tid[t.id] || []).size
         )
         awards.each do |user_id, points|
           totals[user_id] += points
