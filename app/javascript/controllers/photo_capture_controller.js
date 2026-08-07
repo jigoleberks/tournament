@@ -23,6 +23,10 @@ export default class extends Controller {
   }
 
   retake() {
+    // The button sits inline in the form beside the species and length fields,
+    // so a one-handed mis-tap would otherwise throw the angler straight into
+    // the OS camera mid-entry.
+    if (!window.confirm("Retake the photo? Your current photo will be replaced.")) return
     // Clearing value guarantees a change event fires even if the user re-picks
     // the same file the OS would otherwise treat as no-change.
     this.inputTarget.value = ""
