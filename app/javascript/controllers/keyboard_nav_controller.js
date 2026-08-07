@@ -7,6 +7,12 @@ import { Controller } from "@hotwired/stimulus"
 // photo/video) one accidental thumb-tap above the keyboard.
 export default class extends Controller {
   connect() {
+    // Turbo can snapshot the page while the nav is hidden (input focused when
+    // the user navigated away, before the 150ms show-timer fired); on a
+    // restoration visit that snapshot renders as-is and nothing else would
+    // ever remove the class. Nothing has focus right after a restore, so
+    // visible is always the correct starting state.
+    this.element.classList.remove("hidden")
     this.onFocusIn = (e) => {
       if (!this._wantsKeyboard(e.target)) return
       clearTimeout(this._showTimer)

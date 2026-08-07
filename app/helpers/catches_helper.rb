@@ -7,14 +7,22 @@ module CatchesHelper
     "https://maps.google.com/?q=#{catch.latitude.to_f},#{catch.longitude.to_f}"
   end
 
+  # The one authoritative spelling of the EXIF-strip transcode: every photo we
+  # serve — display variant or download — goes through this. The strip is a
+  # privacy control: the original EXIF carries full-precision GPS, and any club
+  # member can save a rival's catch photo — the coordinate fuzzing in the views
+  # is pointless if the pixels ship the honey hole.
+  def stripped_jpeg_variant(attachment, size: nil)
+    options = { format: :jpeg, saver: { strip: true } }
+    options[:resize_to_limit] = size if size
+    attachment.variant(**options)
+  end
+
   # A resized JPEG variant of an attachment. Catch photos are full-resolution
   # phone stills (multi-MB, HEIC on iOS); resizing AND transcoding to JPEG means
-  # every browser can render them. Metadata is stripped: the original EXIF
-  # carries full-precision GPS, and any club member can save a rival's catch
-  # photo from the modal — the coordinate fuzzing in the views is pointless if
-  # the pixels ship the honey hole. Generated on first request, cached on disk.
+  # every browser can render them. Generated on first request, cached on disk.
   def jpeg_variant(attachment, size)
-    attachment.variant(resize_to_limit: size, format: :jpeg, saver: { strip: true })
+    stripped_jpeg_variant(attachment, size: size)
   end
 
   # Renders a resized, lazy-loaded <img> for an Active Storage attachment.
@@ -34,13 +42,12 @@ module CatchesHelper
   end
 
   # URL for the "Save photo" download — FULL resolution, never the resized
-  # display variant. Always a stripped JPEG variant, including for JPEG
-  # originals: an Android native-camera JPEG carries full-precision GPS EXIF,
-  # and serving it raw would hand any club member the honey hole the
-  # coordinate fuzzing hides. The re-encode costs a little quality; the
-  # metadata strip is the point.
+  # display variant. Still a stripped JPEG, including for JPEG originals: an
+  # Android native-camera JPEG carries full-precision GPS EXIF, and serving it
+  # raw would hand out what the fuzzing hides. The re-encode costs a little
+  # quality; the metadata strip is the point.
   def photo_download_url(attachment)
-    url_for(attachment.variant(format: :jpeg, saver: { strip: true }))
+    url_for(stripped_jpeg_variant(attachment))
   end
 
   # The photo(s) to show on a single-catch detail/modal page, as an ordered list

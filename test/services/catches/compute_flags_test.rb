@@ -139,6 +139,30 @@ class Catches::ComputeFlagsTest < ActiveSupport::TestCase
     assert_not_includes Catches::ComputeFlags.call(catch_record), "out_of_bounds"
   end
 
+  test "recompute does not retroactively stamp video_missing when the requirement is enabled later" do
+    tournament = create(:tournament, club: @club,
+                        starts_at: 1.hour.ago, ends_at: 1.hour.from_now,
+                        requires_release_video: false)
+    entry = create(:tournament_entry, tournament: tournament)
+    create(:tournament_entry_member, tournament_entry: entry, user: @user)
+    catch_record = create(:catch, user: @user, species: @walleye,
+                          latitude: 49.41, longitude: -103.62,
+                          captured_at_device: Time.current, captured_at_gps: Time.current,
+                          flags: [])
+    tournament.update!(requires_release_video: true)
+    assert_not_includes Catches::ComputeFlags.recompute(catch_record), "video_missing"
+  end
+
+  test "recompute preserves a video_missing flag stamped at submission" do
+    # No requires_release_video tournament is active now — the flag written at
+    # create time must still survive a judge-action recompute.
+    catch_record = create(:catch, user: @user, species: @walleye,
+                          latitude: 49.41, longitude: -103.62,
+                          captured_at_device: Time.current, captured_at_gps: Time.current,
+                          flags: ["video_missing"])
+    assert_includes Catches::ComputeFlags.recompute(catch_record), "video_missing"
+  end
+
   test "out_of_province suppressed when override_in_sask is set" do
     catch_record = build(:catch, user: @user, species: @walleye,
                                  latitude: 49.9, longitude: -97.1, # Winnipeg: outside SK

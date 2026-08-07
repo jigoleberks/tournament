@@ -100,7 +100,7 @@ self.addEventListener("sync", (event) => {
 // The /offline shell embeds the species list and length caps server-side at
 // precache time; without this, "add a species for Saturday" never reaches
 // offline shells until the next AppVersion bump. Pages ping this once per
-// load while online (sw_register.js).
+// load (sw_register.js); when truly offline the fetch fails quietly below.
 self.addEventListener("message", (event) => {
   if (event.data?.type !== "refresh-shell") return
   event.waitUntil(

@@ -148,6 +148,20 @@ class CatchTest < ActiveSupport::TestCase
     assert_empty catch_record.errors[:video]
   end
 
+  test "a legacy video the old API accepted unvalidated does not block later saves" do
+    catch_record = create(:catch, user: @user, species: @walleye)
+    # Attach directly at the Active Storage layer, bypassing model validation —
+    # the state a pre-gate catch row is actually in.
+    blob = ActiveStorage::Blob.create_and_upload!(
+      io: StringIO.new("x"), filename: "clip.3gp", content_type: "video/3gpp"
+    )
+    ActiveStorage::Attachment.create!(name: "video", record: catch_record, blob: blob)
+    catch_record.reload
+
+    catch_record.status = :needs_review
+    assert catch_record.valid?, catch_record.errors.full_messages.join(", ")
+  end
+
   # One row per capped species; a catch over the cap is invalid and the error
   # names the species. Boundary (== cap is valid) cases are kept explicit below.
   LENGTH_CAPS = {

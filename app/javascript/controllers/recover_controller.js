@@ -1,7 +1,7 @@
 import { Controller } from "@hotwired/stimulus"
 import { pendingCatches, failedCatches, markSynced } from "offline/db"
 import { materialize } from "offline/blob"
-import { MAX_VIDEO_BYTES } from "offline/limits"
+import { buildCatchFormData } from "offline/form_data"
 
 // Reads stuck catch records from IndexedDB, re-materializes each photo blob
 // (see offline/blob.js for why), shows a thumbnail, and re-submits via the
@@ -113,31 +113,7 @@ export default class extends Controller {
     btn.disabled = true
     btn.textContent = "Sending…"
 
-    const fd = new FormData()
-    fd.append("catch[client_uuid]", rec.client_uuid)
-    fd.append("catch[species_id]", rec.species_id)
-    fd.append("catch[length_inches]", rec.length_inches)
-    if (rec.length_unit) fd.append("catch[length_unit]", rec.length_unit)
-    fd.append("catch[captured_at_device]", rec.captured_at_device)
-    if (rec.captured_at_gps) fd.append("catch[captured_at_gps]", rec.captured_at_gps)
-    if (rec.latitude != null) fd.append("catch[latitude]", rec.latitude)
-    if (rec.longitude != null) fd.append("catch[longitude]", rec.longitude)
-    if (rec.gps_accuracy_m != null) fd.append("catch[gps_accuracy_m]", rec.gps_accuracy_m)
-    if (rec.app_build) fd.append("catch[app_build]", rec.app_build)
-    if (rec.note) fd.append("catch[note]", rec.note)
-    if (rec.tag_number) fd.append("catch[tag_number]", rec.tag_number)
-    if (rec.weight_text) fd.append("catch[weight_text]", rec.weight_text)
-    fd.append("catch[photo]", fresh, `recovered.${this.extensionFor(fresh.type)}`)
-    if (rec.teammate_user_id) fd.append("teammate_user_id", rec.teammate_user_id)
-    if (rec.queued_by_user_id) fd.append("catch[queued_by_user_id]", rec.queued_by_user_id)
-    if (rec.video_failed) fd.append("catch[video_failed]", "true")
-    if (rec.video) {
-      const vid = await materialize(rec.video)
-      if (vid && (vid.size == null || vid.size <= MAX_VIDEO_BYTES)) {
-        const ext = (vid.type || "").includes("mp4") ? "mp4" : "webm"
-        fd.append("catch[video]", vid, `video.${ext}`)
-      }
-    }
+    const fd = await buildCatchFormData(rec, fresh, `recovered.${this.extensionFor(fresh.type)}`)
 
     // Same preflight as offline/sync.js: iOS restores this page from the
     // bfcache with a stale CSRF meta token, and re-submitting with it fails on

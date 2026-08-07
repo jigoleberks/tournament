@@ -55,13 +55,7 @@ class Api::CatchesController < Api::BaseController
     end
 
     if saved && catch_record.photo.attached?
-      placements = Catches::PlaceInSlots.call(catch: catch_record)
-      Catches::FlagDuplicates.call(catch: catch_record) if catch_record.flags.include?("possible_duplicate")
-      FetchCatchConditionsJob.perform_later(catch_id: catch_record.id)
-      FlagImportedPhotoJob.perform_later(catch_id: catch_record.id)
-      # Stamped LAST: a crash anywhere above leaves it nil, so the dedup retry
-      # knows to re-run the pipeline (see serialize_existing).
-      catch_record.update_column(:placements_evaluated_at, Time.current)
+      placements = run_placement_pipeline(catch_record)
       render json: serialize(catch_record, placements: placements[:created], flags: catch_record.flags), status: :created
     else
       catch_record.errors.add(:photo, "is required") unless catch_record.photo.attached?
@@ -94,15 +88,26 @@ class Api::CatchesController < Api::BaseController
   # run.
   def serialize_existing(existing)
     if existing.photo.attached? && existing.placements_evaluated_at.nil? && existing.catch_placements.none?
-      placements = Catches::PlaceInSlots.call(catch: existing)
-      Catches::FlagDuplicates.call(catch: existing) if existing.flags.include?("possible_duplicate")
-      FetchCatchConditionsJob.perform_later(catch_id: existing.id)
-      FlagImportedPhotoJob.perform_later(catch_id: existing.id)
-      existing.update_column(:placements_evaluated_at, Time.current)
+      placements = run_placement_pipeline(existing)
       serialize(existing, placements: placements[:created], flags: existing.flags)
     else
       serialize(existing, flags: existing.flags)
     end
+  end
+
+  # The post-save pipeline shared by first-time saves (#create) and dedup
+  # retries whose first run crashed before completing (see serialize_existing).
+  # Every step is idempotent, so a re-run is safe. Returns the PlaceInSlots
+  # result.
+  def run_placement_pipeline(catch_record)
+    placements = Catches::PlaceInSlots.call(catch: catch_record)
+    Catches::FlagDuplicates.call(catch: catch_record) if catch_record.flags.include?("possible_duplicate")
+    FetchCatchConditionsJob.perform_later(catch_id: catch_record.id)
+    FlagImportedPhotoJob.perform_later(catch_id: catch_record.id)
+    # Stamped LAST: a crash anywhere above leaves it nil, so the dedup retry
+    # knows to re-run the pipeline.
+    catch_record.update_column(:placements_evaluated_at, Time.current)
+    placements
   end
 
   def shares_entry_at?(teammate, at)

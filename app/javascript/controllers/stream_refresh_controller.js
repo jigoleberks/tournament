@@ -40,9 +40,22 @@ export default class extends Controller {
   disconnect() {
     document.removeEventListener("visibilitychange", this.onVisibility)
     window.removeEventListener("pageshow", this.onPageshow)
+    if (this._modalObserver) {
+      this._modalObserver.disconnect()
+      this._modalObserver = null
+    }
   }
 
   async refresh() {
+    // A replace-visit would wipe an open catch-photo modal (the frame
+    // re-renders empty) and the photo the viewer is inspecting with it. Wait
+    // for the modal to close (its close button empties the frame), then
+    // refresh — the missed broadcasts still get picked up.
+    const modal = document.querySelector("turbo-frame#catch_photo_modal")
+    if (modal && modal.childElementCount > 0) {
+      this.refreshWhenModalCloses(modal)
+      return
+    }
     // Probe reachability before visiting. Offline, the SW answers fetches
     // with a 503 (or the /offline shell), and a replace-visit would wipe a
     // stale-but-readable leaderboard — and its history entry — with it.
@@ -59,9 +72,29 @@ export default class extends Controller {
       return
     }
     if (window.Turbo) {
-      window.Turbo.visit(window.location.href, { action: "replace" })
+      // A replace-visit resets scroll to top; put the viewer back where they
+      // were (mid-leaderboard) once the fresh page renders. Guarded on the
+      // URL so the one-shot listener can't scroll some later page the user
+      // navigated to instead.
+      const scrollY = window.scrollY
+      const href = window.location.href
+      document.addEventListener("turbo:load", () => {
+        if (window.location.href === href) window.scrollTo(0, scrollY)
+      }, { once: true })
+      window.Turbo.visit(href, { action: "replace" })
     } else {
       window.location.reload()
     }
+  }
+
+  refreshWhenModalCloses(modal) {
+    if (this._modalObserver) return
+    this._modalObserver = new MutationObserver(() => {
+      if (modal.childElementCount > 0) return
+      this._modalObserver.disconnect()
+      this._modalObserver = null
+      this.refresh()
+    })
+    this._modalObserver.observe(modal, { childList: true })
   }
 }

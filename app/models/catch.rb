@@ -183,9 +183,12 @@ class Catch < ApplicationRecord
 
   # `video` was permitted through the API with zero validation — an unbounded
   # authenticated upload of arbitrary bytes. Same shape of gate as the photos,
-  # with video types/cap.
+  # with video types/cap. Only checked while the video is being attached:
+  # catches predating this gate can carry a video the old API accepted as-is,
+  # and re-validating those on every save would make every later judge action
+  # (ApplyJudgeAction's update!) raise on an untouched record.
   def video_within_limits
-    return unless video.attached?
+    return unless attachment_changes["video"].is_a?(ActiveStorage::Attached::Changes::CreateOne)
     unless VIDEO_CONTENT_TYPES.include?(video.content_type)
       errors.add(:video, "must be an MP4, WebM, or QuickTime video")
     end

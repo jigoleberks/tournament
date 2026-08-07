@@ -11,6 +11,9 @@
     <% if signed_in? %><meta name="current-user-id" content="<%= current_user.id %>"><% end %>
 
     <%= yield :head %>
+    <% if @disable_turbo_snapshot_cache %>
+      <meta name="turbo-cache-control" content="no-cache">
+    <% end %>
 
     <link rel="manifest" href="/manifest.webmanifest">
     <meta name="theme-color" content="#0f172a">
