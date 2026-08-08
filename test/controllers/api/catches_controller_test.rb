@@ -513,6 +513,35 @@ class Api::CatchesControllerTest < ActionDispatch::IntegrationTest
     assert_includes Catches::ComputeFlags.recompute(c), "video_failed"
   end
 
+  # The photo is the catch; the video is optional evidence. A video the model
+  # gate would reject must not 422 the whole catch — sync.js would mark the
+  # queued record failed behind the angler's back. The server drops it and
+  # raises the same flag the angler-declared failure path uses.
+  test "an unacceptable video is dropped and flagged instead of failing the catch" do
+    photo = fixture_file_upload("sample_walleye.jpg", "image/jpeg")
+    bad_video = fixture_file_upload("sample_walleye.jpg", "video/x-msvideo")
+    post "/api/catches", params: {
+      catch: { species_id: @walleye.id, length_inches: 20, captured_at_device: Time.current.iso8601,
+               client_uuid: "uuid-VDROP", photo: photo, video: bad_video }
+    }, headers: { "Accept" => "application/json" }
+    assert_response :created
+    assert_includes JSON.parse(response.body)["flags"], "video_failed"
+    c = Catch.find_by!(client_uuid: "uuid-VDROP")
+    assert_not c.video.attached?
+  end
+
+  test "an acceptable video still attaches" do
+    photo = fixture_file_upload("sample_walleye.jpg", "image/jpeg")
+    video = fixture_file_upload("tiny.mp4", "video/mp4")
+    post "/api/catches", params: {
+      catch: { species_id: @walleye.id, length_inches: 20, captured_at_device: Time.current.iso8601,
+               client_uuid: "uuid-VOK", photo: photo, video: video }
+    }, headers: { "Accept" => "application/json" }
+    assert_response :created
+    assert_not_includes JSON.parse(response.body)["flags"], "video_failed"
+    assert Catch.find_by!(client_uuid: "uuid-VOK").video.attached?
+  end
+
   test "no video flag when no active tournament requires video" do
     photo = fixture_file_upload("sample_walleye.jpg", "image/jpeg")
     post "/api/catches", params: {

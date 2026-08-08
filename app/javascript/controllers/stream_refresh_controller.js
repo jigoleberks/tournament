@@ -62,10 +62,14 @@ export default class extends Controller {
     // navigator.onLine can't be trusted here (see the note in offline/sync.js:
     // WebKit's flag goes stale after backgrounding), so a real fetch is the
     // check: not-ok or thrown → stay on the snapshot; the next foreground
-    // retries.
+    // retries. redirect: "manual" so an expired session doesn't read as
+    // reachable — following require_sign_in!'s 302 lands on the sign-in
+    // page's 200, and the replace-visit would swap the stale-but-readable
+    // leaderboard (and its history entry) for the sign-in screen. A redirect
+    // comes back as an opaqueredirect (ok: false) and keeps the snapshot.
     try {
       const resp = await fetch(window.location.href, {
-        method: "HEAD", cache: "no-store", credentials: "same-origin"
+        method: "HEAD", cache: "no-store", credentials: "same-origin", redirect: "manual"
       })
       if (!resp.ok) return
     } catch (_) {

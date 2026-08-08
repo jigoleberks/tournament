@@ -59,11 +59,17 @@ class SignInToken < ApplicationRecord
     match = records.find { |r| ActiveSupport::SecurityUtils.secure_compare(r.token, code.to_s.strip) }
     return claim(match) ? match : nil if match
 
-    # A wrong try burns an attempt on EVERY open code — otherwise requesting a
-    # fresh code would hand a brute-forcer a clean counter. Set-based (two
-    # UPDATEs total, not one per open code): this is the unauthenticated
-    # sign-in path, the easiest endpoint for a stranger to hammer.
-    ids = records.map(&:id)
+    # A wrong try burns an attempt on every open SELF-ISSUED code — otherwise
+    # requesting a fresh code would hand a brute-forcer a clean counter.
+    # Set-based (two UPDATEs total, not one per open code): this is the
+    # unauthenticated sign-in path, the easiest endpoint for a stranger to
+    # hammer. Staff-issued codes (issued_by_user present) are exempt: the
+    # public form auto-issues codes for any known email, so a shared burn
+    # would let 5 wrong guesses from anyone kill an organizer-issued code
+    # mid-read-out — the same grief coexistence (above) exists to prevent.
+    # Their guess exposure is bounded by CODE_TTL and the per-IP+email rate
+    # limit on submit_code instead.
+    ids = records.select { |r| r.issued_by_user_id.nil? }.map(&:id)
     where(id: ids).update_all("attempts = attempts + 1")
     where(id: ids, used_at: nil).where(attempts: CODE_MAX_ATTEMPTS..).update_all(used_at: Time.current)
     nil

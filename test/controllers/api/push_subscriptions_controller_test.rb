@@ -127,6 +127,23 @@ class Api::PushSubscriptionsControllerTest < ActionDispatch::IntegrationTest
     assert_equal "p2", sub.p256dh
   end
 
+  # refresh is as passive as create's resync: the SW fires it for whoever is
+  # signed in. On a shared phone, a rotation while member B is signed in must
+  # not move member A's subscription to B — A tapped Enable, A keeps it.
+  test "refresh keeps the rotated subscription with its original owner" do
+    other = create(:user)
+    create(:push_subscription, user: other, endpoint: "https://e/owned-by-other", p256dh: "p", auth: "a")
+    assert_no_difference "PushSubscription.count" do
+      post "/api/push_subscriptions/refresh", params: {
+        old_endpoint: "https://e/owned-by-other",
+        subscription: { endpoint: "https://e/rotated-other", keys: { p256dh: "p2", auth: "a2" } }
+      }, as: :json
+    end
+    assert_response :no_content
+    assert_nil PushSubscription.find_by(endpoint: "https://e/owned-by-other")
+    assert_equal other.id, PushSubscription.find_by(endpoint: "https://e/rotated-other").user_id
+  end
+
   # Possession of a previously-registered endpoint is one ownership proof
   # (endpoints are unguessable capability URLs). Without a matching row AND
   # without a CSRF token the request proves nothing and must not create

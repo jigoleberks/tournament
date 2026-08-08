@@ -41,13 +41,19 @@ export default class extends Controller {
       if (navigator.canShare && navigator.canShare({ files: [file] })) {
         try {
           await navigator.share({ files: [file] })
+          this._sharePermissionDenied = false
           return
         } catch (err) {
           if (err.name === "AbortError") return
           // Activation expired during the fetch — the blob is cached now, so a
           // second tap opens the sheet instantly. Don't fall through to the
           // anchor download, which is a silent no-op in iOS standalone mode.
-          if (err.name === "NotAllowedError") {
+          // Once only, though: some browsers throw NotAllowedError for file
+          // shares no matter how fresh the activation (permissions-policy
+          // blocks that still pass canShare), and re-alerting forever would
+          // make the photo unsavable — the second denial falls back.
+          if (err.name === "NotAllowedError" && !this._sharePermissionDenied) {
+            this._sharePermissionDenied = true
             alert("Tap “Save photo” once more to open the share sheet.")
             return
           }

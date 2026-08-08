@@ -160,6 +160,19 @@ class CatchesHelperTest < ActionView::TestCase
     assert_includes url, "/rails/active_storage/representations/"
   end
 
+  test "photo_download_url serves full resolution at high quality with the strip" do
+    # Downloads are the largest quality we can serve (user decision
+    # 2026-08-08): no resize limit — the unbounded first-tap transcode is an
+    # accepted cost — and a high encode Q, but ALWAYS the metadata strip.
+    url = photo_download_url(attached_photo)
+    variation_key = url[%r{/representations/(?:redirect|proxy)/[^/]+/([^/]+)}, 1]
+    transformations = ActiveStorage::Variation.decode(variation_key).transformations
+    assert_nil transformations[:resize_to_limit]
+    assert_equal true, transformations[:saver][:strip]
+    assert_equal CatchesHelper::DOWNLOAD_JPEG_QUALITY, transformations[:saver][:Q]
+    assert_equal "jpeg", transformations[:format].to_s
+  end
+
   test "the JPEG variant transcodes a HEIC original (the iOS path)" do
     photo = attached_photo(path: "test/fixtures/files/sample_walleye.heic",
                            content_type: "image/heic", filename: "sample_walleye.heic")

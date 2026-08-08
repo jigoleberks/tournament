@@ -101,13 +101,27 @@ self.addEventListener("sync", (event) => {
 // precache time; without this, "add a species for Saturday" never reaches
 // offline shells until the next AppVersion bump. Pages ping this once per
 // load (sw_register.js); when truly offline the fetch fails quietly below.
+// Throttled: unthrottled, every page view club-wide re-rendered the whole
+// shell server-side (species query + ERB) — roughly doubling request volume
+// on a live tournament night — for a list that changes a few times a season.
+// The cached response's own Date header is the persisted timestamp (SW
+// globals die with the worker); missing/unparsable → refresh, the old
+// behavior.
+const REFRESH_SHELL_MIN_MS = 60 * 60 * 1000
 self.addEventListener("message", (event) => {
   if (event.data?.type !== "refresh-shell") return
-  event.waitUntil(
-    fetch("/offline").then((res) => {
-      if (res.status === 200) return caches.open(CACHE).then((c) => c.put("/offline", res))
-    }).catch(() => {})
-  )
+  event.waitUntil((async () => {
+    try {
+      const cached = await caches.match("/offline")
+      const fetchedAt = new Date(cached?.headers.get("date")).getTime()
+      if (Date.now() - fetchedAt < REFRESH_SHELL_MIN_MS) return
+      const res = await fetch("/offline")
+      if (res.status === 200) {
+        const c = await caches.open(CACHE)
+        await c.put("/offline", res)
+      }
+    } catch (_) {}
+  })())
 })
 
 self.addEventListener("push", (event) => {

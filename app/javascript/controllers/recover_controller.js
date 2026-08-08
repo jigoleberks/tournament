@@ -143,10 +143,20 @@ export default class extends Controller {
         btn.textContent = "Recovered ✓"
         btn.className = "h-9 px-3 rounded-lg bg-emerald-800 text-white text-sm"
       } else {
-        const body = await resp.text()
+        // Same extraction as offline/sync.js: the API's refusals (including
+        // the shared-phone queued_by_mismatch) arrive as {errors: [...]}
+        // JSON, and showing that raw — truncated mid-sentence — garbles the
+        // one actionable instruction on the tool of last resort. Non-JSON
+        // (reverse-proxy 413 page, etc.) still falls back to a snippet.
+        const text = await resp.text().catch(() => "")
+        let body = null
+        try { body = JSON.parse(text) } catch (_) {}
+        const reason = body && Array.isArray(body.errors) && body.errors.length
+          ? body.errors.join(", ")
+          : `Server ${resp.status}: ${text.slice(0, 120)}`
         btn.disabled = false
         btn.textContent = "Retry"
-        this.showError(li, `Server ${resp.status}: ${body.slice(0, 120)}`)
+        this.showError(li, reason)
       }
     } catch (e) {
       btn.disabled = false

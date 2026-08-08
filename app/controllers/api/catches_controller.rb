@@ -31,8 +31,22 @@ class Api::CatchesController < Api::BaseController
     end
 
     angler = teammate || current_user
-    catch_record = angler.catches.build(catch_params)
-    catch_record.logged_by_user_id = current_user.id if teammate
+    permitted = catch_params
+    catch_record = build_catch(angler, permitted, teammate)
+
+    # The photo is the catch; the video is optional evidence. A video the
+    # model's gate rejects (client-side checks miss e.g. null-size queued
+    # blobs) must not 422 the whole catch — before the gate existed it saved
+    # fine, and sync.js would mark it failed behind the angler's back. Asking
+    # the model itself (not re-implementing the gate: it reads the SNIFFED
+    # content type, not the declared one) keeps this the single source of
+    # truth: rebuild without the video, save the catch, flag it like an
+    # angler-declared video failure.
+    video_dropped = false
+    if permitted[:video].present? && catch_record.invalid? && catch_record.errors.key?(:video)
+      video_dropped = true
+      catch_record = build_catch(angler, permitted.except(:video), teammate)
+    end
 
     if teammate && !shares_entry_at?(teammate, catch_record.captured_at_device)
       return render json: { errors: ["You and this teammate aren't on the same entry in any active tournament."] }, status: :unprocessable_entity
@@ -41,7 +55,9 @@ class Api::CatchesController < Api::BaseController
     catch_record.flags  = Catches::ComputeFlags.call(catch_record)
     # "Mark video failed and submit anyway" — an explicit angler declaration,
     # not derivable from state, so it's an external flag (survives recompute).
-    if ActiveModel::Type::Boolean.new.cast(params.dig(:catch, :video_failed))
+    # A server-side video drop (above) raises the same flag: judges see the
+    # video didn't make it either way.
+    if ActiveModel::Type::Boolean.new.cast(params.dig(:catch, :video_failed)) || video_dropped
       catch_record.flags |= ["video_failed"]
     end
     catch_record.lake   = Catches::DetectLake.call(catch_record)
@@ -105,6 +121,12 @@ class Api::CatchesController < Api::BaseController
 
   def run_placement_pipeline(catch_record)
     Catches::RunPlacementPipeline.call(catch: catch_record)
+  end
+
+  def build_catch(angler, attrs, teammate)
+    record = angler.catches.build(attrs)
+    record.logged_by_user_id = current_user.id if teammate
+    record
   end
 
   def shares_entry_at?(teammate, at)

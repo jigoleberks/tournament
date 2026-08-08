@@ -47,7 +47,11 @@ class Api::PushSubscriptionsController < Api::BaseController
     # the same same-origin proof create relies on. No proof at all → 404.
     return head :not_found unless old || csrf_token_valid?
 
-    sub = upsert_subscription(params.dig(:subscription, :endpoint))
+    # Like create's passive-resync guard, refresh is not an explicit action —
+    # the SW fires it for whoever happens to be signed in. On a shared phone
+    # the rotated subscription must stay with the member who tapped Enable
+    # (the old row's owner), not silently move to the current session's user.
+    sub = upsert_subscription(params.dig(:subscription, :endpoint), owner: old&.user || current_user)
     if sub.save
       old.destroy if old && old.id != sub.id
       head :no_content
@@ -71,9 +75,10 @@ class Api::PushSubscriptionsController < Api::BaseController
   # Unscoped-by-endpoint upsert shared by create and refresh, assigned but not
   # yet saved — callers read new_record?/user_id_changed? to tell a fresh
   # registration or cross-user reassignment from a same-user key refresh.
-  def upsert_subscription(endpoint)
+  # `owner` lets refresh keep the rotated row with its original member.
+  def upsert_subscription(endpoint, owner: current_user)
     sub = PushSubscription.find_or_initialize_by(endpoint: endpoint)
-    sub.user = current_user
+    sub.user = owner
     sub.assign_attributes(
       p256dh: params.dig(:subscription, :keys, :p256dh),
       auth:   params.dig(:subscription, :keys, :auth)

@@ -73,4 +73,36 @@ class StreamRefreshTest < ApplicationSystemTestCase
     sleep 1
     assert_text "Zebra Boat", wait: 5
   end
+
+  # A session that expired while the PWA was backgrounded must not read as
+  # "reachable": the probe would follow require_sign_in!'s 302 to the sign-in
+  # page's 200 and the replace-visit would swap the stale-but-readable
+  # leaderboard (and its history entry) for the sign-in screen. redirect:
+  # "manual" makes the 302 come back not-ok, keeping the snapshot.
+  test "an expired-session restore visit keeps the readable leaderboard" do
+    club = create(:club)
+    walleye = create(:species, club: club)
+    angler = create(:user, club: club, name: "Angler A")
+
+    tournament = create(:tournament, club: club, name: "League Night",
+                        starts_at: 1.hour.ago, ends_at: 1.hour.from_now)
+    create(:scoring_slot, tournament: tournament, species: walleye, slot_count: 1)
+    entry = create(:tournament_entry, tournament: tournament, name: "Zebra Boat")
+    create(:tournament_entry_member, tournament_entry: entry, user: angler)
+
+    sign_in_as(angler)
+    visit tournament_path(tournament)
+    assert_text "Zebra Boat"
+
+    find("a[aria-label='Home']").click
+    assert_text "Hello, #{angler.name}", wait: 5
+
+    # The backgrounded session dying is, to the browser, the cookie vanishing.
+    page.driver.browser.cookies.clear
+
+    page.go_back
+
+    sleep 1
+    assert_text "Zebra Boat", wait: 5
+  end
 end

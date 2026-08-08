@@ -77,6 +77,20 @@ class SignInTokenTest < ActiveSupport::TestCase
     assert_not_nil second.reload.used_at
   end
 
+  # Wrong guesses are free for anyone who knows the email (the public form
+  # proves nothing), so they must not be able to kill a code an organizer just
+  # read out — that's the grief coexistence exists to prevent. Staff-issued
+  # codes ride on the TTL and the submit_code rate limit instead.
+  test "wrong tries do not burn an organizer-issued code" do
+    organizer = create(:user)
+    issued = SignInToken.issue_code!(user: @user, issued_by: organizer)
+    (SignInToken::CODE_MAX_ATTEMPTS + 1).times do
+      assert_nil SignInToken.consume_code!(email: @user.email, code: "00000000")
+    end
+    assert_nil issued.reload.used_at
+    assert_equal issued, SignInToken.consume_code!(email: @user.email, code: issued.token)
+  end
+
   test "consume_code! signs in when email and code match" do
     code = SignInToken.issue_code!(user: @user)
     record = SignInToken.consume_code!(email: @user.email, code: code.token)

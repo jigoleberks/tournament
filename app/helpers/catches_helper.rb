@@ -12,8 +12,9 @@ module CatchesHelper
   # privacy control: the original EXIF carries full-precision GPS, and any club
   # member can save a rival's catch photo — the coordinate fuzzing in the views
   # is pointless if the pixels ship the honey hole.
-  def stripped_jpeg_variant(attachment, size: nil)
+  def stripped_jpeg_variant(attachment, size: nil, quality: nil)
     options = { format: :jpeg, saver: { strip: true } }
+    options[:saver][:Q] = quality if quality
     options[:resize_to_limit] = size if size
     attachment.variant(**options)
   end
@@ -37,13 +38,21 @@ module CatchesHelper
     url_for(stripped_jpeg_variant(attachment, size: size))
   end
 
-  # URL for the "Save photo" download — FULL resolution, never the resized
-  # display variant. Still a stripped JPEG, including for JPEG originals: an
-  # Android native-camera JPEG carries full-precision GPS EXIF, and serving it
-  # raw would hand out what the fuzzing hides. The re-encode costs a little
-  # quality; the metadata strip is the point.
+  # URL for the "Save photo" download — FULL resolution at high encode
+  # quality, never a resized display variant: downloads should be the largest
+  # quality we can serve (user decision 2026-08-08). Still a stripped JPEG,
+  # including for JPEG originals: an Android native-camera JPEG carries
+  # full-precision GPS EXIF, and serving it raw would hand out what the
+  # fuzzing hides — the metadata strip is the point, and it must happen at
+  # serve time (originals keep EXIF for PhotoCaptureTime forensics).
+  # ACCEPTED COST: the first tap on a photo runs an unbounded on-demand vips
+  # transcode — a 200MP native-mode still (PHOTO_MAX_BYTES allows 50MB) can
+  # be slow on the single VM. Quality was chosen over bounding the transcode;
+  # don't re-add a resize limit here unprompted.
+  DOWNLOAD_JPEG_QUALITY = 95
+
   def photo_download_url(attachment)
-    url_for(stripped_jpeg_variant(attachment))
+    url_for(stripped_jpeg_variant(attachment, quality: DOWNLOAD_JPEG_QUALITY))
   end
 
   # The photo(s) to show on a single-catch detail/modal page, as an ordered list

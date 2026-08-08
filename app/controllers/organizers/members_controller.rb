@@ -1,10 +1,7 @@
 class Organizers::MembersController < Organizers::BaseController
-  # Shared club laptop: after sign-out, Back must not replay member emails /
-  # live sign-in codes from Turbo's snapshot cache (restoration visits never
-  # hit the server). Controller-wide — the layout emits the no-cache meta —
-  # so every members view is covered, including ones added later. Scoped here
-  # rather than the whole app so normal member pages keep instant back-nav.
-  before_action { @disable_turbo_snapshot_cache = true }
+  # Member views show emails and live sign-in codes — controller-wide so ones
+  # added later are covered (see ApplicationController.disable_turbo_snapshot_cache!).
+  disable_turbo_snapshot_cache!
 
   def index
     @users = current_club.members.includes(:club_memberships).order(:deactivated_at, :name)

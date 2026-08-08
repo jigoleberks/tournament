@@ -25,6 +25,13 @@
       // form) would never re-run it. The turbo:load listener registered on
       // the initial full load survives every Turbo visit in this window and
       // re-mirrors the (Turbo-updated) meta after each one.
+      //
+      // EXCEPT restoration visits (Back/edge-swipe): those render a cached
+      // snapshot with no server round trip, so the meta in the restored head
+      // is whatever user was signed in when the page was cached. Mirroring it
+      // would overwrite the mirror with the PREVIOUS user after an account
+      // switch — the exact staleness this mirror exists to fix. Track the
+      // visit action (same trick as stream_refresh_controller) and skip them.
       (function () {
         var mirror = function () {
           try {
@@ -35,15 +42,19 @@
         mirror();
         if (!window.__currentUserMirrorBound) {
           window.__currentUserMirrorBound = true;
-          document.addEventListener("turbo:load", mirror);
+          document.addEventListener("turbo:visit", function (e) {
+            window.__lastMirrorVisitAction = e.detail && e.detail.action;
+          });
+          document.addEventListener("turbo:load", function () {
+            if (window.__lastMirrorVisitAction === "restore") return;
+            mirror();
+          });
         }
       })();
     </script>
 
     <%= yield :head %>
-    <% if @disable_turbo_snapshot_cache %>
-      <meta name="turbo-cache-control" content="no-cache">
-    <% end %>
+    <%= render "shared/turbo_snapshot_cache_meta" %>
 
     <link rel="manifest" href="/manifest.webmanifest">
     <meta name="theme-color" content="#0f172a">

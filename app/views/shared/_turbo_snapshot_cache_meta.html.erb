@@ -1,0 +1,6 @@
+<%# Emitted when the controller called disable_turbo_snapshot_cache!
+    (see ApplicationController) — keeps club-laptop-sensitive pages out of
+    Turbo's snapshot cache so Back after sign-out can't replay them. %>
+<% if @disable_turbo_snapshot_cache %>
+  <meta name="turbo-cache-control" content="no-cache">
+<% end %>
