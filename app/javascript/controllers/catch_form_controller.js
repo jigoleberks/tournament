@@ -1,5 +1,6 @@
 import { Controller } from "@hotwired/stimulus"
-import { enqueueCatch, updateCoords, releaseHold } from "offline/db"
+import { enqueueCatch, updateCoords, releaseHold, extendHold } from "offline/db"
+import { currentUserId } from "offline/current_user"
 import { convertLength, snapToGrid } from "lib/length_convert"
 
 export default class extends Controller {
@@ -117,19 +118,36 @@ export default class extends Controller {
         video: video,
         video_failed: this.videoFailed,
         teammate_user_id: this.teammateUserIdValue || null,
-        queued_by_user_id: document.querySelector("meta[name='current-user-id']")?.content || null,
+        // NOT read straight off the meta: the precached /offline shell's meta
+        // can be the PREVIOUS user's after an account switch (shared phone).
+        queued_by_user_id: currentUserId(),
         hold_until: Date.now() + 12000
       }
       await enqueueCatch(record)
 
-      const position = await this.tryGeolocate()
-      if (position) {
-        await updateCoords(this.clientUuid, {
-          captured_at_gps: position.gpsTime,
-          latitude: position.coords.latitude,
-          longitude: position.coords.longitude,
-          gps_accuracy_m: position.coords.accuracy
-        }).catch(() => {})
+      // Locking the phone mid-fix suspends this page but not the wall clock,
+      // so the hold can be expired the moment the page resumes — and the
+      // visibilitychange drain would upload the record coordless just before
+      // the resumed fix lands. Re-arm the hold on resume; the drain re-reads
+      // each row right before upload (offline/sync.js), so the fresh hold and
+      // late coords are both seen. A killed page never resumes: the original
+      // hold expires and the catch syncs GPS-less, as designed.
+      const extendOnResume = () => {
+        if (document.visibilityState === "visible") extendHold(this.clientUuid, 12000).catch(() => {})
+      }
+      document.addEventListener("visibilitychange", extendOnResume)
+      try {
+        const position = await this.tryGeolocate()
+        if (position) {
+          await updateCoords(this.clientUuid, {
+            captured_at_gps: position.gpsTime,
+            latitude: position.coords.latitude,
+            longitude: position.coords.longitude,
+            gps_accuracy_m: position.coords.accuracy
+          }).catch(() => {})
+        }
+      } finally {
+        document.removeEventListener("visibilitychange", extendOnResume)
       }
       await releaseHold(this.clientUuid).catch(() => {})
 

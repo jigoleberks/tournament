@@ -81,13 +81,17 @@ class Api::CatchesController < Api::BaseController
   # scores. Re-run placement when the pipeline never completed: PlaceInSlots
   # yields the exact same placements a first run would, and the
   # flag/condition jobs are idempotent (add_flag! is a guarded single
-  # UPDATE). "No placements" alone can't be the signal — bingo keeps none by
+  # UPDATE). "No placements" can't be the signal — bingo keeps none by
   # design and a catch can legitimately match no slot, and re-running for
   # those on every flaky-LTE retry meant endless rebroadcast/job churn —
   # hence the placements_evaluated_at stamp, written only after a completed
-  # run.
+  # run. The stamp is the ONLY gate: a crash can also land after
+  # PlaceInSlots committed but before the jobs were enqueued, so existing
+  # placements must not veto the re-run — PlaceInSlots skips
+  # already-placed tournaments, making the re-run a no-op there while the
+  # jobs still get enqueued and the stamp finally written.
   def serialize_existing(existing)
-    if existing.photo.attached? && existing.placements_evaluated_at.nil? && existing.catch_placements.none?
+    if existing.photo.attached? && existing.placements_evaluated_at.nil?
       placements = run_placement_pipeline(existing)
       serialize(existing, placements: placements[:created], flags: existing.flags)
     else
@@ -95,19 +99,8 @@ class Api::CatchesController < Api::BaseController
     end
   end
 
-  # The post-save pipeline shared by first-time saves (#create) and dedup
-  # retries whose first run crashed before completing (see serialize_existing).
-  # Every step is idempotent, so a re-run is safe. Returns the PlaceInSlots
-  # result.
   def run_placement_pipeline(catch_record)
-    placements = Catches::PlaceInSlots.call(catch: catch_record)
-    Catches::FlagDuplicates.call(catch: catch_record) if catch_record.flags.include?("possible_duplicate")
-    FetchCatchConditionsJob.perform_later(catch_id: catch_record.id)
-    FlagImportedPhotoJob.perform_later(catch_id: catch_record.id)
-    # Stamped LAST: a crash anywhere above leaves it nil, so the dedup retry
-    # knows to re-run the pipeline.
-    catch_record.update_column(:placements_evaluated_at, Time.current)
-    placements
+    Catches::RunPlacementPipeline.call(catch: catch_record)
   end
 
   def shares_entry_at?(teammate, at)

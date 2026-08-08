@@ -16,6 +16,11 @@
         tens of seconds on pages with no map, and the SW deliberately never
         caches cross-origin. Same-origin assets are SW-cache-first. %>
     <%= stylesheet_link_tag "leaflet" %>
+    <%# Digested marker URLs for lib/leaflet_default_icons.js — Leaflet's own
+        icon-path detection can't strip Propshaft digests and 404s. %>
+    <meta name="leaflet-marker-icon" content="<%= asset_path("images/marker-icon.png") %>">
+    <meta name="leaflet-marker-icon-2x" content="<%= asset_path("images/marker-icon-2x.png") %>">
+    <meta name="leaflet-marker-shadow" content="<%= asset_path("images/marker-shadow.png") %>">
     <%= javascript_importmap_tags %>
   </head>
 

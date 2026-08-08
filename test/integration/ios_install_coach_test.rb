@@ -29,8 +29,18 @@ class IosInstallCoachTest < ActionDispatch::IntegrationTest
     assert_select "#ios-install-coach", count: 0
   end
 
-  test "hides the install banner for desktop browsers" do
+  # A Macintosh UA can be an iPadOS 13+ Safari masquerading as a Mac, so the
+  # server ships the (hidden) banner and lib/ios_device.js decides client-side
+  # via maxTouchPoints — a real Mac desktop never gets it revealed.
+  test "ships the banner hidden for Macintosh UAs so JS can catch masquerading iPads" do
     get new_session_path, headers: { "HTTP_USER_AGENT" => DESKTOP_UA }
+    assert_select "#ios-install-coach[hidden]"
+  end
+
+  test "hides the install banner for non-Apple desktop browsers" do
+    windows_ua = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) " \
+                 "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
+    get new_session_path, headers: { "HTTP_USER_AGENT" => windows_ua }
     assert_select "#ios-install-coach", count: 0
   end
 

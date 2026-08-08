@@ -121,10 +121,7 @@ class CatchesController < ApplicationController
     @catch.synced_at = Time.current
 
     if @catch.save && @catch.photo.attached?
-      Catches::PlaceInSlots.call(catch: @catch)
-      Catches::FlagDuplicates.call(catch: @catch) if @catch.flags.include?("possible_duplicate")
-      FetchCatchConditionsJob.perform_later(catch_id: @catch.id)
-      FlagImportedPhotoJob.perform_later(catch_id: @catch.id)
+      Catches::RunPlacementPipeline.call(catch: @catch)
       redirect_to root_path, notice: teammate ? "Catch logged for #{teammate.name}" : "Catch logged"
     else
       @catch.errors.add(:photo, "is required") unless @catch.photo.attached?

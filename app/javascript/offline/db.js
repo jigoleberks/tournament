@@ -34,6 +34,11 @@ export async function pendingCatches() {
   return db.getAllFromIndex("catches", "status", "pending");
 }
 
+export async function getCatch(client_uuid) {
+  const db = await getDB();
+  return db.get("catches", client_uuid);
+}
+
 export async function failedCatches() {
   const db = await getDB();
   return db.getAllFromIndex("catches", "status", "failed");
@@ -99,4 +104,17 @@ export async function releaseHold(client_uuid) {
   const rec = await db.get("catches", client_uuid);
   if (!rec || rec.hold_until == null) return;
   await db.put("catches", { ...rec, hold_until: null });
+}
+
+// Re-arm the hold when the page RESUMES from an iOS suspension mid-geolocate:
+// the wall clock kept running while the pending getCurrentPosition was frozen,
+// so the original hold can be expired the instant the page wakes — and the
+// visibilitychange drain would upload the record coordless moments before the
+// resumed fix lands. Only meaningful while the submitting page is alive; a
+// killed page never re-arms, so the record still self-releases and syncs.
+export async function extendHold(client_uuid, ms) {
+  const db = await getDB();
+  const rec = await db.get("catches", client_uuid);
+  if (!rec || rec.status !== "pending") return;
+  await db.put("catches", { ...rec, hold_until: Date.now() + ms });
 }

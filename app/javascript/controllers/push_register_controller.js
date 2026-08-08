@@ -1,4 +1,5 @@
 import { Controller } from "@hotwired/stimulus"
+import { iosBrowserTab } from "lib/ios_device"
 
 export default class extends Controller {
   static targets = ["enableButton", "status"]
@@ -7,11 +8,7 @@ export default class extends Controller {
 
   async refresh() {
     if (!("PushManager" in window)) {
-      // iOS only exposes PushManager to installed home-screen apps: a plain
-      // Safari tab must point at the fix (install), not read as broken.
-      this.statusTarget.textContent = this.iosBrowserTab()
-        ? "available after install — tap Share, then “Add to Home Screen”"
-        : "push not supported"
+      this.statusTarget.textContent = this.unavailableMessage()
       this.setEnabled(false)
       return
     }
@@ -28,6 +25,7 @@ export default class extends Controller {
     try {
       const reg = await withTimeout(navigator.serviceWorker.ready, 10000, "serviceWorker.ready")
       const sub = await reg.pushManager.getSubscription()
+      if (sub) this.resyncSubscription(sub)
       this.statusTarget.textContent = sub ? "on" : "off"
       this.setEnabled(!!sub)
     } catch (_) {
@@ -36,13 +34,28 @@ export default class extends Controller {
     }
   }
 
-  // iPadOS 13+ masquerades as Macintosh in the UA; maxTouchPoints tells it apart.
-  iosBrowserTab() {
-    const ios = /iPhone|iPad|iPod/.test(navigator.userAgent) ||
-      (/Macintosh/.test(navigator.userAgent) && navigator.maxTouchPoints > 1)
-    const standalone = window.matchMedia("(display-mode: standalone)").matches ||
-      window.navigator.standalone === true
-    return ios && !standalone
+  // The SW's pushsubscriptionchange self-heal loses its POST when the phone
+  // is offline or signed out at rotation: the browser then holds a
+  // subscription the server never learned about, and this toggle would read
+  // "on" forever while notifications go nowhere. Re-registering whenever the
+  // toggle sees a subscription converges that drift — the server upserts by
+  // endpoint, so the already-registered case is a no-op. Fire-and-forget: a
+  // failure here leaves state no worse than before.
+  resyncSubscription(sub) {
+    fetch("/api/push_subscriptions", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "X-CSRF-Token": csrfToken() },
+      credentials: "same-origin",
+      body: JSON.stringify({ subscription: sub.toJSON() })
+    }).catch(() => {})
+  }
+
+  // iOS only exposes PushManager to installed home-screen apps: a plain
+  // Safari tab must point at the fix (install), not read as broken.
+  unavailableMessage() {
+    return iosBrowserTab()
+      ? "available after install — tap Share, then “Add to Home Screen”"
+      : "push not supported on this browser"
   }
 
   setEnabled(on) {
@@ -58,9 +71,7 @@ export default class extends Controller {
     // In an iOS Safari tab neither Notification nor PushManager exists —
     // without this guard the tap surfaced a raw ReferenceError in the status.
     if (!("Notification" in window) || !("PushManager" in window)) {
-      this.statusTarget.textContent = this.iosBrowserTab()
-        ? "available after install — tap Share, then “Add to Home Screen”"
-        : "push not supported on this browser"
+      this.statusTarget.textContent = this.unavailableMessage()
       return
     }
     let step = "requestPermission"

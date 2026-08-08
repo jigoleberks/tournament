@@ -2,6 +2,7 @@ import { Controller } from "@hotwired/stimulus"
 import { pendingCatches, failedCatches, markSynced } from "offline/db"
 import { materialize } from "offline/blob"
 import { buildCatchFormData } from "offline/form_data"
+import { fetchSession } from "offline/session"
 
 // Reads stuck catch records from IndexedDB, re-materializes each photo blob
 // (see offline/blob.js for why), shows a thumbnail, and re-submits via the
@@ -115,26 +116,18 @@ export default class extends Controller {
 
     const fd = await buildCatchFormData(rec, fresh, `recovered.${this.extensionFor(fresh.type)}`)
 
-    // Same preflight as offline/sync.js: iOS restores this page from the
+    // Preflight (offline/session.js): iOS restores this page from the
     // bfcache with a stale CSRF meta token, and re-submitting with it fails on
-    // every tap until a hard reload — on the tool of last resort. One cheap
-    // GET answers auth and returns a fresh token; the meta token is only the
-    // network-flake fallback.
-    let csrf
-    try {
-      const s = await fetch("/api/session", {
-        headers: { "Accept": "application/json" }, credentials: "same-origin"
-      })
-      if (s.status === 401) {
-        btn.disabled = false
-        btn.textContent = "Retry"
-        this.showError(li, "You're signed out — sign in, then tap Re-submit again.")
-        return
-      }
-      csrf = s.ok ? (await s.json()).csrf_token : this.csrfToken()
-    } catch (_) {
-      csrf = this.csrfToken()
+    // every tap until a hard reload — on the tool of last resort. A fresh
+    // token fixes that; the meta token is only the flake/broken fallback.
+    const preflight = await fetchSession()
+    if (preflight.state === "authRequired") {
+      btn.disabled = false
+      btn.textContent = "Retry"
+      this.showError(li, "You're signed out — sign in, then tap Re-submit again.")
+      return
     }
+    const csrf = preflight.state === "ok" ? preflight.csrf_token : this.csrfToken()
 
     try {
       const resp = await fetch("/api/catches", {

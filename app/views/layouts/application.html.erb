@@ -9,6 +9,17 @@
     <%= csp_meta_tag %>
     <meta name="vapid-public-key" content="<%= VAPID[:public_key] %>">
     <% if signed_in? %><meta name="current-user-id" content="<%= current_user.id %>"><% end %>
+    <script>
+      // Mirror the signed-in user into localStorage for the offline queue: the
+      // precached /offline shell's current-user-id meta can be stale after an
+      // account switch on a shared phone, so offline/current_user.js prefers
+      // this mirror over the meta. "" records "signed out". The offline layout
+      // must never run this — its cached meta is exactly what can be stale.
+      try {
+        var cu = document.querySelector("meta[name='current-user-id']");
+        localStorage.setItem("currentUserId", cu ? cu.content : "");
+      } catch (_) {}
+    </script>
 
     <%= yield :head %>
     <% if @disable_turbo_snapshot_cache %>
@@ -27,6 +38,11 @@
         tens of seconds on pages with no map, and the SW deliberately never
         caches cross-origin. Same-origin assets are SW-cache-first. %>
     <%= stylesheet_link_tag "leaflet" %>
+    <%# Digested marker URLs for lib/leaflet_default_icons.js — Leaflet's own
+        icon-path detection can't strip Propshaft digests and 404s. %>
+    <meta name="leaflet-marker-icon" content="<%= asset_path("images/marker-icon.png") %>">
+    <meta name="leaflet-marker-icon-2x" content="<%= asset_path("images/marker-icon-2x.png") %>">
+    <meta name="leaflet-marker-shadow" content="<%= asset_path("images/marker-shadow.png") %>">
     <%= javascript_importmap_tags %>
   </head>
 

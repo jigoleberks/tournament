@@ -1,9 +1,9 @@
-import { pendingCatches, markSynced, markFailed, pruneSynced, deferRetry } from "offline/db"
+import { pendingCatches, getCatch, markSynced, markFailed, pruneSynced, deferRetry } from "offline/db"
 import { materialize } from "offline/blob"
 import { buildCatchFormData } from "offline/form_data"
+import { fetchSession } from "offline/session"
 
 const ENDPOINT = "/api/catches"
-const SESSION_ENDPOINT = "/api/session"
 
 let draining = false
 let rerunRequested = false
@@ -39,31 +39,46 @@ async function drainOnce() {
   )
   if (due.length === 0) return false
 
-  // Preflight: one cheap GET before any photo body. It answers auth (a 401
-  // here replaces N full-photo-upload 401s), returns a FRESH CSRF token (the
-  // precached /offline shell renders no csrf meta at all — before this, every
-  // shell-originated drain uploaded catch #1's photo just to 401 against
-  // null_session — and bfcache restores can hold stale tokens), and tells us
-  // who is signed in so we never drain another user's records.
-  let session
-  try {
-    const resp = await fetch(SESSION_ENDPOINT, {
-      headers: { "Accept": "application/json" }, credentials: "same-origin"
-    })
-    if (resp.status === 401) {
-      window.dispatchEvent(new CustomEvent("bsfamilies:sync-auth-required"))
-      return true
-    }
-    if (!resp.ok) return false
-    session = await resp.json()
-  } catch (_) {
+  // Preflight (offline/session.js): a 401 here replaces N full-photo-upload
+  // 401s, and knowing who is signed in means we never drain another user's
+  // records.
+  const preflight = await fetchSession()
+  if (preflight.state === "authRequired") {
+    window.dispatchEvent(new CustomEvent("bsfamilies:sync-auth-required"))
+    return true
+  }
+  if (preflight.state === "network") {
     return false // network flake — next trigger retries, nothing uploaded
   }
+  let session
+  if (preflight.state === "ok") {
+    session = preflight
+  } else {
+    // Preflight endpoint broken (misrouted /api/session, maintenance rule)
+    // while POST /api/catches may still work — fall back to the page's meta
+    // token rather than stranding the queue with no signal, the same
+    // fallback the manual recover flow keeps. The precached /offline shell
+    // renders no csrf meta, so from the shell we still wait for the next
+    // trigger. user_id: null skips the client-side other-user check below;
+    // the server's queued_by guard still answers those uploads with its
+    // sign-in-as-that-member 422, which marks the record failed visibly.
+    const meta = document.querySelector("meta[name='csrf-token']")
+    if (!meta || !meta.content) return false
+    session = { csrf_token: meta.content, user_id: null }
+  }
 
-  for (const rec of due) {
+  for (const snap of due) {
+    // Re-read the row before uploading: the queue snapshot above predates the
+    // preflight round-trip, and a page resumed from iOS suspension re-arms
+    // hold_until (and writes late GPS coords) in exactly that window — see
+    // catch_form submit(). The re-read costs one IndexedDB get and makes the
+    // freshest hold/coords the ones that upload.
+    const rec = await getCatch(snap.client_uuid)
+    if (!rec || rec.status !== "pending") continue
+    if (rec.hold_until && rec.hold_until > Date.now()) continue
     // Queued under a different signed-in user (shared phone): leave it for
     // them. Records predating the stamp (no queued_by_user_id) drain as before.
-    if (rec.queued_by_user_id && String(rec.queued_by_user_id) !== String(session.user_id)) continue
+    if (rec.queued_by_user_id && session.user_id != null && String(rec.queued_by_user_id) !== String(session.user_id)) continue
     try {
       // Materialize BEFORE building the body. New records carry inline bytes;
       // legacy records carry a file-backed IndexedDB blob that can make WebKit

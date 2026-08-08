@@ -1,5 +1,6 @@
 import { Controller } from "@hotwired/stimulus"
 import L from "leaflet"
+import { configureDefaultIcons } from "lib/leaflet_default_icons"
 
 export default class extends Controller {
   static values = {
@@ -7,6 +8,7 @@ export default class extends Controller {
   }
 
   connect() {
+    configureDefaultIcons()
     this.initMap()
   }
 

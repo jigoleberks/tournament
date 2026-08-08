@@ -399,6 +399,30 @@ class Api::CatchesControllerTest < ActionDispatch::IntegrationTest
     assert_equal 1, body["placements"].size
   end
 
+  test "dedup retry finishes the pipeline when the crash landed after placement but before the jobs" do
+    photo = fixture_file_upload("sample_walleye.jpg", "image/jpeg")
+    payload = lambda {
+      post "/api/catches", params: {
+        catch: { species_id: @walleye.id, length_inches: 20, captured_at_device: Time.current.iso8601,
+                 client_uuid: "uuid-HALFRUN", photo: photo }
+      }, headers: { "Accept" => "application/json" }
+    }
+    payload.call
+    catch_record = Catch.find_by!(client_uuid: "uuid-HALFRUN")
+    # Simulate the narrower crash window: PlaceInSlots' transaction committed
+    # (placements exist), then the process died before the condition/photo jobs
+    # were enqueued — the stamp (written last) is still nil.
+    catch_record.update_column(:placements_evaluated_at, nil)
+
+    assert_no_difference "CatchPlacement.count" do
+      assert_enqueued_jobs 2, only: [FetchCatchConditionsJob, FlagImportedPhotoJob] do
+        payload.call
+      end
+    end
+    assert_response :ok
+    assert_not_nil catch_record.reload.placements_evaluated_at
+  end
+
   test "dedup retry does NOT double-place a catch that already has placements" do
     photo = fixture_file_upload("sample_walleye.jpg", "image/jpeg")
     payload = lambda {

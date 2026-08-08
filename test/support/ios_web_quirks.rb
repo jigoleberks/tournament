@@ -14,6 +14,27 @@ module IosWebQuirks
   # The new inline-bytes record format written by catch_form_controller.
   BYTES_PHOTO_JS = '{ bytes: new Uint8Array([0xff, 0xd8, 0xff, 0xe0, 0, 0, 0, 0]).buffer, type: "image/jpeg", name: "photo.jpg", size: 8 }'.freeze
 
+  # The one spelling of the IndexedDB open + schema-create boilerplate
+  # (mirrors offline/db.js), interpolated into every helper below so an
+  # offline-schema change edits a single string. Leaves `db` in scope.
+  # Always registers onupgradeneeded: an inspect helper that happens to open
+  # the DB first (polling before any page script ran) must create the store,
+  # not error on it missing.
+  IDB_OPEN_JS = <<~JS.freeze
+    const dbReq = indexedDB.open("bsfamilies", 1);
+    const db = await new Promise((res, rej) => {
+      dbReq.onupgradeneeded = (e) => {
+        const d = e.target.result;
+        if (!d.objectStoreNames.contains("catches")) {
+          const s = d.createObjectStore("catches", { keyPath: "client_uuid" });
+          s.createIndex("status", "status");
+        }
+      };
+      dbReq.onsuccess = (e) => res(e.target.result);
+      dbReq.onerror   = (e) => rej(e);
+    });
+  JS
+
   def sign_in_as(user)
     SignInToken.issue!(user: user)
     visit consume_session_path(token: SignInToken.last.token)
@@ -83,18 +104,7 @@ module IosWebQuirks
       window.__seeded = false;
       window.__seedError = null;
       (async () => {
-        const dbReq = indexedDB.open("bsfamilies", 1);
-        const db = await new Promise((res, rej) => {
-          dbReq.onupgradeneeded = (e) => {
-            const d = e.target.result;
-            if (!d.objectStoreNames.contains("catches")) {
-              const s = d.createObjectStore("catches", { keyPath: "client_uuid" });
-              s.createIndex("status", "status");
-            }
-          };
-          dbReq.onsuccess = (e) => res(e.target.result);
-          dbReq.onerror   = (e) => rej(e);
-        });
+        #{IDB_OPEN_JS}
         const photo = #{photo_js};
         const tx = db.transaction("catches", "readwrite");
         tx.objectStore("catches").put({
@@ -127,11 +137,7 @@ module IosWebQuirks
     page.execute_script <<~JS
       window.__rowStatus = null;
       (async () => {
-        const dbReq = indexedDB.open("bsfamilies", 1);
-        const db = await new Promise((res, rej) => {
-          dbReq.onsuccess = (e) => res(e.target.result);
-          dbReq.onerror = (e) => rej(e);
-        });
+        #{IDB_OPEN_JS}
         const tx = db.transaction("catches", "readonly");
         const req = tx.objectStore("catches").get("#{uuid}");
         const row = await new Promise((res, rej) => {
@@ -156,18 +162,7 @@ module IosWebQuirks
     page.execute_script <<~JS
       window.__pendingCount = null;
       (async () => {
-        const dbReq = indexedDB.open("bsfamilies", 1);
-        const db = await new Promise((res, rej) => {
-          dbReq.onupgradeneeded = (e) => {
-            const d = e.target.result;
-            if (!d.objectStoreNames.contains("catches")) {
-              const s = d.createObjectStore("catches", { keyPath: "client_uuid" });
-              s.createIndex("status", "status");
-            }
-          };
-          dbReq.onsuccess = (e) => res(e.target.result);
-          dbReq.onerror = (e) => rej(e);
-        });
+        #{IDB_OPEN_JS}
         const tx = db.transaction("catches", "readonly");
         const req = tx.objectStore("catches").index("status").getAll("pending");
         const rows = await new Promise((res, rej) => {

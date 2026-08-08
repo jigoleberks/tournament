@@ -1,5 +1,6 @@
 import { Controller } from "@hotwired/stimulus"
 import L from "leaflet"
+import { configureDefaultIcons } from "lib/leaflet_default_icons"
 
 // Admin-only catch GPS editor: a draggable marker whose position is mirrored into
 // hidden lat/lng fields submitted to correct_location.
@@ -8,6 +9,7 @@ export default class extends Controller {
   static targets = ["map", "lat", "lng", "readout"]
 
   connect() {
+    configureDefaultIcons()
     const start = [this.latValue, this.lngValue]
     const map = L.map(this.mapTarget).setView(start, this.hasPointValue ? 13 : 7)
     this.map = map

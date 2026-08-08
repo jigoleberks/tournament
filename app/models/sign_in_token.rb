@@ -60,11 +60,12 @@ class SignInToken < ApplicationRecord
     return claim(match) ? match : nil if match
 
     # A wrong try burns an attempt on EVERY open code — otherwise requesting a
-    # fresh code would hand a brute-forcer a clean counter.
-    records.each do |record|
-      record.increment!(:attempts)
-      claim(record) if record.attempts >= CODE_MAX_ATTEMPTS
-    end
+    # fresh code would hand a brute-forcer a clean counter. Set-based (two
+    # UPDATEs total, not one per open code): this is the unauthenticated
+    # sign-in path, the easiest endpoint for a stranger to hammer.
+    ids = records.map(&:id)
+    where(id: ids).update_all("attempts = attempts + 1")
+    where(id: ids, used_at: nil).where(attempts: CODE_MAX_ATTEMPTS..).update_all(used_at: Time.current)
     nil
   end
 

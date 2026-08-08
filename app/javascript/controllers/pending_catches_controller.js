@@ -1,5 +1,6 @@
 import { Controller } from "@hotwired/stimulus"
 import { pendingCatches, failedCatches, markPending } from "offline/db"
+import { currentUserId } from "offline/current_user"
 
 // How long a catch may sit pending before we stop calling it "syncing" and
 // start calling it stuck. Only affects whether the recovery link is offered.
@@ -28,9 +29,17 @@ export default class extends Controller {
       this.emptyTarget.hidden = failed.length > 0
     } else {
       this.emptyTarget.hidden = true
-      this.listTarget.innerHTML = pending.map((p) => `
-        <li>🕐 ${escapeHtml(p.length_inches)}″ — captured ${new Date(p.captured_at_device).toLocaleTimeString()}</li>
-      `).join("")
+      // A record queued under a different account (shared phone) is silently
+      // skipped by every drain — without the label it reads as a healthy
+      // queue while the fish never uploads and nobody is told the fix.
+      const me = currentUserId()
+      this.listTarget.innerHTML = pending.map((p) => {
+        const otherUser = p.queued_by_user_id && me && String(p.queued_by_user_id) !== String(me)
+        return `
+        <li>🕐 ${escapeHtml(p.length_inches)}″ — captured ${new Date(p.captured_at_device).toLocaleTimeString()}
+          ${otherUser ? '<span class="block text-xs text-amber-400">Logged under a different member’s account — it will sync when they sign in on this phone.</span>' : ""}
+        </li>`
+      }).join("")
     }
 
     if (this.hasFailedSectionTarget) {

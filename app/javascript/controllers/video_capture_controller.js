@@ -98,11 +98,24 @@ export default class extends Controller {
     if (this.recorder && this.recorder.state !== "inactive") this.recorder.stop()
   }
 
+  // Also wired directly to the "Mark video failed" button, so the argument can
+  // be a click Event rather than a reason string — only forward real strings.
   markFailed(reason) {
     this.blob = null
+    // stopStream() below ends the tracks, which stops an ACTIVE recorder and
+    // fires its onstop with the partial chunks — flipping the form back to
+    // "captured" and silently overriding this explicit failure. Disarm the
+    // recorder first; it finalizes on its own with nobody listening.
+    if (this.recorder) {
+      this.recorder.ondataavailable = null
+      this.recorder.onerror = null
+      this.recorder.onstop = null
+      this.recorder = null
+    }
+    this.chunks = []
     this.previewTarget.dataset.captured = "failed"
     this.setRecordingUi(false)
-    this.dispatch("failed", { detail: { reason } })
+    this.dispatch("failed", { detail: { reason: typeof reason === "string" ? reason : undefined } })
     this.stopStream()
   }
 

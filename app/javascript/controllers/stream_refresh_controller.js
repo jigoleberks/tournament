@@ -78,9 +78,15 @@ export default class extends Controller {
       // navigated to instead.
       const scrollY = window.scrollY
       const href = window.location.href
-      document.addEventListener("turbo:load", () => {
+      const restoreScroll = () => {
         if (window.location.href === href) window.scrollTo(0, scrollY)
-      }, { once: true })
+      }
+      document.addEventListener("turbo:load", restoreScroll, { once: true })
+      // If the visit dies between the reachability probe and its own fetch
+      // (1-bar lake LTE), turbo:load never fires and the armed listener would
+      // scroll-jack the user's NEXT real visit to this URL — disarm it once
+      // the visit is plainly dead.
+      setTimeout(() => document.removeEventListener("turbo:load", restoreScroll), 15000)
       window.Turbo.visit(href, { action: "replace" })
     } else {
       window.location.reload()

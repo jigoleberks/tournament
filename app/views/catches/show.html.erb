@@ -34,18 +34,8 @@
     <div class="w-full h-64 rounded-lg bg-black flex items-center justify-center text-slate-500">no photo</div>
   <% end %>
 
-  <% if @catch.video.attached? %>
-    <%# playsinline: without it iOS forces the native fullscreen player %>
-    <%= video_tag url_for(@catch.video), controls: true, playsinline: true, preload: "metadata",
-                  class: "w-full max-h-96 rounded-lg bg-black" %>
-    <% if @catch.video.content_type == "video/webm" %>
-      <p class="text-xs text-slate-400">
-        This video is webm, which iPhones can't play —
-        <%= link_to "download it", url_for(@catch.video), class: "text-blue-400 underline" %>
-        to view on a computer.
-      </p>
-    <% end %>
-  <% end %>
+  <%= render "shared/catch_video", catch_record: @catch,
+             video_class: "w-full max-h-96 rounded-lg bg-black" %>
 
   <dl class="text-slate-300 text-sm space-y-1">
     <div><dt class="inline text-slate-500">Angler:</dt> <dd class="inline text-slate-100"><%= @catch.user.name %></dd></div>
