@@ -70,6 +70,43 @@ class Api::PushSubscriptionsControllerTest < ActionDispatch::IntegrationTest
     assert_equal "newkey", stale.p256dh
   end
 
+  # The toggle's drift-converging resync fires on every page load. Unlike an
+  # explicit Enable tap, it must not steal a row another member registered on
+  # this shared phone — otherwise merely signing in and loading the home page
+  # silently ends the owner's notifications.
+  test "a passive resync does not reassign another user's subscription" do
+    other = create(:user)
+    owned = PushSubscription.create!(user: other, endpoint: "https://push.example/shared-ep",
+                                     p256dh: "oldkey", auth: "oldauth")
+    post "/api/push_subscriptions", params: {
+      resync: true,
+      subscription: { endpoint: "https://push.example/shared-ep",
+                      keys: { p256dh: "newkey", auth: "newauth" } }
+    }, as: :json
+    assert_response :no_content
+    owned.reload
+    assert_equal other.id, owned.user_id
+    assert_equal "oldkey", owned.p256dh
+  end
+
+  test "a passive resync still registers and converges the user's own rows" do
+    create(:push_subscription, user: @user, endpoint: "https://e/mine", p256dh: "stale", auth: "a")
+    post "/api/push_subscriptions", params: {
+      resync: true,
+      subscription: { endpoint: "https://e/mine", keys: { p256dh: "fresh", auth: "a" } }
+    }, as: :json
+    assert_response :created
+    assert_equal "fresh", PushSubscription.find_by(endpoint: "https://e/mine").p256dh
+
+    assert_difference "PushSubscription.count", 1 do
+      post "/api/push_subscriptions", params: {
+        resync: true,
+        subscription: { endpoint: "https://e/unregistered", keys: { p256dh: "p", auth: "a" } }
+      }, as: :json
+    end
+    assert_equal @user.id, PushSubscription.find_by(endpoint: "https://e/unregistered").user_id
+  end
+
   # POST /api/push_subscriptions/refresh — the service worker's
   # pushsubscriptionchange self-heal. APNs/FCM rotate endpoints behind our
   # back; the SW re-subscribes and swaps the stored row so alerts keep

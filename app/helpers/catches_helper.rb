@@ -18,27 +18,23 @@ module CatchesHelper
     attachment.variant(**options)
   end
 
-  # A resized JPEG variant of an attachment. Catch photos are full-resolution
-  # phone stills (multi-MB, HEIC on iOS); resizing AND transcoding to JPEG means
-  # every browser can render them. Generated on first request, cached on disk.
-  def jpeg_variant(attachment, size)
-    stripped_jpeg_variant(attachment, size: size)
-  end
-
   # Renders a resized, lazy-loaded <img> for an Active Storage attachment.
+  # (Resizing + transcoding: catch photos are full-resolution phone stills,
+  # multi-MB and HEIC on iOS; a JPEG variant renders everywhere. Generated on
+  # first request, cached on disk.)
   def thumb(attachment, size: [400, 400], **html_options)
-    image_tag jpeg_variant(attachment, size), loading: "lazy", **html_options
+    image_tag stripped_jpeg_variant(attachment, size: size), loading: "lazy", **html_options
   end
 
   # <img> for a large, full-bleed display (catch detail / lightbox).
   def photo_full(attachment, size: [2000, 2000], **html_options)
-    image_tag jpeg_variant(attachment, size), **html_options
+    image_tag stripped_jpeg_variant(attachment, size: size), **html_options
   end
 
   # Bare URL of a large JPEG variant — for lightbox/inline display, which must
   # never point at a raw (possibly HEIC) original. Resized for fast loading.
   def photo_src_url(attachment, size: [2000, 2000])
-    url_for(jpeg_variant(attachment, size))
+    url_for(stripped_jpeg_variant(attachment, size: size))
   end
 
   # URL for the "Save photo" download — FULL resolution, never the resized

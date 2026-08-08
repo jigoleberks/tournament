@@ -140,6 +140,45 @@ class OfflineSyncTest < ApplicationSystemTestCase
                "sync.js must not POST a catch whose photo can't be read"
   end
 
+  # When /api/session breaks with a non-401 (misrouted route, proxy 503 on
+  # that path only), sync.js falls back to the page's meta token and can no
+  # longer verify who is signed in — so another member's queued catch gets
+  # uploaded and the server refuses it with queued_by_mismatch. That record
+  # must stay PENDING (drains only pull pending rows; the right member's next
+  # sign-in syncs it), never failed behind their back.
+  test "a wrong-account catch stays pending when the preflight fallback uploads it" do
+    other = create(:user)
+    uuid = SecureRandom.uuid
+    sign_in_as(@user)
+    page.execute_script <<~JS
+      // Forgery protection is off in the test env, so csrf_meta_tags renders
+      // no meta — but the preflight-unavailable fallback only proceeds when
+      // the page has one (offline-shell pages must keep waiting). Inject the
+      // meta a production page would have; its value is never validated here.
+      if (!document.querySelector("meta[name='csrf-token']")) {
+        document.head.insertAdjacentHTML("beforeend", '<meta name="csrf-token" content="test-token">');
+      }
+      const realFetch = window.fetch;
+      window.fetch = (url, opts) => {
+        if (String(url).includes("/api/session")) {
+          return Promise.resolve(new Response("busy", { status: 503 }));
+        }
+        return realFetch(url, opts);
+      };
+    JS
+    seed_idb_catch(uuid: uuid, species_id: @walleye.id, queued_by_user_id: other.id,
+                   trigger_js: "window.dispatchEvent(new Event('bsfamilies:try-sync'))")
+
+    # deferRetry stamps next_attempt_at after the 422 round-trip — wait on that
+    # rather than sleeping, then assert the record was left pending.
+    Timeout.timeout(10) do
+      sleep 0.1 until idb_next_attempt_at(uuid)
+    end
+    assert_equal "pending", idb_status_of(uuid)
+    assert_no_selector "[data-pending-catches-target='failedList'] li"
+    assert_nil Catch.find_by(client_uuid: uuid)
+  end
+
   # A real server 422 (Walleye's length cap is 50″ — MAX_LENGTH_BY_SPECIES in
   # app/models/catch.rb) used to be shown to the angler as the raw response
   # body: {"errors":["Length inches for Walleye can't exceed 50\""]}. sync.js

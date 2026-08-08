@@ -13,7 +13,11 @@ class Api::CatchesController < Api::BaseController
     # the server already owns is answered normally regardless.
     queued_by = params.dig(:catch, :queued_by_user_id)
     if queued_by.present? && queued_by.to_s != current_user.id.to_s
-      return render json: { errors: ["This catch was logged under a different account. Sign in as that member and retry from Pending catches."] },
+      # code: lets sync.js tell this apart from a real validation failure — the
+      # record must stay PENDING on the device (it syncs itself once the right
+      # member signs in), not be marked failed behind that member's back.
+      return render json: { code: "queued_by_mismatch",
+                            errors: ["This catch was logged under a different account. Sign in as that member and retry from Pending catches."] },
                     status: :unprocessable_entity
     end
 

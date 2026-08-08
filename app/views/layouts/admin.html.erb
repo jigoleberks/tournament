@@ -5,22 +5,15 @@
     <meta name="viewport" content="width=device-width,initial-scale=1">
     <%= csrf_meta_tags %>
     <%= csp_meta_tag %>
-    <%# Shared club laptop: after sign-out, Back must not replay member emails /
-        sign-in codes from Turbo's in-memory snapshot cache (restoration visits
-        never hit the server). %>
-    <meta name="turbo-cache-control" content="no-cache">
+    <%# Set club-laptop-sensitive controllers' @disable_turbo_snapshot_cache
+        (Admin::BaseController does, namespace-wide) — one mechanism across
+        layouts, same as layouts/application. %>
+    <% if @disable_turbo_snapshot_cache %>
+      <meta name="turbo-cache-control" content="no-cache">
+    <% end %>
 
     <%= stylesheet_link_tag "tailwind", "data-turbo-track": "reload" %>
-    <%# Vendored (was unpkg): a render-blocking cross-origin stylesheet in every
-        page's head meant 1-bar lake connectivity could stall first paint for
-        tens of seconds on pages with no map, and the SW deliberately never
-        caches cross-origin. Same-origin assets are SW-cache-first. %>
-    <%= stylesheet_link_tag "leaflet" %>
-    <%# Digested marker URLs for lib/leaflet_default_icons.js — Leaflet's own
-        icon-path detection can't strip Propshaft digests and 404s. %>
-    <meta name="leaflet-marker-icon" content="<%= asset_path("images/marker-icon.png") %>">
-    <meta name="leaflet-marker-icon-2x" content="<%= asset_path("images/marker-icon-2x.png") %>">
-    <meta name="leaflet-marker-shadow" content="<%= asset_path("images/marker-shadow.png") %>">
+    <%= render "shared/leaflet_head" %>
     <%= javascript_importmap_tags %>
   </head>
 

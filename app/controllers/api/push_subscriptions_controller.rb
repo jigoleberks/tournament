@@ -9,17 +9,19 @@ class Api::PushSubscriptionsController < Api::BaseController
 
   def create
     endpoint = params.dig(:subscription, :endpoint)
-    # Look the endpoint up UNSCOPED: on a shared phone the browser returns the
-    # same push endpoint to whoever is signed in, so a row left by the previous
-    # user would otherwise 422 forever while they keep receiving this device's
-    # notifications. Possession of the endpoint is proof enough — reassign it.
-    sub = PushSubscription.find_or_initialize_by(endpoint: endpoint)
-    newly_registered = sub.new_record? || sub.user_id != current_user.id
-    sub.user = current_user
-    sub.assign_attributes(
-      p256dh: params.dig(:subscription, :keys, :p256dh),
-      auth:   params.dig(:subscription, :keys, :auth)
-    )
+    # The endpoint is looked up UNSCOPED (see upsert_subscription): on a shared
+    # phone the browser returns the same push endpoint to whoever is signed in,
+    # so a row left by the previous user would otherwise 422 forever while they
+    # keep receiving this device's notifications. Possession of the endpoint is
+    # proof enough — reassign it. But ONLY on an explicit Enable tap: the
+    # toggle's drift-converging resync fires on every page load, and letting it
+    # reassign would let any member who merely signs in on the phone silently
+    # take the owner's notifications away.
+    sub = upsert_subscription(endpoint)
+    if resync_request? && sub.persisted? && sub.user_id_changed?
+      return head :no_content
+    end
+    newly_registered = sub.new_record? || sub.user_id_changed?
     if sub.save
       if newly_registered
         UserEvent.record!(user: current_user, kind: :push_subscribed,
@@ -45,12 +47,7 @@ class Api::PushSubscriptionsController < Api::BaseController
     # the same same-origin proof create relies on. No proof at all → 404.
     return head :not_found unless old || csrf_token_valid?
 
-    sub = PushSubscription.find_or_initialize_by(endpoint: params.dig(:subscription, :endpoint))
-    sub.user = current_user
-    sub.assign_attributes(
-      p256dh: params.dig(:subscription, :keys, :p256dh),
-      auth:   params.dig(:subscription, :keys, :auth)
-    )
+    sub = upsert_subscription(params.dig(:subscription, :endpoint))
     if sub.save
       old.destroy if old && old.id != sub.id
       head :no_content
@@ -70,6 +67,23 @@ class Api::PushSubscriptionsController < Api::BaseController
   end
 
   private
+
+  # Unscoped-by-endpoint upsert shared by create and refresh, assigned but not
+  # yet saved — callers read new_record?/user_id_changed? to tell a fresh
+  # registration or cross-user reassignment from a same-user key refresh.
+  def upsert_subscription(endpoint)
+    sub = PushSubscription.find_or_initialize_by(endpoint: endpoint)
+    sub.user = current_user
+    sub.assign_attributes(
+      p256dh: params.dig(:subscription, :keys, :p256dh),
+      auth:   params.dig(:subscription, :keys, :auth)
+    )
+    sub
+  end
+
+  def resync_request?
+    ActiveModel::Type::Boolean.new.cast(params[:resync])
+  end
 
   # Manual CSRF check for refresh's no-old-row fallback (the action skips the
   # automatic one). Mirrors verify_authenticity_token's semantics, including

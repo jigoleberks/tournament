@@ -10,6 +10,14 @@ export default class extends Controller {
   connect() {
     configureDefaultIcons()
     this.initMap()
+    // disconnect() alone can't protect a Turbo Drive restore: it runs after
+    // Turbo has already captured the page snapshot, so the cached copy would
+    // still hold the fully rendered panes (the clone loses the _leaflet_id
+    // expando, so the next connect() happily builds a second map on top —
+    // doubled markers, broken hit testing). turbo:before-cache fires before
+    // capture; tearing down there is what makes the snapshot clean.
+    this.boundBeforeCache = () => this.teardown()
+    document.addEventListener("turbo:before-cache", this.boundBeforeCache)
   }
 
   initMap() {
@@ -43,14 +51,21 @@ export default class extends Controller {
     }
   }
 
-  // Tear the map down so its tile layer and listeners don't leak, and so a
-  // Turbo Drive restore that reuses this element doesn't stack a second map
-  // on top of the snapshot's rendered panes (doubled markers, broken hit
-  // testing). Mirrors location_edit_controller.
+  // Tear the map down so its tile layer and listeners don't leak.
+  // (location_edit_controller gets away with disconnect-only teardown because
+  // the admin layout is turbo-cache-control no-cache — no snapshot restores.)
   disconnect() {
+    document.removeEventListener("turbo:before-cache", this.boundBeforeCache)
+    this.teardown()
+  }
+
+  teardown() {
     if (this.map) {
       this.map.remove()
       this.map = null
+      // Leave nothing for the snapshot: connect() rebuilds from pointsValue,
+      // including the "No GPS data" empty state.
+      this.element.innerHTML = ""
     }
   }
 }

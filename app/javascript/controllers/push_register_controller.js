@@ -40,13 +40,15 @@ export default class extends Controller {
   // "on" forever while notifications go nowhere. Re-registering whenever the
   // toggle sees a subscription converges that drift — the server upserts by
   // endpoint, so the already-registered case is a no-op. Fire-and-forget: a
-  // failure here leaves state no worse than before.
+  // failure here leaves state no worse than before. resync: true tells the
+  // server this wasn't an explicit Enable tap, so it must NOT reassign a row
+  // another member registered on this shared phone — only converge our own.
   resyncSubscription(sub) {
     fetch("/api/push_subscriptions", {
       method: "POST",
       headers: { "Content-Type": "application/json", "X-CSRF-Token": csrfToken() },
       credentials: "same-origin",
-      body: JSON.stringify({ subscription: sub.toJSON() })
+      body: JSON.stringify({ subscription: sub.toJSON(), resync: true })
     }).catch(() => {})
   }
 

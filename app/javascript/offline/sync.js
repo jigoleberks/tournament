@@ -60,8 +60,9 @@ async function drainOnce() {
     // fallback the manual recover flow keeps. The precached /offline shell
     // renders no csrf meta, so from the shell we still wait for the next
     // trigger. user_id: null skips the client-side other-user check below;
-    // the server's queued_by guard still answers those uploads with its
-    // sign-in-as-that-member 422, which marks the record failed visibly.
+    // the server's queued_by guard answers those uploads with its
+    // queued_by_mismatch 422, which the loop below leaves PENDING (with
+    // backoff) for the right member — never marked failed behind their back.
     const meta = document.querySelector("meta[name='csrf-token']")
     if (!meta || !meta.content) return false
     session = { csrf_token: meta.content, user_id: null }
@@ -110,6 +111,16 @@ async function drainOnce() {
         // A non-JSON body (reverse-proxy 413 for an oversized photo, etc.)
         // must still produce a readable reason — never raw JSON or "{}".
         const body = await resp.json().catch(() => null)
+        if (body && body.code === "queued_by_mismatch") {
+          // Only reachable when the preflight fallback uploaded with an
+          // unverifiable user (user_id: null above): the record belongs to
+          // another member of a shared phone. Failing it would strand it —
+          // drains only pull pending records, so it would never auto-sync
+          // when the right member signs back in. Leave it pending; back off
+          // so we don't re-upload the full photo every 45s meanwhile.
+          await deferRetry(rec.client_uuid)
+          continue
+        }
         const reason = body && Array.isArray(body.errors) && body.errors.length
           ? body.errors.join(", ")
           : `Upload failed (server error ${resp.status})`

@@ -99,7 +99,8 @@ module IosWebQuirks
   # trigger_js (pass "void 0" for none). Waits until the seed transaction has
   # committed before returning so server-side polling can start immediately.
   def seed_idb_catch(uuid:, species_id:, trigger_js:, length_inches: "18",
-                     status: "pending", photo_js: SYNTHETIC_JPEG_JS)
+                     status: "pending", photo_js: SYNTHETIC_JPEG_JS,
+                     queued_by_user_id: nil)
     page.execute_script <<~JS
       window.__seeded = false;
       window.__seedError = null;
@@ -114,7 +115,7 @@ module IosWebQuirks
           captured_at_device: new Date().toISOString(),
           photo: photo,
           status: "#{status}",
-          queued_at: Date.now()
+          queued_at: Date.now()#{queued_by_user_id ? ",\n          queued_by_user_id: \"#{queued_by_user_id}\"" : ""}
         });
         await new Promise((res, rej) => { tx.oncomplete = res; tx.onerror = rej; });
         #{trigger_js};
@@ -156,6 +157,33 @@ module IosWebQuirks
       end
     end
     status
+  end
+
+  # The row's next_attempt_at (ms epoch) or nil — a non-nil value proves the
+  # drain's backoff branch (deferRetry) ran for this record.
+  def idb_next_attempt_at(uuid)
+    page.execute_script <<~JS
+      window.__rowNextAttempt = undefined;
+      (async () => {
+        #{IDB_OPEN_JS}
+        const tx = db.transaction("catches", "readonly");
+        const req = tx.objectStore("catches").get("#{uuid}");
+        const row = await new Promise((res, rej) => {
+          req.onsuccess = () => res(req.result);
+          req.onerror = (e) => rej(e);
+        });
+        window.__rowNextAttempt = (row && row.next_attempt_at) || null;
+      })().catch(() => { window.__rowNextAttempt = null; });
+    JS
+    value = nil
+    Timeout.timeout(5) do
+      loop do
+        value = page.evaluate_script("window.__rowNextAttempt === undefined ? 'unset' : window.__rowNextAttempt")
+        break unless value == "unset"
+        sleep 0.05
+      end
+    end
+    value
   end
 
   def idb_pending_count

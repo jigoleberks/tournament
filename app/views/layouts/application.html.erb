@@ -8,17 +8,36 @@
     <%= csrf_meta_tags %>
     <%= csp_meta_tag %>
     <meta name="vapid-public-key" content="<%= VAPID[:public_key] %>">
-    <% if signed_in? %><meta name="current-user-id" content="<%= current_user.id %>"><% end %>
+    <%# Always rendered ("" when signed out) so the mirror below can tell
+        "signed out on this layout" apart from "a layout without the meta"
+        (admin), where the last-known value must be kept, not cleared. %>
+    <meta name="current-user-id" content="<%= current_user&.id %>">
     <script>
       // Mirror the signed-in user into localStorage for the offline queue: the
       // precached /offline shell's current-user-id meta can be stale after an
       // account switch on a shared phone, so offline/current_user.js prefers
       // this mirror over the meta. "" records "signed out". The offline layout
       // must never run this — its cached meta is exactly what can be stale.
-      try {
-        var cu = document.querySelector("meta[name='current-user-id']");
-        localStorage.setItem("currentUserId", cu ? cu.content : "");
-      } catch (_) {}
+      //
+      // Turbo Drive only evaluates head scripts that are NEW to the merged
+      // head, and this one is byte-identical on every page — so an account
+      // switch done entirely through Turbo visits (sign-out button, code
+      // form) would never re-run it. The turbo:load listener registered on
+      // the initial full load survives every Turbo visit in this window and
+      // re-mirrors the (Turbo-updated) meta after each one.
+      (function () {
+        var mirror = function () {
+          try {
+            var cu = document.querySelector("meta[name='current-user-id']");
+            if (cu) localStorage.setItem("currentUserId", cu.content);
+          } catch (_) {}
+        };
+        mirror();
+        if (!window.__currentUserMirrorBound) {
+          window.__currentUserMirrorBound = true;
+          document.addEventListener("turbo:load", mirror);
+        }
+      })();
     </script>
 
     <%= yield :head %>
@@ -33,16 +52,7 @@
     <link rel="icon" href="/icons/icon-192.png" type="image/png">
 
     <%= stylesheet_link_tag "tailwind", "data-turbo-track": "reload" %>
-    <%# Vendored (was unpkg): a render-blocking cross-origin stylesheet in every
-        page's head meant 1-bar lake connectivity could stall first paint for
-        tens of seconds on pages with no map, and the SW deliberately never
-        caches cross-origin. Same-origin assets are SW-cache-first. %>
-    <%= stylesheet_link_tag "leaflet" %>
-    <%# Digested marker URLs for lib/leaflet_default_icons.js — Leaflet's own
-        icon-path detection can't strip Propshaft digests and 404s. %>
-    <meta name="leaflet-marker-icon" content="<%= asset_path("images/marker-icon.png") %>">
-    <meta name="leaflet-marker-icon-2x" content="<%= asset_path("images/marker-icon-2x.png") %>">
-    <meta name="leaflet-marker-shadow" content="<%= asset_path("images/marker-shadow.png") %>">
+    <%= render "shared/leaflet_head" %>
     <%= javascript_importmap_tags %>
   </head>
 

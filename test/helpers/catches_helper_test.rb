@@ -169,7 +169,7 @@ class CatchesHelperTest < ActionView::TestCase
 
   # --- EXIF (GPS) stripping from served variants (privacy: defeats saved-photo GPS leak) ---
 
-  test "jpeg_variant strips metadata from served variants" do
+  test "stripped_jpeg_variant strips metadata from served variants" do
     # Minitest::Mock isn't available in this environment (minitest 6.0.6 split
     # Mock/Stub into a separate gem that isn't a dependency here), so this
     # matches the file's existing define_singleton_method stubbing style
@@ -177,7 +177,7 @@ class CatchesHelperTest < ActionView::TestCase
     captured = nil
     attachment = Object.new
     attachment.define_singleton_method(:variant) { |**opts| captured = opts; :a_variant }
-    jpeg_variant(attachment, [400, 400])
+    stripped_jpeg_variant(attachment, size: [400, 400])
     assert_equal({ strip: true }, captured[:saver])
     assert_equal :jpeg, captured[:format]
     assert_equal [400, 400], captured[:resize_to_limit]
