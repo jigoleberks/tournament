@@ -184,6 +184,29 @@ class OfflineSyncTest < ApplicationSystemTestCase
   # body: {"errors":["Length inches for Walleye can't exceed 50\""]}. sync.js
   # must extract body.errors and join it into readable text before it ever
   # reaches markFailed / the bsfamilies:catch-failed detail.
+  # A server-wide blip (redeploy, reverse-proxy 502) backs every queued catch
+  # off, and deferRetry escalates to a 15-minute floor. The server is usually
+  # healthy again within a minute, but nothing shortens the wait: drainOnce
+  # filters pending rows on next_attempt_at, and the widget's Retry button is
+  # rendered only for FAILED records — so an angler's fish sat off the
+  # leaderboard for up to a quarter of an hour with the queue looking healthy.
+  # One successful upload proves the server is reachable, so it must release
+  # the rest of the queue.
+  test "a successful upload releases catches parked in backoff" do
+    parked = SecureRandom.uuid
+    fresh = SecureRandom.uuid
+    sign_in_as(@user)
+    # Staged mid-outage: five failed attempts, still ~15 minutes to wait.
+    seed_idb_catch(uuid: parked, species_id: @walleye.id, trigger_js: "void 0",
+                   extra_fields: { next_attempt_at: "Date.now() + 900000", attempts: 5 })
+    seed_idb_catch(uuid: fresh, species_id: @walleye.id,
+                   trigger_js: "window.dispatchEvent(new Event('bsfamilies:try-sync'))")
+
+    assert_catch_received(fresh)
+    # Without the release this stays queued behind its 15-minute timer.
+    assert_catch_received(parked)
+  end
+
   test "a server 422 shows a readable reason, not raw JSON" do
     uuid = SecureRandom.uuid
     sign_in_as(@user)

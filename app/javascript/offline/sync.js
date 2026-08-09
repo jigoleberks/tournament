@@ -1,4 +1,4 @@
-import { pendingCatches, getCatch, markSynced, markFailed, pruneSynced, deferRetry } from "offline/db"
+import { pendingCatches, getCatch, markSynced, markFailed, pruneSynced, deferRetry, clearBackoff } from "offline/db"
 import { materialize } from "offline/blob"
 import { buildCatchFormData } from "offline/form_data"
 import { fetchSession } from "offline/session"
@@ -102,6 +102,10 @@ async function drainOnce() {
       })
       if (resp.ok) {
         await markSynced(rec.client_uuid)
+        // This upload proves the server is healthy, so release anything still
+        // sitting out a backoff from an earlier outage and queue another pass
+        // to carry it — otherwise it waits out a timer we now know is stale.
+        if (await clearBackoff()) rerunRequested = true
         window.dispatchEvent(new CustomEvent("bsfamilies:catch-synced", { detail: { client_uuid: rec.client_uuid } }))
       } else if (resp.status === 401) {
         // Session died between preflight and POST. Leave queued; stop the pass.

@@ -10,6 +10,20 @@ export default class extends Controller {
 
   connect() {
     configureDefaultIcons()
+    this.initMap()
+    // This page (judges/catches/show) renders under the application layout and
+    // Judges::BaseController never calls disable_turbo_snapshot_cache!, so an
+    // edge-swipe back is a restoration visit whose snapshot was captured with
+    // the map panes still live — disconnect() runs too late to clean it. Today
+    // the restored container keeps its _leaflet_id and connect() no-ops rather
+    // than stacking a second map, but that is Turbo's behaviour to change, not
+    // ours to rely on. Tear down before capture so the snapshot is clean either
+    // way, matching map_controller.
+    this.boundBeforeCache = () => this.teardown()
+    document.addEventListener("turbo:before-cache", this.boundBeforeCache)
+  }
+
+  initMap() {
     const start = [this.latValue, this.lngValue]
     const map = L.map(this.mapTarget).setView(start, this.hasPointValue ? 13 : 7)
     this.map = map
@@ -31,9 +45,15 @@ export default class extends Controller {
   // and so a Turbo Drive restore that reuses this element doesn't hit Leaflet's
   // "Map container is already initialized" guard on the next connect().
   disconnect() {
+    document.removeEventListener("turbo:before-cache", this.boundBeforeCache)
+    this.teardown()
+  }
+
+  teardown() {
     if (this.map) {
       this.map.remove()
       this.map = null
+      this.marker = null
     }
   }
 

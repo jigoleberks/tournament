@@ -98,9 +98,12 @@ module IosWebQuirks
   # Inserts a row into the bsfamilies IndexedDB catches store, then fires
   # trigger_js (pass "void 0" for none). Waits until the seed transaction has
   # committed before returning so server-side polling can start immediately.
+  # extra_fields merges arbitrary columns into the seeded row (as a JS object
+  # literal), e.g. { next_attempt_at: "Date.now() + 900000", attempts: 5 } to
+  # stage a record already parked in the drain's backoff.
   def seed_idb_catch(uuid:, species_id:, trigger_js:, length_inches: "18",
                      status: "pending", photo_js: SYNTHETIC_JPEG_JS,
-                     queued_by_user_id: nil)
+                     queued_by_user_id: nil, extra_fields: {})
     page.execute_script <<~JS
       window.__seeded = false;
       window.__seedError = null;
@@ -115,7 +118,7 @@ module IosWebQuirks
           captured_at_device: new Date().toISOString(),
           photo: photo,
           status: "#{status}",
-          queued_at: Date.now()#{queued_by_user_id ? ",\n          queued_by_user_id: \"#{queued_by_user_id}\"" : ""}
+          queued_at: Date.now()#{queued_by_user_id ? ",\n          queued_by_user_id: \"#{queued_by_user_id}\"" : ""}#{extra_fields.map { |k, v| ",\n          #{k}: #{v}" }.join}
         });
         await new Promise((res, rej) => { tx.oncomplete = res; tx.onerror = rej; });
         #{trigger_js};

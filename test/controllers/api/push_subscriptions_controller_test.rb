@@ -144,6 +144,29 @@ class Api::PushSubscriptionsControllerTest < ActionDispatch::IntegrationTest
     assert_equal other.id, PushSubscription.find_by(endpoint: "https://e/rotated-other").user_id
   end
 
+  # The CSRF fallback below accepts a rotation with no old row to match. That
+  # path resolved the owner as current_user, so on a shared phone it handed an
+  # endpoint another member had already registered to whoever happened to be
+  # signed in — silently cutting off the member who actually tapped Enable.
+  # refresh is a passive SW event, so it must refuse the move exactly as
+  # create's resync guard does.
+  test "refresh does not hand another member's registration to the current session" do
+    other = create(:user)
+    create(:push_subscription, user: other, endpoint: "https://e/shared-phone", p256dh: "p", auth: "a")
+    with_forgery_protection do
+      assert_no_difference "PushSubscription.count" do
+        post "/api/push_subscriptions/refresh", params: {
+          old_endpoint: nil,
+          subscription: { endpoint: "https://e/shared-phone", keys: { p256dh: "stolen", auth: "stolen" } }
+        }, headers: { "X-CSRF-Token" => api_session_csrf_token }, as: :json
+      end
+      assert_response :no_content
+      sub = PushSubscription.find_by(endpoint: "https://e/shared-phone")
+      assert_equal other.id, sub.user_id, "a passive rotation must not move the row to the current user"
+      assert_equal "p", sub.p256dh, "and must not overwrite the owner's keys"
+    end
+  end
+
   # Possession of a previously-registered endpoint is one ownership proof
   # (endpoints are unguessable capability URLs). Without a matching row AND
   # without a CSRF token the request proves nothing and must not create

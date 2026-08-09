@@ -12,10 +12,25 @@ module CatchesHelper
   # privacy control: the original EXIF carries full-precision GPS, and any club
   # member can save a rival's catch photo — the coordinate fuzzing in the views
   # is pointless if the pixels ship the honey hole.
+  #
+  # libvips 8.14 has no granular `keep:` (that landed in 8.15), so `strip: true`
+  # takes the embedded ICC profile with the EXIF. iPhone photos are Display P3,
+  # so an untagged wide-gamut JPEG renders oversaturated in every browser. Bake
+  # the profile into the pixels first: icc_transform reads the embedded profile
+  # and rewrites the pixels as real sRGB, so dropping the tag is then lossless.
+  # colourspace must come first — icc_transform raises "unable to load or find
+  # any compatible input profile" on a 1-band grayscale source, and widening to
+  # 3 bands is what keeps that from 500ing the variant. Insertion order is the
+  # application order (Active Storage applies the hash in sequence), so the
+  # conversion has to be built before the saver.
   def stripped_jpeg_variant(attachment, size: nil, quality: nil)
-    options = { format: :jpeg, saver: { strip: true } }
-    options[:saver][:Q] = quality if quality
+    options = {}
     options[:resize_to_limit] = size if size
+    options[:colourspace] = :srgb
+    options[:icc_transform] = "srgb"
+    options[:format] = :jpeg
+    options[:saver] = { strip: true }
+    options[:saver][:Q] = quality if quality
     attachment.variant(**options)
   end
 

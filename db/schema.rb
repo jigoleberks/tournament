@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_08_08_000000) do
+ActiveRecord::Schema[8.1].define(version: 2026_08_09_002538) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -89,6 +89,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_08_000000) do
     t.text "note"
     t.boolean "override_in_lake", default: false, null: false
     t.boolean "override_in_sask", default: false, null: false
+    t.datetime "placed_at"
     t.datetime "placements_evaluated_at"
     t.decimal "pressure_trend_24h_hpa", precision: 5, scale: 2
     t.bigint "species_id", null: false

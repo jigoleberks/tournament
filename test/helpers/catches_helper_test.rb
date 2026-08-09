@@ -213,4 +213,100 @@ class CatchesHelperTest < ActionView::TestCase
       assert fields.none? { |f| f.include?("GPS") }, "GPS EXIF survived: #{fields.grep(/GPS/)}"
     end
   end
+
+  # --- Colour fidelity: the strip drops the ICC profile too (libvips 8.14 has no
+  # granular `keep:`), so the pixels must be converted to sRGB BEFORE stripping.
+  # Without the conversion, a Display-P3 iPhone photo ships wide-gamut pixels
+  # with no profile and every browser renders it oversaturated.
+
+  # A wide-gamut ICC profile to tag a test source with. Not every image has one
+  # installed, so the end-to-end pixel test skips rather than fails without it.
+  WIDE_GAMUT_PROFILES = %w[
+    /usr/share/color/icc/ghostscript/a98.icc
+    /usr/share/color/icc/ghostscript/rommrgb.icc
+  ].freeze
+
+  test "stripped_jpeg_variant converts to sRGB before the strip discards the profile" do
+    captured = nil
+    attachment = Object.new
+    attachment.define_singleton_method(:variant) { |**opts| captured = opts; :a_variant }
+    stripped_jpeg_variant(attachment, size: [400, 400])
+
+    assert_equal :srgb, captured[:colourspace],
+                 "1-band sources must be widened to 3 bands or icc_transform hard-fails"
+    assert_equal "srgb", captured[:icc_transform]
+    assert_equal({ strip: true }, captured[:saver])
+    # Order matters: Active Storage applies the transformations in hash order, so
+    # the conversion has to land before the saver strips the profile it reads.
+    keys = captured.keys.map(&:to_s)
+    assert keys.index("icc_transform") < keys.index("saver"),
+           "icc_transform must be applied before the saver strip: #{keys.inspect}"
+    assert keys.index("colourspace") < keys.index("icc_transform"),
+           "colourspace must widen the image before icc_transform: #{keys.inspect}"
+  end
+
+  test "the served variant pipeline bakes a wide-gamut profile into sRGB pixels" do
+    require "image_processing/vips"
+    profile = WIDE_GAMUT_PROFILES.find { |p| File.exist?(p) }
+    skip "no wide-gamut ICC profile installed to build a test source from" unless profile
+
+    Dir.mktmpdir do |dir|
+      # A saturated RGB source tagged wide-gamut — stands in for a Display-P3 iPhone photo.
+      src = File.join(dir, "wide.jpg")
+      r = (Vips::Image.xyz(300, 200)[0] * 255 / 300).cast(:uchar)
+      g = (Vips::Image.xyz(300, 200)[1] * 255 / 200).cast(:uchar)
+      r.bandjoin([g, (r * 0 + 200).cast(:uchar)]).copy(interpretation: :srgb)
+        .jpegsave(src, Q: 95, profile: profile)
+
+      tagged = Vips::Image.new_from_file(src)
+      assert_includes tagged.get_fields, "icc-profile-data", "precondition: source must be tagged"
+      ideal = tagged.icc_transform("srgb")   # what the photo should look like once untagged
+
+      # Hold the Tempfiles: dropping the reference lets the finalizer delete the
+      # file out from under vips before it is read.
+      served_file = ImageProcessing::Vips.source(src).resize_to_limit(400, 400)
+        .colourspace(:srgb).icc_transform("srgb")
+        .convert("jpg").saver(strip: true, Q: 95).call
+      naive_file = ImageProcessing::Vips.source(src).resize_to_limit(400, 400)
+        .convert("jpg").saver(strip: true, Q: 95).call
+      served = Vips::Image.new_from_file(served_file.path)
+      naive  = Vips::Image.new_from_file(naive_file.path)
+
+      delta = ->(img) {
+        (ideal.extract_band(0, n: 3).cast(:float) - img.extract_band(0, n: 3).cast(:float)).abs.avg
+      }
+      # The converted variant lands on the intended colours; a bare strip does not.
+      assert delta.(served) < 2.0, "converted variant drifted from sRGB: mean #{delta.(served).round(2)}"
+      assert delta.(naive) > 5.0,
+             "precondition: a bare strip should visibly shift colour (mean #{delta.(naive).round(2)})"
+    end
+  end
+
+  test "the sRGB conversion still handles the image shapes members actually upload" do
+    require "image_processing/vips"
+    Dir.mktmpdir do |dir|
+      # 1-band grayscale is the shape that makes a bare icc_transform raise
+      # "unable to load or find any compatible input profile".
+      gray = File.join(dir, "gray.jpg")
+      Vips::Image.black(300, 200).linear(1, 128).cast(:uchar)
+        .copy(interpretation: :"b-w").jpegsave(gray, Q: 90)
+      # An untagged 3-band sRGB photo — the common Android case.
+      plain = File.join(dir, "plain.jpg")
+      c = (Vips::Image.xyz(300, 200)[0] * 255 / 300).cast(:uchar)
+      c.bandjoin([c, c]).copy(interpretation: :srgb).jpegsave(plain, Q: 90)
+
+      { "grayscale" => gray, "untagged sRGB" => plain }.each do |label, path|
+        out = ImageProcessing::Vips.source(path).resize_to_limit(400, 400)
+          .colourspace(:srgb).icc_transform("srgb").convert("jpg").saver(strip: true).call
+        assert File.size(out.path).positive?, "#{label} produced an empty variant"
+      end
+    end
+  end
+
+  test "the sRGB conversion survives the HEIC (iOS) transcode through the real helper" do
+    photo = attached_photo(path: "test/fixtures/files/sample_walleye.heic",
+                           content_type: "image/heic", filename: "sample_walleye.heic")
+    processed = stripped_jpeg_variant(photo, size: [400, 400]).processed
+    assert_equal "image/jpeg", processed.image.blob.content_type
+  end
 end

@@ -33,11 +33,23 @@ export default class extends Controller {
       // skipped by every drain — without the label it reads as a healthy
       // queue while the fish never uploads and nobody is told the fix.
       const me = currentUserId()
+      const now = Date.now()
       this.listTarget.innerHTML = pending.map((p) => {
         const otherUser = p.queued_by_user_id && me && String(p.queued_by_user_id) !== String(me)
+        // A record the server 5xx'd is held back by deferRetry for up to 15
+        // minutes. Rendered as a bare 🕐 it is indistinguishable from a healthy
+        // in-flight upload, so an angler watching a fish miss the leaderboard
+        // has no idea it is waiting, let alone that they can hurry it.
+        const waiting = !otherUser && p.next_attempt_at && p.next_attempt_at > now
         return `
-        <li>🕐 ${escapeHtml(p.length_inches)}″ — captured ${new Date(p.captured_at_device).toLocaleTimeString()}
-          ${otherUser ? '<span class="block text-xs text-amber-400">Logged under a different member’s account — it will sync when they sign in on this phone.</span>' : ""}
+        <li class="flex items-center justify-between gap-2 py-1">
+          <span>
+            🕐 ${escapeHtml(p.length_inches)}″ — captured ${new Date(p.captured_at_device).toLocaleTimeString()}
+            ${otherUser ? '<span class="block text-xs text-amber-400">Logged under a different member’s account — it will sync when they sign in on this phone.</span>' : ""}
+            ${waiting ? `<span class="block text-xs text-amber-400">Upload didn’t go through — retrying at ${new Date(p.next_attempt_at).toLocaleTimeString()}.</span>` : ""}
+          </span>
+          ${waiting ? `<button type="button" data-action="pending-catches#retry" data-uuid="${escapeHtml(p.client_uuid)}"
+                    class="h-9 px-3 rounded-lg bg-amber-600 active:bg-amber-700 text-white text-sm shrink-0">Retry</button>` : ""}
         </li>`
       }).join("")
     }

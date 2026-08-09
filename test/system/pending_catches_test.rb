@@ -41,6 +41,26 @@ class PendingCatchesTest < ApplicationSystemTestCase
     assert_no_selector "[data-pending-catches-target='failedList'] img"
   end
 
+  # A catch the server 5xx'd is held back by deferRetry for up to 15 minutes.
+  # Rendered as a bare 🕐 it was indistinguishable from a healthy in-flight
+  # upload, and the Retry button existed only for FAILED records — so an angler
+  # watching a fish miss the leaderboard had no way to see why, or to hurry it.
+  test "a catch parked in upload backoff says so and can be retried" do
+    uuid = SecureRandom.uuid
+    sign_in_as(@user)
+    seed_idb_catch(uuid: uuid, species_id: @walleye.id, trigger_js: "void 0",
+                   extra_fields: { next_attempt_at: "Date.now() + 900000", attempts: 5 })
+
+    visit root_path
+    assert_text "Upload didn’t go through", wait: 5
+    assert_selector "[data-pending-catches-target='list'] button", text: "Retry"
+
+    find("[data-pending-catches-target='list'] button", text: "Retry").click
+    Timeout.timeout(15) do
+      sleep 0.2 until Catch.find_by(client_uuid: uuid)
+    end
+  end
+
   private
 
   def sign_in_as(user)

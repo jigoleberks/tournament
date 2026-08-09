@@ -52,8 +52,9 @@ export default class extends Controller {
   }
 
   // Tear the map down so its tile layer and listeners don't leak.
-  // (location_edit_controller gets away with disconnect-only teardown because
-  // the admin layout is turbo-cache-control no-cache — no snapshot restores.)
+  // (location_edit_controller has the same before-cache teardown: it renders on
+  // judges/catches/show, which is snapshot-cached like this page — an earlier
+  // comment here claimed it sat on the no-cache admin layout, which was wrong.)
   disconnect() {
     document.removeEventListener("turbo:before-cache", this.boundBeforeCache)
     this.teardown()

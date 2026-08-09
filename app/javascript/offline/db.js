@@ -87,6 +87,27 @@ export async function deferRetry(client_uuid) {
   await db.put("catches", { ...rec, attempts, next_attempt_at: Date.now() + delayMs });
 }
 
+// A successful upload proves the server is reachable, so every other pending
+// record should stop serving out a backoff that was set during the outage —
+// otherwise a redeploy that lasted a minute keeps a caught fish off the
+// leaderboard for up to the full 15-minute cap, with no way to hurry it (the
+// widget's Retry button only exists for FAILED records). Returns how many rows
+// were released so the caller can re-run the drain immediately.
+//
+// `attempts` is deliberately NOT reset: a record the server rejects
+// deterministically gets one more try and then falls straight back to its long
+// delay, instead of re-uploading its full photo body after every unrelated
+// success — which is the battery/data drain deferRetry exists to prevent.
+export async function clearBackoff() {
+  const db = await getDB();
+  const rows = await db.getAllFromIndex("catches", "status", "pending");
+  const parked = rows.filter((rec) => rec.next_attempt_at != null);
+  for (const rec of parked) {
+    await db.put("catches", { ...rec, next_attempt_at: null });
+  }
+  return parked.length;
+}
+
 // submit() persists the catch BEFORE waiting up to ~10s for a GPS fix (the
 // old order lost catch+photo entirely if iOS jetsammed the tab mid-geolocate
 // — the normal lock-phone-and-release-the-fish gesture). hold_until keeps the

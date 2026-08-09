@@ -70,5 +70,62 @@ module Catches
       assert_equal 1, queries,
         "the before-card must reuse the leaderboard's already-loaded catches"
     end
+
+    # A duplicate concurrent POST of one client_uuid (recover "Re-submit"
+    # racing a background drain, or two open tabs) reaches RunPlacementPipeline
+    # a second time while placements_evaluated_at is still NULL — @catch.lock!
+    # only serializes the second run behind the first, it doesn't cancel it.
+    # For slot formats already_placed_ids makes that pass a no-op, but bingo
+    # keeps no CatchPlacement rows at all, so the second run re-broadcast every
+    # entrant's card and re-fired the took-the-lead push for a single fish.
+    test "a repeated first-placement run on a bingo catch is a no-op" do
+      club = Club.create!(name: "C")
+      walleye, = create_bingo_species!
+      t = Tournament.new(club: club, name: "B", mode: :solo, format: :bingo,
+                         starts_at: 2.hours.ago, ends_at: 2.hours.from_now)
+      t.save!
+      u = User.create!(name: "A", email: "dup@example.com")
+      e = t.tournament_entries.create!
+      e.tournament_entry_members.create!(user: u)
+
+      c = create(:catch, user: u, species: walleye, length_inches: 15,
+                 captured_at_device: 1.hour.ago, status: :synced)
+
+      broadcasts = with_broadcast_spy do |calls|
+        first = Catches::PlaceInSlots.call(catch: c)
+        assert_includes first[:affected_tournaments].map(&:id), t.id,
+          "precondition: the first run must broadcast the card"
+
+        second = Catches::PlaceInSlots.call(catch: c)
+        assert_empty second[:affected_tournaments],
+          "the duplicate run re-broadcast the card and would re-push the lead"
+        calls
+      end
+      assert_equal [t.id], broadcasts, "the card must be broadcast exactly once for one fish"
+    end
+
+    # The guard above must not reach the judge flows: ApplyJudgeAction
+    # deliberately re-places a catch it has just deactivated/reinstated, and
+    # passes broadcast: false to do its own broadcast afterwards. A bingo card
+    # still has to be rebuilt for those.
+    test "a judge re-place still flags a bingo tournament after the first run" do
+      club = Club.create!(name: "C")
+      walleye, = create_bingo_species!
+      t = Tournament.new(club: club, name: "B", mode: :solo, format: :bingo,
+                         starts_at: 2.hours.ago, ends_at: 2.hours.from_now)
+      t.save!
+      u = User.create!(name: "A", email: "judge-replace@example.com")
+      e = t.tournament_entries.create!
+      e.tournament_entry_members.create!(user: u)
+
+      c = create(:catch, user: u, species: walleye, length_inches: 15,
+                 captured_at_device: 1.hour.ago, status: :synced)
+
+      Catches::PlaceInSlots.call(catch: c)
+      result = Catches::PlaceInSlots.call(catch: c, broadcast: false)
+
+      assert_includes result[:affected_tournaments].map(&:id), t.id,
+        "a judge re-place must still rebuild the card"
+    end
   end
 end

@@ -52,6 +52,13 @@ class Api::PushSubscriptionsController < Api::BaseController
     # the rotated subscription must stay with the member who tapped Enable
     # (the old row's owner), not silently move to the current session's user.
     sub = upsert_subscription(params.dig(:subscription, :endpoint), owner: old&.user || current_user)
+    # The owner fallback above is current_user, so without this the CSRF path
+    # (no old row to inherit from) would reassign an endpoint another member
+    # had already registered on this shared phone. Nothing here is an explicit
+    # Enable tap, so no rotation may move a persisted row across users — the
+    # same refusal create's resync guard makes.
+    return head :no_content if sub.persisted? && sub.user_id_changed?
+
     if sub.save
       old.destroy if old && old.id != sub.id
       head :no_content

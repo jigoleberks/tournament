@@ -55,6 +55,21 @@ module Catches
           # so don't flag/rebroadcast a card that can't have changed.
           if tournament.format_bingo?
             next unless @catch.geofence_eligible_for?(tournament)
+            # already_placed_ids can never match a bingo tournament, so it
+            # can't stop a duplicate concurrent POST of one client_uuid
+            # (recover "Re-submit" racing a background drain) from running this
+            # branch twice — the lock above only serializes the second run
+            # behind the first, it doesn't cancel it, and
+            # placements_evaluated_at is deliberately written last, after the
+            # broadcast, so it is still NULL at this point. Without placed_at
+            # the repeat re-broadcasts every entrant's card and re-fires the
+            # took-the-lead push for a single fish.
+            #
+            # Only the first-placement path is guarded: the judge flows
+            # re-place a catch on purpose after deactivating or reinstating it,
+            # and pass broadcast: false to broadcast the rebuilt card
+            # themselves.
+            next if @broadcast && @catch.placed_at.present?
             affected_tournaments << tournament
             bingo_changed_entry_ids[tournament.id] << entry.id
             next
@@ -360,6 +375,12 @@ module Catches
             end
           end
         end
+
+        # Stamped inside the transaction so it commits atomically with the
+        # placements above — that is the whole point of it existing alongside
+        # placements_evaluated_at, which is written after the broadcast and so
+        # is still NULL while a duplicate request is racing this run.
+        @catch.update_column(:placed_at, Time.current) if @catch.placed_at.nil?
       end
 
       # Broadcasts and job enqueues happen AFTER our transaction commits so other
