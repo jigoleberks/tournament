@@ -79,6 +79,11 @@ async function drainOnce() {
     session = { csrf_token: meta.content, user_id: null }
   }
 
+  // The first success in a pass proves the server is healthy; the ninth proves
+  // nothing new. Releasing once per pass instead of once per uploaded record
+  // spares a full queue scan and rewrite per fish on a backlog drain.
+  let released = false
+
   for (const snap of due) {
     // Re-read the row before uploading: the queue snapshot above predates the
     // preflight round-trip, and a page resumed from iOS suspension re-arms
@@ -116,7 +121,10 @@ async function drainOnce() {
         // This upload proves the server is healthy, so release anything still
         // sitting out a backoff from an earlier outage and queue another pass
         // to carry it — otherwise it waits out a timer we now know is stale.
-        if (await clearBackoff()) rerunRequested = true
+        if (!released) {
+          released = true
+          if (await clearBackoff()) rerunRequested = true
+        }
         window.dispatchEvent(new CustomEvent("bsfamilies:catch-synced", { detail: { client_uuid: rec.client_uuid } }))
       } else if (resp.status === 401) {
         // Session died between preflight and POST. Leave queued; stop the pass.

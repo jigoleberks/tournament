@@ -207,6 +207,72 @@ class OfflineSyncTest < ApplicationSystemTestCase
     assert_catch_received(parked)
   end
 
+  # The release above is capped, because "the server is healthy" says nothing
+  # about a record the server rejects every single time. Uncapped, an angler who
+  # lands twenty good fish in an evening hands the broken one twenty releases —
+  # and so twenty full-photo re-uploads over lake cellular, which is the exact
+  # battery/data drain deferRetry exists to prevent. A record already released
+  # its budget's worth (clearBackoff's MAX_RELEASES) serves out its backoff.
+  test "a record that keeps failing stops being released by later successes" do
+    control = SecureRandom.uuid
+    spent = SecureRandom.uuid
+    fresh = SecureRandom.uuid
+    sign_in_as(@user)
+    # Both parked; both also held (hold_until) so they stay put in IndexedDB for
+    # inspection instead of racing an upload the moment they are released. The
+    # only difference is the release budget: the control has spent none, `spent`
+    # has spent all of clearBackoff's MAX_RELEASES.
+    held = { hold_until: "Date.now() + 600000", next_attempt_at: "Date.now() + 900000", attempts: 5 }
+    seed_idb_catch(uuid: control, species_id: @walleye.id, trigger_js: "void 0",
+                   extra_fields: held)
+    seed_idb_catch(uuid: spent, species_id: @walleye.id, trigger_js: "void 0",
+                   extra_fields: held.merge(releases: 2))
+    seed_idb_catch(uuid: fresh, species_id: @walleye.id,
+                   trigger_js: "window.dispatchEvent(new Event('bsfamilies:try-sync'))")
+
+    assert_catch_received(fresh)
+    # The control losing its timer is clearBackoff reporting for duty — wait on
+    # that rather than a sleep, so the assertion below can't run too early.
+    Timeout.timeout(10) do
+      sleep 0.1 while idb_next_attempt_at(control)
+    end
+    assert idb_next_attempt_at(spent),
+           "a record that already spent its release budget must serve out its backoff"
+  end
+
+  # offline/db.js bumps its schema version as the queue format changes, and an
+  # upgrade cannot run while another same-origin context holds the old version
+  # open — openDB's promise does not reject there, it hangs forever. Every
+  # export in db.js awaits getDB(), so a page without a `blocking` handler
+  # silently wedges the next deploy's submit(): the Save button stays disabled
+  # and the fish is never written to the queue. Standing aside is what keeps
+  # that from happening.
+  test "a page holding the offline DB open stands aside for a newer schema" do
+    sign_in_as(@user)
+    page.execute_script <<~JS
+      window.__newer = null;
+      (async () => {
+        const db = await import("offline/db");
+        await db.getDB();                     // this page now holds the connection
+        const req = indexedDB.open("bsfamilies", 99);
+        req.onupgradeneeded = () => {};
+        req.onsuccess = (e) => {
+          // Leave the origin as we found it for the next test.
+          e.target.result.close();
+          indexedDB.deleteDatabase("bsfamilies");
+          window.__newer = "open";
+        };
+        req.onerror = () => { window.__newer = "error" };
+      })().catch((e) => { window.__newer = "error: " + e });
+    JS
+
+    # Without blocking() this poll times out — the upgrade never gets its turn.
+    Timeout.timeout(10) do
+      sleep 0.1 until page.evaluate_script("window.__newer")
+    end
+    assert_equal "open", page.evaluate_script("window.__newer")
+  end
+
   # Every drain trigger (the 45s tick, turbo:load, visibilitychange, pageshow,
   # online) and every pending-widget render scans the queue with
   # getAllFromIndex, which deserializes whole records. Once photos became inline

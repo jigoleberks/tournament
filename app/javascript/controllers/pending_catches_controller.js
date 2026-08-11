@@ -27,7 +27,15 @@ export default class extends Controller {
   }
 
   async refresh() {
-    const [pending, failed] = await Promise.all([pendingCatches(), failedCatches()])
+    // getDB can now reject rather than hang (another window holding the old
+    // schema open — see offline/db.js). This widget is a status readout, so a
+    // failed read leaves the last render up instead of throwing out of connect.
+    let pending, failed
+    try {
+      [pending, failed] = await Promise.all([pendingCatches(), failedCatches()])
+    } catch (_) {
+      return
+    }
 
     if (pending.length === 0) {
       this.listTarget.innerHTML = ""

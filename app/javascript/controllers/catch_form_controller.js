@@ -164,7 +164,10 @@ export default class extends Controller {
       window.location.href = "/"
     } catch (err) {
       this._setSubmitting(false)
-      this.statusTarget.textContent = "Couldn't save your catch — try again."
+      // A few failures know exactly what the angler has to do (offline/db.js
+      // sets userMessage when another window is holding the old schema open);
+      // "try again" on its own would have them tapping Save forever.
+      this.statusTarget.textContent = err?.userMessage || "Couldn't save your catch — try again."
       throw err
     }
   }

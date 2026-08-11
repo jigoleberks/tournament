@@ -15,8 +15,39 @@ const VERSION = 2;
 // are still read (and uploaded) through the fallback in getCatch. Rewriting
 // them would put the only copy of an unsynced fish's photo through a migration
 // for no gain — the queue drains within hours and the fat rows go with it.
+//
+// A version bump cannot proceed while any other same-origin context still holds
+// a connection on the old schema, and in that state openDB's promise never
+// settles — it does not reject, it simply hangs. Every export here awaits
+// getDB(), so an unguarded block hangs catch_form's submit() forever: the Save
+// button stays disabled, its catch never runs, and the fish is never written to
+// the queue. The `blocked`/`blocking` pair below is what keeps that from being
+// a silent data-loss path on deploy day.
+export const DB_BLOCKED_MESSAGE =
+  "Another window of this app is open on an older version. Close the app's other tabs (or fully close and reopen it), then try again.";
+
+// How long to let a blocking context get out of the way before failing. A page
+// running a build that has the `blocking` handler below closes on the next tick;
+// one running an older build never will, and an angler holding a fish should
+// not wait on it.
+const BLOCKED_GRACE_MS = 3000;
+
+// One connection per page, not one per call. `blocking` needs a handle to close,
+// and drains call in here several times a pass.
+let dbPromise = null;
+
 export async function getDB() {
-  return openDB(DB_NAME, VERSION, {
+  if (!dbPromise) dbPromise = open();
+  return dbPromise;
+}
+
+function open() {
+  let handle = null;
+  let promise = null;
+  let onBlocked;
+  const blockedOut = new Promise((_, reject) => { onBlocked = reject; });
+
+  const opening = openDB(DB_NAME, VERSION, {
     upgrade(db) {
       if (!db.objectStoreNames.contains("catches")) {
         const store = db.createObjectStore("catches", { keyPath: "client_uuid" });
@@ -25,8 +56,39 @@ export async function getDB() {
       if (!db.objectStoreNames.contains("blobs")) {
         db.createObjectStore("blobs", { keyPath: "client_uuid" });
       }
+    },
+    // Someone else is holding the old version open. Fail with something the
+    // angler can act on rather than hanging — the open keeps running, so a
+    // retry after they close the other window lands immediately.
+    blocked() {
+      setTimeout(() => {
+        const err = new Error(DB_BLOCKED_MESSAGE);
+        err.userMessage = DB_BLOCKED_MESSAGE;
+        onBlocked(err);
+      }, BLOCKED_GRACE_MS);
+    },
+    // The mirror image: a newer version wants to upgrade and we are the stale
+    // connection in its way. Closing is what spares the NEXT schema bump the
+    // failure above — this deploy's blocker is a build that predates this line.
+    blocking(currentVersion, blockedVersion, event) {
+      try { (handle || event?.target)?.close(); } catch (_) {}
+      release(promise);
+    },
+    // Connection dropped from under us (storage pressure, forced close): drop
+    // the cached handle so the next call reopens instead of reusing a dead one.
+    terminated() {
+      release(promise);
     }
-  });
+  }).then((db) => { handle = db; return db; });
+
+  promise = Promise.race([opening, blockedOut]);
+  // Never cache a failed open, or one blocked moment poisons the page.
+  promise.catch(() => release(promise));
+  return promise;
+}
+
+function release(promise) {
+  if (dbPromise === promise) dbPromise = null;
 }
 
 // Safari evicts all script-writable storage (this DB included) after ~7 days
@@ -106,7 +168,9 @@ export async function markFailed(client_uuid, reason) {
 export async function markPending(client_uuid) {
   const db = await getDB();
   const rec = await db.get("catches", client_uuid);
-  if (rec) await db.put("catches", { ...rec, status: "pending", reason: null, failed_at: null, attempts: 0, next_attempt_at: null });
+  // A hand-tapped Retry is a clean slate — including the clearBackoff release
+  // budget, or a record retried by hand hours later would still be excluded.
+  if (rec) await db.put("catches", { ...rec, status: "pending", reason: null, failed_at: null, attempts: 0, next_attempt_at: null, releases: 0 });
 }
 
 // Exponential backoff for records the server keeps 5xx/408/429-ing: without
@@ -134,12 +198,22 @@ export async function deferRetry(client_uuid) {
 // deterministically gets one more try and then falls straight back to its long
 // delay, instead of re-uploading its full photo body after every unrelated
 // success — which is the battery/data drain deferRetry exists to prevent.
+//
+// That alone doesn't bound the cost, though: the delay stops growing but the
+// releases don't stop coming. An angler who logs twenty good fish over an hour
+// hands a record the server rejects EVERY time twenty releases, and so twenty
+// full-photo re-uploads over lake cellular. `releases` caps them. A record
+// released once and re-parked has now failed with the server demonstrably
+// healthy — that is the signature of a broken record rather than an outage
+// victim — so it gets one more chance and then serves out its backoff.
+const MAX_RELEASES = 2;
+
 export async function clearBackoff() {
   const db = await getDB();
   const rows = await db.getAllFromIndex("catches", "status", "pending");
-  const parked = rows.filter((rec) => rec.next_attempt_at != null);
+  const parked = rows.filter((rec) => rec.next_attempt_at != null && (rec.releases || 0) < MAX_RELEASES);
   for (const rec of parked) {
-    await db.put("catches", { ...rec, next_attempt_at: null });
+    await db.put("catches", { ...rec, next_attempt_at: null, releases: (rec.releases || 0) + 1 });
   }
   return parked.length;
 }
