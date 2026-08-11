@@ -74,6 +74,51 @@ class StreamRefreshTest < ApplicationSystemTestCase
     assert_text "Zebra Boat", wait: 5
   end
 
+  # The reachability probe must not fetch the leaderboard page itself. Rack::Head
+  # sits at the END of the stack, so a HEAD there runs the whole controller and
+  # view — a full Leaderboards::Build and ERB render — before the body is thrown
+  # away, and the Turbo.visit that follows then renders it a SECOND time. Every
+  # foreground, bfcache restore and edge-swipe paid double on the one VM.
+  test "the reachability probe does not cost a second leaderboard render" do
+    club = create(:club)
+    walleye = create(:species, club: club)
+    angler = create(:user, club: club, name: "Angler A")
+
+    tournament = create(:tournament, club: club, name: "League Night",
+                        starts_at: 1.hour.ago, ends_at: 1.hour.from_now)
+    create(:scoring_slot, tournament: tournament, species: walleye, slot_count: 1)
+    entry = create(:tournament_entry, tournament: tournament, name: "Zebra Boat")
+    create(:tournament_entry_member, tournament_entry: entry, user: angler)
+
+    sign_in_as(angler)
+    visit tournament_path(tournament)
+    assert_text "Zebra Boat"
+
+    find("a[aria-label='Home']").click
+    assert_text "Hello, #{angler.name}", wait: 5
+
+    # Record every request the restore makes. Installed on the home page; the
+    # JS context survives the Turbo restore, so it sees the probe too.
+    page.execute_script(<<~JS)
+      window.__probes = [];
+      const realFetch = window.fetch;
+      window.fetch = (url, opts) => {
+        window.__probes.push(((opts && opts.method) || "GET") + " " + String(url));
+        return realFetch(url, opts);
+      };
+    JS
+    entry.update!(name: "Renamed Boat")
+
+    page.go_back
+    assert_text "Renamed Boat", wait: 5
+
+    probes = page.evaluate_script("window.__probes")
+    assert probes.any? { |p| p.include?("/api/session") },
+           "expected the cheap session probe, saw: #{probes.inspect}"
+    assert probes.none? { |p| p.start_with?("HEAD") },
+           "the probe HEADs a page, which costs a full render: #{probes.inspect}"
+  end
+
   # A session that expired while the PWA was backgrounded must not read as
   # "reachable": the probe would follow require_sign_in!'s 302 to the sign-in
   # page's 200 and the replace-visit would swap the stale-but-readable

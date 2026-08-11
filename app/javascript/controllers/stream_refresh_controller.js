@@ -1,4 +1,5 @@
 import { Controller } from "@hotwired/stimulus"
+import { fetchSession } from "offline/session"
 
 // iOS kills the Action Cable socket while the PWA is backgrounded, and Turbo
 // Stream broadcasts sent meanwhile are never replayed — a foregrounded
@@ -61,20 +62,31 @@ export default class extends Controller {
     // stale-but-readable leaderboard — and its history entry — with it.
     // navigator.onLine can't be trusted here (see the note in offline/sync.js:
     // WebKit's flag goes stale after backgrounding), so a real fetch is the
-    // check: not-ok or thrown → stay on the snapshot; the next foreground
-    // retries. redirect: "manual" so an expired session doesn't read as
-    // reachable — following require_sign_in!'s 302 lands on the sign-in
-    // page's 200, and the replace-visit would swap the stale-but-readable
-    // leaderboard (and its history entry) for the sign-in screen. A redirect
-    // comes back as an opaqueredirect (ok: false) and keeps the snapshot.
-    try {
-      const resp = await fetch(window.location.href, {
-        method: "HEAD", cache: "no-store", credentials: "same-origin", redirect: "manual"
-      })
-      if (!resp.ok) return
-    } catch (_) {
-      return
-    }
+    // check.
+    //
+    // Probe /api/session rather than this page: a HEAD to the leaderboard runs
+    // the whole stack and only discards the body at Rack::Head, so it costs a
+    // full Leaderboards::Build and ERB render — and the Turbo.visit below then
+    // renders it a SECOND time. Every foreground, bfcache restore and
+    // edge-swipe paid double, on the one VM, exactly when a tournament night
+    // has thirty phones cycling in and out.
+    //
+    // Only "ok" may proceed. "authRequired" is the expired-session case (an
+    // Api::BaseController 401, so no redirect: "manual" trick is needed here —
+    // the status carries the signal, unlike this page's require_sign_in! 302
+    // to a 200 sign-in screen). "network"/"unavailable" are offline or a
+    // broken endpoint; both keep the snapshot and let the next foreground
+    // retry. Every page mounting this controller is behind
+    // TournamentsController's require_sign_in!, so treating authRequired as
+    // "don't refresh" can't strand an anonymous viewer — there isn't one.
+    //
+    // Trade: this no longer validates THIS page specifically, so a leaderboard
+    // that 500s while the rest of the app is healthy now gets visited (and the
+    // error page renders over the snapshot) where the HEAD would have caught
+    // it. Accepted — that is a rare already-broken state, against a cost paid
+    // on every single refresh.
+    const session = await fetchSession()
+    if (session.state !== "ok") return
     if (window.Turbo) {
       // A replace-visit resets scroll to top; put the viewer back where they
       // were (mid-leaderboard) once the fresh page renders. Guarded on the
