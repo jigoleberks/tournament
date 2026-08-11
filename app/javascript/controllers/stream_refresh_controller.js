@@ -21,6 +21,7 @@ document.addEventListener("turbo:visit", (e) => { lastVisitAction = e.detail.act
 export default class extends Controller {
   connect() {
     this.hiddenAt = null
+    this.refreshing = false
     this.onVisibility = () => {
       if (document.visibilityState === "hidden") {
         this.hiddenAt = Date.now()
@@ -48,15 +49,27 @@ export default class extends Controller {
   }
 
   async refresh() {
+    // One iOS foreground fires BOTH triggers: visibilitychange with a stale
+    // hiddenAt, then pageshow with persisted=true on the bfcache restore.
+    // Un-coalesced, each ran its own probe and its own replace-visit, so the
+    // server built and rendered the leaderboard twice per foreground — the
+    // doubled cost the /api/session probe was adopted to remove, back again by
+    // another route, on the one VM with thirty phones cycling in and out.
+    if (this.refreshing) return
+
     // A replace-visit would wipe an open catch-photo modal (the frame
     // re-renders empty) and the photo the viewer is inspecting with it. Wait
     // for the modal to close (its close button empties the frame), then
-    // refresh — the missed broadcasts still get picked up.
+    // refresh — the missed broadcasts still get picked up. Checked before the
+    // flag is raised: nothing is in flight yet, and the observer's later call
+    // must not be turned away.
     const modal = document.querySelector("turbo-frame#catch_photo_modal")
     if (modal && modal.childElementCount > 0) {
       this.refreshWhenModalCloses(modal)
       return
     }
+
+    this.refreshing = true
     // Probe reachability before visiting. Offline, the SW answers fetches
     // with a 503 (or the /offline shell), and a replace-visit would wipe a
     // stale-but-readable leaderboard — and its history entry — with it.
@@ -86,7 +99,10 @@ export default class extends Controller {
     // it. Accepted — that is a rare already-broken state, against a cost paid
     // on every single refresh.
     const session = await fetchSession()
-    if (session.state !== "ok") return
+    if (session.state !== "ok") {
+      this.refreshing = false
+      return
+    }
     if (window.Turbo) {
       // A replace-visit resets scroll to top; put the viewer back where they
       // were (mid-leaderboard) once the fresh page renders. Guarded on the
@@ -102,7 +118,13 @@ export default class extends Controller {
       // (1-bar lake LTE), turbo:load never fires and the armed listener would
       // scroll-jack the user's NEXT real visit to this URL — disarm it once
       // the visit is plainly dead.
-      setTimeout(() => document.removeEventListener("turbo:load", restoreScroll), 15000)
+      // A live visit replaces this page — and this controller instance — so the
+      // flag above normally dies with it. Still being here means the visit
+      // died, so re-arm alongside the scroll listener's disarm.
+      setTimeout(() => {
+        document.removeEventListener("turbo:load", restoreScroll)
+        this.refreshing = false
+      }, 15000)
       window.Turbo.visit(href, { action: "replace" })
     } else {
       window.location.reload()

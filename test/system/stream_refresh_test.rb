@@ -119,6 +119,61 @@ class StreamRefreshTest < ApplicationSystemTestCase
            "the probe HEADs a page, which costs a full render: #{probes.inspect}"
   end
 
+  # One iOS foreground fires BOTH of this controller's triggers: visibilitychange
+  # (visible, with a stale hiddenAt) and then pageshow with persisted=true from
+  # the bfcache restore. Neither knew about the other, so a single foreground ran
+  # two probes and two replace-visits — the server building and rendering the
+  # leaderboard twice, which is exactly the doubled cost the cheap /api/session
+  # probe was adopted to remove.
+  test "one foreground firing both triggers refreshes only once" do
+    club = create(:club)
+    walleye = create(:species, club: club)
+    angler = create(:user, club: club, name: "Angler A")
+
+    tournament = create(:tournament, club: club, name: "League Night",
+                        starts_at: 1.hour.ago, ends_at: 1.hour.from_now)
+    create(:scoring_slot, tournament: tournament, species: walleye, slot_count: 1)
+    entry = create(:tournament_entry, tournament: tournament, name: "Zebra Boat")
+    create(:tournament_entry_member, tournament_entry: entry, user: angler)
+
+    sign_in_as(angler)
+    visit tournament_path(tournament)
+    assert_text "Zebra Boat"
+
+    entry.update!(name: "Renamed Boat")
+    page.execute_script(<<~JS)
+      window.__probes = [];
+      const realFetch = window.fetch;
+      window.fetch = (url, opts) => {
+        window.__probes.push(String(url));
+        return realFetch(url, opts);
+      };
+
+      // Background the page, then foreground it 20s later (past STALE_AFTER_MS)
+      // and fire both signals an iOS bfcache restore emits, back to back.
+      let visibility = "hidden";
+      Object.defineProperty(document, "visibilityState", {
+        configurable: true, get: () => visibility
+      });
+      document.dispatchEvent(new Event("visibilitychange"));
+
+      const realNow = Date.now;
+      Date.now = () => realNow.call(Date) + 20000;
+
+      visibility = "visible";
+      document.dispatchEvent(new Event("visibilitychange"));
+      window.dispatchEvent(new PageTransitionEvent("pageshow", { persisted: true }));
+    JS
+
+    # The refresh must still happen — this guard coalesces, it does not suppress.
+    assert_text "Renamed Boat", wait: 5
+    sleep 1
+
+    probes = page.evaluate_script("window.__probes").select { |p| p.include?("/api/session") }
+    assert_equal 1, probes.size,
+                 "one foreground must cost one probe and one re-render, saw: #{probes.inspect}"
+  end
+
   # A session that expired while the PWA was backgrounded must not read as
   # "reachable": the probe would follow require_sign_in!'s 302 to the sign-in
   # page's 200 and the replace-visit would swap the stale-but-readable
