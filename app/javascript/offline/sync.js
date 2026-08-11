@@ -28,6 +28,17 @@ async function drain() {
   }
 }
 
+// deferRetry parks a record for up to 15 minutes. The pending widget renders a
+// "retrying at …" line and a Retry button for parked rows, but it only re-reads
+// IndexedDB when an event tells it to — and parking emitted none, so an angler
+// already sitting on the page kept seeing a bare 🕐 row indistinguishable from a
+// healthy in-flight upload. That is exactly the state the backoff notice exists
+// to prevent, so parking announces itself the way syncing and failing do.
+async function park(client_uuid) {
+  await deferRetry(client_uuid)
+  window.dispatchEvent(new CustomEvent("bsfamilies:catch-deferred", { detail: { client_uuid } }))
+}
+
 // One pass over the queue. Returns true to halt re-runs (auth is dead).
 async function drainOnce() {
   await pruneSynced().catch(() => {})
@@ -122,7 +133,7 @@ async function drainOnce() {
           // drains only pull pending records, so it would never auto-sync
           // when the right member signs back in. Leave it pending; back off
           // so we don't re-upload the full photo every 45s meanwhile.
-          await deferRetry(rec.client_uuid)
+          await park(rec.client_uuid)
           continue
         }
         const reason = body && Array.isArray(body.errors) && body.errors.length
@@ -133,7 +144,7 @@ async function drainOnce() {
       } else {
         // 5xx / 408 / 429: server reachable but unhappy — back off so we don't
         // re-upload this record's full photo body every 45 seconds for hours.
-        await deferRetry(rec.client_uuid)
+        await park(rec.client_uuid)
       }
     } catch (_) {
       // network error — leave queued for next attempt (no backoff: when the

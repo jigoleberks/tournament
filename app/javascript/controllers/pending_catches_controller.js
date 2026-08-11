@@ -13,12 +13,17 @@ export default class extends Controller {
     this.boundRefresh = () => this.refresh()
     window.addEventListener("bsfamilies:catch-synced", this.boundRefresh)
     window.addEventListener("bsfamilies:catch-failed", this.boundRefresh)
+    // Parking (deferRetry) is the third outcome a drain can produce, and the
+    // only one the angler can act on while still on this page — see the
+    // backoff notice below.
+    window.addEventListener("bsfamilies:catch-deferred", this.boundRefresh)
     await this.refresh()
   }
 
   disconnect() {
     window.removeEventListener("bsfamilies:catch-synced", this.boundRefresh)
     window.removeEventListener("bsfamilies:catch-failed", this.boundRefresh)
+    window.removeEventListener("bsfamilies:catch-deferred", this.boundRefresh)
   }
 
   async refresh() {

@@ -1,5 +1,11 @@
 module Catches
   class PlaceInSlots
+    # How long after placed_at another run of the same catch is assumed to be a
+    # concurrent duplicate still in flight rather than a retry of one that died.
+    # Comfortably longer than the seconds a racing POST takes, comfortably
+    # shorter than the 90s floor deferRetry imposes before a client retries.
+    IN_FLIGHT_WINDOW = 30.seconds
+
     def self.call(catch:, broadcast: true, club: nil)
       new(catch: catch, broadcast: broadcast, club: club).call
     end
@@ -69,7 +75,18 @@ module Catches
             # re-place a catch on purpose after deactivating or reinstating it,
             # and pass broadcast: false to broadcast the rebuilt card
             # themselves.
-            next if @broadcast && @catch.placed_at.present?
+            #
+            # Bounded by IN_FLIGHT_WINDOW so the guard can't also swallow the
+            # API's crash-recovery re-run. That path (serialize_existing, gated
+            # on a nil placements_evaluated_at) is the SAME entry point as the
+            # concurrent duplicate, so the only thing separating them is age:
+            # the racing run placed this catch milliseconds ago and is about to
+            # broadcast, while a crashed one placed it and died — its client
+            # can't be back sooner than deferRetry's 90s floor. Skipping the
+            # crashed case left every entrant's card a square stale for the
+            # rest of the night, since bingo derives cards on read and nothing
+            # else rebroadcasts them.
+            next if @broadcast && @catch.placed_at.present? && @catch.placed_at > IN_FLIGHT_WINDOW.ago
             affected_tournaments << tournament
             bingo_changed_entry_ids[tournament.id] << entry.id
             next

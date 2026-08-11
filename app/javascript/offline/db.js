@@ -1,14 +1,29 @@
 import { openDB } from "idb";
 
 const DB_NAME = "bsfamilies";
-const VERSION = 1;
+const VERSION = 2;
 
+// v2 splits the photo/video bytes out of the `catches` row into `blobs`.
+// Every drain (45s tick, turbo:load, visibilitychange, pageshow, online) and
+// every pending-widget render reads the queue with getAllFromIndex, which
+// deserializes whole records — and since photos became inline ArrayBuffers
+// rather than out-of-line Blobs, that meant materializing every queued photo
+// into the JS heap just to read two scheduling timestamps. Metadata now lives
+// alone; the bytes are fetched only by getCatch, right before an upload.
+//
+// The upgrade is purely additive: existing v1 rows keep their inline bytes and
+// are still read (and uploaded) through the fallback in getCatch. Rewriting
+// them would put the only copy of an unsynced fish's photo through a migration
+// for no gain — the queue drains within hours and the fat rows go with it.
 export async function getDB() {
   return openDB(DB_NAME, VERSION, {
     upgrade(db) {
       if (!db.objectStoreNames.contains("catches")) {
         const store = db.createObjectStore("catches", { keyPath: "client_uuid" });
         store.createIndex("status", "status");
+      }
+      if (!db.objectStoreNames.contains("blobs")) {
+        db.createObjectStore("blobs", { keyPath: "client_uuid" });
       }
     }
   });
@@ -26,9 +41,17 @@ export async function enqueueCatch(record) {
     try { navigator.storage?.persist?.() } catch (_) {}
   }
   const db = await getDB();
-  await db.put("catches", { ...record, status: "pending", queued_at: Date.now() });
+  const { photo, video, ...meta } = record;
+  // One transaction over both stores: a catch row whose bytes didn't land (or
+  // bytes with no row) is a fish that can never upload, so they commit together.
+  const tx = db.transaction(["catches", "blobs"], "readwrite");
+  tx.objectStore("catches").put({ ...meta, status: "pending", queued_at: Date.now() });
+  tx.objectStore("blobs").put({ client_uuid: record.client_uuid, photo, video });
+  await tx.done;
 }
 
+// Metadata only for rows written by v2 — see the note on getDB. Callers that
+// need the bytes (sync's upload, recover's preview) re-read with getCatch.
 export async function pendingCatches() {
   const db = await getDB();
   return db.getAllFromIndex("catches", "status", "pending");
@@ -36,7 +59,11 @@ export async function pendingCatches() {
 
 export async function getCatch(client_uuid) {
   const db = await getDB();
-  return db.get("catches", client_uuid);
+  const rec = await db.get("catches", client_uuid);
+  if (!rec) return rec;
+  // No blobs row means a v1 record still carrying its bytes inline.
+  const bytes = await db.get("blobs", client_uuid);
+  return bytes ? { ...rec, photo: bytes.photo, video: bytes.video } : rec;
 }
 
 export async function failedCatches() {
@@ -50,7 +77,10 @@ export async function failedCatches() {
 // including catches still waiting to upload, so synced rows are deleted.
 export async function markSynced(client_uuid) {
   const db = await getDB();
-  await db.delete("catches", client_uuid);
+  const tx = db.transaction(["catches", "blobs"], "readwrite");
+  tx.objectStore("catches").delete(client_uuid);
+  tx.objectStore("blobs").delete(client_uuid);
+  await tx.done;
 }
 
 // Sweep rows left in status "synced" by versions that kept them. One index
@@ -58,7 +88,13 @@ export async function markSynced(client_uuid) {
 export async function pruneSynced() {
   const db = await getDB();
   const stale = await db.getAllKeysFromIndex("catches", "status", "synced");
-  for (const key of stale) await db.delete("catches", key);
+  if (stale.length === 0) return;
+  const tx = db.transaction(["catches", "blobs"], "readwrite");
+  for (const key of stale) {
+    tx.objectStore("catches").delete(key);
+    tx.objectStore("blobs").delete(key);
+  }
+  await tx.done;
 }
 
 export async function markFailed(client_uuid, reason) {

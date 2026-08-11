@@ -207,6 +207,46 @@ class OfflineSyncTest < ApplicationSystemTestCase
     assert_catch_received(parked)
   end
 
+  # Every drain trigger (the 45s tick, turbo:load, visibilitychange, pageshow,
+  # online) and every pending-widget render scans the queue with
+  # getAllFromIndex, which deserializes whole records. Once photos became inline
+  # ArrayBuffers rather than out-of-line Blobs, that meant materializing every
+  # queued photo into the JS heap just to read next_attempt_at and hold_until.
+  # offline/db.js v2 keeps the bytes in a separate store; only getCatch — called
+  # once, immediately before an upload — joins them back.
+  test "a queued catch keeps its bytes out of the row the queue scan reads" do
+    sign_in_as(@user)
+    page.execute_script <<~JS
+      window.__probe = null;
+      (async () => {
+        const db = await import("offline/db");
+        await db.enqueueCatch({
+          client_uuid: "#{SecureRandom.uuid}",
+          species_id: "#{@walleye.id}",
+          length_inches: "18",
+          captured_at_device: new Date().toISOString(),
+          photo: { bytes: new ArrayBuffer(2048), type: "image/jpeg", name: "p.jpg" }
+        });
+        const [row] = await db.pendingCatches();
+        const full = await db.getCatch(row.client_uuid);
+        window.__probe = {
+          scanned_row_has_photo: row.photo !== undefined,
+          scanned_row_has_length: row.length_inches === "18",
+          joined_read_has_photo: !!(full.photo && full.photo.bytes && full.photo.bytes.byteLength === 2048)
+        };
+      })().catch((e) => { window.__probe = { error: String(e) }; });
+    JS
+
+    probe = nil
+    Timeout.timeout(10) do
+      sleep 0.1 until (probe = page.evaluate_script("window.__probe"))
+    end
+    assert_nil probe["error"], "enqueue/read probe errored: #{probe["error"]}"
+    assert probe["scanned_row_has_length"], "the queue scan must still see the scheduling metadata"
+    refute probe["scanned_row_has_photo"], "the queue scan must not deserialize the photo bytes"
+    assert probe["joined_read_has_photo"], "getCatch must still hand the uploader its bytes"
+  end
+
   test "a server 422 shows a readable reason, not raw JSON" do
     uuid = SecureRandom.uuid
     sign_in_as(@user)

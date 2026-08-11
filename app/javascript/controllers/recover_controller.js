@@ -1,5 +1,5 @@
 import { Controller } from "@hotwired/stimulus"
-import { pendingCatches, failedCatches, markSynced } from "offline/db"
+import { pendingCatches, failedCatches, getCatch, markSynced } from "offline/db"
 import { materialize } from "offline/blob"
 import { buildCatchFormData } from "offline/form_data"
 import { fetchSession } from "offline/session"
@@ -56,7 +56,14 @@ export default class extends Controller {
     this.objectUrls = []
   }
 
-  async renderRow(rec, gen) {
+  async renderRow(row, gen) {
+    // pendingCatches/failedCatches return metadata only (offline/db.js v2), and
+    // everything below — the size, the preview, the re-submit body — needs the
+    // bytes. Re-read per row rather than up front: this loop already awaits
+    // once per row, so nothing is serialized that wasn't already.
+    const rec = (await getCatch(row.client_uuid)) || row
+    if (gen !== this.generation) return
+
     const li = document.createElement("li")
     li.className = "flex flex-wrap items-center gap-3 py-2 border-b border-slate-700"
 

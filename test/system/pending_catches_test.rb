@@ -61,6 +61,35 @@ class PendingCatchesTest < ApplicationSystemTestCase
     end
   end
 
+  # The test above seeds a record that is ALREADY parked and then loads the
+  # page, so connect() renders the notice. The angler's real case is the
+  # opposite order: they are already sitting on the page when the drain 5xx's
+  # and parks the catch. deferRetry dispatched no event, and this controller
+  # only re-renders on catch-synced/catch-failed, so the row stayed a bare 🕐
+  # for the whole 15-minute backoff — the exact state the notice exists for.
+  test "a catch parked while the angler is watching updates the widget in place" do
+    sign_in_as(@user)
+    visit root_path
+    assert_selector "[data-controller='pending-catches']", wait: 5
+
+    page.execute_script <<~JS
+      const realFetch = window.fetch;
+      window.fetch = (url, opts) => {
+        if (String(url).includes("/api/catches")) {
+          return Promise.resolve(new Response("boom", { status: 500 }));
+        }
+        return realFetch(url, opts);
+      };
+    JS
+
+    seed_idb_catch(uuid: SecureRandom.uuid, species_id: @walleye.id,
+                   trigger_js: "window.dispatchEvent(new Event('bsfamilies:try-sync'))")
+
+    # No revisit: the widget must react to the parking itself.
+    assert_text "Upload didn’t go through", wait: 10
+    assert_selector "[data-pending-catches-target='list'] button", text: "Retry"
+  end
+
   private
 
   def sign_in_as(user)
@@ -73,13 +102,16 @@ class PendingCatchesTest < ApplicationSystemTestCase
     page.execute_script <<~JS
       window.__seeded = false;
       (async () => {
-        const dbReq = indexedDB.open("bsfamilies", 1);
+        const dbReq = indexedDB.open("bsfamilies", 2);
         const db = await new Promise((res, rej) => {
           dbReq.onupgradeneeded = (e) => {
             const d = e.target.result;
             if (!d.objectStoreNames.contains("catches")) {
               const s = d.createObjectStore("catches", { keyPath: "client_uuid" });
               s.createIndex("status", "status");
+            }
+            if (!d.objectStoreNames.contains("blobs")) {
+              d.createObjectStore("blobs", { keyPath: "client_uuid" });
             }
           };
           dbReq.onsuccess = (e) => res(e.target.result);

@@ -157,6 +157,16 @@ module Tournaments
       teams.flatten.each { |u| assert_equal 0.5, result[u.id], "member #{u.id} should get only the attendance bonus" }
     end
 
+    test "team mode: an entry with no members doesn't count toward the 3-entry cutoff" do
+      teams = build_finished_teams([5, 5])
+      # A leftover entry whose last member was removed (or that was created
+      # before anyone was added) is not a competing team.
+      create(:tournament_entry, tournament: @team_tournament)
+      result = SeasonPointsAwarded.call(tournament: @team_tournament)
+      assert_equal 10, result.size
+      teams.flatten.each { |u| assert_equal 0.5, result[u.id], "member #{u.id} should get only the attendance bonus" }
+    end
+
     test "team mode: 3 teams with 10 anglers uses the angler-based [6,4,2] tier" do
       teams = build_finished_teams([4, 3, 3])
       result = SeasonPointsAwarded.call(tournament: @team_tournament)

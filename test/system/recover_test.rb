@@ -171,13 +171,16 @@ class RecoverTest < ApplicationSystemTestCase
     page.execute_script <<~JS
       window.__seeded = false;
       (async () => {
-        const dbReq = indexedDB.open("bsfamilies", 1);
+        const dbReq = indexedDB.open("bsfamilies", 2);
         const db = await new Promise((res, rej) => {
           dbReq.onupgradeneeded = (e) => {
             const d = e.target.result;
             if (!d.objectStoreNames.contains("catches")) {
               const s = d.createObjectStore("catches", { keyPath: "client_uuid" });
               s.createIndex("status", "status");
+            }
+            if (!d.objectStoreNames.contains("blobs")) {
+              d.createObjectStore("blobs", { keyPath: "client_uuid" });
             }
           };
           dbReq.onsuccess = (e) => res(e.target.result);

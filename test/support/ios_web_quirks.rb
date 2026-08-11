@@ -21,13 +21,16 @@ module IosWebQuirks
   # the DB first (polling before any page script ran) must create the store,
   # not error on it missing.
   IDB_OPEN_JS = <<~JS.freeze
-    const dbReq = indexedDB.open("bsfamilies", 1);
+    const dbReq = indexedDB.open("bsfamilies", 2);
     const db = await new Promise((res, rej) => {
       dbReq.onupgradeneeded = (e) => {
         const d = e.target.result;
         if (!d.objectStoreNames.contains("catches")) {
           const s = d.createObjectStore("catches", { keyPath: "client_uuid" });
           s.createIndex("status", "status");
+        }
+        if (!d.objectStoreNames.contains("blobs")) {
+          d.createObjectStore("blobs", { keyPath: "client_uuid" });
         }
       };
       dbReq.onsuccess = (e) => res(e.target.result);
@@ -101,6 +104,11 @@ module IosWebQuirks
   # extra_fields merges arbitrary columns into the seeded row (as a JS object
   # literal), e.g. { next_attempt_at: "Date.now() + 900000", attempts: 5 } to
   # stage a record already parked in the drain's backoff.
+  # Seeds the photo INLINE on the catch row — the v1 record shape. offline/db.js
+  # v2 writes bytes to the `blobs` store instead and falls back to inline for
+  # rows queued before the upgrade, so these seeds keep that fallback covered.
+  # The v2 shape is exercised end-to-end by the tests that actually log a catch
+  # through enqueueCatch (offline_catch_form_test, log_catch_test).
   def seed_idb_catch(uuid:, species_id:, trigger_js:, length_inches: "18",
                      status: "pending", photo_js: SYNTHETIC_JPEG_JS,
                      queued_by_user_id: nil, extra_fields: {})

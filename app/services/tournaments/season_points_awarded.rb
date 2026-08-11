@@ -9,13 +9,16 @@ module Tournaments
     # on demand. The angler count (which sets the points scale) is the distinct
     # member count, so it derives from `member_ids`. The placement-points
     # cutoff counts entries — 3 solo anglers or 3 teams — while the scale
-    # tiers stay angler-based.
+    # tiers stay angler-based. Only entries with at least one member count:
+    # an entry created before anyone was added, or one whose last member was
+    # removed, is not a competing team and must not lift a 2-team night over
+    # the cutoff.
     def self.call(tournament:, top_three: nil, member_ids: nil, entry_count: nil)
       return {} unless tournament.awards_season_points?
       return {} unless tournament.ended?
 
       member_ids ||= member_ids_for(tournament)
-      entry_count ||= tournament.tournament_entries.count
+      entry_count ||= tournament.tournament_entries.joins(:tournament_entry_members).distinct.count
       scale = ::Tournaments::PointsScale.call(angler_count: member_ids.size)
 
       awards = {}
