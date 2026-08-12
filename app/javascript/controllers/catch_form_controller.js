@@ -161,7 +161,14 @@ export default class extends Controller {
 
       if ("serviceWorker" in navigator && "SyncManager" in window) {
         try {
-          const reg = await navigator.serviceWorker.ready
+          // serviceWorker.ready is spec'd never to reject — with no active
+          // registration (failed install, corrupted SW state) it pends forever,
+          // and an unguarded await here strands the angler on a disabled Save
+          // button AFTER the catch is already queued; re-entering it from a
+          // fresh form is a genuine duplicate. Background Sync is best-effort
+          // anyway (the destination page drains the queue on load), so give it
+          // a short window and move on.
+          const reg = await withTimeout(navigator.serviceWorker.ready, 3000)
           await reg.sync.register("catch-sync")
         } catch (_) {}
       }
@@ -272,4 +279,11 @@ export default class extends Controller {
       )
     })
   }
+}
+
+function withTimeout(promise, ms) {
+  return Promise.race([
+    promise,
+    new Promise((_, reject) => setTimeout(() => reject(new Error(`timeout after ${ms}ms`)), ms))
+  ])
 }

@@ -3,14 +3,8 @@ require "test_helper"
 module Catches
   class PlaceInSlotsBingoTest < ActiveSupport::TestCase
     test "a bingo catch creates no placements but flags the tournament affected" do
-      club = Club.create!(name: "C")
-      walleye, = create_bingo_species!
-      t = Tournament.new(club: club, name: "B", mode: :solo, format: :bingo,
-                         starts_at: 2.hours.ago, ends_at: 2.hours.from_now)
-      t.save!
-      u = User.create!(name: "A", email: "a@example.com")
-      e = t.tournament_entries.create!
-      e.tournament_entry_members.create!(user: u)
+      t, walleye = create_bingo_tournament!
+      u = enter_angler!(t, email: "a@example.com")
 
       c = create(:catch, user: u, species: walleye, length_inches: 15, captured_at_device: 1.hour.ago)
 
@@ -21,14 +15,8 @@ module Catches
     end
 
     test "a geofence-excluded bingo catch does not flag the tournament affected" do
-      club = Club.create!(name: "C")
-      walleye, = create_bingo_species!
-      t = Tournament.new(club: club, name: "B", mode: :solo, format: :bingo,
-                         starts_at: 2.hours.ago, ends_at: 2.hours.from_now)
-      t.save!
-      u = User.create!(name: "A", email: "geo@example.com")
-      e = t.tournament_entries.create!
-      e.tournament_entry_members.create!(user: u)
+      t, walleye = create_bingo_tournament!
+      u = enter_angler!(t, email: "geo@example.com")
 
       # (0, 0) is far outside Saskatchewan — EvaluateCard drops it, so the card
       # can't have changed and no rebroadcast should be queued.
@@ -41,20 +29,12 @@ module Catches
     end
 
     test "a lead-taking bingo catch loads the entry's catches once, not again for the before-state" do
-      club = Club.create!(name: "C")
-      walleye, = create_bingo_species!
-      t = Tournament.new(club: club, name: "B", mode: :solo, format: :bingo,
-                         starts_at: 2.hours.ago, ends_at: 2.hours.from_now)
-      t.save!
-      alice = User.create!(name: "Alice", email: "alice@example.com")
-      ea = t.tournament_entries.create!
-      ea.tournament_entry_members.create!(user: alice)
+      t, walleye = create_bingo_tournament!
+      alice = enter_angler!(t, email: "alice@example.com", name: "Alice")
       # A second, empty-carded entry so Build's all-entries member pluck differs
       # from the leader-only before-state pluck — otherwise identical SQL and the
       # redundant second query is masked by ActiveRecord's query cache.
-      bob = User.create!(name: "Bob", email: "bob@example.com")
-      eb = t.tournament_entries.create!
-      eb.tournament_entry_members.create!(user: bob)
+      enter_angler!(t, email: "bob@example.com", name: "Bob")
 
       c = create(:catch, user: alice, species: walleye, length_inches: 16,
                  captured_at_device: 1.hour.ago, status: :synced)
@@ -79,14 +59,8 @@ module Catches
     # keeps no CatchPlacement rows at all, so the second run re-broadcast every
     # entrant's card and re-fired the took-the-lead push for a single fish.
     test "a repeated first-placement run on a bingo catch is a no-op" do
-      club = Club.create!(name: "C")
-      walleye, = create_bingo_species!
-      t = Tournament.new(club: club, name: "B", mode: :solo, format: :bingo,
-                         starts_at: 2.hours.ago, ends_at: 2.hours.from_now)
-      t.save!
-      u = User.create!(name: "A", email: "dup@example.com")
-      e = t.tournament_entries.create!
-      e.tournament_entry_members.create!(user: u)
+      t, walleye = create_bingo_tournament!
+      u = enter_angler!(t, email: "dup@example.com")
 
       c = create(:catch, user: u, species: walleye, length_inches: 15,
                  captured_at_device: 1.hour.ago, status: :synced)
@@ -112,14 +86,8 @@ module Catches
     # that case; guarding on placed_at alone skipped it, and every entrant's
     # card stayed a square stale for the rest of the night.
     test "a bingo catch placed before the in-flight window still rebroadcasts" do
-      club = Club.create!(name: "C")
-      walleye, = create_bingo_species!
-      t = Tournament.new(club: club, name: "B", mode: :solo, format: :bingo,
-                         starts_at: 2.hours.ago, ends_at: 2.hours.from_now)
-      t.save!
-      u = User.create!(name: "A", email: "crash-retry@example.com")
-      e = t.tournament_entries.create!
-      e.tournament_entry_members.create!(user: u)
+      t, walleye = create_bingo_tournament!
+      u = enter_angler!(t, email: "crash-retry@example.com")
 
       c = create(:catch, user: u, species: walleye, length_inches: 15,
                  captured_at_device: 1.hour.ago, status: :synced)
@@ -143,14 +111,8 @@ module Catches
     # passes broadcast: false to do its own broadcast afterwards. A bingo card
     # still has to be rebuilt for those.
     test "a judge re-place still flags a bingo tournament after the first run" do
-      club = Club.create!(name: "C")
-      walleye, = create_bingo_species!
-      t = Tournament.new(club: club, name: "B", mode: :solo, format: :bingo,
-                         starts_at: 2.hours.ago, ends_at: 2.hours.from_now)
-      t.save!
-      u = User.create!(name: "A", email: "judge-replace@example.com")
-      e = t.tournament_entries.create!
-      e.tournament_entry_members.create!(user: u)
+      t, walleye = create_bingo_tournament!
+      u = enter_angler!(t, email: "judge-replace@example.com")
 
       c = create(:catch, user: u, species: walleye, length_inches: 15,
                  captured_at_device: 1.hour.ago, status: :synced)
@@ -160,6 +122,26 @@ module Catches
 
       assert_includes result[:affected_tournaments].map(&:id), t.id,
         "a judge re-place must still rebuild the card"
+    end
+
+    private
+
+    def create_bingo_tournament!
+      club = Club.create!(name: "C")
+      walleye, = create_bingo_species!
+      t = Tournament.new(club: club, name: "B", mode: :solo, format: :bingo,
+                         starts_at: 2.hours.ago, ends_at: 2.hours.from_now)
+      t.save!
+      [t, walleye]
+    end
+
+    # Emails stay per-test-unique: User.email is globally unique and the suite
+    # runs parallel against shared fixtures.
+    def enter_angler!(tournament, email:, name: "A")
+      u = User.create!(name: name, email: email)
+      e = tournament.tournament_entries.create!
+      e.tournament_entry_members.create!(user: u)
+      u
     end
   end
 end

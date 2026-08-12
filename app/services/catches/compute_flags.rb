@@ -76,12 +76,7 @@ module Catches
     def self.video_missing?(catch_record)
       return false if catch_record.user.nil? || catch_record.captured_at_device.nil?
       return false if catch_record.video.attached?
-      # No tournament anywhere requires video (the usual case) → skip the
-      # per-user active-tournament lookup, which costs two queries per catch.
-      return false unless ::Tournament.where(requires_release_video: true).exists?
-      ::Tournaments::ActiveForUser
-        .call(user: catch_record.user, at: catch_record.captured_at_device)
-        .any?(&:requires_release_video)
+      ::Tournaments::RequiresVideoFor.call(user: catch_record.user, at: catch_record.captured_at_device)
     end
   end
 end

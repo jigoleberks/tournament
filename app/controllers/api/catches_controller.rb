@@ -75,7 +75,7 @@ class Api::CatchesController < Api::BaseController
     end
 
     if saved && catch_record.photo.attached?
-      placements = run_placement_pipeline(catch_record)
+      placements = Catches::RunPlacementPipeline.call(catch: catch_record)
       render json: serialize(catch_record, placements: placements[:created], flags: catch_record.flags), status: :created
     else
       catch_record.errors.add(:photo, "is required") unless catch_record.photo.attached?
@@ -112,15 +112,11 @@ class Api::CatchesController < Api::BaseController
   # jobs still get enqueued and the stamp finally written.
   def serialize_existing(existing)
     if existing.photo.attached? && existing.placements_evaluated_at.nil?
-      placements = run_placement_pipeline(existing)
+      placements = Catches::RunPlacementPipeline.call(catch: existing)
       serialize(existing, placements: placements[:created], flags: existing.flags)
     else
       serialize(existing, flags: existing.flags)
     end
-  end
-
-  def run_placement_pipeline(catch_record)
-    Catches::RunPlacementPipeline.call(catch: catch_record)
   end
 
   def build_catch(angler, attrs, teammate)

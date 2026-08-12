@@ -159,18 +159,30 @@ export async function pruneSynced() {
   await tx.done;
 }
 
-export async function markFailed(client_uuid, reason) {
+// Read-modify-write on one catches row inside ONE readwrite transaction. As a
+// separate get then put (two auto-committed transactions), a concurrent tab's
+// markSynced can delete the row between them — the put then resurrects it as a
+// phantom row whose blobs row is already gone, e.g. an un-clearable ⚠️ "failed"
+// entry for a fish that is actually on the leaderboard. The transaction holds
+// the store's write lock, so the read and the conditional write are atomic
+// across tabs. `mutate` returns the replacement row, or null to write nothing.
+async function updateRow(client_uuid, mutate) {
   const db = await getDB();
-  const rec = await db.get("catches", client_uuid);
-  if (rec) await db.put("catches", { ...rec, status: "failed", reason, failed_at: Date.now() });
+  const tx = db.transaction("catches", "readwrite");
+  const rec = await tx.store.get(client_uuid);
+  const next = rec ? mutate(rec) : null;
+  if (next) tx.store.put(next);
+  await tx.done;
 }
 
+export async function markFailed(client_uuid, reason) {
+  await updateRow(client_uuid, (rec) => ({ ...rec, status: "failed", reason, failed_at: Date.now() }));
+}
+
+// A hand-tapped Retry is a clean slate — including the clearBackoff release
+// budget, or a record retried by hand hours later would still be excluded.
 export async function markPending(client_uuid) {
-  const db = await getDB();
-  const rec = await db.get("catches", client_uuid);
-  // A hand-tapped Retry is a clean slate — including the clearBackoff release
-  // budget, or a record retried by hand hours later would still be excluded.
-  if (rec) await db.put("catches", { ...rec, status: "pending", reason: null, failed_at: null, attempts: 0, next_attempt_at: null, releases: 0 });
+  await updateRow(client_uuid, (rec) => ({ ...rec, status: "pending", reason: null, failed_at: null, attempts: 0, next_attempt_at: null, releases: 0 }));
 }
 
 // Exponential backoff for records the server keeps 5xx/408/429-ing: without
@@ -179,12 +191,12 @@ export async function markPending(client_uuid) {
 // Network-level failures do NOT defer (signal returning should sync
 // immediately); only "server reachable but erroring" does.
 export async function deferRetry(client_uuid) {
-  const db = await getDB();
-  const rec = await db.get("catches", client_uuid);
-  if (!rec || rec.status !== "pending") return;
-  const attempts = (rec.attempts || 0) + 1;
-  const delayMs = Math.min(45000 * 2 ** attempts, 15 * 60 * 1000);
-  await db.put("catches", { ...rec, attempts, next_attempt_at: Date.now() + delayMs });
+  await updateRow(client_uuid, (rec) => {
+    if (rec.status !== "pending") return null;
+    const attempts = (rec.attempts || 0) + 1;
+    const delayMs = Math.min(45000 * 2 ** attempts, 15 * 60 * 1000);
+    return { ...rec, attempts, next_attempt_at: Date.now() + delayMs };
+  });
 }
 
 // A successful upload proves the server is reachable, so every other pending
@@ -232,17 +244,11 @@ export async function clearBackoff() {
 // coordless record out of drains while the fix is pending; it self-expires,
 // so a killed page still syncs the catch (GPS-less, missing_gps-flagged).
 export async function updateCoords(client_uuid, coords) {
-  const db = await getDB();
-  const rec = await db.get("catches", client_uuid);
-  if (!rec) return;
-  await db.put("catches", { ...rec, ...coords });
+  await updateRow(client_uuid, (rec) => ({ ...rec, ...coords }));
 }
 
 export async function releaseHold(client_uuid) {
-  const db = await getDB();
-  const rec = await db.get("catches", client_uuid);
-  if (!rec || rec.hold_until == null) return;
-  await db.put("catches", { ...rec, hold_until: null });
+  await updateRow(client_uuid, (rec) => (rec.hold_until == null ? null : { ...rec, hold_until: null }));
 }
 
 // Re-arm the hold when the page RESUMES from an iOS suspension mid-geolocate:
@@ -252,8 +258,5 @@ export async function releaseHold(client_uuid) {
 // resumed fix lands. Only meaningful while the submitting page is alive; a
 // killed page never re-arms, so the record still self-releases and syncs.
 export async function extendHold(client_uuid, ms) {
-  const db = await getDB();
-  const rec = await db.get("catches", client_uuid);
-  if (!rec || rec.status !== "pending") return;
-  await db.put("catches", { ...rec, hold_until: Date.now() + ms });
+  await updateRow(client_uuid, (rec) => (rec.status !== "pending" ? null : { ...rec, hold_until: Date.now() + ms }));
 }

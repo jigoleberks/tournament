@@ -6,12 +6,8 @@
                            release-video block, which needs live tournament data
 %>
 <% offline   = local_assigns.fetch(:offline, false) %>
-<%# Same cheap short-circuit as Catches::ComputeFlags#video_missing? — when no
-    tournament anywhere requires video (the usual case), skip the two-query
-    per-user active-tournament lookup on this hot render path. %>
 <% video_required = !offline && current_user &&
-     Tournament.where(requires_release_video: true).exists? &&
-     Tournaments::ActiveForUser.call(user: current_user).any?(&:requires_release_video) %>
+     Tournaments::RequiresVideoFor.call(user: current_user) %>
 <% teammate  = local_assigns.fetch(:teammate, nil) %>
 <% selected_species = local_assigns.fetch(:selected_species, nil) %>
 <% all_species = Species.in_log_order %>

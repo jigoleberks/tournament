@@ -6,27 +6,31 @@ require "application_system_test_case"
 # are never replayed. stream_refresh_controller must detect the restore in
 # connect() and re-render from the server.
 class StreamRefreshTest < ApplicationSystemTestCase
-  test "a Turbo restore visit re-renders the leaderboard from the server" do
+  # Every test starts from the same place: a signed-in entrant looking at a
+  # live leaderboard that reads "Zebra Boat".
+  setup do
     club = create(:club)
     walleye = create(:species, club: club)
-    angler = create(:user, club: club, name: "Angler A")
+    @angler = create(:user, club: club, name: "Angler A")
 
-    tournament = create(:tournament, club: club, name: "League Night",
-                        starts_at: 1.hour.ago, ends_at: 1.hour.from_now)
-    create(:scoring_slot, tournament: tournament, species: walleye, slot_count: 1)
-    entry = create(:tournament_entry, tournament: tournament, name: "Zebra Boat")
-    create(:tournament_entry_member, tournament_entry: entry, user: angler)
+    @tournament = create(:tournament, club: club, name: "League Night",
+                         starts_at: 1.hour.ago, ends_at: 1.hour.from_now)
+    create(:scoring_slot, tournament: @tournament, species: walleye, slot_count: 1)
+    @entry = create(:tournament_entry, tournament: @tournament, name: "Zebra Boat")
+    create(:tournament_entry_member, tournament_entry: @entry, user: @angler)
 
-    sign_in_as(angler)
-    visit tournament_path(tournament)
+    sign_in_as(@angler)
+    visit tournament_path(@tournament)
     assert_text "Zebra Boat"
+  end
 
+  test "a Turbo restore visit re-renders the leaderboard from the server" do
     # Leave via a Turbo-driven link so the page enters Turbo's snapshot cache
     # (Capybara's visit is a full navigation and would not), then mutate state
     # server-side — standing in for a broadcast missed while away.
     find("a[aria-label='Home']").click
-    assert_text "Hello, #{angler.name}", wait: 5
-    entry.update!(name: "Renamed Boat")
+    assert_text "Hello, #{@angler.name}", wait: 5
+    @entry.update!(name: "Renamed Boat")
 
     page.go_back
 
@@ -40,22 +44,8 @@ class StreamRefreshTest < ApplicationSystemTestCase
   # that over a stale-but-readable leaderboard — strictly worse than doing
   # nothing. The controller must probe reachability and keep the snapshot.
   test "an offline restore visit keeps the stale leaderboard instead of wiping it" do
-    club = create(:club)
-    walleye = create(:species, club: club)
-    angler = create(:user, club: club, name: "Angler A")
-
-    tournament = create(:tournament, club: club, name: "League Night",
-                        starts_at: 1.hour.ago, ends_at: 1.hour.from_now)
-    create(:scoring_slot, tournament: tournament, species: walleye, slot_count: 1)
-    entry = create(:tournament_entry, tournament: tournament, name: "Zebra Boat")
-    create(:tournament_entry_member, tournament_entry: entry, user: angler)
-
-    sign_in_as(angler)
-    visit tournament_path(tournament)
-    assert_text "Zebra Boat"
-
     find("a[aria-label='Home']").click
-    assert_text "Hello, #{angler.name}", wait: 5
+    assert_text "Hello, #{@angler.name}", wait: 5
 
     # Simulate network loss the way the SW presents it: every fetch resolves
     # to a 503 "offline" response. Both the reachability probe and Turbo's
@@ -80,22 +70,8 @@ class StreamRefreshTest < ApplicationSystemTestCase
   # away, and the Turbo.visit that follows then renders it a SECOND time. Every
   # foreground, bfcache restore and edge-swipe paid double on the one VM.
   test "the reachability probe does not cost a second leaderboard render" do
-    club = create(:club)
-    walleye = create(:species, club: club)
-    angler = create(:user, club: club, name: "Angler A")
-
-    tournament = create(:tournament, club: club, name: "League Night",
-                        starts_at: 1.hour.ago, ends_at: 1.hour.from_now)
-    create(:scoring_slot, tournament: tournament, species: walleye, slot_count: 1)
-    entry = create(:tournament_entry, tournament: tournament, name: "Zebra Boat")
-    create(:tournament_entry_member, tournament_entry: entry, user: angler)
-
-    sign_in_as(angler)
-    visit tournament_path(tournament)
-    assert_text "Zebra Boat"
-
     find("a[aria-label='Home']").click
-    assert_text "Hello, #{angler.name}", wait: 5
+    assert_text "Hello, #{@angler.name}", wait: 5
 
     # Record every request the restore makes. Installed on the home page; the
     # JS context survives the Turbo restore, so it sees the probe too.
@@ -107,7 +83,7 @@ class StreamRefreshTest < ApplicationSystemTestCase
         return realFetch(url, opts);
       };
     JS
-    entry.update!(name: "Renamed Boat")
+    @entry.update!(name: "Renamed Boat")
 
     page.go_back
     assert_text "Renamed Boat", wait: 5
@@ -126,21 +102,7 @@ class StreamRefreshTest < ApplicationSystemTestCase
   # leaderboard twice, which is exactly the doubled cost the cheap /api/session
   # probe was adopted to remove.
   test "one foreground firing both triggers refreshes only once" do
-    club = create(:club)
-    walleye = create(:species, club: club)
-    angler = create(:user, club: club, name: "Angler A")
-
-    tournament = create(:tournament, club: club, name: "League Night",
-                        starts_at: 1.hour.ago, ends_at: 1.hour.from_now)
-    create(:scoring_slot, tournament: tournament, species: walleye, slot_count: 1)
-    entry = create(:tournament_entry, tournament: tournament, name: "Zebra Boat")
-    create(:tournament_entry_member, tournament_entry: entry, user: angler)
-
-    sign_in_as(angler)
-    visit tournament_path(tournament)
-    assert_text "Zebra Boat"
-
-    entry.update!(name: "Renamed Boat")
+    @entry.update!(name: "Renamed Boat")
     page.execute_script(<<~JS)
       window.__probes = [];
       const realFetch = window.fetch;
@@ -180,22 +142,8 @@ class StreamRefreshTest < ApplicationSystemTestCase
   # leaderboard (and its history entry) for the sign-in screen. redirect:
   # "manual" makes the 302 come back not-ok, keeping the snapshot.
   test "an expired-session restore visit keeps the readable leaderboard" do
-    club = create(:club)
-    walleye = create(:species, club: club)
-    angler = create(:user, club: club, name: "Angler A")
-
-    tournament = create(:tournament, club: club, name: "League Night",
-                        starts_at: 1.hour.ago, ends_at: 1.hour.from_now)
-    create(:scoring_slot, tournament: tournament, species: walleye, slot_count: 1)
-    entry = create(:tournament_entry, tournament: tournament, name: "Zebra Boat")
-    create(:tournament_entry_member, tournament_entry: entry, user: angler)
-
-    sign_in_as(angler)
-    visit tournament_path(tournament)
-    assert_text "Zebra Boat"
-
     find("a[aria-label='Home']").click
-    assert_text "Hello, #{angler.name}", wait: 5
+    assert_text "Hello, #{@angler.name}", wait: 5
 
     # The backgrounded session dying is, to the browser, the cookie vanishing.
     page.driver.browser.cookies.clear

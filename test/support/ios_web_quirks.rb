@@ -104,6 +104,8 @@ module IosWebQuirks
   # extra_fields merges arbitrary columns into the seeded row (as a JS object
   # literal), e.g. { next_attempt_at: "Date.now() + 900000", attempts: 5 } to
   # stage a record already parked in the drain's backoff.
+  # queued_ago_ms backdates queued_at — the widget uses the row's age to tell a
+  # stuck pending catch from one that is merely mid-upload.
   # Seeds the photo INLINE on the catch row — the v1 record shape. offline/db.js
   # v2 writes bytes to the `blobs` store instead and falls back to inline for
   # rows queued before the upgrade, so these seeds keep that fallback covered.
@@ -111,7 +113,7 @@ module IosWebQuirks
   # through enqueueCatch (offline_catch_form_test, log_catch_test).
   def seed_idb_catch(uuid:, species_id:, trigger_js:, length_inches: "18",
                      status: "pending", photo_js: SYNTHETIC_JPEG_JS,
-                     queued_by_user_id: nil, extra_fields: {})
+                     queued_by_user_id: nil, queued_ago_ms: 0, extra_fields: {})
     page.execute_script <<~JS
       window.__seeded = false;
       window.__seedError = null;
@@ -126,7 +128,7 @@ module IosWebQuirks
           captured_at_device: new Date().toISOString(),
           photo: photo,
           status: "#{status}",
-          queued_at: Date.now()#{queued_by_user_id ? ",\n          queued_by_user_id: \"#{queued_by_user_id}\"" : ""}#{extra_fields.map { |k, v| ",\n          #{k}: #{v}" }.join}
+          queued_at: Date.now() - #{Integer(queued_ago_ms)}#{queued_by_user_id ? ",\n          queued_by_user_id: \"#{queued_by_user_id}\"" : ""}#{extra_fields.map { |k, v| ",\n          #{k}: #{v}" }.join}
         });
         await new Promise((res, rej) => { tx.oncomplete = res; tx.onerror = rej; });
         #{trigger_js};
