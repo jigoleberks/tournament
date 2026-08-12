@@ -13,10 +13,14 @@ const STALE_AFTER_MS = 15000
 // In standalone mode there is no toolbar: users navigate by edge-swipe, which
 // Turbo services as a *restoration* visit — snapshot render, no server round
 // trip — so broadcasts missed while on the other page are never replayed
-// either. Track the visit action at module level so connect() can tell a
-// restore apart from a fresh visit and re-render from the server.
-let lastVisitAction = null
-document.addEventListener("turbo:visit", (e) => { lastVisitAction = e.detail.action })
+// either. The application layout's inline head script maintains the shared
+// last-visit-action tracker (window.__lastTurboVisitAction — sole writer);
+// connect() reads it to tell a restore apart from a fresh visit. Consumption
+// is tracked here rather than by nulling the shared value: the layout's
+// turbo:load mirror guard reads it AFTER connect() runs, and nulling it first
+// would un-skip that guard on restore visits.
+let consumedRestore = false
+document.addEventListener("turbo:visit", () => { consumedRestore = false })
 
 export default class extends Controller {
   connect() {
@@ -33,8 +37,8 @@ export default class extends Controller {
     this.onPageshow = (e) => { if (e.persisted) this.refresh() }
     document.addEventListener("visibilitychange", this.onVisibility)
     window.addEventListener("pageshow", this.onPageshow)
-    if (lastVisitAction === "restore") {
-      lastVisitAction = null
+    if (!consumedRestore && window.__lastTurboVisitAction === "restore") {
+      consumedRestore = true
       this.refresh()
     }
   }

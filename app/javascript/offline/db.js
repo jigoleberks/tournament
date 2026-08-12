@@ -212,9 +212,14 @@ export async function clearBackoff() {
   const db = await getDB();
   const rows = await db.getAllFromIndex("catches", "status", "pending");
   const parked = rows.filter((rec) => rec.next_attempt_at != null && (rec.releases || 0) < MAX_RELEASES);
+  if (parked.length === 0) return 0;
+  // One transaction for the whole release (same idiom as pruneSynced): a page
+  // killed mid-release then frees all rows or none, never a half-applied mix.
+  const tx = db.transaction("catches", "readwrite");
   for (const rec of parked) {
-    await db.put("catches", { ...rec, next_attempt_at: null, releases: (rec.releases || 0) + 1 });
+    tx.store.put({ ...rec, next_attempt_at: null, releases: (rec.releases || 0) + 1 });
   }
+  await tx.done;
   return parked.length;
 }
 

@@ -1,6 +1,7 @@
 import { Controller } from "@hotwired/stimulus"
 import L from "leaflet"
 import { configureDefaultIcons } from "lib/leaflet_default_icons"
+import { bindBeforeCacheTeardown, unbindBeforeCacheTeardown } from "lib/leaflet_teardown"
 
 // Admin-only catch GPS editor: a draggable marker whose position is mirrored into
 // hidden lat/lng fields submitted to correct_location.
@@ -13,14 +14,9 @@ export default class extends Controller {
     this.initMap()
     // This page (judges/catches/show) renders under the application layout and
     // Judges::BaseController never calls disable_turbo_snapshot_cache!, so an
-    // edge-swipe back is a restoration visit whose snapshot was captured with
-    // the map panes still live — disconnect() runs too late to clean it. Today
-    // the restored container keeps its _leaflet_id and connect() no-ops rather
-    // than stacking a second map, but that is Turbo's behaviour to change, not
-    // ours to rely on. Tear down before capture so the snapshot is clean either
-    // way, matching map_controller.
-    this.boundBeforeCache = () => this.teardown()
-    document.addEventListener("turbo:before-cache", this.boundBeforeCache)
+    // edge-swipe back is a restoration visit — see lib/leaflet_teardown.js for
+    // why the teardown must run at turbo:before-cache, not disconnect().
+    bindBeforeCacheTeardown(this)
   }
 
   initMap() {
@@ -45,8 +41,7 @@ export default class extends Controller {
   // and so a Turbo Drive restore that reuses this element doesn't hit Leaflet's
   // "Map container is already initialized" guard on the next connect().
   disconnect() {
-    document.removeEventListener("turbo:before-cache", this.boundBeforeCache)
-    this.teardown()
+    unbindBeforeCacheTeardown(this)
   }
 
   teardown() {

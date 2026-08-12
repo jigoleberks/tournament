@@ -2,6 +2,7 @@ import { pendingCatches, getCatch, markSynced, markFailed, pruneSynced, deferRet
 import { materialize } from "offline/blob"
 import { buildCatchFormData } from "offline/form_data"
 import { fetchSession } from "offline/session"
+import { readApiError } from "offline/api_error"
 
 const ENDPOINT = "/api/catches"
 
@@ -131,10 +132,8 @@ async function drainOnce() {
         window.dispatchEvent(new CustomEvent("bsfamilies:sync-auth-required"))
         return true
       } else if (resp.status >= 400 && resp.status < 500 && resp.status !== 408 && resp.status !== 429) {
-        // A non-JSON body (reverse-proxy 413 for an oversized photo, etc.)
-        // must still produce a readable reason — never raw JSON or "{}".
-        const body = await resp.json().catch(() => null)
-        if (body && body.code === "queued_by_mismatch") {
+        const { code, reason } = await readApiError(resp)
+        if (code === "queued_by_mismatch") {
           // Only reachable when the preflight fallback uploaded with an
           // unverifiable user (user_id: null above): the record belongs to
           // another member of a shared phone. Failing it would strand it —
@@ -144,9 +143,6 @@ async function drainOnce() {
           await park(rec.client_uuid)
           continue
         }
-        const reason = body && Array.isArray(body.errors) && body.errors.length
-          ? body.errors.join(", ")
-          : `Upload failed (server error ${resp.status})`
         await markFailed(rec.client_uuid, reason)
         window.dispatchEvent(new CustomEvent("bsfamilies:catch-failed", { detail: { client_uuid: rec.client_uuid, reason } }))
       } else {

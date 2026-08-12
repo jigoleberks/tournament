@@ -1,6 +1,7 @@
 import { Controller } from "@hotwired/stimulus"
 import L from "leaflet"
 import { configureDefaultIcons } from "lib/leaflet_default_icons"
+import { bindBeforeCacheTeardown, unbindBeforeCacheTeardown } from "lib/leaflet_teardown"
 
 export default class extends Controller {
   static values = {
@@ -10,14 +11,7 @@ export default class extends Controller {
   connect() {
     configureDefaultIcons()
     this.initMap()
-    // disconnect() alone can't protect a Turbo Drive restore: it runs after
-    // Turbo has already captured the page snapshot, so the cached copy would
-    // still hold the fully rendered panes (the clone loses the _leaflet_id
-    // expando, so the next connect() happily builds a second map on top —
-    // doubled markers, broken hit testing). turbo:before-cache fires before
-    // capture; tearing down there is what makes the snapshot clean.
-    this.boundBeforeCache = () => this.teardown()
-    document.addEventListener("turbo:before-cache", this.boundBeforeCache)
+    bindBeforeCacheTeardown(this)
   }
 
   initMap() {
@@ -52,12 +46,8 @@ export default class extends Controller {
   }
 
   // Tear the map down so its tile layer and listeners don't leak.
-  // (location_edit_controller has the same before-cache teardown: it renders on
-  // judges/catches/show, which is snapshot-cached like this page — an earlier
-  // comment here claimed it sat on the no-cache admin layout, which was wrong.)
   disconnect() {
-    document.removeEventListener("turbo:before-cache", this.boundBeforeCache)
-    this.teardown()
+    unbindBeforeCacheTeardown(this)
   }
 
   teardown() {

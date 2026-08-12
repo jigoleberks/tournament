@@ -79,7 +79,7 @@ module Catches
       # No tournament anywhere requires video (the usual case) → skip the
       # per-user active-tournament lookup, which costs two queries per catch.
       return false unless ::Tournament.where(requires_release_video: true).exists?
-      Tournaments::ActiveForUser
+      ::Tournaments::ActiveForUser
         .call(user: catch_record.user, at: catch_record.captured_at_device)
         .any?(&:requires_release_video)
     end

@@ -70,8 +70,10 @@ class SignInToken < ApplicationRecord
     # Their guess exposure is bounded by CODE_TTL and the per-IP+email rate
     # limit on submit_code instead.
     ids = records.select { |r| r.issued_by_user_id.nil? }.map(&:id)
-    where(id: ids).update_all("attempts = attempts + 1")
-    where(id: ids, used_at: nil).where(attempts: CODE_MAX_ATTEMPTS..).update_all(used_at: Time.current)
+    if ids.any?
+      where(id: ids).update_all("attempts = attempts + 1")
+      where(id: ids, used_at: nil).where(attempts: CODE_MAX_ATTEMPTS..).update_all(used_at: Time.current)
+    end
     nil
   end
 

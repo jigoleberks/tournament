@@ -31,7 +31,12 @@
       // is whatever user was signed in when the page was cached. Mirroring it
       // would overwrite the mirror with the PREVIOUS user after an account
       // switch — the exact staleness this mirror exists to fix. Track the
-      // visit action (same trick as stream_refresh_controller) and skip them.
+      // visit action and skip them.
+      //
+      // window.__lastTurboVisitAction is written ONLY here and is the shared
+      // last-visit-action tracker: stream_refresh_controller reads it too for
+      // its restore-visit detection, so this listener must stay registered
+      // even if the mirror itself changes.
       (function () {
         var mirror = function () {
           try {
@@ -43,10 +48,10 @@
         if (!window.__currentUserMirrorBound) {
           window.__currentUserMirrorBound = true;
           document.addEventListener("turbo:visit", function (e) {
-            window.__lastMirrorVisitAction = e.detail && e.detail.action;
+            window.__lastTurboVisitAction = e.detail && e.detail.action;
           });
           document.addEventListener("turbo:load", function () {
-            if (window.__lastMirrorVisitAction === "restore") return;
+            if (window.__lastTurboVisitAction === "restore") return;
             mirror();
           });
         }
