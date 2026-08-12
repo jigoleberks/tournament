@@ -43,7 +43,10 @@ namespace :catches do
     updated = 0
     puts "Computing flags for #{total} catches with empty flags…"
     scope.find_each do |c|
-      computed = Catches::ComputeFlags.call(c)
+      # recomputable, NOT call: .call also stamps video_missing, which is a
+      # submission-time-only flag — deriving it here against CURRENT tournament
+      # settings would retroactively flag historical catches.
+      computed = Catches::ComputeFlags.recomputable(c)
       next if computed.empty?
       c.update_columns(flags: computed)
       updated += 1
