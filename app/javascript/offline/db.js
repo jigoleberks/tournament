@@ -211,7 +211,10 @@ const MAX_RELEASES = 2;
 export async function clearBackoff() {
   const db = await getDB();
   const rows = await db.getAllFromIndex("catches", "status", "pending");
-  const parked = rows.filter((rec) => rec.next_attempt_at != null && (rec.releases || 0) < MAX_RELEASES);
+  // Strictly future timers only: a row whose next_attempt_at already lapsed is
+  // due — its retry happens with or without us — so "releasing" it buys nothing
+  // and burning a release for it would spend MAX_RELEASES on no-ops.
+  const parked = rows.filter((rec) => rec.next_attempt_at > Date.now() && (rec.releases || 0) < MAX_RELEASES);
   if (parked.length === 0) return 0;
   // One transaction for the whole release (same idiom as pruneSynced): a page
   // killed mid-release then frees all rows or none, never a half-applied mix.

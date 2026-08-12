@@ -240,6 +240,38 @@ class OfflineSyncTest < ApplicationSystemTestCase
            "a record that already spent its release budget must serve out its backoff"
   end
 
+  # The budget above only makes sense if a release is charged when it actually
+  # buys something. A parked row whose timer has ALREADY lapsed is due — its
+  # retry happens with or without clearBackoff — so charging it a release burns
+  # budget for nothing. Two such no-op charges exhaust MAX_RELEASES, and the
+  # next real outage's recovery then skips the row: the one fish on the phone
+  # that serves out its full backoff while the rest of the queue syncs.
+  test "a parked record whose timer already lapsed is not charged a release" do
+    lapsed = SecureRandom.uuid
+    control = SecureRandom.uuid
+    fresh = SecureRandom.uuid
+    sign_in_as(@user)
+    # Both parked and held (hold_until) so they stay inspectable in IndexedDB
+    # instead of uploading the moment they are due. The only difference is the
+    # timer: the control's is still running, `lapsed`'s has already expired.
+    held = { hold_until: "Date.now() + 600000", attempts: 5 }
+    seed_idb_catch(uuid: lapsed, species_id: @walleye.id, trigger_js: "void 0",
+                   extra_fields: held.merge(next_attempt_at: "Date.now() - 1000"))
+    seed_idb_catch(uuid: control, species_id: @walleye.id, trigger_js: "void 0",
+                   extra_fields: held.merge(next_attempt_at: "Date.now() + 900000"))
+    seed_idb_catch(uuid: fresh, species_id: @walleye.id,
+                   trigger_js: "window.dispatchEvent(new Event('bsfamilies:try-sync'))")
+
+    assert_catch_received(fresh)
+    # The control losing its timer is clearBackoff reporting for duty — wait on
+    # that rather than a sleep, so the assertion below can't run too early.
+    Timeout.timeout(10) do
+      sleep 0.1 while idb_next_attempt_at(control)
+    end
+    assert idb_next_attempt_at(lapsed),
+           "an already-due record must be left alone (its stale timer intact), not released"
+  end
+
   # offline/db.js bumps its schema version as the queue format changes, and an
   # upgrade cannot run while another same-origin context holds the old version
   # open — openDB's promise does not reject there, it hangs forever. Every

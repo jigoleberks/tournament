@@ -3,6 +3,14 @@ import { enqueueCatch, updateCoords, releaseHold, extendHold } from "offline/db"
 import { currentUserId } from "offline/current_user"
 import { convertLength, snapToGrid } from "lib/length_convert"
 
+// How long a freshly queued catch is held out of drains while submit() waits
+// for a GPS fix. One constant for both the initial hold_until and the
+// re-armed hold on iOS resume: if the two windows drift apart, a resumed page
+// re-arms a shorter hold than submit() set and the visibilitychange drain
+// uploads the record coordless just before the resumed fix lands — the exact
+// missing_gps race the re-arm exists to close.
+const GPS_HOLD_MS = 12000
+
 export default class extends Controller {
   static targets = ["speciesSelect", "lengthInput", "lengthLabel", "noteInput", "submitButton", "status", "tagWrapper", "tagInput", "weightInput"]
   static values = { csrfToken: String, capsBySpeciesId: Object, teammateUserId: String, taggedSpeciesId: String, videoRequired: Boolean }
@@ -121,7 +129,7 @@ export default class extends Controller {
         // NOT read straight off the meta: the precached /offline shell's meta
         // can be the PREVIOUS user's after an account switch (shared phone).
         queued_by_user_id: currentUserId(),
-        hold_until: Date.now() + 12000
+        hold_until: Date.now() + GPS_HOLD_MS
       }
       await enqueueCatch(record)
 
@@ -133,7 +141,7 @@ export default class extends Controller {
       // late coords are both seen. A killed page never resumes: the original
       // hold expires and the catch syncs GPS-less, as designed.
       const extendOnResume = () => {
-        if (document.visibilityState === "visible") extendHold(this.clientUuid, 12000).catch(() => {})
+        if (document.visibilityState === "visible") extendHold(this.clientUuid, GPS_HOLD_MS).catch(() => {})
       }
       document.addEventListener("visibilitychange", extendOnResume)
       try {

@@ -49,6 +49,22 @@ class IosInstallCoachTest < ActionDispatch::IntegrationTest
     assert_select "#ios-install-coach", count: 0
   end
 
+  # The reveal must not depend on the Stimulus/importmap module graph booting:
+  # the banner's audience (an iOS browser tab, often on flaky lake LTE) is
+  # exactly who is most likely to lose the module fetches — and then never see
+  # the one hint that would fix their situation. A self-contained classic
+  # inline script makes the first reveal; ios_install_coach_controller stays
+  # authoritative and re-decides `hidden` once it connects.
+  test "banner reveal does not depend on the JS module graph" do
+    get new_session_path, headers: { "HTTP_USER_AGENT" => IPHONE_UA }
+    inline = css_select("script:not([src]):not([type='module'])")
+               .find { |s| s.text.include?("ios-install-coach") }
+    assert inline, "expected a self-contained inline script that reveals the banner without Stimulus"
+    # Same detection as lib/ios_device.js iosBrowserTab(), inlined.
+    assert_match "maxTouchPoints", inline.text
+    assert_match "standalone", inline.text
+  end
+
   test "banner copy describes install benefits without overstating them" do
     # Guard against the pre-fix wording sneaking back: it claimed catches
     # don't upload outside the PWA, which became false after the
