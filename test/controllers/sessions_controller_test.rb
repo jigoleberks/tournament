@@ -5,7 +5,9 @@ class SessionsControllerTest < ActionDispatch::IntegrationTest
   setup { @user = create(:user, email: "joe@example.com", club: nil) }
 
   test "POST /session creates a token and emails it" do
-    assert_difference "SignInToken.count", 1 do
+    # One "link" token for the tap-to-sign-in flow, plus one "code" token
+    # (the iOS standalone-PWA rescue path) included in the same email.
+    assert_difference "SignInToken.count", 2 do
       assert_emails 1 do
         post session_path, params: { email: "joe@example.com" }
       end
@@ -20,6 +22,17 @@ class SessionsControllerTest < ActionDispatch::IntegrationTest
       end
     end
     assert_redirected_to "/session/check_email"
+  end
+
+  # The email form is public — a magic-link request (from the member, or from
+  # anyone at all who knows the address) must not kill a code an organizer
+  # just read out to the member.
+  test "a magic-link request does not invalidate an organizer-issued code" do
+    organizer_code = SignInToken.issue_code!(user: @user)
+    post session_path, params: { email: "joe@example.com" }
+    post code_session_path, params: { email: "joe@example.com", code: organizer_code.token }
+    assert_redirected_to root_path
+    assert_equal @user.id, session[:user_id]
   end
 
   test "GET consume signs the user in for a valid token" do

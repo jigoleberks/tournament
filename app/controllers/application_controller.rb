@@ -5,11 +5,23 @@ class ApplicationController < ActionController::Base
   before_action :touch_last_seen
   helper_method :tournament_leaderboard_visible?, :judged_tournament_ids
 
+  # Shared club laptop: after sign-out, Back must not replay member emails /
+  # live sign-in codes from Turbo's snapshot cache (restoration visits never
+  # hit the server). Controllers showing that data call this; both layouts
+  # honor the flag (shared/turbo_snapshot_cache_meta). Scoped opt-in rather
+  # than app-wide so normal member pages keep instant back-nav.
+  def self.disable_turbo_snapshot_cache!
+    before_action { @disable_turbo_snapshot_cache = true }
+  end
+
   private
 
   def tournament_leaderboard_visible?(tournament)
     return false unless current_user && tournament
     return true unless tournament.entrants_only_leaderboard?
+    # The entrants-only restriction only applies while the tournament is
+    # running; once it ends the leaderboard opens to every signed-in member.
+    return true if tournament.ended?
     return true if current_user.admin?
     return true if organizer_club_ids.include?(tournament.club_id)
     return true if judged_tournament_ids.include?(tournament.id)

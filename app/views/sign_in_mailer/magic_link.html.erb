@@ -1,3 +1,9 @@
 <p>Hi <%= @token.user.name %>,</p>
 <p>Tap to sign in (link expires in 30 minutes):</p>
 <p><a href="<%= @url %>"><%= @url %></a></p>
+<% if @code %>
+  <p>Using the app installed on your home screen? The link above opens in your
+     browser instead of the app. In the app, choose “Sign in with a code” and
+     enter this code (expires in 10 minutes):</p>
+  <p style="font-size:24px; letter-spacing:4px; font-family:monospace;"><%= @code.token %></p>
+<% end %>

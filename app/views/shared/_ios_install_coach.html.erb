@@ -1,32 +1,46 @@
-<% is_ios = request.user_agent.to_s.match?(/iPhone|iPad/) %>
-<% if is_ios %>
-  <div id="ios-install-coach"
-       hidden
-       class="bg-yellow-500/20 border border-yellow-500/40 text-yellow-100 rounded-lg px-3 py-3 my-2 mx-4 text-sm">
-    <p class="font-semibold mb-1">Install this app to your home screen.</p>
-    <p>
-      In Safari, tap
-      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none"
-           stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
-           class="inline w-4 h-4 align-text-bottom" aria-label="Share">
-        <path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"/>
-        <polyline points="16 6 12 2 8 6"/>
-        <line x1="12" y1="2" x2="12" y2="15"/>
-      </svg>
-      Share, then <em>Add to Home Screen</em>. Push notifications need install,
-      and catches sync more reliably from the home-screen app. This banner
-      disappears once you open the app from your home screen.
-    </p>
-  </div>
-  <script>
-    (function() {
-      var el = document.getElementById("ios-install-coach");
-      if (!el) return;
-      var standalone = false;
-      try {
-        standalone = window.matchMedia("(display-mode: standalone)").matches;
-      } catch (_) {}
-      if (!standalone) el.hidden = false;
-    })();
-  </script>
+<%# Server-side prefilter only: Apple UAs, INCLUDING Macintosh, because
+    iPadOS 13+ masquerades as a Mac. The reveal decision is made twice with the
+    same detection: first by the inline script below (which needs no JS modules),
+    then authoritatively by ios_install_coach_controller via lib/ios_device.js
+    (maxTouchPoints + display-mode) — the same detection the push toggle uses,
+    so the banner and its "available after install" hint can never disagree. %>
+<% if request.user_agent.to_s.match?(/iPhone|iPad|Macintosh/) %>
+<div id="ios-install-coach"
+     hidden
+     data-controller="ios-install-coach"
+     class="bg-yellow-500/20 border border-yellow-500/40 text-yellow-100 rounded-lg px-3 py-3 my-2 mx-4 text-sm">
+  <p class="font-semibold mb-1">Install this app to your home screen.</p>
+  <p>
+    In Safari, tap
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none"
+         stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+         class="inline w-4 h-4 align-text-bottom" aria-label="Share">
+      <path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"/>
+      <polyline points="16 6 12 2 8 6"/>
+      <line x1="12" y1="2" x2="12" y2="15"/>
+    </svg>
+    Share, then <em>Add to Home Screen</em>. Push notifications need install,
+    and catches sync more reliably from the home-screen app. This banner
+    disappears once you open the app from your home screen.
+  </p>
+</div>
+<%# First reveal WITHOUT the module graph: this banner's audience (an iOS
+    browser tab, often on flaky lake LTE) is exactly who is most likely to
+    lose the importmap/Stimulus fetches — and would then never see the one
+    hint that fixes their situation. The detection mirrors lib/ios_device.js
+    iosBrowserTab(); keep the two in sync. Drift costs at most a flash: the
+    controller re-decides `hidden` either way once it connects. %>
+<script>
+  (function() {
+    var el = document.getElementById("ios-install-coach");
+    if (!el) return;
+    try {
+      var ios = /iPhone|iPad|iPod/.test(navigator.userAgent) ||
+        (/Macintosh/.test(navigator.userAgent) && navigator.maxTouchPoints > 1);
+      var standalone = window.matchMedia("(display-mode: standalone)").matches ||
+        window.navigator.standalone === true;
+      if (ios && !standalone) el.hidden = false;
+    } catch (_) {}
+  })();
+</script>
 <% end %>

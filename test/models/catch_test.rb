@@ -118,6 +118,50 @@ class CatchTest < ActiveSupport::TestCase
     assert_includes catch_record.errors[:photo].join, "larger"
   end
 
+  test "video must be a video content type" do
+    catch_record = build(:catch, user: @user, species: @walleye)
+    catch_record.video.attach(io: StringIO.new("not a video"), filename: "evil.exe",
+                   content_type: "application/octet-stream")
+    assert_not catch_record.valid?
+    assert catch_record.errors[:video].any?
+  end
+
+  test "video over the size cap is rejected" do
+    catch_record = build(:catch, user: @user, species: @walleye)
+    # `Minitest::Object#stub` needs minitest/mock, which isn't loadable under
+    # this app's bundled minitest 6.0.6 (no mock.rb shipped, unlike the
+    # 5.x default gem still present system-wide) — attach real oversized
+    # content instead, mirroring the existing photo byte-cap test below.
+    catch_record.video.attach(
+      io: StringIO.new("x" * (Catch::VIDEO_MAX_BYTES + 1)),
+      filename: "clip.mp4",
+      content_type: "video/mp4"
+    )
+    assert_not catch_record.valid?
+    assert catch_record.errors[:video].any? { |m| m.include?("MB") }
+  end
+
+  test "mp4 video within limits is accepted" do
+    catch_record = build(:catch, user: @user, species: @walleye)
+    catch_record.video.attach(io: StringIO.new("x"), filename: "clip.mp4", content_type: "video/mp4")
+    catch_record.valid?
+    assert_empty catch_record.errors[:video]
+  end
+
+  test "a legacy video the old API accepted unvalidated does not block later saves" do
+    catch_record = create(:catch, user: @user, species: @walleye)
+    # Attach directly at the Active Storage layer, bypassing model validation —
+    # the state a pre-gate catch row is actually in.
+    blob = ActiveStorage::Blob.create_and_upload!(
+      io: StringIO.new("x"), filename: "clip.3gp", content_type: "video/3gpp"
+    )
+    ActiveStorage::Attachment.create!(name: "video", record: catch_record, blob: blob)
+    catch_record.reload
+
+    catch_record.status = :needs_review
+    assert catch_record.valid?, catch_record.errors.full_messages.join(", ")
+  end
+
   # One row per capped species; a catch over the cap is invalid and the error
   # names the species. Boundary (== cap is valid) cases are kept explicit below.
   LENGTH_CAPS = {

@@ -7,38 +7,67 @@ module CatchesHelper
     "https://maps.google.com/?q=#{catch.latitude.to_f},#{catch.longitude.to_f}"
   end
 
-  # A resized JPEG variant of an attachment. Catch photos are full-resolution
-  # phone stills (multi-MB, HEIC on iOS); resizing AND transcoding to JPEG means
-  # every browser can render them. Generated on first request, cached on disk.
-  def jpeg_variant(attachment, size)
-    attachment.variant(resize_to_limit: size, format: :jpeg)
+  # The one authoritative spelling of the EXIF-strip transcode: every photo we
+  # serve — display variant or download — goes through this. The strip is a
+  # privacy control: the original EXIF carries full-precision GPS, and any club
+  # member can save a rival's catch photo — the coordinate fuzzing in the views
+  # is pointless if the pixels ship the honey hole.
+  #
+  # libvips 8.14 has no granular `keep:` (that landed in 8.15), so `strip: true`
+  # takes the embedded ICC profile with the EXIF. iPhone photos are Display P3,
+  # so an untagged wide-gamut JPEG renders oversaturated in every browser. Bake
+  # the profile into the pixels first: icc_transform reads the embedded profile
+  # and rewrites the pixels as real sRGB, so dropping the tag is then lossless.
+  # colourspace must come first — icc_transform raises "unable to load or find
+  # any compatible input profile" on a 1-band grayscale source, and widening to
+  # 3 bands is what keeps that from 500ing the variant. Insertion order is the
+  # application order (Active Storage applies the hash in sequence), so the
+  # conversion has to be built before the saver.
+  def stripped_jpeg_variant(attachment, size: nil, quality: nil)
+    options = {}
+    options[:resize_to_limit] = size if size
+    options[:colourspace] = :srgb
+    options[:icc_transform] = "srgb"
+    options[:format] = :jpeg
+    options[:saver] = { strip: true }
+    options[:saver][:Q] = quality if quality
+    attachment.variant(**options)
   end
 
   # Renders a resized, lazy-loaded <img> for an Active Storage attachment.
+  # (Resizing + transcoding: catch photos are full-resolution phone stills,
+  # multi-MB and HEIC on iOS; a JPEG variant renders everywhere. Generated on
+  # first request, cached on disk.)
   def thumb(attachment, size: [400, 400], **html_options)
-    image_tag jpeg_variant(attachment, size), loading: "lazy", **html_options
+    image_tag stripped_jpeg_variant(attachment, size: size), loading: "lazy", **html_options
   end
 
   # <img> for a large, full-bleed display (catch detail / lightbox).
   def photo_full(attachment, size: [2000, 2000], **html_options)
-    image_tag jpeg_variant(attachment, size), **html_options
+    image_tag stripped_jpeg_variant(attachment, size: size), **html_options
   end
 
   # Bare URL of a large JPEG variant — for lightbox/inline display, which must
   # never point at a raw (possibly HEIC) original. Resized for fast loading.
   def photo_src_url(attachment, size: [2000, 2000])
-    url_for(jpeg_variant(attachment, size))
+    url_for(stripped_jpeg_variant(attachment, size: size))
   end
 
-  # URL for the "Save photo" download — FULL resolution, never the resized
-  # display variant. A JPEG original (Android native camera) is served as-is,
-  # so the user gets the exact full-size file with no re-encode or quality
-  # loss. A non-JPEG original (iOS HEIC, PNG, WebP) is transcoded to a
-  # full-resolution JPEG so the saved file opens anywhere and matches the
-  # .jpg download name.
+  # URL for the "Save photo" download — FULL resolution at high encode
+  # quality, never a resized display variant: downloads should be the largest
+  # quality we can serve (user decision 2026-08-08). Still a stripped JPEG,
+  # including for JPEG originals: an Android native-camera JPEG carries
+  # full-precision GPS EXIF, and serving it raw would hand out what the
+  # fuzzing hides — the metadata strip is the point, and it must happen at
+  # serve time (originals keep EXIF for PhotoCaptureTime forensics).
+  # ACCEPTED COST: the first tap on a photo runs an unbounded on-demand vips
+  # transcode — a 200MP native-mode still (PHOTO_MAX_BYTES allows 50MB) can
+  # be slow on the single VM. Quality was chosen over bounding the transcode;
+  # don't re-add a resize limit here unprompted.
+  DOWNLOAD_JPEG_QUALITY = 95
+
   def photo_download_url(attachment)
-    return url_for(attachment) if attachment.content_type == "image/jpeg"
-    url_for(attachment.variant(format: :jpeg))
+    url_for(stripped_jpeg_variant(attachment, quality: DOWNLOAD_JPEG_QUALITY))
   end
 
   # The photo(s) to show on a single-catch detail/modal page, as an ordered list

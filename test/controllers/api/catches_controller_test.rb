@@ -324,6 +324,265 @@ class Api::CatchesControllerTest < ActionDispatch::IntegrationTest
     assert_nil Catch.find_by(client_uuid: uuid).weight_text
   end
 
+  # WebKit can send a request with NO body at all when it fails to stream a
+  # file-backed IndexedDB blob (the 2026-07-15 incident: 595 empty-bodied
+  # 400s). Rails' default ParameterMissing response is an HTML page, which
+  # sync.js can't parse — the angler saw "{}" as the failure reason. The API
+  # must answer with readable JSON so the pending-catches widget can show
+  # something actionable.
+  test "POST /api/catches with an empty body returns readable JSON 400" do
+    post "/api/catches", params: {}, headers: { "Accept" => "application/json" }
+
+    assert_response :bad_request
+    body = JSON.parse(response.body)
+    assert_kind_of Array, body["errors"]
+    assert_match(/empty/i, body["errors"].join(", "))
+  end
+
+  # Regression lock: Api::CatchesController#create calls save BEFORE its
+  # photo.attached? check — only the model's photo_must_be_attached validation
+  # stops a photo-less row from persisting. If that validation is ever removed,
+  # a photo-less 422 would leave a row behind and the client_uuid retry would
+  # return 200 for a catch with no photo (poisoned idempotency, catch never
+  # placed). These two tests keep that from regressing silently.
+  test "POST /api/catches without a photo persists no row" do
+    assert_no_difference "Catch.count" do
+      post "/api/catches", params: {
+        catch: { species_id: @walleye.id, length_inches: 18,
+                 captured_at_device: Time.current.iso8601, client_uuid: "uuid-NOPHOTO" }
+      }, headers: { "Accept" => "application/json" }
+    end
+    assert_response :unprocessable_entity
+    assert_match(/photo/i, JSON.parse(response.body)["errors"].join(", "))
+  end
+
+  test "retry with photo succeeds after a photo-less attempt with the same client_uuid" do
+    post "/api/catches", params: {
+      catch: { species_id: @walleye.id, length_inches: 18,
+               captured_at_device: Time.current.iso8601, client_uuid: "uuid-RETRY-PHOTO" }
+    }, headers: { "Accept" => "application/json" }
+    assert_response :unprocessable_entity
+
+    photo = fixture_file_upload("sample_walleye.jpg", "image/jpeg")
+    assert_difference "Catch.count", 1 do
+      post "/api/catches", params: {
+        catch: { species_id: @walleye.id, length_inches: 18,
+                 captured_at_device: Time.current.iso8601,
+                 client_uuid: "uuid-RETRY-PHOTO", photo: photo }
+      }, headers: { "Accept" => "application/json" }
+    end
+    assert_response :created
+    assert Catch.find_by(client_uuid: "uuid-RETRY-PHOTO").photo.attached?
+  end
+
+  test "dedup retry places a saved-but-unplaced catch (post-500 recovery)" do
+    photo = fixture_file_upload("sample_walleye.jpg", "image/jpeg")
+    payload = lambda {
+      post "/api/catches", params: {
+        catch: { species_id: @walleye.id, length_inches: 20, captured_at_device: Time.current.iso8601,
+                 client_uuid: "uuid-RECONCILE", photo: photo }
+      }, headers: { "Accept" => "application/json" }
+    }
+    payload.call
+    catch_record = Catch.find_by!(client_uuid: "uuid-RECONCILE")
+    # Simulate the crash window: catch committed, PlaceInSlots' transaction
+    # rolled back. In a real crash the evaluated stamp is never written (it
+    # lands after the pipeline), so clear it along with the placements.
+    catch_record.catch_placements.destroy_all
+    catch_record.update_column(:placements_evaluated_at, nil)
+
+    assert_difference "CatchPlacement.count", 1 do
+      payload.call
+    end
+    assert_response :ok
+    body = JSON.parse(response.body)
+    assert_equal 1, body["placements"].size
+  end
+
+  test "dedup retry finishes the pipeline when the crash landed after placement but before the jobs" do
+    photo = fixture_file_upload("sample_walleye.jpg", "image/jpeg")
+    payload = lambda {
+      post "/api/catches", params: {
+        catch: { species_id: @walleye.id, length_inches: 20, captured_at_device: Time.current.iso8601,
+                 client_uuid: "uuid-HALFRUN", photo: photo }
+      }, headers: { "Accept" => "application/json" }
+    }
+    payload.call
+    catch_record = Catch.find_by!(client_uuid: "uuid-HALFRUN")
+    # Simulate the narrower crash window: PlaceInSlots' transaction committed
+    # (placements exist), then the process died before the condition/photo jobs
+    # were enqueued — the stamp (written last) is still nil.
+    catch_record.update_column(:placements_evaluated_at, nil)
+
+    assert_no_difference "CatchPlacement.count" do
+      assert_enqueued_jobs 2, only: [FetchCatchConditionsJob, FlagImportedPhotoJob] do
+        payload.call
+      end
+    end
+    assert_response :ok
+    assert_not_nil catch_record.reload.placements_evaluated_at
+  end
+
+  test "dedup retry does NOT double-place a catch that already has placements" do
+    photo = fixture_file_upload("sample_walleye.jpg", "image/jpeg")
+    payload = lambda {
+      post "/api/catches", params: {
+        catch: { species_id: @walleye.id, length_inches: 20, captured_at_device: Time.current.iso8601,
+                 client_uuid: "uuid-NODOUBLE", photo: photo }
+      }, headers: { "Accept" => "application/json" }
+    }
+    payload.call
+    assert_no_difference "CatchPlacement.count" do
+      payload.call
+    end
+    assert_response :ok
+  end
+
+  # A bingo catch legitimately keeps zero placements (the card is derived on
+  # read), so "no placements yet" cannot mean "not yet processed". Without the
+  # placements_evaluated_at stamp, every dedup retry (flaky LTE losing the 201,
+  # 45s ticks) re-ran the whole pipeline — rebroadcasting the card and
+  # re-enqueueing the flag/condition jobs indefinitely.
+  test "a dedup retry for a bingo catch does not re-run the placement pipeline" do
+    create_bingo_species!
+    bingo_user = create(:user, club: @club)
+    bingo = build(:tournament, club: @club, mode: :solo, format: :bingo,
+                  starts_at: 1.hour.ago, ends_at: 1.hour.from_now)
+    bingo.save!
+    entry = create(:tournament_entry, tournament: bingo)
+    create(:tournament_entry_member, tournament_entry: entry, user: bingo_user)
+    sign_in_as(bingo_user)
+
+    walleye = Species.find_by!(name: "Walleye")
+    photo = fixture_file_upload("sample_walleye.jpg", "image/jpeg")
+    payload = lambda {
+      post "/api/catches", params: {
+        catch: { species_id: walleye.id, length_inches: 18, captured_at_device: Time.current.iso8601,
+                 client_uuid: "uuid-BINGO-DEDUP", photo: photo }
+      }, headers: { "Accept" => "application/json" }
+    }
+    payload.call
+    assert_response :created
+    assert_not_nil Catch.find_by!(client_uuid: "uuid-BINGO-DEDUP").placements_evaluated_at
+
+    assert_no_enqueued_jobs only: [FetchCatchConditionsJob, FlagImportedPhotoJob] do
+      payload.call
+    end
+    assert_response :ok
+  end
+
+  test "dedup response reports the catch's real flags" do
+    photo = fixture_file_upload("sample_walleye.jpg", "image/jpeg")
+    payload = lambda {
+      post "/api/catches", params: {
+        catch: { species_id: @walleye.id, length_inches: 20, captured_at_device: Time.current.iso8601,
+                 client_uuid: "uuid-FLAGS", photo: photo } # no GPS -> missing_gps flag
+      }, headers: { "Accept" => "application/json" }
+    }
+    payload.call
+    payload.call
+    assert_response :ok
+    assert_includes JSON.parse(response.body)["flags"], "missing_gps"
+  end
+
+  test "catch without video in a requires_release_video tournament is flagged video_missing" do
+    @tournament.update!(requires_release_video: true)
+    photo = fixture_file_upload("sample_walleye.jpg", "image/jpeg")
+    post "/api/catches", params: {
+      catch: { species_id: @walleye.id, length_inches: 20, captured_at_device: Time.current.iso8601,
+               latitude: 49.41, longitude: -103.62, gps_accuracy_m: 8,
+               captured_at_gps: Time.current.iso8601,
+               client_uuid: "uuid-VMISS", photo: photo }
+    }, headers: { "Accept" => "application/json" }
+    body = JSON.parse(response.body)
+    assert_includes body["flags"], "video_missing"
+    assert_equal "needs_review", body["status"]
+  end
+
+  test "video_failed param records an external video_failed flag" do
+    @tournament.update!(requires_release_video: true)
+    photo = fixture_file_upload("sample_walleye.jpg", "image/jpeg")
+    post "/api/catches", params: {
+      catch: { species_id: @walleye.id, length_inches: 20, captured_at_device: Time.current.iso8601,
+               client_uuid: "uuid-VFAIL", photo: photo, video_failed: "true" }
+    }, headers: { "Accept" => "application/json" }
+    flags = JSON.parse(response.body)["flags"]
+    assert_includes flags, "video_failed"
+    # And it survives a recompute (external flag semantics):
+    c = Catch.find_by!(client_uuid: "uuid-VFAIL")
+    assert_includes Catches::ComputeFlags.recompute(c), "video_failed"
+  end
+
+  # The photo is the catch; the video is optional evidence. A video the model
+  # gate would reject must not 422 the whole catch — sync.js would mark the
+  # queued record failed behind the angler's back. The server drops it and
+  # raises the same flag the angler-declared failure path uses.
+  test "an unacceptable video is dropped and flagged instead of failing the catch" do
+    photo = fixture_file_upload("sample_walleye.jpg", "image/jpeg")
+    bad_video = fixture_file_upload("sample_walleye.jpg", "video/x-msvideo")
+    post "/api/catches", params: {
+      catch: { species_id: @walleye.id, length_inches: 20, captured_at_device: Time.current.iso8601,
+               client_uuid: "uuid-VDROP", photo: photo, video: bad_video }
+    }, headers: { "Accept" => "application/json" }
+    assert_response :created
+    assert_includes JSON.parse(response.body)["flags"], "video_failed"
+    c = Catch.find_by!(client_uuid: "uuid-VDROP")
+    assert_not c.video.attached?
+  end
+
+  test "an acceptable video still attaches" do
+    photo = fixture_file_upload("sample_walleye.jpg", "image/jpeg")
+    video = fixture_file_upload("tiny.mp4", "video/mp4")
+    post "/api/catches", params: {
+      catch: { species_id: @walleye.id, length_inches: 20, captured_at_device: Time.current.iso8601,
+               client_uuid: "uuid-VOK", photo: photo, video: video }
+    }, headers: { "Accept" => "application/json" }
+    assert_response :created
+    assert_not_includes JSON.parse(response.body)["flags"], "video_failed"
+    assert Catch.find_by!(client_uuid: "uuid-VOK").video.attached?
+  end
+
+  test "no video flag when no active tournament requires video" do
+    photo = fixture_file_upload("sample_walleye.jpg", "image/jpeg")
+    post "/api/catches", params: {
+      catch: { species_id: @walleye.id, length_inches: 20, captured_at_device: Time.current.iso8601,
+               client_uuid: "uuid-NOVREQ", photo: photo }
+    }, headers: { "Accept" => "application/json" }
+    assert_not_includes JSON.parse(response.body)["flags"], "video_missing"
+  end
+
+  test "queued_by_user_id mismatch is rejected so a shared phone can't misattribute a catch" do
+    photo = fixture_file_upload("sample_walleye.jpg", "image/jpeg")
+    post "/api/catches", params: {
+      catch: { species_id: @walleye.id, length_inches: 20, captured_at_device: Time.current.iso8601,
+               client_uuid: "uuid-WRONGUSER", photo: photo,
+               queued_by_user_id: @user.id + 1 }
+    }, headers: { "Accept" => "application/json" }
+    assert_response :unprocessable_entity
+    assert_match(/different account/i, JSON.parse(response.body)["errors"].join)
+  end
+
+  test "matching queued_by_user_id is accepted" do
+    photo = fixture_file_upload("sample_walleye.jpg", "image/jpeg")
+    post "/api/catches", params: {
+      catch: { species_id: @walleye.id, length_inches: 20, captured_at_device: Time.current.iso8601,
+               client_uuid: "uuid-RIGHTUSER", photo: photo,
+               queued_by_user_id: @user.id }
+    }, headers: { "Accept" => "application/json" }
+    assert_response :created
+  end
+
+  test "teammate submission with no active club membership returns 422, not 500" do
+    @user.club_memberships.destroy_all
+    photo = fixture_file_upload("sample_walleye.jpg", "image/jpeg")
+    post "/api/catches", params: {
+      teammate_user_id: 999_999,
+      catch: { species_id: @walleye.id, length_inches: 20, captured_at_device: Time.current.iso8601,
+               client_uuid: "uuid-NOCLUB", photo: photo }
+    }, headers: { "Accept" => "application/json" }
+    assert_response :unprocessable_entity
+  end
+
   private
 
   def sign_in_as(user)

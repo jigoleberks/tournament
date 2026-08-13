@@ -60,6 +60,42 @@ class RecoverTest < ApplicationSystemTestCase
     assert_equal 1, stable_li_count
   end
 
+  # iOS restores /recover from the bfcache with whatever CSRF meta token the
+  # page was first rendered with; re-submitting with it fails on every tap
+  # until a hard reload — on the tool of last resort. resubmit() therefore
+  # preflights GET /api/session (same pattern as offline/sync.js) for a fresh
+  # token. The stale-token 422 itself can't be reproduced here (test env
+  # disables forgery protection, and with it the csrf meta tag), so this locks
+  # in the preflight behaviorally: a dead session must halt with a sign-in
+  # message BEFORE any photo-body POST is attempted.
+  test "re-submit preflights the session and halts with a sign-in message on 401" do
+    uuid = SecureRandom.uuid
+    sign_in_as(@user)
+    seed_catch(uuid: uuid)
+    visit "/recover"
+    assert_selector "li img", wait: 5
+
+    page.execute_script <<~JS
+      const realFetch = window.fetch.bind(window);
+      window.__catchPosts = 0;
+      window.fetch = (input, init = {}) => {
+        const url = String(input.url || input);
+        if (url.includes("/api/session")) {
+          return Promise.resolve(new Response("{}", { status: 401, headers: { "Content-Type": "application/json" } }));
+        }
+        if (url.includes("/api/catches")) window.__catchPosts++;
+        return realFetch(input, init);
+      };
+    JS
+    click_button "Re-submit"
+
+    assert_text(/signed out.*sign in/i, wait: 5)
+    assert_equal 0, page.evaluate_script("window.__catchPosts"),
+                 "a dead session must halt resubmit before the photo-body POST"
+    assert_nil Catch.find_by(client_uuid: uuid)
+    assert_selector "button", text: "Retry"
+  end
+
   test "the home link appears only when the angler has stuck catches" do
     sign_in_as(@user)
     visit root_path
@@ -124,54 +160,9 @@ class RecoverTest < ApplicationSystemTestCase
     last
   end
 
-  def sign_in_as(user)
-    SignInToken.issue!(user: user)
-    visit consume_session_path(token: SignInToken.last.token)
-  end
-
-  # queued_ago_ms backdates queued_at, which is what the widget uses to tell a
-  # stuck pending catch from one that is merely mid-upload.
   def seed_catch(uuid:, status: "failed", queued_ago_ms: 0)
-    page.execute_script <<~JS
-      window.__seeded = false;
-      (async () => {
-        const dbReq = indexedDB.open("bsfamilies", 1);
-        const db = await new Promise((res, rej) => {
-          dbReq.onupgradeneeded = (e) => {
-            const d = e.target.result;
-            if (!d.objectStoreNames.contains("catches")) {
-              const s = d.createObjectStore("catches", { keyPath: "client_uuid" });
-              s.createIndex("status", "status");
-            }
-          };
-          dbReq.onsuccess = (e) => res(e.target.result);
-          dbReq.onerror   = (e) => rej(e);
-        });
-        const photo = new Blob([new Uint8Array([0xff, 0xd8, 0xff, 0xe0, 0, 0, 0, 0])], { type: "image/jpeg" });
-        const tx = db.transaction("catches", "readwrite");
-        tx.objectStore("catches").put({
-          client_uuid: "#{uuid}",
-          species_id: "#{@walleye.id}",
-          length_inches: "18",
-          length_unit: "inches",
-          captured_at_device: new Date().toISOString(),
-          photo: photo,
-          status: "#{status}",
-          reason: "test",
-          queued_at: Date.now() - #{queued_ago_ms}
-        });
-        await new Promise((res, rej) => { tx.oncomplete = res; tx.onerror = rej; });
-        window.__seeded = true;
-      })().catch((err) => { window.__seedError = String(err); });
-    JS
-
-    Timeout.timeout(5) do
-      loop do
-        break if page.evaluate_script("window.__seeded === true")
-        err = page.evaluate_script("window.__seedError || null")
-        flunk "IDB seeding errored: #{err}" if err
-        sleep 0.1
-      end
-    end
+    seed_idb_catch(uuid: uuid, species_id: @walleye.id, trigger_js: "void 0",
+                   status: status, queued_ago_ms: queued_ago_ms,
+                   extra_fields: { reason: '"test"', length_unit: '"inches"' })
   end
 end

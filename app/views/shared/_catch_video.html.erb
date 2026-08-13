@@ -1,0 +1,18 @@
+<%# The catch video player + webm notice, shared by the member catch page
+    (catches/show) and the judge review page (judges/catches/show) so the two
+    audiences never see contradictory playback guidance.
+    Locals: catch_record, video_class (layout differs per page),
+            notice_class (optional extra classes for the notice). %>
+<% if catch_record.video.attached? %>
+  <%# playsinline: without it iOS hijacks playback into the native fullscreen
+      player — judges especially need to compare video against the details %>
+  <%= video_tag url_for(catch_record.video), controls: true, playsinline: true, preload: "metadata",
+                class: video_class %>
+  <% if catch_record.video.content_type == "video/webm" %>
+    <p class="<%= class_names("text-xs text-slate-400", local_assigns[:notice_class]) %>">
+      This video is webm, which iPhones can't play —
+      <%= link_to "download it", url_for(catch_record.video), class: "text-blue-400 underline" %>
+      to view on a computer.
+    </p>
+  <% end %>
+<% end %>

@@ -1,10 +1,19 @@
 import { Controller } from "@hotwired/stimulus"
-import { enqueueCatch } from "offline/db"
+import { enqueueCatch, updateCoords, releaseHold, extendHold } from "offline/db"
+import { currentUserId } from "offline/current_user"
 import { convertLength, snapToGrid } from "lib/length_convert"
+
+// How long a freshly queued catch is held out of drains while submit() waits
+// for a GPS fix. One constant for both the initial hold_until and the
+// re-armed hold on iOS resume: if the two windows drift apart, a resumed page
+// re-arms a shorter hold than submit() set and the visibilitychange drain
+// uploads the record coordless just before the resumed fix lands — the exact
+// missing_gps race the re-arm exists to close.
+const GPS_HOLD_MS = 12000
 
 export default class extends Controller {
   static targets = ["speciesSelect", "lengthInput", "lengthLabel", "noteInput", "submitButton", "status", "tagWrapper", "tagInput", "weightInput"]
-  static values = { csrfToken: String, capsBySpeciesId: Object, teammateUserId: String, taggedSpeciesId: String }
+  static values = { csrfToken: String, capsBySpeciesId: Object, teammateUserId: String, taggedSpeciesId: String, videoRequired: Boolean }
 
   connect() {
     this.photoBlob = null
@@ -30,7 +39,17 @@ export default class extends Controller {
 
   onPhotoCaptured(event) { this.photoBlob = event.detail.blob; this.refresh() }
   onVideoCaptured(event) { this.videoBlob = event.detail.blob; this.videoFailed = false; this.refresh() }
-  onVideoFailed()        { this.videoBlob = null; this.videoFailed = true; this.refresh() }
+
+  onVideoFailed(event) {
+    this.videoBlob = null
+    this.videoFailed = true
+    this.refresh()
+    // An interruption reason (call/lock/app-switch killed the recording, video
+    // too large) must be shown — the angler believes they recorded and would
+    // otherwise submit a video-less catch without noticing.
+    const reason = event && event.detail && event.detail.reason
+    if (reason) this.statusTarget.textContent = reason
+  }
 
   refresh() {
     const isTagged = this.hasTaggedSpeciesIdValue
@@ -56,6 +75,9 @@ export default class extends Controller {
       return "Enter the tag number on the fish."
     }
     if (!this.photoBlob) return "Take a photo first."
+    if (this.hasVideoRequiredValue && this.videoRequiredValue && !this.videoBlob && !this.videoFailed) {
+      return "Record the release video, or tap “Mark video failed”."
+    }
     return null
   }
 
@@ -66,32 +88,87 @@ export default class extends Controller {
 
     this._setSubmitting(true)
     try {
-      const position = await this.tryGeolocate()
+      // Read the photo bytes NOW, while the angler is still holding the fish
+      // and can retake the shot. WebKit stores IndexedDB blobs as file
+      // references that can become unreadable later — by drain time the fish
+      // is released and the photo is unrecoverable. Storing the bytes inline
+      // (ArrayBuffer, not Blob) sidesteps that failure mode entirely.
+      const photo = await this._packBlob(this.photoBlob, "photo.jpg", "image/jpeg")
+      if (!photo) {
+        this._setSubmitting(false)
+        this.statusTarget.textContent = "That photo couldn't be read — retake it and submit again."
+        return
+      }
+      // Video is optional: an unreadable one is dropped rather than blocking the catch.
+      const video = this.videoBlob ? await this._packBlob(this.videoBlob, "video", "video/mp4") : null
+
+      // Persist FIRST, geolocate second. The GPS wait can run 8-10s and the
+      // angler's natural next move is to lock the phone and release the fish;
+      // before this reorder, an iOS jetsam during that window lost the catch
+      // and the photo permanently (camera-input files never reach the Photos
+      // library). hold_until keeps drains off the record while we wait, and
+      // expires on its own if this page dies mid-geolocate.
       const record = {
         client_uuid: this.clientUuid,
         species_id: this.speciesSelectTarget.value,
         length_inches: this._toInches(this.lengthInputTarget.value),
         length_unit: this.lengthInputTarget.dataset.catchFormUnit,
         captured_at_device: new Date().toISOString(),
-        captured_at_gps: position?.gpsTime ?? null,
-        latitude: position?.coords?.latitude ?? null,
-        longitude: position?.coords?.longitude ?? null,
-        gps_accuracy_m: position?.coords?.accuracy ?? null,
+        captured_at_gps: null,
+        latitude: null,
+        longitude: null,
+        gps_accuracy_m: null,
         app_build: document.documentElement.dataset.appBuild,
         note: this.noteInputTarget.value,
         tag_number: (this.hasTagInputTarget ? this.tagInputTarget.value : "").trim().toUpperCase() || null,
         weight_text: (this.hasWeightInputTarget ? this.weightInputTarget.value : "").trim() || null,
-        photo: this.photoBlob,
-        video: this.videoBlob,
+        photo: photo,
+        video: video,
         video_failed: this.videoFailed,
-        teammate_user_id: this.teammateUserIdValue || null
+        teammate_user_id: this.teammateUserIdValue || null,
+        // NOT read straight off the meta: the precached /offline shell's meta
+        // can be the PREVIOUS user's after an account switch (shared phone).
+        queued_by_user_id: currentUserId(),
+        hold_until: Date.now() + GPS_HOLD_MS
       }
-
       await enqueueCatch(record)
+
+      // Locking the phone mid-fix suspends this page but not the wall clock,
+      // so the hold can be expired the moment the page resumes — and the
+      // visibilitychange drain would upload the record coordless just before
+      // the resumed fix lands. Re-arm the hold on resume; the drain re-reads
+      // each row right before upload (offline/sync.js), so the fresh hold and
+      // late coords are both seen. A killed page never resumes: the original
+      // hold expires and the catch syncs GPS-less, as designed.
+      const extendOnResume = () => {
+        if (document.visibilityState === "visible") extendHold(this.clientUuid, GPS_HOLD_MS).catch(() => {})
+      }
+      document.addEventListener("visibilitychange", extendOnResume)
+      try {
+        const position = await this.tryGeolocate()
+        if (position) {
+          await updateCoords(this.clientUuid, {
+            captured_at_gps: position.gpsTime,
+            latitude: position.coords.latitude,
+            longitude: position.coords.longitude,
+            gps_accuracy_m: position.coords.accuracy
+          }).catch(() => {})
+        }
+      } finally {
+        document.removeEventListener("visibilitychange", extendOnResume)
+      }
+      await releaseHold(this.clientUuid).catch(() => {})
 
       if ("serviceWorker" in navigator && "SyncManager" in window) {
         try {
-          const reg = await navigator.serviceWorker.ready
+          // serviceWorker.ready is spec'd never to reject — with no active
+          // registration (failed install, corrupted SW state) it pends forever,
+          // and an unguarded await here strands the angler on a disabled Save
+          // button AFTER the catch is already queued; re-entering it from a
+          // fresh form is a genuine duplicate. Background Sync is best-effort
+          // anyway (the destination page drains the queue on load), so give it
+          // a short window and move on.
+          const reg = await withTimeout(navigator.serviceWorker.ready, 3000)
           await reg.sync.register("catch-sync")
         } catch (_) {}
       }
@@ -102,8 +179,25 @@ export default class extends Controller {
       window.location.href = "/"
     } catch (err) {
       this._setSubmitting(false)
-      this.statusTarget.textContent = "Couldn't save your catch — try again."
+      // A few failures know exactly what the angler has to do (offline/db.js
+      // sets userMessage when another window is holding the old schema open);
+      // "try again" on its own would have them tapping Save forever.
+      this.statusTarget.textContent = err?.userMessage || "Couldn't save your catch — try again."
       throw err
+    }
+  }
+
+  // Packs a Blob/File into { bytes, type, name, size } for inline IndexedDB
+  // storage. Returns null when the blob is missing, unreadable, or empty —
+  // the same three cases offline/blob.js#materialize refuses to upload.
+  async _packBlob(blob, fallbackName, fallbackType) {
+    if (!blob) return null
+    try {
+      const bytes = await blob.arrayBuffer()
+      if (!bytes || bytes.byteLength === 0) return null
+      return { bytes: bytes, type: blob.type || fallbackType, name: blob.name || fallbackName, size: bytes.byteLength }
+    } catch (_) {
+      return null
     }
   }
 
@@ -185,4 +279,11 @@ export default class extends Controller {
       )
     })
   }
+}
+
+function withTimeout(promise, ms) {
+  return Promise.race([
+    promise,
+    new Promise((_, reject) => setTimeout(() => reject(new Error(`timeout after ${ms}ms`)), ms))
+  ])
 }

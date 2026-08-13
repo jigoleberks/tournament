@@ -1,6 +1,9 @@
 import { Controller } from "@hotwired/stimulus"
-import { pendingCatches, failedCatches, markSynced } from "offline/db"
-import { rematerialize } from "offline/blob"
+import { pendingCatches, failedCatches, getCatch, markSynced } from "offline/db"
+import { materialize } from "offline/blob"
+import { buildCatchFormData } from "offline/form_data"
+import { fetchSession } from "offline/session"
+import { readApiError } from "offline/api_error"
 
 // Reads stuck catch records from IndexedDB, re-materializes each photo blob
 // (see offline/blob.js for why), shows a thumbnail, and re-submits via the
@@ -54,7 +57,14 @@ export default class extends Controller {
     this.objectUrls = []
   }
 
-  async renderRow(rec, gen) {
+  async renderRow(row, gen) {
+    // pendingCatches/failedCatches return metadata only (offline/db.js v2), and
+    // everything below — the size, the preview, the re-submit body — needs the
+    // bytes. Re-read per row rather than up front: this loop already awaits
+    // once per row, so nothing is serialized that wasn't already.
+    const rec = (await getCatch(row.client_uuid)) || row
+    if (gen !== this.generation) return
+
     const li = document.createElement("li")
     li.className = "flex flex-wrap items-center gap-3 py-2 border-b border-slate-700"
 
@@ -63,7 +73,7 @@ export default class extends Controller {
     const size = rec.photo ? rec.photo.size : 0
     info.textContent = `${rec.length_inches}″ — ${new Date(rec.captured_at_device).toLocaleString()} · ${size} bytes`
 
-    const fresh = await rematerialize(rec.photo)
+    const fresh = await materialize(rec.photo)
     // Bail before createObjectURL, not after: a URL minted now would be pushed
     // into an objectUrls array that disconnect() has already drained.
     if (gen !== this.generation) return
@@ -112,27 +122,25 @@ export default class extends Controller {
     btn.disabled = true
     btn.textContent = "Sending…"
 
-    const fd = new FormData()
-    fd.append("catch[client_uuid]", rec.client_uuid)
-    fd.append("catch[species_id]", rec.species_id)
-    fd.append("catch[length_inches]", rec.length_inches)
-    if (rec.length_unit) fd.append("catch[length_unit]", rec.length_unit)
-    fd.append("catch[captured_at_device]", rec.captured_at_device)
-    if (rec.captured_at_gps) fd.append("catch[captured_at_gps]", rec.captured_at_gps)
-    if (rec.latitude != null) fd.append("catch[latitude]", rec.latitude)
-    if (rec.longitude != null) fd.append("catch[longitude]", rec.longitude)
-    if (rec.gps_accuracy_m != null) fd.append("catch[gps_accuracy_m]", rec.gps_accuracy_m)
-    if (rec.app_build) fd.append("catch[app_build]", rec.app_build)
-    if (rec.note) fd.append("catch[note]", rec.note)
-    if (rec.tag_number) fd.append("catch[tag_number]", rec.tag_number)
-    if (rec.weight_text) fd.append("catch[weight_text]", rec.weight_text)
-    fd.append("catch[photo]", fresh, `recovered.${this.extensionFor(fresh.type)}`)
-    if (rec.teammate_user_id) fd.append("teammate_user_id", rec.teammate_user_id)
+    const fd = await buildCatchFormData(rec, fresh, `recovered.${this.extensionFor(fresh.type)}`)
+
+    // Preflight (offline/session.js): iOS restores this page from the
+    // bfcache with a stale CSRF meta token, and re-submitting with it fails on
+    // every tap until a hard reload — on the tool of last resort. A fresh
+    // token fixes that; the meta token is only the flake/broken fallback.
+    const preflight = await fetchSession()
+    if (preflight.state === "authRequired") {
+      btn.disabled = false
+      btn.textContent = "Retry"
+      this.showError(li, "You're signed out — sign in, then tap Re-submit again.")
+      return
+    }
+    const csrf = preflight.state === "ok" ? preflight.csrf_token : this.csrfToken()
 
     try {
       const resp = await fetch("/api/catches", {
         method: "POST",
-        headers: { "Accept": "application/json", "X-CSRF-Token": this.csrfToken() },
+        headers: { "Accept": "application/json", "X-CSRF-Token": csrf },
         body: fd,
         credentials: "same-origin"
       })
@@ -143,10 +151,10 @@ export default class extends Controller {
         btn.textContent = "Recovered ✓"
         btn.className = "h-9 px-3 rounded-lg bg-emerald-800 text-white text-sm"
       } else {
-        const body = await resp.text()
+        const { reason } = await readApiError(resp)
         btn.disabled = false
         btn.textContent = "Retry"
-        this.showError(li, `Server ${resp.status}: ${body.slice(0, 120)}`)
+        this.showError(li, reason)
       }
     } catch (e) {
       btn.disabled = false

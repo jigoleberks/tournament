@@ -8,8 +8,58 @@
     <%= csrf_meta_tags %>
     <%= csp_meta_tag %>
     <meta name="vapid-public-key" content="<%= VAPID[:public_key] %>">
+    <%# Always rendered ("" when signed out) so the mirror below can tell
+        "signed out on this layout" apart from "a layout without the meta"
+        (admin), where the last-known value must be kept, not cleared. %>
+    <meta name="current-user-id" content="<%= current_user&.id %>">
+    <script>
+      // Mirror the signed-in user into localStorage for the offline queue: the
+      // precached /offline shell's current-user-id meta can be stale after an
+      // account switch on a shared phone, so offline/current_user.js prefers
+      // this mirror over the meta. "" records "signed out". The offline layout
+      // must never run this — its cached meta is exactly what can be stale.
+      //
+      // Turbo Drive only evaluates head scripts that are NEW to the merged
+      // head, and this one is byte-identical on every page — so an account
+      // switch done entirely through Turbo visits (sign-out button, code
+      // form) would never re-run it. The turbo:load listener registered on
+      // the initial full load survives every Turbo visit in this window and
+      // re-mirrors the (Turbo-updated) meta after each one.
+      //
+      // EXCEPT restoration visits (Back/edge-swipe): those render a cached
+      // snapshot with no server round trip, so the meta in the restored head
+      // is whatever user was signed in when the page was cached. Mirroring it
+      // would overwrite the mirror with the PREVIOUS user after an account
+      // switch — the exact staleness this mirror exists to fix. Track the
+      // visit action and skip them.
+      //
+      // window.__lastTurboVisitAction is written ONLY here and is the shared
+      // last-visit-action tracker: stream_refresh_controller reads it too for
+      // its restore-visit detection, so this listener must stay registered
+      // even if the mirror itself changes.
+      (function () {
+        var mirror = function () {
+          try {
+            var cu = document.querySelector("meta[name='current-user-id']");
+            if (cu) localStorage.setItem("currentUserId", cu.content);
+          } catch (_) {}
+        };
+        mirror();
+        if (!window.__currentUserMirrorBound) {
+          window.__currentUserMirrorBound = true;
+          document.addEventListener("turbo:visit", function (e) {
+            window.__lastTurboVisitAction = e.detail && e.detail.action;
+          });
+          document.addEventListener("turbo:load", function () {
+            if (window.__lastTurboVisitAction === "restore") return;
+            mirror();
+          });
+        }
+      })();
+    </script>
 
     <%= yield :head %>
+    <%= render "shared/turbo_snapshot_cache_meta" %>
 
     <link rel="manifest" href="/manifest.webmanifest">
     <meta name="theme-color" content="#0f172a">
@@ -18,7 +68,7 @@
     <link rel="icon" href="/icons/icon-192.png" type="image/png">
 
     <%= stylesheet_link_tag "tailwind", "data-turbo-track": "reload" %>
-    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="">
+    <%= render "shared/leaflet_head" %>
     <%= javascript_importmap_tags %>
   </head>
 
@@ -29,6 +79,7 @@
       document.cookie = "app_build=" + encodeURIComponent(document.documentElement.dataset.appBuild || "") + "; path=/; max-age=31536000; samesite=lax";
     </script>
     <%= render "shared/ios_install_coach" %>
+    <%= render "shared/sync_auth_notice" %>
 
     <% flash.each do |type, message| %>
       <% styles = case type.to_s
@@ -49,7 +100,8 @@
     </main>
 
     <% if signed_in? %>
-      <nav class="fixed bottom-0 inset-x-0 max-w-md mx-auto bg-slate-800/95 backdrop-blur border-t border-slate-700 flex pb-[env(safe-area-inset-bottom)]">
+      <nav data-controller="keyboard-nav"
+           class="fixed bottom-0 inset-x-0 max-w-md mx-auto bg-slate-800/95 backdrop-blur border-t border-slate-700 flex pb-[env(safe-area-inset-bottom)]">
         <%= link_to root_path, "aria-label": "Home",
                     class: "flex-1 flex items-center justify-center h-16 active:bg-slate-700" do %>
           <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="w-8 h-8 text-slate-100" aria-hidden="true">

@@ -7,12 +7,12 @@
     <%= link_to "◀",
                 public_send(path_helper, nav_base.merge(month_nav: (month_start - 1.month).iso8601)),
                 "aria-label": "Previous month",
-                class: "px-3 py-1 text-slate-300 hover:text-white" %>
+                class: "px-4 py-2 text-slate-300 active:text-white" %>
     <div class="font-semibold text-slate-100"><%= month_start.strftime("%B %Y") %></div>
     <%= link_to "▶",
                 public_send(path_helper, nav_base.merge(month_nav: (month_start + 1.month).iso8601)),
                 "aria-label": "Next month",
-                class: "px-3 py-1 text-slate-300 hover:text-white" %>
+                class: "px-4 py-2 text-slate-300 active:text-white" %>
   </div>
 
   <% if month_of_year_active %>

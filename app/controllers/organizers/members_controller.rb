@@ -1,4 +1,8 @@
 class Organizers::MembersController < Organizers::BaseController
+  # Member views show emails and live sign-in codes — controller-wide so ones
+  # added later are covered (see ApplicationController.disable_turbo_snapshot_cache!).
+  disable_turbo_snapshot_cache!
+
   def index
     @users = current_club.members.includes(:club_memberships).order(:deactivated_at, :name)
   end

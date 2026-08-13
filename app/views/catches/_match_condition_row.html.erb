@@ -13,7 +13,7 @@
           which drops the param from the URL entirely (clean toggle-off). %>
       <%= button_tag display, type: :submit,
                      name: (active ? nil : param), value: (active ? nil : value),
-                     class: "px-3 py-1 rounded-full text-sm border #{cls}",
+                     class: "px-3 py-2 rounded-full text-sm border #{cls}",
                      data: { test: "chip-#{param}-#{value}" } %>
     <% end %>
   <% end %>

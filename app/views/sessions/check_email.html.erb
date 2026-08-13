@@ -1,4 +1,7 @@
 <div class="flex flex-col items-center justify-center min-h-[60vh] text-center px-2">
   <h1 class="text-2xl font-semibold mb-3">Check your email</h1>
   <p class="text-slate-400">If that email is registered, a sign-in link is on its way.</p>
+  <p class="text-slate-400 mt-3 text-sm">Opening this from the app on your home screen?
+    Use the 8-digit code from the email instead of the link:</p>
+  <%= link_to "Sign in with a code", code_session_path, class: "text-blue-400 underline mt-1 text-sm" %>
 </div>

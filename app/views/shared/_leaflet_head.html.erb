@@ -1,0 +1,14 @@
+<%# Rendered by every layout whose pages can show a Leaflet map. The meta
+    names are load-bearing for lib/leaflet_default_icons.js — keep this the
+    only spelling so a rename/CSS bump can't silently break markers under
+    one layout while fixing the other. %>
+<%# Vendored (was unpkg): a render-blocking cross-origin stylesheet in every
+    page's head meant 1-bar lake connectivity could stall first paint for
+    tens of seconds on pages with no map, and the SW deliberately never
+    caches cross-origin. Same-origin assets are SW-cache-first. %>
+<%= stylesheet_link_tag "leaflet" %>
+<%# Digested marker URLs for lib/leaflet_default_icons.js — Leaflet's own
+    icon-path detection can't strip Propshaft digests and 404s. %>
+<meta name="leaflet-marker-icon" content="<%= asset_path("images/marker-icon.png") %>">
+<meta name="leaflet-marker-icon-2x" content="<%= asset_path("images/marker-icon-2x.png") %>">
+<meta name="leaflet-marker-shadow" content="<%= asset_path("images/marker-shadow.png") %>">

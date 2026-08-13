@@ -7,7 +7,9 @@
   atomically, so a cross-origin pin (the leaflet CDN) would brick the install.
 %>
 <% import_paths = JSON.parse(Rails.application.importmap.to_json(resolver: self))["imports"].values %>
-<% precache = ["/offline", "/manifest.webmanifest", "/icon.png", asset_path("tailwind.css")] +
+<% precache = ["/offline", "/manifest.webmanifest", "/icon.png",
+               "/icons/icon-180.png", "/icons/icon-192.png",
+               asset_path("tailwind.css"), asset_path("leaflet.css")] +
               import_paths.select { |p| p.start_with?("/") } %>
 const CACHE = <%= ("shell-" + ::AppVersion.current).to_json.html_safe %>;
 const SHELL = <%= precache.to_json.html_safe %>;
@@ -32,7 +34,7 @@ self.addEventListener("fetch", (event) => {
   if (url.origin !== location.origin) return;
 
   // Cache-first for immutable fingerprinted assets.
-  if (url.pathname.startsWith("/assets/") || url.pathname === "/manifest.webmanifest" || url.pathname === "/icon.png") {
+  if (url.pathname.startsWith("/assets/") || url.pathname.startsWith("/icons/") || url.pathname === "/manifest.webmanifest" || url.pathname === "/icon.png") {
     event.respondWith(
       caches.match(event.request).then((cached) => cached || fetch(event.request).then((res) => {
         if (res.status === 200) {
@@ -95,9 +97,39 @@ self.addEventListener("sync", (event) => {
   }
 });
 
+// The /offline shell embeds the species list and length caps server-side at
+// precache time; without this, "add a species for Saturday" never reaches
+// offline shells until the next AppVersion bump. Pages ping this once per
+// load (sw_register.js); when truly offline the fetch fails quietly below.
+// Throttled: unthrottled, every page view club-wide re-rendered the whole
+// shell server-side (species query + ERB) — roughly doubling request volume
+// on a live tournament night — for a list that changes a few times a season.
+// The cached response's own Date header is the persisted timestamp (SW
+// globals die with the worker); missing/unparsable → refresh, the old
+// behavior.
+const REFRESH_SHELL_MIN_MS = 60 * 60 * 1000
+self.addEventListener("message", (event) => {
+  if (event.data?.type !== "refresh-shell") return
+  event.waitUntil((async () => {
+    try {
+      const cached = await caches.match("/offline")
+      const fetchedAt = new Date(cached?.headers.get("date")).getTime()
+      if (Date.now() - fetchedAt < REFRESH_SHELL_MIN_MS) return
+      const res = await fetch("/offline")
+      if (res.status === 200) {
+        const c = await caches.open(CACHE)
+        await c.put("/offline", res)
+      }
+    } catch (_) {}
+  })())
+})
+
 self.addEventListener("push", (event) => {
   if (!event.data) return
-  const data = event.data.json()
+  // A non-JSON payload must degrade to a generic notification, not an
+  // unhandled rejection that shows nothing.
+  let data
+  try { data = event.data.json() } catch (_) { data = { title: "Tournament update", body: event.data.text() } }
   event.waitUntil(
     self.registration.showNotification(data.title, {
       body: data.body,
@@ -108,11 +140,64 @@ self.addEventListener("push", (event) => {
   )
 })
 
+// APNs/FCM rotate push subscriptions behind our back (SW updates, OS events).
+// Without this, the next send hits ExpiredSubscription, the server deletes the
+// row, and the angler silently stops getting bumped/took-the-lead alerts while
+// the home-page toggle still reads "on". Re-subscribe and swap the stored row.
+const VAPID_PUBLIC_KEY = <%= VAPID[:public_key].to_json.html_safe %>;
+
+self.addEventListener("pushsubscriptionchange", (event) => {
+  event.waitUntil((async () => {
+    try {
+      const sub = event.newSubscription || await self.registration.pushManager.subscribe({
+        userVisibleOnly: true,
+        applicationServerKey: urlB64ToUint8Array(VAPID_PUBLIC_KEY)
+      })
+      // The server may have already destroyed the old row (delivery deletes on
+      // ExpiredSubscription), and oldSubscription can be null — possession of
+      // the old endpoint then proves nothing, and refresh would 404 the fresh
+      // subscription away. A CSRF token from /api/session is the fallback
+      // same-origin proof that lets the server accept it anyway. (Inline
+      // rather than offline/session.js's fetchSession: a classic SW script
+      // can't import importmap modules.)
+      let csrf = null
+      try {
+        const sess = await fetch("/api/session", { headers: { "Accept": "application/json" }, credentials: "include" })
+        if (sess.ok) csrf = (await sess.json()).csrf_token
+      } catch (_) {}
+      await fetch("/api/push_subscriptions/refresh", {
+        method: "POST",
+        headers: Object.assign({ "Content-Type": "application/json" }, csrf ? { "X-CSRF-Token": csrf } : {}),
+        credentials: "include",
+        body: JSON.stringify({
+          old_endpoint: event.oldSubscription && event.oldSubscription.endpoint,
+          subscription: sub.toJSON()
+        })
+      })
+    } catch (_) {
+      // Signed out or offline: nothing more to do from the SW. The home-page
+      // toggle re-registers the browser's subscription whenever it sees one
+      // (push_register_controller#resyncSubscription), so this drift heals on
+      // the next signed-in open instead of leaving push silently dead.
+    }
+  })())
+})
+
+function urlB64ToUint8Array(b64) {
+  const padding = "=".repeat((4 - (b64.length % 4)) % 4)
+  const base64 = (b64 + padding).replace(/-/g, "+").replace(/_/g, "/")
+  const raw = atob(base64)
+  return new Uint8Array([...raw].map((c) => c.charCodeAt(0)))
+}
+
 self.addEventListener("notificationclick", (event) => {
   event.notification.close()
   const target = event.notification.data?.url || "/"
+  // Match on exact pathname: includes("/") matched EVERY same-origin client,
+  // focusing whatever page happened to be open instead of navigating.
+  const targetPath = new URL(target, self.location.origin).pathname
   event.waitUntil(self.clients.matchAll({ type: "window" }).then((clients) => {
-    const open = clients.find((c) => c.url.includes(target))
+    const open = clients.find((c) => new URL(c.url).pathname === targetPath)
     if (open) return open.focus()
     return self.clients.openWindow(target)
   }))

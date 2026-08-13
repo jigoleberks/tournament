@@ -150,4 +150,15 @@ class Tournaments::CatchesControllerTest < ActionDispatch::IntegrationTest
 
     assert_response :ok
   end
+
+  test "ended entrants_only tournament returns 200 for a member who is not entered" do
+    @tournament.update!(starts_at: 2.hours.ago, ends_at: 10.minutes.ago,
+                        entrants_only_leaderboard: true)
+
+    sign_in_as(@member)
+
+    get tournament_catch_path(@tournament, @catch)
+
+    assert_response :ok
+  end
 end

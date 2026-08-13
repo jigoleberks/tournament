@@ -56,6 +56,196 @@ class Api::PushSubscriptionsControllerTest < ActionDispatch::IntegrationTest
     end
   end
 
+  test "re-registering an endpoint that belonged to another user reassigns it" do
+    other = create(:user)
+    stale = PushSubscription.create!(user: other, endpoint: "https://push.example/shared-ep",
+                                     p256dh: "oldkey", auth: "oldauth")
+    post "/api/push_subscriptions", params: {
+      subscription: { endpoint: "https://push.example/shared-ep",
+                      keys: { p256dh: "newkey", auth: "newauth" } }
+    }, as: :json
+    assert_response :created
+    stale.reload
+    assert_equal @user.id, stale.user_id
+    assert_equal "newkey", stale.p256dh
+  end
+
+  # The toggle's drift-converging resync fires on every page load. Unlike an
+  # explicit Enable tap, it must not steal a row another member registered on
+  # this shared phone — otherwise merely signing in and loading the home page
+  # silently ends the owner's notifications.
+  test "a passive resync does not reassign another user's subscription" do
+    other = create(:user)
+    owned = PushSubscription.create!(user: other, endpoint: "https://push.example/shared-ep",
+                                     p256dh: "oldkey", auth: "oldauth")
+    post "/api/push_subscriptions", params: {
+      resync: true,
+      subscription: { endpoint: "https://push.example/shared-ep",
+                      keys: { p256dh: "newkey", auth: "newauth" } }
+    }, as: :json
+    assert_response :no_content
+    owned.reload
+    assert_equal other.id, owned.user_id
+    assert_equal "oldkey", owned.p256dh
+  end
+
+  test "a passive resync still registers and converges the user's own rows" do
+    create(:push_subscription, user: @user, endpoint: "https://e/mine", p256dh: "stale", auth: "a")
+    post "/api/push_subscriptions", params: {
+      resync: true,
+      subscription: { endpoint: "https://e/mine", keys: { p256dh: "fresh", auth: "a" } }
+    }, as: :json
+    assert_response :created
+    assert_equal "fresh", PushSubscription.find_by(endpoint: "https://e/mine").p256dh
+
+    assert_difference "PushSubscription.count", 1 do
+      post "/api/push_subscriptions", params: {
+        resync: true,
+        subscription: { endpoint: "https://e/unregistered", keys: { p256dh: "p", auth: "a" } }
+      }, as: :json
+    end
+    assert_equal @user.id, PushSubscription.find_by(endpoint: "https://e/unregistered").user_id
+  end
+
+  # POST /api/push_subscriptions/refresh — the service worker's
+  # pushsubscriptionchange self-heal. APNs/FCM rotate endpoints behind our
+  # back; the SW re-subscribes and swaps the stored row so alerts keep
+  # arriving instead of dying silently on ExpiredSubscription.
+
+  test "refresh rotates an existing subscription to the new endpoint and keys" do
+    create(:push_subscription, user: @user, endpoint: "https://e/old", p256dh: "p", auth: "a")
+    assert_no_difference "PushSubscription.count" do
+      post "/api/push_subscriptions/refresh", params: {
+        old_endpoint: "https://e/old",
+        subscription: { endpoint: "https://e/new", keys: { p256dh: "p2", auth: "a2" } }
+      }, as: :json
+    end
+    assert_response :no_content
+    assert_nil PushSubscription.find_by(endpoint: "https://e/old")
+    sub = PushSubscription.find_by(endpoint: "https://e/new")
+    assert_equal @user.id, sub.user_id
+    assert_equal "p2", sub.p256dh
+  end
+
+  # refresh is as passive as create's resync: the SW fires it for whoever is
+  # signed in. On a shared phone, a rotation while member B is signed in must
+  # not move member A's subscription to B — A tapped Enable, A keeps it.
+  test "refresh keeps the rotated subscription with its original owner" do
+    other = create(:user)
+    create(:push_subscription, user: other, endpoint: "https://e/owned-by-other", p256dh: "p", auth: "a")
+    assert_no_difference "PushSubscription.count" do
+      post "/api/push_subscriptions/refresh", params: {
+        old_endpoint: "https://e/owned-by-other",
+        subscription: { endpoint: "https://e/rotated-other", keys: { p256dh: "p2", auth: "a2" } }
+      }, as: :json
+    end
+    assert_response :no_content
+    assert_nil PushSubscription.find_by(endpoint: "https://e/owned-by-other")
+    assert_equal other.id, PushSubscription.find_by(endpoint: "https://e/rotated-other").user_id
+  end
+
+  # The CSRF fallback below accepts a rotation with no old row to match. That
+  # path resolved the owner as current_user, so on a shared phone it handed an
+  # endpoint another member had already registered to whoever happened to be
+  # signed in — silently cutting off the member who actually tapped Enable.
+  # refresh is a passive SW event, so it must refuse the move exactly as
+  # create's resync guard does.
+  test "refresh does not hand another member's registration to the current session" do
+    other = create(:user)
+    create(:push_subscription, user: other, endpoint: "https://e/shared-phone", p256dh: "p", auth: "a")
+    with_forgery_protection do
+      assert_no_difference "PushSubscription.count" do
+        post "/api/push_subscriptions/refresh", params: {
+          old_endpoint: nil,
+          subscription: { endpoint: "https://e/shared-phone", keys: { p256dh: "stolen", auth: "stolen" } }
+        }, headers: { "X-CSRF-Token" => api_session_csrf_token }, as: :json
+      end
+      assert_response :no_content
+      sub = PushSubscription.find_by(endpoint: "https://e/shared-phone")
+      assert_equal other.id, sub.user_id, "a passive rotation must not move the row to the current user"
+      assert_equal "p", sub.p256dh, "and must not overwrite the owner's keys"
+    end
+  end
+
+  # Possession of a previously-registered endpoint is one ownership proof
+  # (endpoints are unguessable capability URLs). Without a matching row AND
+  # without a CSRF token the request proves nothing and must not create
+  # anything.
+  test "refresh with an unknown old endpoint and no CSRF token is a 404 no-op" do
+    with_forgery_protection do
+      assert_no_difference "PushSubscription.count" do
+        post "/api/push_subscriptions/refresh", params: {
+          old_endpoint: "https://e/never-registered",
+          subscription: { endpoint: "https://e/new", keys: { p256dh: "p", auth: "a" } }
+        }, as: :json
+      end
+      assert_response :not_found
+    end
+  end
+
+  # The rotation case the self-heal exists for: delivery already destroyed the
+  # row on ExpiredSubscription (or the browser fired pushsubscriptionchange
+  # with no oldSubscription), so possession can't be proven. The SW fetches a
+  # CSRF token from /api/session — the same same-origin proof create relies
+  # on — and the new subscription must be stored, not 404'd away.
+  test "refresh with a dead old endpoint but a valid CSRF token stores the new subscription" do
+    with_forgery_protection do
+      assert_difference "PushSubscription.count", 1 do
+        post "/api/push_subscriptions/refresh", params: {
+          old_endpoint: "https://e/already-destroyed",
+          subscription: { endpoint: "https://e/rotated", keys: { p256dh: "p2", auth: "a2" } }
+        }, headers: { "X-CSRF-Token" => api_session_csrf_token }, as: :json
+      end
+      assert_response :no_content
+      sub = PushSubscription.find_by(endpoint: "https://e/rotated")
+      assert_equal @user.id, sub.user_id
+      assert_equal "p2", sub.p256dh
+    end
+  end
+
+  test "refresh with a null old endpoint but a valid CSRF token stores the new subscription" do
+    with_forgery_protection do
+      assert_difference "PushSubscription.count", 1 do
+        post "/api/push_subscriptions/refresh", params: {
+          old_endpoint: nil,
+          subscription: { endpoint: "https://e/rotated2", keys: { p256dh: "p", auth: "a" } }
+        }, headers: { "X-CSRF-Token" => api_session_csrf_token }, as: :json
+      end
+      assert_response :no_content
+      assert_equal @user.id, PushSubscription.find_by(endpoint: "https://e/rotated2").user_id
+    end
+  end
+
+  test "refresh requires sign-in" do
+    create(:push_subscription, user: @user, endpoint: "https://e/old")
+    reset!
+    post "/api/push_subscriptions/refresh", params: {
+      old_endpoint: "https://e/old",
+      subscription: { endpoint: "https://e/new", keys: { p256dh: "p", auth: "a" } }
+    }, as: :json
+    assert_response :unauthorized
+  end
+
+  # A service worker has no page, no csrf meta tag, no token. refresh must be
+  # exempt from CSRF verification (while create stays protected — its
+  # null_session turns a tokenless POST into a 401).
+  test "refresh works without a CSRF token while create stays protected" do
+    with_forgery_protection do
+      create(:push_subscription, user: @user, endpoint: "https://e/old")
+
+      post "/api/push_subscriptions/refresh", params: {
+        old_endpoint: "https://e/old",
+        subscription: { endpoint: "https://e/new", keys: { p256dh: "p", auth: "a" } }
+      }, as: :json
+      assert_response :no_content
+
+      post "/api/push_subscriptions", params: {
+        subscription: { endpoint: "https://e/other", keys: { p256dh: "p", auth: "a" } }
+      }, as: :json
+      assert_response :unauthorized
+    end
+  end
+
   test "destroying a subscription records push_unsubscribed" do
     user = create(:user)
     sign_in_as(user)
@@ -72,5 +262,20 @@ class Api::PushSubscriptionsControllerTest < ActionDispatch::IntegrationTest
   def sign_in_as(user)
     token = SignInToken.issue!(user: user)
     get consume_session_path(token: token.token)
+  end
+
+  def with_forgery_protection
+    old_setting = ActionController::Base.allow_forgery_protection
+    ActionController::Base.allow_forgery_protection = true
+    yield
+  ensure
+    ActionController::Base.allow_forgery_protection = old_setting
+  end
+
+  # The token the same way the service worker gets it: from the drain-preflight
+  # session endpoint.
+  def api_session_csrf_token
+    get "/api/session", headers: { "Accept" => "application/json" }
+    JSON.parse(response.body).fetch("csrf_token")
   end
 end

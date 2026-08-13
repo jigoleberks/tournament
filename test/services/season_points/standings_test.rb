@@ -105,6 +105,50 @@ module SeasonPoints
       assert_equal 0.5, skunked[:points]
     end
 
+    test "team tournament below the 3-team cutoff contributes only attendance bonuses" do
+      ends_at = 1.day.ago
+      t = create(:tournament, club: @club, mode: :team, awards_season_points: true,
+                 season_tag: "Wednesday 2026", starts_at: ends_at - 4.hours, ends_at: ends_at)
+      create(:scoring_slot, tournament: t, species: @walleye, slot_count: 2)
+
+      # 2 teams x 2 anglers = 4 anglers: enough for PointsScale, but only 2 entries.
+      %w[TeamA TeamB].each_with_index do |prefix, i|
+        entry = create(:tournament_entry, tournament: t)
+        users = 2.times.map { |j| create(:user, club: @club, name: "#{prefix}-#{j}") }
+        users.each { |u| create(:tournament_entry_member, tournament_entry: entry, user: u) }
+        Catches::PlaceInSlots.call(catch: create(:catch, user: users.first, species: @walleye,
+                                                 length_inches: 25 - i, captured_at_device: ends_at - 1.hour))
+      end
+
+      result = Standings.call(club: @club, season_tag: "Wednesday 2026")
+      assert_equal 4, result.size
+      result.each do |row|
+        assert_equal 0.5, row[:points], "#{row[:user].name} should have only the attendance bonus"
+      end
+    end
+
+    test "a member-less entry doesn't lift a 2-team tournament over the cutoff" do
+      ends_at = 1.day.ago
+      t = create(:tournament, club: @club, mode: :team, awards_season_points: true,
+                 season_tag: "Wednesday 2026", starts_at: ends_at - 4.hours, ends_at: ends_at)
+      create(:scoring_slot, tournament: t, species: @walleye, slot_count: 2)
+
+      %w[TeamA TeamB].each_with_index do |prefix, i|
+        entry = create(:tournament_entry, tournament: t)
+        users = 2.times.map { |j| create(:user, club: @club, name: "#{prefix}-#{j}") }
+        users.each { |u| create(:tournament_entry_member, tournament_entry: entry, user: u) }
+        Catches::PlaceInSlots.call(catch: create(:catch, user: users.first, species: @walleye,
+                                                 length_inches: 25 - i, captured_at_device: ends_at - 1.hour))
+      end
+      create(:tournament_entry, tournament: t)
+
+      result = Standings.call(club: @club, season_tag: "Wednesday 2026")
+      assert_equal 4, result.size
+      result.each do |row|
+        assert_equal 0.5, row[:points], "#{row[:user].name} should have only the attendance bonus"
+      end
+    end
+
     test "excludes in-progress tournaments" do
       future_end = 1.hour.from_now
       starts_at = future_end - 4.hours
@@ -168,7 +212,7 @@ module SeasonPoints
       create(:catch, user: user, species: @walleye, length_inches: 15,
                      captured_at_device: ends_at - 1.hour)
 
-      # PointsScale needs >= 3 anglers entered for a scale to apply; these two
+      # Placement points need >= 3 entries; these two make it 3 solo entries but
       # never progress past the free square (0.5 attendance bonus only).
       %w[Skunked1 Skunked2].each do |name|
         u = create(:user, club: @club, name: name)

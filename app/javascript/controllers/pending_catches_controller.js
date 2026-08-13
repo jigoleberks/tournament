@@ -1,5 +1,6 @@
 import { Controller } from "@hotwired/stimulus"
 import { pendingCatches, failedCatches, markPending } from "offline/db"
+import { currentUserId } from "offline/current_user"
 
 // How long a catch may sit pending before we stop calling it "syncing" and
 // start calling it stuck. Only affects whether the recovery link is offered.
@@ -12,25 +13,58 @@ export default class extends Controller {
     this.boundRefresh = () => this.refresh()
     window.addEventListener("bsfamilies:catch-synced", this.boundRefresh)
     window.addEventListener("bsfamilies:catch-failed", this.boundRefresh)
+    // Parking (deferRetry) is the third outcome a drain can produce, and the
+    // only one the angler can act on while still on this page — see the
+    // backoff notice below.
+    window.addEventListener("bsfamilies:catch-deferred", this.boundRefresh)
     await this.refresh()
   }
 
   disconnect() {
     window.removeEventListener("bsfamilies:catch-synced", this.boundRefresh)
     window.removeEventListener("bsfamilies:catch-failed", this.boundRefresh)
+    window.removeEventListener("bsfamilies:catch-deferred", this.boundRefresh)
   }
 
   async refresh() {
-    const [pending, failed] = await Promise.all([pendingCatches(), failedCatches()])
+    // getDB can now reject rather than hang (another window holding the old
+    // schema open — see offline/db.js). This widget is a status readout, so a
+    // failed read leaves the last render up instead of throwing out of connect.
+    let pending, failed
+    try {
+      [pending, failed] = await Promise.all([pendingCatches(), failedCatches()])
+    } catch (_) {
+      return
+    }
 
     if (pending.length === 0) {
       this.listTarget.innerHTML = ""
       this.emptyTarget.hidden = failed.length > 0
     } else {
       this.emptyTarget.hidden = true
-      this.listTarget.innerHTML = pending.map((p) => `
-        <li>🕐 ${escapeHtml(p.length_inches)}″ — captured ${new Date(p.captured_at_device).toLocaleTimeString()}</li>
-      `).join("")
+      // A record queued under a different account (shared phone) is silently
+      // skipped by every drain — without the label it reads as a healthy
+      // queue while the fish never uploads and nobody is told the fix.
+      const me = currentUserId()
+      const now = Date.now()
+      this.listTarget.innerHTML = pending.map((p) => {
+        const otherUser = p.queued_by_user_id && me && String(p.queued_by_user_id) !== String(me)
+        // A record the server 5xx'd is held back by deferRetry for up to 15
+        // minutes. Rendered as a bare 🕐 it is indistinguishable from a healthy
+        // in-flight upload, so an angler watching a fish miss the leaderboard
+        // has no idea it is waiting, let alone that they can hurry it.
+        const waiting = !otherUser && p.next_attempt_at && p.next_attempt_at > now
+        return `
+        <li class="flex items-center justify-between gap-2 py-1">
+          <span>
+            🕐 ${escapeHtml(p.length_inches)}″ — captured ${new Date(p.captured_at_device).toLocaleTimeString()}
+            ${otherUser ? '<span class="block text-xs text-amber-400">Logged under a different member’s account — it will sync when they sign in on this phone.</span>' : ""}
+            ${waiting ? `<span class="block text-xs text-amber-400">Upload didn’t go through — retrying at ${new Date(p.next_attempt_at).toLocaleTimeString()}.</span>` : ""}
+          </span>
+          ${waiting ? `<button type="button" data-action="pending-catches#retry" data-uuid="${escapeHtml(p.client_uuid)}"
+                    class="h-9 px-3 rounded-lg bg-amber-600 active:bg-amber-700 text-white text-sm shrink-0">Retry</button>` : ""}
+        </li>`
+      }).join("")
     }
 
     if (this.hasFailedSectionTarget) {

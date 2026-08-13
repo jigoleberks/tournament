@@ -3,6 +3,9 @@ class Admin::ClubsController < ApplicationController
   before_action :require_sign_in!
   before_action :require_site_admin!
   before_action :set_club, only: [ :edit, :update, :show ]
+  # Club listings/editors show member data
+  # (see ApplicationController.disable_turbo_snapshot_cache!).
+  disable_turbo_snapshot_cache!
 
   def index
     @clubs = Club.left_joins(:club_memberships, :tournaments)

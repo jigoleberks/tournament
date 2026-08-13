@@ -6,9 +6,8 @@
   <% end %>
   <%= photo_full p[:attachment], size: [1600, 1600], class: "w-full rounded-lg bg-black mb-3" %>
 <% end %>
-<% if @catch.video.attached? %>
-  <%= video_tag url_for(@catch.video), controls: true, class: "w-full rounded-lg bg-black mb-3" %>
-<% end %>
+<%= render "shared/catch_video", catch_record: @catch,
+           video_class: "w-full rounded-lg bg-black mb-3", notice_class: "mb-3" %>
 
 <p class="text-slate-300 mb-4">Status: <span class="text-slate-100 font-medium"><%= @catch.status.to_s.humanize %></span></p>
 

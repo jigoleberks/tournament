@@ -49,9 +49,10 @@ module Tournaments
       assert_equal({}, SeasonPointsAwarded.call(tournament: tournament))
     end
 
-    test "returns {} when fewer than 3 anglers" do
-      tournament, _ = build_finished_solo(2, { 0 => [20], 1 => [15] })
-      assert_equal({}, SeasonPointsAwarded.call(tournament: tournament))
+    test "fewer than 3 solo entries awards only the 0.5 attendance bonus" do
+      tournament, anglers = build_finished_solo(2, { 0 => [20], 1 => [15] })
+      result = SeasonPointsAwarded.call(tournament: tournament)
+      assert_equal({ anglers[0].id => 0.5, anglers[1].id => 0.5 }, result)
     end
 
     test "awards [3,2,1] placement plus 0.5 attendance bonus for 3 anglers in solo mode" do
@@ -124,6 +125,54 @@ module Tournaments
       team1_users.each { |u| assert_equal 3.5, result[u.id], "team1 member #{u.id} should get 3.5" }
       team2_users.each { |u| assert_equal 2.5, result[u.id], "team2 member #{u.id} should get 2.5" }
       team3_users.each { |u| assert_equal 1.5, result[u.id], "team3 member #{u.id} should get 1.5" }
+    end
+
+    # Builds a finished team-mode tournament. `team_sizes` is an array of member
+    # counts; team i's first member logs one catch of length (25 - i) inches, so
+    # teams place in index order. Returns array-of-arrays of users per team.
+    def build_finished_teams(team_sizes)
+      @team_tournament = create(
+        :tournament,
+        club: @club,
+        mode: :team,
+        awards_season_points: true,
+        starts_at: 2.days.ago,
+        ends_at: 1.day.ago
+      )
+      create(:scoring_slot, tournament: @team_tournament, species: @walleye, slot_count: 2)
+      team_sizes.each_with_index.map do |size, i|
+        users = size.times.map { create(:user, club: @club) }
+        entry = create(:tournament_entry, tournament: @team_tournament)
+        users.each { |u| create(:tournament_entry_member, tournament_entry: entry, user: u) }
+        Catches::PlaceInSlots.call(catch: create(:catch, user: users.first, species: @walleye, length_inches: 25 - i, captured_at_device: 1.5.days.ago))
+        users
+      end
+    end
+
+    test "team mode: 2 teams awards only attendance bonuses regardless of angler count" do
+      teams = build_finished_teams([5, 5])
+      # 10 anglers would satisfy PointsScale, but 2 entries is below the cutoff.
+      result = SeasonPointsAwarded.call(tournament: @team_tournament)
+      assert_equal 10, result.size
+      teams.flatten.each { |u| assert_equal 0.5, result[u.id], "member #{u.id} should get only the attendance bonus" }
+    end
+
+    test "team mode: an entry with no members doesn't count toward the 3-entry cutoff" do
+      teams = build_finished_teams([5, 5])
+      # A leftover entry whose last member was removed (or that was created
+      # before anyone was added) is not a competing team.
+      create(:tournament_entry, tournament: @team_tournament)
+      result = SeasonPointsAwarded.call(tournament: @team_tournament)
+      assert_equal 10, result.size
+      teams.flatten.each { |u| assert_equal 0.5, result[u.id], "member #{u.id} should get only the attendance bonus" }
+    end
+
+    test "team mode: 3 teams with 10 anglers uses the angler-based [6,4,2] tier" do
+      teams = build_finished_teams([4, 3, 3])
+      result = SeasonPointsAwarded.call(tournament: @team_tournament)
+      teams[0].each { |u| assert_equal 6.5, result[u.id] }
+      teams[1].each { |u| assert_equal 4.5, result[u.id] }
+      teams[2].each { |u| assert_equal 2.5, result[u.id] }
     end
   end
 end

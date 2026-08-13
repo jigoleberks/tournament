@@ -3,13 +3,22 @@ module Catches
     CLOCK_SKEW_THRESHOLD = 5.minutes
     DUPLICATE_WINDOW = 90.seconds
 
-    # Flags computed from catch state by .call. Any flag on a catch that is NOT
-    # in this set was written out-of-band (e.g. imported_photo and
-    # screenshot_suspect by FlagImportedPhotoJob) and must survive a recompute —
-    # see .recompute.
+    # Flags re-derived from catch state on every .recompute. Any flag on a
+    # catch that is NOT in this set survives a recompute untouched — flags
+    # written out-of-band (e.g. imported_photo and screenshot_suspect by
+    # FlagImportedPhotoJob), and video_missing, which is stamped at submission
+    # time only: re-deriving it against the tournament's CURRENT
+    # requires_release_video setting would retroactively flag catches submitted
+    # before the requirement was turned on.
     OWNED_FLAGS = %w[missing_gps clock_skew out_of_bounds out_of_province possible_duplicate].freeze
 
     def self.call(catch_record)
+      flags = recomputable(catch_record)
+      flags << "video_missing" if video_missing?(catch_record)
+      flags
+    end
+
+    def self.recomputable(catch_record)
       flags = []
       flags << "missing_gps" if catch_record.latitude.nil?
       if catch_record.captured_at_device && catch_record.captured_at_gps
@@ -26,12 +35,13 @@ module Catches
       flags
     end
 
-    # Re-derive owned flags from current state while preserving any out-of-band
-    # flags already on the catch, so a recompute (e.g. after a geofence/location
-    # correction) never silently drops a flag ComputeFlags doesn't own.
+    # Re-derive owned flags from current state while preserving any flag this
+    # service doesn't re-derive (out-of-band flags, and the submission-time
+    # video_missing stamp), so a recompute (e.g. after a geofence/location
+    # correction) never silently drops or retroactively adds one.
     def self.recompute(catch_record)
-      external = catch_record.flags - OWNED_FLAGS
-      (call(catch_record) + external).uniq
+      preserved = catch_record.flags - OWNED_FLAGS
+      (recomputable(catch_record) + preserved).uniq
     end
 
     def self.duplicate_neighbor?(catch_record)
@@ -57,6 +67,16 @@ module Catches
         .pluck(:tournament_entry_id)
       return [ user_id ] if shared_entry_ids.empty?
       TournamentEntryMember.where(tournament_entry_id: shared_entry_ids).pluck(:user_id).uniq
+    end
+
+    # The tournament "Anglers must record video evidence" checkbox was purely
+    # decorative — nothing enforced it anywhere. Soft-enforce it the way every
+    # other integrity signal works here: a judge-review flag, not a rejection.
+    # Stamped at submission only (see OWNED_FLAGS) — never re-derived.
+    def self.video_missing?(catch_record)
+      return false if catch_record.user.nil? || catch_record.captured_at_device.nil?
+      return false if catch_record.video.attached?
+      ::Tournaments::RequiresVideoFor.call(user: catch_record.user, at: catch_record.captured_at_device)
     end
   end
 end

@@ -182,6 +182,44 @@ class CatchesControllerTest < ActionDispatch::IntegrationTest
     assert_response :success
   end
 
+  # iOS Safari zooms the whole viewport when focusing any form control whose
+  # font-size is under 16px — and never zooms back. Member-facing filter
+  # controls must render at text-base; the length input (the most-typed field
+  # in the app) must also raise the big decimal keypad via inputmode.
+  test "index: filter controls render at 16px and the min-length field gets the decimal keypad" do
+    get catches_path
+    assert_response :success
+    assert_select "select#species[class*=?]", "text-base"
+    assert_select "select#lake[class*=?]", "text-base"
+    assert_select "select#sort[class*=?]", "text-base"
+    assert_select "input#min_length[inputmode=decimal][class*=?]", "text-base"
+  end
+
+  test "new: the length input raises the decimal keypad" do
+    get new_catch_path
+    assert_response :success
+    assert_select "input#catch_length_inches[inputmode=decimal]"
+  end
+
+  test "show: release video renders with playsinline so iOS doesn't hijack into fullscreen" do
+    c = create(:catch, user: @user, species: @walleye, length_inches: 18)
+    c.video.attach(io: StringIO.new("fake-mp4-bytes"), filename: "video.mp4", content_type: "video/mp4")
+
+    get catch_path(c)
+    assert_response :success
+    assert_select "video[playsinline][preload=metadata]"
+  end
+
+  test "show: a webm video gets an iPhone-can't-play notice with a download link" do
+    c = create(:catch, user: @user, species: @walleye, length_inches: 18)
+    c.video.attach(io: StringIO.new("fake-webm-bytes"), filename: "video.webm", content_type: "video/webm")
+
+    get catch_path(c)
+    assert_response :success
+    assert_match(/iPhones can.?t play/i, response.body)
+    assert_select "a", text: /download/i
+  end
+
   test "show: renders Save photo button with download wiring when photo attached" do
     own = create(:catch, user: @user, species: @walleye, length_inches: 18.5,
                          captured_at_device: Time.zone.local(2026, 4, 30, 14, 35))

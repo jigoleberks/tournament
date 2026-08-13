@@ -29,14 +29,40 @@ class IosInstallCoachTest < ActionDispatch::IntegrationTest
     assert_select "#ios-install-coach", count: 0
   end
 
-  test "hides the install banner for desktop browsers" do
+  # A Macintosh UA can be an iPadOS 13+ Safari masquerading as a Mac, so the
+  # server ships the (hidden) banner and lib/ios_device.js decides client-side
+  # via maxTouchPoints — a real Mac desktop never gets it revealed.
+  test "ships the banner hidden for Macintosh UAs so JS can catch masquerading iPads" do
     get new_session_path, headers: { "HTTP_USER_AGENT" => DESKTOP_UA }
+    assert_select "#ios-install-coach[hidden]"
+  end
+
+  test "hides the install banner for non-Apple desktop browsers" do
+    windows_ua = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) " \
+                 "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
+    get new_session_path, headers: { "HTTP_USER_AGENT" => windows_ua }
     assert_select "#ios-install-coach", count: 0
   end
 
   test "hides the install banner when no user agent is sent" do
     get new_session_path
     assert_select "#ios-install-coach", count: 0
+  end
+
+  # The reveal must not depend on the Stimulus/importmap module graph booting:
+  # the banner's audience (an iOS browser tab, often on flaky lake LTE) is
+  # exactly who is most likely to lose the module fetches — and then never see
+  # the one hint that would fix their situation. A self-contained classic
+  # inline script makes the first reveal; ios_install_coach_controller stays
+  # authoritative and re-decides `hidden` once it connects.
+  test "banner reveal does not depend on the JS module graph" do
+    get new_session_path, headers: { "HTTP_USER_AGENT" => IPHONE_UA }
+    inline = css_select("script:not([src]):not([type='module'])")
+               .find { |s| s.text.include?("ios-install-coach") }
+    assert inline, "expected a self-contained inline script that reveals the banner without Stimulus"
+    # Same detection as lib/ios_device.js iosBrowserTab(), inlined.
+    assert_match "maxTouchPoints", inline.text
+    assert_match "standalone", inline.text
   end
 
   test "banner copy describes install benefits without overstating them" do
