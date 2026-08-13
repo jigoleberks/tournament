@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_08_09_002538) do
+ActiveRecord::Schema[8.1].define(version: 2026_08_13_120000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -412,6 +412,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_09_002538) do
 
   create_table "tournaments", force: :cascade do |t|
     t.boolean "awards_season_points", default: false, null: false
+    t.boolean "backfill_late_entrants", default: false, null: false
     t.jsonb "bingo_layout"
     t.boolean "blind_leaderboard", default: false, null: false
     t.bigint "club_id", null: false

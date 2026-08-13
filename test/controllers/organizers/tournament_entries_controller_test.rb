@@ -194,6 +194,36 @@ class Organizers::TournamentEntriesControllerTest < ActionDispatch::IntegrationT
     end
   end
 
+  test "creating an entry backfills the user's in-window catches when the flag is on" do
+    walleye = create(:species, name: "Walleye")
+    tournament = create(:tournament, club: @club, starts_at: 4.hours.ago, ends_at: 1.hour.ago,
+                                     backfill_late_entrants: true)
+    create(:scoring_slot, tournament: tournament, species: walleye, slot_count: 2)
+    member = create(:user, club: @club)
+    missed = create(:catch, user: member, species: walleye,
+                    length_inches: 20, captured_at_device: 3.hours.ago)
+
+    post organizers_tournament_tournament_entries_path(tournament_id: tournament.id),
+         params: { tournament_entry: { member_user_ids: [member.id] } }
+
+    assert_equal [missed.id],
+                 CatchPlacement.where(tournament: tournament, active: true).pluck(:catch_id)
+  end
+
+  test "creating an entry stays forward-only when the flag is off" do
+    walleye = create(:species, name: "Walleye")
+    tournament = create(:tournament, club: @club, starts_at: 4.hours.ago, ends_at: 1.hour.ago)
+    create(:scoring_slot, tournament: tournament, species: walleye, slot_count: 2)
+    member = create(:user, club: @club)
+    create(:catch, user: member, species: walleye,
+           length_inches: 20, captured_at_device: 3.hours.ago)
+
+    post organizers_tournament_tournament_entries_path(tournament_id: tournament.id),
+         params: { tournament_entry: { member_user_ids: [member.id] } }
+
+    assert_empty CatchPlacement.where(tournament: tournament)
+  end
+
   private
 
   def sign_in_as(user)

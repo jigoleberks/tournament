@@ -399,6 +399,18 @@ class Organizers::TournamentsControllerTest < ActionDispatch::IntegrationTest
     assert_equal BigDecimal("95"), t.target_max_inches
   end
 
+  test "organizers update ignores a submitted backfill_late_entrants param" do
+    sign_in_as(@organizer)
+    tournament = create(:tournament, club: @club, starts_at: 4.hours.ago, ends_at: 1.hour.ago)
+
+    patch organizers_tournament_path(tournament),
+          params: { tournament: { name: "Renamed", backfill_late_entrants: "1" } }
+
+    assert_equal "Renamed", tournament.reload.name
+    assert_not tournament.backfill_late_entrants?,
+               "the backfill flag is admin-panel-only and must not be settable from organizers"
+  end
+
   private
 
   def sign_in_as(user)

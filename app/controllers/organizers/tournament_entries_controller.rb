@@ -24,6 +24,16 @@ class Organizers::TournamentEntriesController < Organizers::BaseController
       end
     end
 
+    # Adds are forward-only by default. With the admin-only backfill flag set,
+    # replay the new entrants' already-logged in-window catches now — before the
+    # broadcast below, so it reflects the backfilled standings. The sweep skips
+    # already-placed catches, so on-time entrants are no-ops.
+    if @tournament.backfill_late_entrants?
+      Tournaments::BackfillEntrantCatches.call(
+        tournament: @tournament, users: User.where(id: valid_ids).to_a
+      )
+    end
+
     valid_ids.each do |uid|
       DeliverPushNotificationJob.perform_later(
         user_id: uid,

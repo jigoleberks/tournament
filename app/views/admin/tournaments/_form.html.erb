@@ -86,6 +86,16 @@
             <span class="block text-xs text-slate-500">Top finishers earn points toward the <%= @tournament.season_tag || "annual" %> leaderboard.</span>
           </div>
         </label>
+
+        <label class="flex items-start gap-3 cursor-pointer group">
+          <div class="mt-1">
+            <%= f.check_box :backfill_late_entrants, class: "h-5 w-5 rounded border-slate-700 bg-slate-800 text-blue-600 focus:ring-offset-slate-800" %>
+          </div>
+          <div>
+            <span class="block font-medium text-slate-200 group-hover:text-white transition-colors">Backfill Late Entrants</span>
+            <span class="block text-xs text-slate-500">Members added after the start get their already-logged catches counted. Checking this also backfills current entrants immediately.</span>
+          </div>
+        </label>
       </div>
     </div>
   </div>

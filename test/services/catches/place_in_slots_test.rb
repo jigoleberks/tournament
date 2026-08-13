@@ -1150,5 +1150,18 @@ module Catches
     assert_equal [0, 1, 2], active.order(:slot_index).pluck(:slot_index)
   end
 
+  test "tournament: scope places only into that tournament" do
+    other = create(:tournament, club: @club, starts_at: 1.hour.ago, ends_at: 1.hour.from_now)
+    create(:scoring_slot, tournament: other, species: @walleye, slot_count: 2)
+    other_entry = create(:tournament_entry, tournament: other)
+    create(:tournament_entry_member, tournament_entry: other_entry, user: @user)
+
+    catch_record = create(:catch, user: @user, species: @walleye, length_inches: 20)
+    PlaceInSlots.call(catch: catch_record, tournament: @tournament)
+
+    assert_equal [@tournament.id], catch_record.catch_placements.pluck(:tournament_id),
+                 "scoped call must not place into the other overlapping tournament"
+  end
+
   end
 end

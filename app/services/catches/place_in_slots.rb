@@ -6,16 +6,20 @@ module Catches
     # shorter than the 90s floor deferRetry imposes before a client retries.
     IN_FLIGHT_WINDOW = 30.seconds
 
-    def self.call(catch:, broadcast: true, club: nil)
-      new(catch: catch, broadcast: broadcast, club: club).call
+    def self.call(catch:, broadcast: true, club: nil, tournament: nil)
+      new(catch: catch, broadcast: broadcast, club: club, tournament: tournament).call
     end
 
-    def initialize(catch:, broadcast: true, club: nil)
+    def initialize(catch:, broadcast: true, club: nil, tournament: nil)
       @catch = catch
       @broadcast = broadcast
       # When set (organizer/admin catch editor), only place into this club's
       # tournaments so a per-club edit never reshuffles another club's baskets.
       @club = club
+      # When set (late-entrant backfill), only place into this one tournament so
+      # a backfill sweep never touches other tournaments the user was active in
+      # during the same window.
+      @only_tournament = tournament
     end
 
     def call
@@ -49,6 +53,7 @@ module Catches
           .with_entries(user: @catch.user, at: @catch.captured_at_device)
           .sort_by { |r| r[:entry].id }  # stable lock order across concurrent calls
         rows = rows.select { |r| r[:tournament].club_id == @club.id } if @club
+        rows = rows.select { |r| r[:tournament].id == @only_tournament.id } if @only_tournament
 
         rows.each do |row|
           tournament = row[:tournament]

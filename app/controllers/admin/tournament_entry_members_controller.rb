@@ -10,10 +10,14 @@ class Admin::TournamentEntryMembersController < Admin::BaseController
     unless user
       redirect_to edit_admin_tournament_path(@tournament), alert: "Member not found." and return
     end
-    # Adds are forward-only: catches the user already logged in this tournament's
-    # window before being added to the entry are NOT retroactively placed. Only
-    # catches submitted after this point flow through PlaceInSlots for this entry.
+    # Adds are forward-only by default: catches the user already logged in this
+    # tournament's window before being added to the entry are NOT retroactively
+    # placed. The admin-only backfill_late_entrants flag lifts that restriction —
+    # when set, replay this user's in-window catches immediately after the add.
     @entry.tournament_entry_members.create!(user_id: user.id)
+    if @tournament.backfill_late_entrants?
+      Tournaments::BackfillEntrantCatches.call(tournament: @tournament, users: [ user ])
+    end
     redirect_to edit_admin_tournament_path(@tournament), notice: "Added #{user.name}."
   rescue ActiveRecord::RecordInvalid => e
     redirect_to edit_admin_tournament_path(@tournament), alert: e.message

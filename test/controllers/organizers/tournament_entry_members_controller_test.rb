@@ -121,6 +121,33 @@ class Organizers::TournamentEntryMembersControllerTest < ActionDispatch::Integra
     assert_match(/already entered/i, flash[:alert])
   end
 
+  test "adding a member backfills their in-window catches when the flag is on" do
+    walleye = create(:species, name: "Walleye")
+    @team.update!(starts_at: 4.hours.ago, ends_at: 1.hour.ago, backfill_late_entrants: true)
+    create(:scoring_slot, tournament: @team, species: walleye, slot_count: 2)
+    missed = create(:catch, user: @b, species: walleye,
+                    length_inches: 20, captured_at_device: 3.hours.ago)
+
+    post organizers_tournament_tournament_entry_tournament_entry_members_path(
+      tournament_id: @team.id, tournament_entry_id: @entry.id), params: { user_id: @b.id }
+
+    assert_equal [missed.id],
+                 CatchPlacement.where(tournament: @team, active: true).pluck(:catch_id)
+  end
+
+  test "adding a member stays forward-only when the flag is off" do
+    walleye = create(:species, name: "Walleye")
+    @team.update!(starts_at: 4.hours.ago, ends_at: 1.hour.ago)
+    create(:scoring_slot, tournament: @team, species: walleye, slot_count: 2)
+    create(:catch, user: @b, species: walleye,
+           length_inches: 20, captured_at_device: 3.hours.ago)
+
+    post organizers_tournament_tournament_entry_tournament_entry_members_path(
+      tournament_id: @team.id, tournament_entry_id: @entry.id), params: { user_id: @b.id }
+
+    assert_empty CatchPlacement.where(tournament: @team)
+  end
+
   private
 
   def sign_in_as(user)

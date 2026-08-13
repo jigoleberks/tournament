@@ -51,6 +51,41 @@ class Admin::TournamentsControllerTest < ActionDispatch::IntegrationTest
     assert_response :forbidden
   end
 
+  test "flipping backfill_late_entrants on sweeps existing entrants' catches" do
+    walleye = create(:species, name: "Walleye")
+    tournament = create(:tournament, club: @club, starts_at: 4.hours.ago, ends_at: 1.hour.ago)
+    create(:scoring_slot, tournament: tournament, species: walleye, slot_count: 2)
+    member = create(:user, club: @club)
+    entry = create(:tournament_entry, tournament: tournament)
+    create(:tournament_entry_member, tournament_entry: entry, user: member)
+    missed = create(:catch, user: member, species: walleye,
+                    length_inches: 20, captured_at_device: 3.hours.ago)
+
+    patch admin_tournament_path(tournament),
+          params: { tournament: { backfill_late_entrants: "1" } }
+
+    assert tournament.reload.backfill_late_entrants?
+    assert_equal [missed.id],
+                 CatchPlacement.where(tournament: tournament, active: true).pluck(:catch_id)
+  end
+
+  test "re-saving with backfill_late_entrants already on does not re-sweep or double-place" do
+    walleye = create(:species, name: "Walleye")
+    tournament = create(:tournament, club: @club, starts_at: 4.hours.ago, ends_at: 1.hour.ago,
+                                     backfill_late_entrants: true)
+    create(:scoring_slot, tournament: tournament, species: walleye, slot_count: 2)
+    member = create(:user, club: @club)
+    entry = create(:tournament_entry, tournament: tournament)
+    create(:tournament_entry_member, tournament_entry: entry, user: member)
+    create(:catch, user: member, species: walleye,
+           length_inches: 20, captured_at_device: 3.hours.ago)
+
+    assert_no_difference "CatchPlacement.count" do
+      patch admin_tournament_path(tournament),
+            params: { tournament: { name: "Renamed Night", backfill_late_entrants: "1" } }
+    end
+  end
+
   private
 
   def sign_in_as(user)
