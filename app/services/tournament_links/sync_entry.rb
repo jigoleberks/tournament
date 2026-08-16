@@ -18,7 +18,7 @@ module TournamentLinks
     def call
       siblings = @entry.tournament.linked_tournaments
       return [] if siblings.empty?
-      return [] if @entry.boat_id.nil? && @entry.name.to_s.strip.blank?
+      return [] if boatless_and_never_named?
 
       # One transaction for the whole sync: a rejected sync (e.g. a crew member
       # who judges the sibling tournament, see TournamentEntryMember) must not
@@ -49,6 +49,27 @@ module TournamentLinks
     end
 
     private
+
+    # A boat-less, never-named entry (the shape a solo entry is stuck in
+    # forever) has nothing to match a counterpart by, so skip it entirely —
+    # that's what keeps solo tournaments a no-op. But an entry that HAD a
+    # name and was just blanked out is a different case: it still has a
+    # counterpart to find (via Counterpart's pre-rename name fallback, or —
+    # once the entry is renamed a second time away from blank — its
+    # crew-based fallback, since name_before_last_save is itself blank by
+    # then) and that counterpart needs the blank carried across. Bailing
+    # here instead would silently orphan the sibling with its old name/crew.
+    def boatless_and_never_named?
+      return false if @entry.boat_id
+      return false if @entry.name.to_s.strip.present?
+      !renamed_from_a_name?
+    end
+
+    def renamed_from_a_name?
+      @entry.respond_to?(:saved_change_to_name?) &&
+        @entry.saved_change_to_name? &&
+        @entry.name_before_last_save.to_s.strip.present?
+    end
 
     def sync_into(sibling)
       counterpart = Counterpart.find(entry: @entry, sibling: sibling) || sibling.tournament_entries.new

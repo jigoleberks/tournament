@@ -71,6 +71,51 @@ class TournamentLinks::SyncEntryTest < ActiveSupport::TestCase
     assert_equal [@kurtis], existing.reload.users
   end
 
+  # The boat-anchored rename test above short-circuits through the boat_id
+  # match, so it never exercises the name-history path a boat-less entry has
+  # to use. Today's UI has no boat picker yet, so every entry created
+  # through the entry controllers is exactly this boat-less shape.
+  test "brings a rename across to a boat-less counterpart" do
+    entry = create(:tournament_entry, tournament: @main, name: "Team Loos")
+    entry.tournament_entry_members.create!(user: @kurtis)
+    TournamentLinks::SyncEntry.call(entry: entry)
+
+    entry.update!(name: "Team Loos II")
+    mirrored = TournamentLinks::SyncEntry.call(entry: entry).first
+
+    assert_equal "Team Loos II", mirrored.name
+    assert_equal 1, @side.tournament_entries.count
+  end
+
+  test "blanking a boat-less entry's name carries the blank to the counterpart instead of orphaning it" do
+    entry = create(:tournament_entry, tournament: @main, name: "Team Loos")
+    entry.tournament_entry_members.create!(user: @kurtis)
+    TournamentLinks::SyncEntry.call(entry: entry)
+
+    entry.update!(name: nil)
+    mirrored = TournamentLinks::SyncEntry.call(entry: entry).first
+
+    assert_nil mirrored.name
+    assert_equal 1, @side.tournament_entries.count
+    assert_equal [@kurtis], mirrored.reload.users
+  end
+
+  test "renaming a boat-less entry back to a real name after blanking still finds one counterpart" do
+    entry = create(:tournament_entry, tournament: @main, name: "Team Loos")
+    entry.tournament_entry_members.create!(user: @kurtis)
+    TournamentLinks::SyncEntry.call(entry: entry)
+
+    entry.update!(name: nil)
+    TournamentLinks::SyncEntry.call(entry: entry)
+
+    entry.update!(name: "Team Loos Reborn")
+    mirrored = TournamentLinks::SyncEntry.call(entry: entry).first
+
+    assert_equal "Team Loos Reborn", mirrored.name
+    assert_equal 1, @side.tournament_entries.count
+    assert_equal [@kurtis], mirrored.users
+  end
+
   test "does nothing for an unlinked tournament" do
     solo_club_tournament = create(:tournament, club: @club, mode: :team)
     entry = create(:tournament_entry, tournament: solo_club_tournament, name: "Stratos")

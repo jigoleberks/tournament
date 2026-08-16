@@ -12,7 +12,9 @@ module TournamentLinks
         return by_boat if by_boat
       end
 
-      match_by_name(sibling, entry.name) || match_by_name(sibling, rename_fallback(entry))
+      match_by_name(sibling, entry.name) ||
+        match_by_name(sibling, rename_fallback(entry)) ||
+        match_by_crew(sibling, entry)
     end
 
     def self.match_by_name(sibling, name)
@@ -34,5 +36,22 @@ module TournamentLinks
       entry.name_before_last_save
     end
     private_class_method :rename_fallback
+
+    # Last resort for a boat-less entry once both name checks miss — which
+    # happens after a blank-name hop: the sibling counterpart was carried to
+    # a blank name (see SyncEntry), so once the source is renamed away from
+    # blank, name_before_last_save is ALSO blank and can't lead back to it.
+    # A crew member can only be entered once per tournament (see
+    # TournamentEntryMember#user_not_already_in_tournament), so "does the
+    # sibling already have an entry containing one of this entry's current
+    # members" is an unambiguous identity check that survives name history
+    # loss entirely.
+    def self.match_by_crew(sibling, entry)
+      user_ids = entry.tournament_entry_members.pluck(:user_id)
+      return nil if user_ids.empty?
+      sibling.tournament_entries.joins(:tournament_entry_members)
+        .where(tournament_entry_members: { user_id: user_ids }).first
+    end
+    private_class_method :match_by_crew
   end
 end
