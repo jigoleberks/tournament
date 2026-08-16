@@ -17,10 +17,16 @@ module TournamentLinks
       Tournament.transaction do
         @tournament.update!(link_group_id: group)
         @other.update!(link_group_id: group)
-      end
 
-      @tournament.tournament_entries.each { |e| SyncEntry.call(entry: e) }
-      @other.tournament_entries.each { |e| SyncEntry.call(entry: e) }
+        # Back-fill inside the same transaction as the group-id assignment: a
+        # RecordInvalid partway through (e.g. a crew member who judges the
+        # sibling tournament) must roll back the link itself, not just the
+        # sync — otherwise the pair is left linked with a half-mirrored
+        # roster, exactly the "never sit half-synced" state Join exists to
+        # prevent.
+        @tournament.tournament_entries.each { |e| SyncEntry.call(entry: e) }
+        @other.tournament_entries.each { |e| SyncEntry.call(entry: e) }
+      end
     end
   end
 end

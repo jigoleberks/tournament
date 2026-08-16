@@ -67,6 +67,11 @@ class Organizers::TournamentLinksControllerTest < ActionDispatch::IntegrationTes
 
     assert_response :redirect
     assert flash[:alert].present?
+    # The whole join must roll back, not just the failed sync — the pair is
+    # left unlinked and the sibling gets no half-mirrored entry.
+    assert_nil @main.reload.link_group_id
+    assert_nil @side.reload.link_group_id
+    assert_equal 0, @side.tournament_entries.count
   end
 
   private
