@@ -7,7 +7,7 @@ module Boats
     def self.call(club:, name:)
       key = normalize(name)
       return nil if key.blank?
-      club.boats.detect { |boat| normalize(boat.name) == key }
+      club.boats.active.detect { |boat| normalize(boat.name) == key }
     end
 
     def self.normalize(name)

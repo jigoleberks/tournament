@@ -105,19 +105,38 @@
 <% else %>
   <%= form_with url: organizers_tournament_tournament_entries_path(tournament_id: @tournament.id), local: true,
                 class: "mt-4 bg-slate-800 rounded-lg p-3 space-y-2" do |f| %>
-    <details class="bg-slate-900 border border-slate-700 rounded">
-      <summary class="h-10 px-3 leading-[2.5rem] cursor-pointer text-slate-100 select-none">
-        Pick members
-      </summary>
-      <div class="px-3 pb-3 pt-1 space-y-1">
-        <% available.each do |u| %>
-          <label class="flex items-center gap-2 py-1">
-            <%= check_box_tag "tournament_entry[member_user_ids][]", u.id %>
-            <span><%= u.name %></span>
-          </label>
-        <% end %>
-      </div>
-    </details>
+    <% if @tournament.mode_team? %>
+      <%= label_tag "tournament_entry[name]", "Boat name (optional)", class: "block text-sm font-medium text-slate-300" %>
+      <%= text_field_tag "tournament_entry[name]", nil,
+                         class: "w-full h-10 px-3 rounded bg-slate-900 border border-slate-700" %>
+      <details class="bg-slate-900 border border-slate-700 rounded mt-2">
+        <summary class="h-10 px-3 leading-[2.5rem] cursor-pointer text-slate-100 select-none">
+          Pick up to <%= TournamentEntryMember::MAX_TEAM_MEMBERS %> members
+        </summary>
+        <div class="px-3 pb-3 pt-1 space-y-1">
+          <% available.each do |u| %>
+            <label class="flex items-center gap-2 py-1">
+              <%= check_box_tag "tournament_entry[member_user_ids][]", u.id %>
+              <span><%= u.name %></span>
+            </label>
+          <% end %>
+        </div>
+      </details>
+    <% else %>
+      <details class="bg-slate-900 border border-slate-700 rounded">
+        <summary class="h-10 px-3 leading-[2.5rem] cursor-pointer text-slate-100 select-none">
+          Pick members
+        </summary>
+        <div class="px-3 pb-3 pt-1 space-y-1">
+          <% available.each do |u| %>
+            <label class="flex items-center gap-2 py-1">
+              <%= check_box_tag "tournament_entry[member_user_ids][]", u.id %>
+              <span><%= u.name %></span>
+            </label>
+          <% end %>
+        </div>
+      </details>
+    <% end %>
     <%= submit_tag(@tournament.mode_team? ? "Add entry" : "Add entries",
                    class: "h-12 px-4 rounded-lg bg-blue-600 active:bg-blue-700 text-white") %>
   <% end %>

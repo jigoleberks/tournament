@@ -15,9 +15,15 @@ class Organizers::BoatsController < Organizers::BaseController
 
   def create
     tournament = current_club.tournaments.find(params[:tournament_id])
+    unless tournament.mode_team?
+      redirect_to edit_organizers_tournament_path(tournament), alert: "Boats are for team tournaments." and return
+    end
     name = params.dig(:boat, :name)
 
     if (match = ::Boats::NearMatch.call(club: current_club, name: name))
+      if tournament.tournament_entries.exists?(boat_id: match.id)
+        redirect_to edit_organizers_tournament_path(tournament), alert: "#{match.name} is already entered." and return
+      end
       redirect_to edit_organizers_tournament_path(tournament),
                   alert: "Did you mean #{match.name}? Tap it in the list to enter it." and return
     end
