@@ -24,7 +24,11 @@ Rails.application.routes.draw do
 
   namespace :organizers do
     resources :tournaments do
-      member { post :draw }
+      member do
+        post   :draw
+        post   :link,   to: "tournament_links#create"
+        delete :link,   to: "tournament_links#destroy"
+      end
       resources :tournament_entries, only: [:create, :update, :destroy] do
         resources :tournament_entry_members, only: [:create, :destroy]
       end
@@ -64,7 +68,11 @@ Rails.application.routes.draw do
       end
     end
     resources :tournaments do
-      member { get :results }
+      member do
+        get    :results
+        post   :link,   to: "tournament_links#create"
+        delete :link,   to: "tournament_links#destroy"
+      end
       resources :tournament_entries, only: [:create, :update, :destroy] do
         resources :tournament_entry_members, only: [:create, :destroy]
       end

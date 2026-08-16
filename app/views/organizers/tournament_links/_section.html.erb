@@ -1,0 +1,37 @@
+<%# app/views/organizers/tournament_links/_section.html.erb %>
+<h3 class="text-lg font-semibold mt-6 mb-2">Linked with</h3>
+
+<% linked = @tournament.linked_tournaments %>
+<% if linked.any? %>
+  <% linked.each do |other| %>
+    <div class="bg-slate-800 rounded-lg p-3 mb-2">
+      <div class="font-semibold text-slate-100"><%= other.name %></div>
+      <p class="text-sm text-slate-400 mt-1">
+        Entries are shared. Adding a boat here adds it there.
+      </p>
+    </div>
+  <% end %>
+  <%= button_to "Unlink", link_organizers_tournament_path(@tournament),
+                method: :delete,
+                data: { turbo_confirm: "Stop sharing entries between these tournaments?" },
+                class: "h-12 px-4 rounded-lg bg-slate-700 active:bg-slate-600 text-slate-100" %>
+<% elsif @tournament.mode_team? %>
+  <% candidates = current_club.tournaments
+       .where(mode: :team)
+       .where.not(id: @tournament.id)
+       .where("starts_at < ? AND ends_at > ?", @tournament.ends_at, @tournament.starts_at)
+       .order(starts_at: :desc) %>
+  <% if candidates.any? %>
+    <%= form_with url: link_organizers_tournament_path(@tournament), local: true, class: "flex gap-2" do %>
+      <%= select_tag :linked_tournament_id,
+                     options_from_collection_for_select(candidates, :id, :name),
+                     class: "flex-1 h-12 px-2 rounded bg-slate-900 border border-slate-700 text-slate-100" %>
+      <%= submit_tag "Link", class: "h-12 px-4 rounded-lg bg-blue-600 active:bg-blue-700 text-white" %>
+    <% end %>
+    <p class="text-xs text-slate-500 mt-2">
+      Team tournaments running at the same time. Entries added to either one appear in both.
+    </p>
+  <% else %>
+    <p class="text-slate-400 italic text-sm">No other team tournament is running at this time.</p>
+  <% end %>
+<% end %>
