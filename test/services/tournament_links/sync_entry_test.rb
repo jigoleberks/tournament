@@ -120,4 +120,60 @@ class TournamentLinks::SyncEntryTest < ActiveSupport::TestCase
       tournament_entry_id: mirrored.id, active: true
     ), "Nate's catch, logged before he joined the Side's mirrored entry, should backfill on sync"
   end
+
+  test "broadcasts once per sibling after a successful sync" do
+    entry = create(:tournament_entry, tournament: @main, name: "Majestic Red", boat: @boat)
+    entry.tournament_entry_members.create!(user: @kurtis)
+
+    broadcast_calls = 0
+    original = Placements::BroadcastLeaderboard.method(:call)
+    Placements::BroadcastLeaderboard.define_singleton_method(:call) do |**kwargs|
+      broadcast_calls += 1
+      original.call(**kwargs)
+    end
+    begin
+      TournamentLinks::SyncEntry.call(entry: entry)
+      assert_equal 1, broadcast_calls, "exactly one sibling (Side) should be broadcast to, exactly once"
+    ensure
+      Placements::BroadcastLeaderboard.define_singleton_method(:call, original)
+    end
+  end
+
+  test "rolls back the whole sync and broadcasts nothing when a later sibling raises" do
+    third = create(:tournament, club: @club, mode: :team, name: "Third", link_group_id: @main.link_group_id)
+    # Nate judges Third (not Side), so mirroring him into a Third counterpart
+    # raises TournamentEntryMember's user_not_a_judge validation. Side has no
+    # such conflict — if broadcasting happened inside the transaction (the
+    # round-1 bug), Side's counterpart would already have gone out over Turbo
+    # Streams by the time Third's raise rolls the whole write back.
+    create(:tournament_judge, tournament: third, user: @nate)
+
+    entry = create(:tournament_entry, tournament: @main, name: "Majestic Red", boat: @boat)
+    entry.tournament_entry_members.create!(user: @kurtis)
+    entry.tournament_entry_members.create!(user: @nate)
+
+    # Force a deterministic processing order (Side first, then Third) so this
+    # test doesn't depend on the row order of an unordered SQL query.
+    side, third_sibling = @side, third
+    @main.define_singleton_method(:linked_tournaments) { [side, third_sibling] }
+
+    broadcast_calls = 0
+    original = Placements::BroadcastLeaderboard.method(:call)
+    Placements::BroadcastLeaderboard.define_singleton_method(:call) do |**kwargs|
+      broadcast_calls += 1
+      original.call(**kwargs)
+    end
+    begin
+      assert_no_difference [ "TournamentEntry.count", "TournamentEntryMember.count" ] do
+        assert_raises(ActiveRecord::RecordInvalid) do
+          TournamentLinks::SyncEntry.call(entry: entry)
+        end
+      end
+      assert_equal 0, broadcast_calls, "a rolled-back sync must not have broadcast Side's phantom row"
+    ensure
+      Placements::BroadcastLeaderboard.define_singleton_method(:call, original)
+    end
+    assert_empty @side.tournament_entries.reload
+    assert_empty third.tournament_entries.reload
+  end
 end

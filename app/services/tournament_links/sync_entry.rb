@@ -25,9 +25,27 @@ module TournamentLinks
       # leave a crewless or partially-crewed phantom counterpart behind, and
       # with more than one sibling it must not leave earlier siblings synced
       # while a later one fails.
-      ::ActiveRecord::Base.transaction do
+      #
+      # Broadcasting happens AFTER the transaction commits, not inside it.
+      # Placements::BroadcastLeaderboard pushes a Turbo Stream frame
+      # synchronously (it isn't deferred to after_commit); broadcasting inside
+      # the transaction would let an earlier sibling's frame reach connected
+      # viewers before a later sibling's raise rolls the whole write back,
+      # leaving a phantom row on screen with no row in the DB and no
+      # guaranteed later event to correct it. Collecting the counterparts here
+      # and broadcasting once per sibling afterward keeps every broadcast
+      # truthful: it only ever reflects state that is actually committed.
+      counterparts = ::ActiveRecord::Base.transaction do
         siblings.map { |sibling| sync_into(sibling) }
       end
+
+      siblings.zip(counterparts).each do |sibling, counterpart|
+        ::Placements::BroadcastLeaderboard.call(
+          tournament: sibling, changed_entry_ids: [counterpart.id]
+        )
+      end
+
+      counterparts
     end
 
     private
@@ -55,9 +73,6 @@ module TournamentLinks
         end
       end
 
-      ::Placements::BroadcastLeaderboard.call(
-        tournament: sibling, changed_entry_ids: [counterpart.id]
-      )
       counterpart
     end
 
