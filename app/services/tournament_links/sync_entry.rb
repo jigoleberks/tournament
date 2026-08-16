@@ -20,24 +20,39 @@ module TournamentLinks
       return [] if siblings.empty?
       return [] if @entry.boat_id.nil? && @entry.name.to_s.strip.blank?
 
-      siblings.map { |sibling| sync_into(sibling) }
+      # One transaction for the whole sync: a rejected sync (e.g. a crew member
+      # who judges the sibling tournament, see TournamentEntryMember) must not
+      # leave a crewless or partially-crewed phantom counterpart behind, and
+      # with more than one sibling it must not leave earlier siblings synced
+      # while a later one fails.
+      ::ActiveRecord::Base.transaction do
+        siblings.map { |sibling| sync_into(sibling) }
+      end
     end
 
     private
 
     def sync_into(sibling)
-      counterpart = find_counterpart(sibling) || sibling.tournament_entries.new
+      counterpart = Counterpart.find(entry: @entry, sibling: sibling) || sibling.tournament_entries.new
       counterpart.boat_id = @entry.boat_id
       counterpart.name = @entry.name
       created = counterpart.new_record?
       counterpart.save!
 
-      sync_members(counterpart)
+      added_user_ids = sync_members(counterpart)
 
-      if created && sibling.backfill_late_entrants?
-        ::Tournaments::BackfillEntrantCatches.call(
-          tournament: sibling, users: ::User.where(id: source_user_ids).to_a
-        )
+      if sibling.backfill_late_entrants?
+        # A brand-new counterpart has no prior members, so every source member
+        # is "added"; keep using the full source set there in case sync_members
+        # ever changes. An existing counterpart only backfills the members that
+        # were just added — the ones already present were backfilled (or
+        # deliberately not) whenever they first joined.
+        backfill_user_ids = created ? source_user_ids : added_user_ids
+        if backfill_user_ids.any?
+          ::Tournaments::BackfillEntrantCatches.call(
+            tournament: sibling, users: ::User.where(id: backfill_user_ids).to_a
+          )
+        end
       end
 
       ::Placements::BroadcastLeaderboard.call(
@@ -46,16 +61,7 @@ module TournamentLinks
       counterpart
     end
 
-    def find_counterpart(sibling)
-      if @entry.boat_id
-        by_boat = sibling.tournament_entries.find_by(boat_id: @entry.boat_id)
-        return by_boat if by_boat
-      end
-      name = @entry.name.to_s.strip
-      return nil if name.blank?
-      sibling.tournament_entries.where("lower(btrim(name)) = ?", name.downcase).first
-    end
-
+    # Returns the user ids newly added to the counterpart (wanted - present).
     def sync_members(counterpart)
       wanted = source_user_ids
       present = counterpart.tournament_entry_members.pluck(:user_id)
@@ -65,9 +71,11 @@ module TournamentLinks
         ::Catches::DropMemberFromEntry.call(entry: counterpart, user: member.user) if member
       end
 
-      (wanted - present).each do |user_id|
+      added = wanted - present
+      added.each do |user_id|
         counterpart.tournament_entry_members.create!(user_id: user_id)
       end
+      added
     end
 
     def source_user_ids

@@ -17,7 +17,7 @@ module TournamentLinks
 
       destroyed = 0
       siblings.each do |sibling|
-        counterpart = find_counterpart(sibling)
+        counterpart = Counterpart.find(entry: @entry, sibling: sibling)
         next if counterpart.nil?
         counterpart_id = counterpart.id
         counterpart.destroy!
@@ -27,18 +27,6 @@ module TournamentLinks
         )
       end
       destroyed
-    end
-
-    private
-
-    def find_counterpart(sibling)
-      if @entry.boat_id
-        by_boat = sibling.tournament_entries.find_by(boat_id: @entry.boat_id)
-        return by_boat if by_boat
-      end
-      name = @entry.name.to_s.strip
-      return nil if name.blank?
-      sibling.tournament_entries.where("lower(btrim(name)) = ?", name.downcase).first
     end
   end
 end

@@ -82,4 +82,42 @@ class TournamentLinks::SyncEntryTest < ActiveSupport::TestCase
     entry.tournament_entry_members.create!(user: @kurtis)
     assert_empty TournamentLinks::SyncEntry.call(entry: entry)
   end
+
+  test "backfills a newly created counterpart when the sibling allows late entrants" do
+    @side.update!(backfill_late_entrants: true)
+    walleye = create(:species, name: "Walleye")
+    create(:scoring_slot, tournament: @side, species: walleye, slot_count: 2)
+    already_logged = create(:catch, user: @kurtis, species: walleye,
+                            length_inches: 20, captured_at_device: 30.minutes.ago)
+
+    entry = create(:tournament_entry, tournament: @main, name: "Majestic Red", boat: @boat)
+    entry.tournament_entry_members.create!(user: @kurtis)
+
+    mirrored = TournamentLinks::SyncEntry.call(entry: entry).first
+
+    assert CatchPlacement.exists?(
+      catch_id: already_logged.id, tournament_id: @side.id,
+      tournament_entry_id: mirrored.id, active: true
+    ), "Kurtis's already-logged catch should be backfilled into the new counterpart"
+  end
+
+  test "backfills catches for crew added to an already-mirrored counterpart" do
+    @side.update!(backfill_late_entrants: true)
+    walleye = create(:species, name: "Walleye")
+    create(:scoring_slot, tournament: @side, species: walleye, slot_count: 2)
+
+    entry = create(:tournament_entry, tournament: @main, name: "Majestic Red", boat: @boat)
+    entry.tournament_entry_members.create!(user: @kurtis)
+    TournamentLinks::SyncEntry.call(entry: entry)
+
+    nate_catch = create(:catch, user: @nate, species: walleye,
+                        length_inches: 18, captured_at_device: 30.minutes.ago)
+    entry.tournament_entry_members.create!(user: @nate)
+    mirrored = TournamentLinks::SyncEntry.call(entry: entry).first
+
+    assert CatchPlacement.exists?(
+      catch_id: nate_catch.id, tournament_id: @side.id,
+      tournament_entry_id: mirrored.id, active: true
+    ), "Nate's catch, logged before he joined the Side's mirrored entry, should backfill on sync"
+  end
 end
