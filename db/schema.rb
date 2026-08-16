@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_08_16_000001) do
+ActiveRecord::Schema[8.1].define(version: 2026_08_16_000002) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -365,11 +365,13 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_16_000001) do
   end
 
   create_table "tournament_entries", force: :cascade do |t|
+    t.bigint "boat_id"
     t.datetime "created_at", null: false
     t.string "name"
     t.decimal "random_bag_target_inches", precision: 5, scale: 2
     t.bigint "tournament_id", null: false
     t.datetime "updated_at", null: false
+    t.index ["boat_id"], name: "index_tournament_entries_on_boat_id"
     t.index ["tournament_id"], name: "index_tournament_entries_on_tournament_id"
   end
 
@@ -510,6 +512,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_16_000001) do
   add_foreign_key "tournament_deputies", "tournaments"
   add_foreign_key "tournament_deputies", "users"
   add_foreign_key "tournament_deputies", "users", column: "granted_by_user_id"
+  add_foreign_key "tournament_entries", "boats"
   add_foreign_key "tournament_entries", "tournaments"
   add_foreign_key "tournament_entry_members", "tournament_entries"
   add_foreign_key "tournament_entry_members", "users"

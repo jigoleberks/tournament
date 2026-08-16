@@ -53,4 +53,18 @@ class TournamentEntryTest < ActiveSupport::TestCase
     assert_equal 0, user_queries,
                  "display_name should read the preloaded :users association, not re-query"
   end
+
+  test "an entry can carry the boat it was created from" do
+    club = create(:club)
+    tournament = create(:tournament, club: club, mode: :team)
+    boat = create(:boat, club: club, name: "Team Loos")
+    entry = create(:tournament_entry, tournament: tournament, name: "Team Loos", boat: boat)
+    assert_equal boat, entry.reload.boat
+    assert_equal [entry], boat.tournament_entries
+  end
+
+  test "an entry without a boat is still valid" do
+    entry = create(:tournament_entry)
+    assert_nil entry.boat
+  end
 end
