@@ -3,9 +3,13 @@ module TournamentLinks
   # create, rename, and crew-change paths, and to back-fill both sides when a
   # link is first made — so it must be safe to call repeatedly with no effect.
   #
-  # Counterparts are matched by boat first and by normalized name second, so an
-  # entry typed by hand on the Side before the link existed is adopted rather
-  # than duplicated.
+  # Counterparts are matched by boat first, normalized name second (current,
+  # then pre-rename), and — only here, not in RemoveEntry — an exact crew-set
+  # match against a blank-named sibling entry as a last resort. So an entry
+  # typed by hand on the Side before the link existed is adopted rather than
+  # duplicated, and a boat-less entry survives a rename all the way through a
+  # blank-name hop without losing its counterpart. See Counterpart for the
+  # matching rule itself.
   class SyncEntry
     def self.call(entry:)
       new(entry: entry).call
@@ -72,7 +76,8 @@ module TournamentLinks
     end
 
     def sync_into(sibling)
-      counterpart = Counterpart.find(entry: @entry, sibling: sibling) || sibling.tournament_entries.new
+      counterpart = Counterpart.find(entry: @entry, sibling: sibling, allow_crew_match: true) ||
+        sibling.tournament_entries.new
       counterpart.boat_id = @entry.boat_id
       counterpart.name = @entry.name
       created = counterpart.new_record?

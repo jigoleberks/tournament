@@ -25,4 +25,18 @@ class TournamentLinks::RemoveEntryTest < ActiveSupport::TestCase
     entry = create(:tournament_entry, tournament: @main, name: "Stratos")
     assert_equal 0, TournamentLinks::RemoveEntry.call(entry: entry)
   end
+
+  test "does not destroy a crew-sharing sibling entry when there is no boat or name match" do
+    entry = create(:tournament_entry, tournament: @main, name: "Stratos")
+    entry.tournament_entry_members.create!(user: @kurtis)
+
+    # Blank-named, no boat, but shares a crew member — the shape SyncEntry's
+    # crew tier would adopt. RemoveEntry must not: it stays on boat/name
+    # only, since a wrong match here hard-deletes a real entry's placements.
+    crew_sharing = create(:tournament_entry, tournament: @side)
+    crew_sharing.tournament_entry_members.create!(user: @kurtis)
+
+    assert_equal 0, TournamentLinks::RemoveEntry.call(entry: entry)
+    assert TournamentEntry.exists?(crew_sharing.id)
+  end
 end

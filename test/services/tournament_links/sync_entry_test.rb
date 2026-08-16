@@ -116,6 +116,28 @@ class TournamentLinks::SyncEntryTest < ActiveSupport::TestCase
     assert_equal [@kurtis], mirrored.users
   end
 
+  test "does not adopt a blank-named sibling entry via partial crew overlap" do
+    # A crew member can only ever be entered once per tournament, so a member
+    # genuinely shared with an unrelated blank-named sibling entry (Nate here)
+    # would make going through the full sync a legitimate double-booking
+    # conflict, unrelated to matching. Test the matching rule directly:
+    # exact-set equality must not treat "shares one member" as a match.
+    unrelated = create(:tournament_entry, tournament: @side)
+    other_member = create(:user, club: @club, name: "Other Member")
+    unrelated.tournament_entry_members.create!(user: @nate)
+    unrelated.tournament_entry_members.create!(user: other_member)
+
+    entry = create(:tournament_entry, tournament: @main)
+    entry.tournament_entry_members.create!(user: @kurtis)
+    entry.tournament_entry_members.create!(user: @nate)
+
+    match = TournamentLinks::Counterpart.find(entry: entry, sibling: @side, allow_crew_match: true)
+
+    assert_nil match, "a single overlapping member must not be enough to adopt someone else's entry"
+    assert_equal [@nate, other_member].sort_by(&:id), unrelated.reload.users.sort_by(&:id),
+                 "the unrelated entry's members must be untouched since it was never adopted"
+  end
+
   test "does nothing for an unlinked tournament" do
     solo_club_tournament = create(:tournament, club: @club, mode: :team)
     entry = create(:tournament_entry, tournament: solo_club_tournament, name: "Stratos")
