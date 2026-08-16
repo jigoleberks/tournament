@@ -48,3 +48,38 @@ if ENV["SEED_DEMO_DATA"] == "true"
     t.scoring_slots.find_or_create_by!(species: walleye) { |s| s.slot_count = 1 }
   end
 end
+
+# Boats + a linked league-night pair, for hands-on testing of the boat entry
+# flow on a phone. Development-only; additive against the developer's working
+# database (a brand-new "Test Anglers" club, never touching existing clubs).
+if Rails.env.development?
+  club = Club.find_or_create_by!(name: "Test Anglers")
+  captains = {
+    "Majestic Red" => "Kurtis Sanguin",
+    "Team Patterson" => "Galen Patterson",
+    "Team Willow River" => "Curtis Johnston",
+    "Big Tiller" => "Kent Pierce",
+    "The Pearl" => "Jeremy Laroo",
+    "Team Loos" => "Tyson Loos"
+  }
+  captains.each_value do |name|
+    user = User.find_or_create_by!(email: "#{name.parameterize}@example.com") { |u| u.name = name }
+    club.club_memberships.find_or_create_by!(user: user) { |m| m.role = :member }
+  end
+  captains.each do |boat_name, captain_name|
+    captain = User.find_by!(email: "#{captain_name.parameterize}@example.com")
+    club.boats.find_or_create_by!(name: boat_name) { |b| b.captain = captain }
+  end
+
+  group = SecureRandom.uuid
+  starts_at = Date.current.next_occurring(:wednesday).in_time_zone + 18.hours
+  ["Wednesday League Night - Main", "Wednesday League Night - Side"].each do |name|
+    club.tournaments.find_or_create_by!(name: name) do |t|
+      t.mode = :team
+      t.starts_at = starts_at
+      t.ends_at = starts_at + 3.hours
+      t.link_group_id = group
+    end
+  end
+  puts "Seeded #{club.boats.count} boats and a linked league-night pair for #{club.name}."
+end
