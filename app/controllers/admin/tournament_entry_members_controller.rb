@@ -18,6 +18,7 @@ class Admin::TournamentEntryMembersController < Admin::BaseController
     if @tournament.backfill_late_entrants?
       Tournaments::BackfillEntrantCatches.call(tournament: @tournament, users: [ user ])
     end
+    TournamentLinks::SyncEntry.call(entry: @entry)
     redirect_to edit_admin_tournament_path(@tournament), notice: "Added #{user.name}."
   rescue ActiveRecord::RecordInvalid => e
     redirect_to edit_admin_tournament_path(@tournament), alert: e.message
@@ -31,6 +32,7 @@ class Admin::TournamentEntryMembersController < Admin::BaseController
     member = @entry.tournament_entry_members.find(params[:id])
     name = member.user&.name || "Member"
     Catches::DropMemberFromEntry.call(entry: @entry, user: member.user)
+    TournamentLinks::SyncEntry.call(entry: @entry)
     redirect_to edit_admin_tournament_path(@tournament), notice: "Removed #{name}."
   end
 

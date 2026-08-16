@@ -7,14 +7,15 @@ class Organizers::TournamentEntryMembersControllerTest < ActionDispatch::Integra
     @a = create(:user, club: @club, name: "Aron", role: :member)
     @b = create(:user, club: @club, name: "Galen", role: :member)
     @c = create(:user, club: @club, name: "Casey", role: :member)
+    @member = create(:user, club: @club, name: "Joe", role: :member)
+    @teammate = create(:user, club: @club, name: "Curtis", role: :member)
     @team = create(:tournament, club: @club, mode: :team,
                                 starts_at: 1.hour.from_now, ends_at: 3.hours.from_now)
-    @entry = create(:tournament_entry, tournament: @team, name: "Boat 1")
-    create(:tournament_entry_member, tournament_entry: @entry, user: @a)
     sign_in_as(@organizer)
   end
 
   test "members are forbidden" do
+    create_boat1_entry!
     sign_in_as(@a)
     post organizers_tournament_tournament_entry_tournament_entry_members_path(
       tournament_id: @team.id, tournament_entry_id: @entry.id), params: { user_id: @b.id }
@@ -22,6 +23,7 @@ class Organizers::TournamentEntryMembersControllerTest < ActionDispatch::Integra
   end
 
   test "organizer adds a member to a team entry before tournament starts" do
+    create_boat1_entry!
     assert_difference "TournamentEntryMember.count", 1 do
       post organizers_tournament_tournament_entry_tournament_entry_members_path(
         tournament_id: @team.id, tournament_entry_id: @entry.id), params: { user_id: @b.id }
@@ -32,6 +34,7 @@ class Organizers::TournamentEntryMembersControllerTest < ActionDispatch::Integra
   end
 
   test "organizer removes a member from a team entry before tournament starts" do
+    create_boat1_entry!
     create(:tournament_entry_member, tournament_entry: @entry, user: @b)
     member = TournamentEntryMember.find_by(tournament_entry_id: @entry.id, user_id: @b.id)
 
@@ -44,6 +47,7 @@ class Organizers::TournamentEntryMembersControllerTest < ActionDispatch::Integra
   end
 
   test "organizer adds a member to a team entry after tournament starts" do
+    create_boat1_entry!
     @team.update!(starts_at: 1.minute.ago, ends_at: 1.hour.from_now)
     assert_difference "TournamentEntryMember.count", 1 do
       post organizers_tournament_tournament_entry_tournament_entry_members_path(
@@ -54,6 +58,7 @@ class Organizers::TournamentEntryMembersControllerTest < ActionDispatch::Integra
   end
 
   test "organizer removes a member from a team entry after tournament starts and rescores leaderboard" do
+    create_boat1_entry!
     create(:tournament_entry_member, tournament_entry: @entry, user: @b)
     @team.update!(starts_at: 1.minute.ago, ends_at: 1.hour.from_now)
     member = TournamentEntryMember.find_by(tournament_entry_id: @entry.id, user_id: @b.id)
@@ -89,6 +94,7 @@ class Organizers::TournamentEntryMembersControllerTest < ActionDispatch::Integra
   end
 
   test "add rejects user from another club" do
+    create_boat1_entry!
     other_club = create(:club)
     foreigner = create(:user, club: other_club)
     assert_no_difference "TournamentEntryMember.count" do
@@ -99,6 +105,7 @@ class Organizers::TournamentEntryMembersControllerTest < ActionDispatch::Integra
   end
 
   test "add rejects when team is at capacity" do
+    create_boat1_entry!
     # Fill the team to MAX_TEAM_MEMBERS
     extras = (TournamentEntryMember::MAX_TEAM_MEMBERS - 1).times.map do |i|
       create(:user, club: @club, name: "Extra #{i}")
@@ -112,6 +119,7 @@ class Organizers::TournamentEntryMembersControllerTest < ActionDispatch::Integra
   end
 
   test "add rejects user already in another entry of the same tournament" do
+    create_boat1_entry!
     other_entry = create(:tournament_entry, tournament: @team, name: "Boat 2")
     create(:tournament_entry_member, tournament_entry: other_entry, user: @b)
     assert_no_difference "TournamentEntryMember.count" do
@@ -122,6 +130,7 @@ class Organizers::TournamentEntryMembersControllerTest < ActionDispatch::Integra
   end
 
   test "adding a member backfills their in-window catches when the flag is on" do
+    create_boat1_entry!
     walleye = create(:species, name: "Walleye")
     @team.update!(starts_at: 4.hours.ago, ends_at: 1.hour.ago, backfill_late_entrants: true)
     create(:scoring_slot, tournament: @team, species: walleye, slot_count: 2)
@@ -136,6 +145,7 @@ class Organizers::TournamentEntryMembersControllerTest < ActionDispatch::Integra
   end
 
   test "adding a member stays forward-only when the flag is off" do
+    create_boat1_entry!
     walleye = create(:species, name: "Walleye")
     @team.update!(starts_at: 4.hours.ago, ends_at: 1.hour.ago)
     create(:scoring_slot, tournament: @team, species: walleye, slot_count: 2)
@@ -148,10 +158,35 @@ class Organizers::TournamentEntryMembersControllerTest < ActionDispatch::Integra
     assert_empty CatchPlacement.where(tournament: @team)
   end
 
+  test "adding a crew member adds them to the linked tournament's entry too" do
+    group = SecureRandom.uuid
+    @team.update!(link_group_id: group)
+    side = create(:tournament, club: @club, mode: :team, name: "Side",
+                  starts_at: 1.hour.from_now, ends_at: 3.hours.from_now, link_group_id: group)
+    post organizers_tournament_tournament_entries_path(tournament_id: @team.id),
+         params: { tournament_entry: { name: "Majestic Red", member_user_ids: [@member.id] } }
+    entry = @team.tournament_entries.sole
+
+    post organizers_tournament_tournament_entry_tournament_entry_members_path(
+      tournament_id: @team.id, tournament_entry_id: entry.id
+    ), params: { user_id: @teammate.id }
+
+    assert_equal [@member, @teammate].sort_by(&:id),
+                 side.tournament_entries.sole.users.sort_by(&:id)
+  end
+
   private
 
   def sign_in_as(user)
     token = SignInToken.issue!(user: user)
     get consume_session_path(token: token.token)
+  end
+
+  # Most tests need a pre-existing team entry ("Boat 1") to add/remove crew
+  # from. Kept out of setup so the linked-tournament test can start @team
+  # with zero entries and rely on TournamentEntry.sole after its own POST.
+  def create_boat1_entry!
+    @entry = create(:tournament_entry, tournament: @team, name: "Boat 1")
+    create(:tournament_entry_member, tournament_entry: @entry, user: @a)
   end
 end

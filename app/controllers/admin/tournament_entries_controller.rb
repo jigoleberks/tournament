@@ -24,6 +24,13 @@ class Admin::TournamentEntriesController < Admin::BaseController
       end
     end
 
+    # Linked tournaments (the Wednesday Main + Side pair) share one roster:
+    # mirror each new entry across the group. Solo entries have neither a boat
+    # nor a name, so SyncEntry no-ops on them.
+    TournamentEntry.where(id: created_entry_ids).each do |created|
+      TournamentLinks::SyncEntry.call(entry: created)
+    end
+
     # Adds are forward-only by default. With the admin-only backfill flag set,
     # replay the new entrants' already-logged in-window catches now — before the
     # broadcast below, so it reflects the backfilled standings. The sweep skips
@@ -59,6 +66,7 @@ class Admin::TournamentEntriesController < Admin::BaseController
     if entry.update(name: params.dig(:tournament_entry, :name).to_s.strip.presence)
       # A rename only affects the leaderboard row, not the bingo card grids.
       Placements::BroadcastLeaderboard.call(tournament: @tournament, changed_entry_ids: [entry.id])
+      TournamentLinks::SyncEntry.call(entry: entry)
       redirect_to edit_admin_tournament_path(@tournament), notice: "Entry renamed."
     else
       redirect_to edit_admin_tournament_path(@tournament), alert: entry.errors.full_messages.to_sentence
@@ -67,6 +75,7 @@ class Admin::TournamentEntriesController < Admin::BaseController
 
   def destroy
     entry = @tournament.tournament_entries.find(params[:id])
+    TournamentLinks::RemoveEntry.call(entry: entry)
     entry.destroy
     # The removed entry drops off the leaderboard; sibling cards are untouched.
     Placements::BroadcastLeaderboard.call(tournament: @tournament, changed_entry_ids: [entry.id])

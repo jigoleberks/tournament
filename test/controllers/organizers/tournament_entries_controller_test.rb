@@ -224,6 +224,52 @@ class Organizers::TournamentEntriesControllerTest < ActionDispatch::IntegrationT
     assert_empty CatchPlacement.where(tournament: tournament)
   end
 
+  test "creating a team entry mirrors it into the linked tournament" do
+    group = SecureRandom.uuid
+    @team.update!(link_group_id: group)
+    side = create(:tournament, club: @club, mode: :team, name: "Side",
+                  starts_at: 1.hour.from_now, ends_at: 3.hours.from_now, link_group_id: group)
+
+    assert_difference "TournamentEntry.count", 2 do
+      post organizers_tournament_tournament_entries_path(tournament_id: @team.id),
+           params: { tournament_entry: { name: "Majestic Red", member_user_ids: [@member.id] } }
+    end
+
+    mirrored = side.tournament_entries.sole
+    assert_equal "Majestic Red", mirrored.name
+    assert_equal [@member], mirrored.users
+  end
+
+  test "removing a team entry removes it from the linked tournament" do
+    group = SecureRandom.uuid
+    @team.update!(link_group_id: group)
+    side = create(:tournament, club: @club, mode: :team, name: "Side",
+                  starts_at: 1.hour.from_now, ends_at: 3.hours.from_now, link_group_id: group)
+    post organizers_tournament_tournament_entries_path(tournament_id: @team.id),
+         params: { tournament_entry: { name: "Majestic Red", member_user_ids: [@member.id] } }
+    entry = @team.tournament_entries.sole
+
+    assert_difference "TournamentEntry.count", -2 do
+      delete organizers_tournament_tournament_entry_path(tournament_id: @team.id, id: entry.id)
+    end
+    assert_empty side.tournament_entries.reload
+  end
+
+  test "renaming a team entry renames it in the linked tournament" do
+    group = SecureRandom.uuid
+    @team.update!(link_group_id: group)
+    side = create(:tournament, club: @club, mode: :team, name: "Side",
+                  starts_at: 1.hour.from_now, ends_at: 3.hours.from_now, link_group_id: group)
+    post organizers_tournament_tournament_entries_path(tournament_id: @team.id),
+         params: { tournament_entry: { name: "Magestic Red", member_user_ids: [@member.id] } }
+    entry = @team.tournament_entries.sole
+
+    patch organizers_tournament_tournament_entry_path(tournament_id: @team.id, id: entry.id),
+          params: { tournament_entry: { name: "Majestic Red" } }
+
+    assert_equal "Majestic Red", side.tournament_entries.sole.name
+  end
+
   private
 
   def sign_in_as(user)
