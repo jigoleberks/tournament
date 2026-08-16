@@ -175,6 +175,136 @@ class Organizers::TournamentEntryMembersControllerTest < ActionDispatch::Integra
                  side.tournament_entries.sole.users.sort_by(&:id)
   end
 
+  test "same_as_last_week rejects an entry with no saved boat" do
+    entry = create(:tournament_entry, tournament: @team, name: "Ad hoc team")
+    create(:tournament_entry_member, tournament_entry: entry, user: @a)
+
+    assert_no_difference "TournamentEntryMember.count" do
+      post same_as_last_week_organizers_tournament_tournament_entry_tournament_entry_members_path(
+        tournament_id: @team.id, tournament_entry_id: entry.id)
+    end
+    assert_redirected_to edit_organizers_tournament_path(@team)
+    assert_match(/isn't a saved boat/i, flash[:alert])
+  end
+
+  test "same_as_last_week rejects a boat with no fishing history" do
+    boat = create(:boat, club: @club, name: "Team Patterson", captain: @a)
+    entry = create(:tournament_entry, tournament: @team, name: "Team Patterson", boat: boat)
+    create(:tournament_entry_member, tournament_entry: entry, user: @a)
+
+    assert_no_difference "TournamentEntryMember.count" do
+      post same_as_last_week_organizers_tournament_tournament_entry_tournament_entry_members_path(
+        tournament_id: @team.id, tournament_entry_id: entry.id)
+    end
+    assert_redirected_to edit_organizers_tournament_path(@team)
+    assert_match(/hasn't fished before/i, flash[:alert])
+  end
+
+  test "same_as_last_week adds last week's crew to tonight's entry" do
+    boat = create(:boat, club: @club, name: "Team Patterson", captain: @a)
+    last_week = create(:tournament, club: @club, mode: :team,
+                       starts_at: 8.days.ago, ends_at: 8.days.ago + 3.hours)
+    old_entry = create(:tournament_entry, tournament: last_week, name: "Team Patterson", boat: boat)
+    create(:tournament_entry_member, tournament_entry: old_entry, user: @a)
+    create(:tournament_entry_member, tournament_entry: old_entry, user: @b)
+
+    tonight_entry = create(:tournament_entry, tournament: @team, name: "Team Patterson", boat: boat)
+
+    assert_difference "TournamentEntryMember.count", 2 do
+      post same_as_last_week_organizers_tournament_tournament_entry_tournament_entry_members_path(
+        tournament_id: @team.id, tournament_entry_id: tonight_entry.id)
+    end
+    assert_redirected_to edit_organizers_tournament_path(@team)
+    assert_match(/Added 2 from last time/, flash[:notice])
+    assert_equal [@a, @b].sort_by(&:id), tonight_entry.reload.users.sort_by(&:id)
+  end
+
+  test "same_as_last_week skips a crew member who is no longer an active club member" do
+    boat = create(:boat, club: @club, name: "Team Patterson", captain: @a)
+    last_week = create(:tournament, club: @club, mode: :team,
+                       starts_at: 8.days.ago, ends_at: 8.days.ago + 3.hours)
+    old_entry = create(:tournament_entry, tournament: last_week, name: "Team Patterson", boat: boat)
+    create(:tournament_entry_member, tournament_entry: old_entry, user: @a)
+    create(:tournament_entry_member, tournament_entry: old_entry, user: @b)
+    @b.club_memberships.find_by(club: @club).update!(deactivated_at: 1.day.ago)
+
+    tonight_entry = create(:tournament_entry, tournament: @team, name: "Team Patterson", boat: boat)
+
+    assert_difference "TournamentEntryMember.count", 1 do
+      post same_as_last_week_organizers_tournament_tournament_entry_tournament_entry_members_path(
+        tournament_id: @team.id, tournament_entry_id: tonight_entry.id)
+    end
+    assert_equal [@a], tonight_entry.reload.users
+  end
+
+  test "same_as_last_week backfills in-window catches for the added crew when the flag is on" do
+    boat = create(:boat, club: @club, name: "Team Patterson", captain: @a)
+    last_week = create(:tournament, club: @club, mode: :team,
+                       starts_at: 8.days.ago, ends_at: 8.days.ago + 3.hours)
+    old_entry = create(:tournament_entry, tournament: last_week, name: "Team Patterson", boat: boat)
+    create(:tournament_entry_member, tournament_entry: old_entry, user: @a)
+    create(:tournament_entry_member, tournament_entry: old_entry, user: @b)
+
+    walleye = create(:species, name: "Walleye")
+    @team.update!(starts_at: 4.hours.ago, ends_at: 1.hour.ago, backfill_late_entrants: true)
+    create(:scoring_slot, tournament: @team, species: walleye, slot_count: 2)
+    missed = create(:catch, user: @b, species: walleye,
+                    length_inches: 20, captured_at_device: 3.hours.ago)
+
+    tonight_entry = create(:tournament_entry, tournament: @team, name: "Team Patterson", boat: boat)
+
+    post same_as_last_week_organizers_tournament_tournament_entry_tournament_entry_members_path(
+      tournament_id: @team.id, tournament_entry_id: tonight_entry.id)
+
+    assert_equal [missed.id],
+                 CatchPlacement.where(tournament: @team, active: true).pluck(:catch_id)
+  end
+
+  test "same_as_last_week mirrors the added crew into the linked tournament's entry" do
+    boat = create(:boat, club: @club, name: "Team Patterson", captain: @a)
+    last_week = create(:tournament, club: @club, mode: :team,
+                       starts_at: 8.days.ago, ends_at: 8.days.ago + 3.hours)
+    old_entry = create(:tournament_entry, tournament: last_week, name: "Team Patterson", boat: boat)
+    create(:tournament_entry_member, tournament_entry: old_entry, user: @a)
+    create(:tournament_entry_member, tournament_entry: old_entry, user: @b)
+
+    group = SecureRandom.uuid
+    @team.update!(link_group_id: group)
+    side = create(:tournament, club: @club, mode: :team, name: "Side",
+                  starts_at: 1.hour.from_now, ends_at: 3.hours.from_now, link_group_id: group)
+    tonight_entry = create(:tournament_entry, tournament: @team, name: "Team Patterson", boat: boat)
+    side_entry = create(:tournament_entry, tournament: side, name: "Team Patterson", boat: boat)
+
+    post same_as_last_week_organizers_tournament_tournament_entry_tournament_entry_members_path(
+      tournament_id: @team.id, tournament_entry_id: tonight_entry.id)
+
+    assert_equal [@a, @b].sort_by(&:id), side_entry.reload.users.sort_by(&:id)
+  end
+
+  test "same_as_last_week rolls back the whole refill when one crew member fails validation" do
+    boat = create(:boat, club: @club, name: "Team Patterson", captain: @a)
+    last_week = create(:tournament, club: @club, mode: :team,
+                       starts_at: 8.days.ago, ends_at: 8.days.ago + 3.hours)
+    old_entry = create(:tournament_entry, tournament: last_week, name: "Team Patterson", boat: boat)
+    create(:tournament_entry_member, tournament_entry: old_entry, user: @a)
+    create(:tournament_entry_member, tournament_entry: old_entry, user: @b)
+
+    tonight_entry = create(:tournament_entry, tournament: @team, name: "Team Patterson", boat: boat)
+    # @b is already entered on a different boat tonight, so re-adding them to
+    # tonight_entry will trip the "already entered in this tournament"
+    # validation partway through the crew loop.
+    other_entry = create(:tournament_entry, tournament: @team, name: "Other boat")
+    create(:tournament_entry_member, tournament_entry: other_entry, user: @b)
+
+    assert_no_difference "TournamentEntryMember.count" do
+      post same_as_last_week_organizers_tournament_tournament_entry_tournament_entry_members_path(
+        tournament_id: @team.id, tournament_entry_id: tonight_entry.id)
+    end
+    assert_redirected_to edit_organizers_tournament_path(@team)
+    assert_match(/already entered/i, flash[:alert])
+    assert_empty tonight_entry.reload.users
+  end
+
   private
 
   def sign_in_as(user)

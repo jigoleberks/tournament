@@ -37,11 +37,13 @@ class Admin::TournamentEntryMembersController < Admin::BaseController
 
     already = @entry.tournament_entry_members.pluck(:user_id)
     added_users = []
-    crew.each do |user|
-      next if already.include?(user.id)
-      next unless ClubMembership.active.exists?(club_id: @tournament.club_id, user_id: user.id)
-      @entry.tournament_entry_members.create!(user_id: user.id)
-      added_users << user
+    ActiveRecord::Base.transaction do
+      crew.each do |user|
+        next if already.include?(user.id)
+        next unless ClubMembership.active.exists?(club_id: @tournament.club_id, user_id: user.id)
+        @entry.tournament_entry_members.create!(user_id: user.id)
+        added_users << user
+      end
     end
     if @tournament.backfill_late_entrants? && added_users.any?
       Tournaments::BackfillEntrantCatches.call(tournament: @tournament, users: added_users)

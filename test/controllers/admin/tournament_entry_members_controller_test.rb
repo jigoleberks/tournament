@@ -98,6 +98,30 @@ class Admin::TournamentEntryMembersControllerTest < ActionDispatch::IntegrationT
     assert_empty CatchPlacement.where(tournament: @team)
   end
 
+  test "same_as_last_week adds last week's crew to tonight's entry" do
+    # Fresh users, not @a/@b — @a is already seated in @entry ("Boat 1") in
+    # @team via setup, so reusing it here would trip the one-entry-per-user
+    # validation on the second entry rather than exercising the happy path.
+    galen = create(:user, club: @club, name: "Galen Patterson")
+    troy = create(:user, club: @club, name: "Troy Patterson")
+    boat = create(:boat, club: @club, name: "Team Patterson", captain: galen)
+    last_week = create(:tournament, club: @club, mode: :team,
+                       starts_at: 8.days.ago, ends_at: 8.days.ago + 3.hours)
+    old_entry = create(:tournament_entry, tournament: last_week, name: "Team Patterson", boat: boat)
+    create(:tournament_entry_member, tournament_entry: old_entry, user: galen)
+    create(:tournament_entry_member, tournament_entry: old_entry, user: troy)
+
+    tonight_entry = create(:tournament_entry, tournament: @team, name: "Team Patterson", boat: boat)
+
+    assert_difference "TournamentEntryMember.count", 2 do
+      post same_as_last_week_admin_tournament_tournament_entry_tournament_entry_members_path(
+        tournament_id: @team.id, tournament_entry_id: tonight_entry.id)
+    end
+    assert_redirected_to edit_admin_tournament_path(@team)
+    assert_match(/Added 2 from last time/, flash[:notice])
+    assert_equal [galen, troy].sort_by(&:id), tonight_entry.reload.users.sort_by(&:id)
+  end
+
   private
 
   def sign_in_as(user)
