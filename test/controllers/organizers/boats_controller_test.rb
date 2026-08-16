@@ -97,6 +97,48 @@ class Organizers::BoatsControllerTest < ActionDispatch::IntegrationTest
     assert_response :forbidden
   end
 
+  test "index lists the club's boats alphabetically with their captains" do
+    create(:boat, club: @club, name: "Big Tiller", captain: create(:user, club: @club, name: "Kent Pierce"))
+    get organizers_boats_path
+    assert_response :success
+    assert_match(/Big Tiller/, response.body)
+    assert_match(/Kent Pierce/, response.body)
+    assert_operator response.body.index("Big Tiller"), :<, response.body.index("Majestic Red")
+  end
+
+  test "renaming a boat keeps its captain" do
+    patch organizers_boat_path(@boat), params: { boat: { name: "Majestic Red II", captain_user_id: @kurtis.id } }
+    assert_equal "Majestic Red II", @boat.reload.name
+    assert_equal @kurtis, @boat.captain
+  end
+
+  test "retiring a boat hides it from the list without deleting it" do
+    delete organizers_boat_path(@boat)
+    assert_not @boat.reload.active
+    get organizers_boats_path
+    get organizers_boats_path # second request: lets the "retired" flash notice (which echoes the boat's name) clear before asserting on the list body
+    assert_no_match(/Majestic Red/, response.body)
+  end
+
+  test "a leading 'The' triggers a near-match against the existing boat" do
+    create(:boat, club: @club, name: "Pearl", captain: @kurtis)
+    assert_no_difference "Boat.count" do
+      post organizers_boats_path, params: {
+        tournament_id: @team.id,
+        boat: { name: "The Pearl", captain_user_id: @kurtis.id }
+      }
+    end
+    assert_match(/Did you mean Pearl\?/, flash[:alert])
+  end
+
+  test "an already-entered boat does not appear in the add-a-boat picker" do
+    post enter_organizers_tournament_boat_path(tournament_id: @team.id, id: @boat.id)
+    get edit_organizers_tournament_path(@team)
+    assert_response :success
+    assert_select "form[action=?]",
+                  enter_organizers_tournament_boat_path(tournament_id: @team.id, id: @boat.id), count: 0
+  end
+
   private
 
   def sign_in_as(user)
