@@ -71,6 +71,8 @@ class Admin::TournamentEntriesController < Admin::BaseController
     else
       redirect_to edit_admin_tournament_path(@tournament), alert: entry.errors.full_messages.to_sentence
     end
+  rescue ActiveRecord::RecordInvalid => e
+    redirect_to edit_admin_tournament_path(@tournament), alert: e.message
   end
 
   def destroy

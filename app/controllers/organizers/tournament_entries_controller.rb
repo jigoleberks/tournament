@@ -71,6 +71,8 @@ class Organizers::TournamentEntriesController < Organizers::BaseController
     else
       redirect_to edit_organizers_tournament_path(@tournament), alert: entry.errors.full_messages.to_sentence
     end
+  rescue ActiveRecord::RecordInvalid => e
+    redirect_to edit_organizers_tournament_path(@tournament), alert: e.message
   end
 
   def destroy

@@ -25,3 +25,16 @@
 <% else %>
   <p class="text-slate-400 italic">No boats yet. Add one from a team tournament's entry list.</p>
 <% end %>
+
+<% if @retired_boats.any? %>
+  <h2 class="text-lg font-semibold mt-8 mb-2 text-slate-400">Retired</h2>
+  <ul class="space-y-2">
+    <% @retired_boats.each do |boat| %>
+      <li class="bg-slate-800/50 rounded-lg p-3 flex items-center justify-between gap-3">
+        <div class="text-slate-400"><%= boat.label %></div>
+        <%= button_to "Restore", restore_organizers_boat_path(boat), method: :post,
+                      class: "h-10 px-3 rounded bg-slate-700 active:bg-slate-600 text-slate-100 text-sm" %>
+      </li>
+    <% end %>
+  </ul>
+<% end %>

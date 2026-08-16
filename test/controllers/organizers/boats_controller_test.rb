@@ -112,12 +112,87 @@ class Organizers::BoatsControllerTest < ActionDispatch::IntegrationTest
     assert_equal @kurtis, @boat.captain
   end
 
-  test "retiring a boat hides it from the list without deleting it" do
+  test "retiring a boat moves it out of the active list into a Retired section, not deleted" do
     delete organizers_boat_path(@boat)
     assert_not @boat.reload.active
     get organizers_boats_path
-    get organizers_boats_path # second request: lets the "retired" flash notice (which echoes the boat's name) clear before asserting on the list body
-    assert_no_match(/Majestic Red/, response.body)
+    assert_response :success
+    # The active-list edit/retire forms both post to organizers_boat_path;
+    # once retired, the boat is only rendered in the Retired section, whose
+    # only form is the Restore action at a different path.
+    assert_select "form[action=?]", organizers_boat_path(@boat), count: 0
+    assert_select "form[action=?]", restore_organizers_boat_path(@boat), count: 1
+    assert_match(/Retired/, response.body)
+    assert_match(/Majestic Red/, response.body)
+  end
+
+  test "restoring a retired boat returns it to the active list" do
+    @boat.update!(active: false)
+    post restore_organizers_boat_path(@boat)
+    assert @boat.reload.active
+    assert_redirected_to organizers_boats_path
+    get organizers_boats_path
+    assert_select "form[action=?]", organizers_boat_path(@boat), count: 2 # edit form + retire form
+    assert_select "form[action=?]", restore_organizers_boat_path(@boat), count: 0
+  end
+
+  test "a mis-tapped retire can be undone via Restore, without console access" do
+    delete organizers_boat_path(@boat)
+    assert_not @boat.reload.active
+
+    post restore_organizers_boat_path(@boat)
+    assert @boat.reload.active
+    assert_equal "Majestic Red", @boat.name
+
+    # Restored means pickable again, not just flagged active in the DB.
+    get edit_organizers_tournament_path(@team)
+    assert_select "form[action=?]",
+                  enter_organizers_tournament_boat_path(tournament_id: @team.id, id: @boat.id), count: 1
+  end
+
+  test "index eager-loads captains instead of N+1 per row" do
+    # Total "users" queries per request also include the signed-in
+    # current_user lookup and the per-row member-picker <select> (a separate,
+    # pre-existing, out-of-scope N+1 that the request-level query cache
+    # collapses to one real query since it's byte-identical every iteration).
+    # Neither of those scales with the number of boats, so comparing the
+    # query count at 1 boat vs 3 boats isolates just the captain load and is
+    # robust to those constants: N+1 on captain shows up as a difference.
+    one_boat_queries = count_queries(/\bfrom\s+"?users"?/i) { get organizers_boats_path }
+
+    create(:boat, club: @club, name: "Big Tiller", captain: create(:user, club: @club, name: "Kent Pierce"))
+    create(:boat, club: @club, name: "Red Rocket", captain: create(:user, club: @club, name: "Nate Rosengren"))
+
+    three_boat_queries = count_queries(/\bfrom\s+"?users"?/i) { get organizers_boats_path }
+
+    assert_equal one_boat_queries, three_boat_queries,
+                 "captain lookups should be batched, not scale with the number of boats"
+  end
+
+  test "entering a boat whose captain is already entered elsewhere redirects with an alert instead of crashing" do
+    other_entry = create(:tournament_entry, tournament: @team, name: "Big Tiller")
+    create(:tournament_entry_member, tournament_entry: other_entry, user: @kurtis)
+
+    assert_no_difference "TournamentEntry.count" do
+      post enter_organizers_tournament_boat_path(tournament_id: @team.id, id: @boat.id)
+    end
+    assert_redirected_to edit_organizers_tournament_path(@team)
+    assert_match(/already entered/i, flash[:alert])
+  end
+
+  test "creating a new boat whose captain is already entered elsewhere redirects with an alert instead of crashing" do
+    other_entry = create(:tournament_entry, tournament: @team, name: "Big Tiller")
+    create(:tournament_entry_member, tournament_entry: other_entry, user: @kurtis)
+
+    assert_difference "Boat.count", 1 do
+      assert_no_difference "TournamentEntry.count" do
+        post organizers_boats_path, params: {
+          tournament_id: @team.id,
+          boat: { name: "Red Rocket", captain_user_id: @kurtis.id }
+        }
+      end
+    end
+    assert_match(/already entered/i, flash[:alert])
   end
 
   test "a leading 'The' triggers a near-match against the existing boat" do

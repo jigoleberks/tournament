@@ -36,7 +36,7 @@ class BoatEntryTest < ApplicationSystemTestCase
     # confirm the boat has dropped out of the picker (only un-entered boats
     # render there) so this assertion can only pass if mirroring happened.
     within("li", text: "Majestic Red") do
-      assert_text "Kurtis Sanguin"
+      assert_selector "span.text-slate-200", text: "Kurtis Sanguin"
       assert_text "Remove entry"
     end
     assert_no_text "Majestic Red — Kurtis Sanguin"

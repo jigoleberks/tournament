@@ -40,7 +40,9 @@ Rails.application.routes.draw do
         member { post :enter }
       end
     end
-    resources :boats, only: [:index, :create, :update, :destroy]
+    resources :boats, only: [:index, :create, :update, :destroy] do
+      member { post :restore }
+    end
     resources :members, only: [:index, :new, :create, :destroy] do
       member do
         post :reactivate
@@ -90,7 +92,9 @@ Rails.application.routes.draw do
         member { post :enter }
       end
     end
-    resources :boats, only: [:index, :create, :update, :destroy]
+    resources :boats, only: [:index, :create, :update, :destroy] do
+      member { post :restore }
+    end
     resources :members, only: [:index, :new, :create, :edit, :update, :destroy] do
       member do
         patch  :role

@@ -32,3 +32,18 @@
     </div>
   <% end %>
 </div>
+
+<% if @retired_boats.any? %>
+  <h2 class="text-xl font-bold mt-8 mb-4 text-slate-400">Retired</h2>
+  <div class="bg-slate-800/50 rounded-xl border border-slate-700 overflow-hidden">
+    <ul class="divide-y divide-slate-700">
+      <% @retired_boats.each do |boat| %>
+        <li class="p-4 flex flex-wrap items-center justify-between gap-3">
+          <div class="text-slate-400"><%= boat.label %></div>
+          <%= button_to "Restore", restore_admin_boat_path(boat), method: :post,
+                        class: "h-9 px-3 rounded bg-slate-700 hover:bg-slate-600 text-slate-100 text-sm font-medium transition-colors" %>
+        </li>
+      <% end %>
+    </ul>
+  </div>
+<% end %>

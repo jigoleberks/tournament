@@ -270,6 +270,30 @@ class Organizers::TournamentEntriesControllerTest < ActionDispatch::IntegrationT
     assert_equal "Majestic Red", side.tournament_entries.sole.name
   end
 
+  test "renaming an entry whose sync can't be mirrored redirects with an alert instead of crashing" do
+    group = SecureRandom.uuid
+    @team.update!(link_group_id: group)
+    side = create(:tournament, club: @club, mode: :team, name: "Side",
+                  starts_at: 1.hour.from_now, ends_at: 3.hours.from_now, link_group_id: group)
+    create(:tournament_judge, tournament: side, user: @teammate)
+
+    entry = create(:tournament_entry, tournament: @team, name: "Old Boat")
+    create(:tournament_entry_member, tournament_entry: entry, user: @member)
+    create(:tournament_entry_member, tournament_entry: entry, user: @teammate)
+    # The Side counterpart is missing @teammate (a state that predates the
+    # judge assignment, or just drifted) -- syncing the rename will try to
+    # add @teammate to it and trip user_not_a_judge.
+    side_counterpart = create(:tournament_entry, tournament: side, name: "Old Boat")
+    create(:tournament_entry_member, tournament_entry: side_counterpart, user: @member)
+
+    assert_no_difference "TournamentEntryMember.count" do
+      patch organizers_tournament_tournament_entry_path(tournament_id: @team.id, id: entry.id),
+            params: { tournament_entry: { name: "New Boat" } }
+    end
+    assert_redirected_to edit_organizers_tournament_path(@team)
+    assert_match(/judging/i, flash[:alert])
+  end
+
   private
 
   def sign_in_as(user)

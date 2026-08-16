@@ -98,6 +98,31 @@ class Admin::TournamentEntryMembersControllerTest < ActionDispatch::IntegrationT
     assert_empty CatchPlacement.where(tournament: @team)
   end
 
+  test "removing a member whose sync can't be mirrored redirects with an alert instead of crashing" do
+    create(:tournament_entry_member, tournament_entry: @entry, user: @b) # crew [@a, @b]
+
+    group = SecureRandom.uuid
+    @team.update!(link_group_id: group)
+    side = create(:tournament, club: @club, mode: :team, name: "Side",
+                  starts_at: 1.hour.from_now, ends_at: 3.hours.from_now, link_group_id: group)
+    create(:tournament_judge, tournament: side, user: @a)
+    # Side's counterpart is missing @a (a state that predates the judge
+    # assignment, or just drifted) -- removing @b will still sync @a across
+    # via the crew-add path, and that add trips user_not_a_judge.
+    side_counterpart = create(:tournament_entry, tournament: side, name: "Boat 1")
+    create(:tournament_entry_member, tournament_entry: side_counterpart, user: @b)
+
+    member = TournamentEntryMember.find_by(tournament_entry_id: @entry.id, user_id: @b.id)
+
+    assert_difference "TournamentEntryMember.count", -1 do
+      delete admin_tournament_tournament_entry_tournament_entry_member_path(
+        tournament_id: @team.id, tournament_entry_id: @entry.id, id: member.id)
+    end
+    assert_redirected_to edit_admin_tournament_path(@team)
+    assert_match(/judging/i, flash[:alert])
+    assert_equal [@b], side_counterpart.reload.users
+  end
+
   test "same_as_last_week adds last week's crew to tonight's entry" do
     # Fresh users, not @a/@b — @a is already seated in @entry ("Boat 1") in
     # @team via setup, so reusing it here would trip the one-entry-per-user

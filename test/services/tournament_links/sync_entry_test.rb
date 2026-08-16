@@ -188,6 +188,123 @@ class TournamentLinks::SyncEntryTest < ActiveSupport::TestCase
     ), "Nate's catch, logged before he joined the Side's mirrored entry, should backfill on sync"
   end
 
+  test "does not clear the counterpart's boat when the source entry has none" do
+    # Side's entry came from the boat picker (boat_id set); Main's entry is a
+    # hand-typed same-named entry with no boat of its own. Syncing from the
+    # boat-less Main entry must not wipe Side's boat_id — that would let the
+    # boat reappear in Side's picker and a second tap create a duplicate
+    # entry for it.
+    side_entry = create(:tournament_entry, tournament: @side, name: "Majestic Red", boat: @boat)
+    side_entry.tournament_entry_members.create!(user: @kurtis)
+
+    main_entry = create(:tournament_entry, tournament: @main, name: "Majestic Red")
+    main_entry.tournament_entry_members.create!(user: @kurtis)
+
+    TournamentLinks::SyncEntry.call(entry: main_entry)
+
+    assert_equal @boat.id, side_entry.reload.boat_id
+  end
+
+  test "still overwrites the counterpart's boat when the source has one" do
+    other_boat = create(:boat, club: @club, name: "Other Boat", captain: @nate)
+    side_entry = create(:tournament_entry, tournament: @side, name: "Majestic Red", boat: other_boat)
+    side_entry.tournament_entry_members.create!(user: @kurtis)
+
+    main_entry = create(:tournament_entry, tournament: @main, name: "Majestic Red", boat: @boat)
+    main_entry.tournament_entry_members.create!(user: @kurtis)
+
+    TournamentLinks::SyncEntry.call(entry: main_entry)
+
+    assert_equal @boat.id, side_entry.reload.boat_id
+  end
+
+  test "enqueues a push for a member newly mirrored onto the sibling entry" do
+    entry = create(:tournament_entry, tournament: @main, name: "Majestic Red", boat: @boat)
+    entry.tournament_entry_members.create!(user: @kurtis)
+
+    calls = []
+    with_class_method_stub(DeliverPushNotificationJob, :perform_later, ->(**kwargs) { calls << kwargs }) do
+      TournamentLinks::SyncEntry.call(entry: entry)
+    end
+
+    assert_equal 1, calls.size
+    assert_equal @kurtis.id, calls.first[:user_id]
+    assert_equal @side.id, calls.first[:tournament_id]
+    assert_includes calls.first[:body], @side.name
+    assert_equal "/tournaments/#{@side.id}", calls.first[:url]
+  end
+
+  test "enqueues a push only for the newly added member, not the whole crew, when crew is added" do
+    entry = create(:tournament_entry, tournament: @main, name: "Majestic Red", boat: @boat)
+    entry.tournament_entry_members.create!(user: @kurtis)
+    TournamentLinks::SyncEntry.call(entry: entry)
+
+    entry.tournament_entry_members.create!(user: @nate)
+
+    calls = []
+    with_class_method_stub(DeliverPushNotificationJob, :perform_later, ->(**kwargs) { calls << kwargs }) do
+      TournamentLinks::SyncEntry.call(entry: entry)
+    end
+
+    assert_equal 1, calls.size
+    assert_equal @nate.id, calls.first[:user_id]
+  end
+
+  test "does not enqueue a push on a rename-only resync" do
+    entry = create(:tournament_entry, tournament: @main, name: "Majestic Red", boat: @boat)
+    entry.tournament_entry_members.create!(user: @kurtis)
+    TournamentLinks::SyncEntry.call(entry: entry)
+
+    entry.update!(name: "Majestic Red II")
+
+    calls = []
+    with_class_method_stub(DeliverPushNotificationJob, :perform_later, ->(**kwargs) { calls << kwargs }) do
+      TournamentLinks::SyncEntry.call(entry: entry)
+    end
+
+    assert_empty calls, "a rename with no crew change must not re-notify anyone already aboard"
+  end
+
+  test "does not enqueue a push on an idempotent no-op resync" do
+    entry = create(:tournament_entry, tournament: @main, name: "Majestic Red", boat: @boat)
+    entry.tournament_entry_members.create!(user: @kurtis)
+    TournamentLinks::SyncEntry.call(entry: entry)
+
+    calls = []
+    with_class_method_stub(DeliverPushNotificationJob, :perform_later, ->(**kwargs) { calls << kwargs }) do
+      TournamentLinks::SyncEntry.call(entry: entry)
+    end
+
+    assert_empty calls
+  end
+
+  test "with prune: false, does not remove crew present on the counterpart but missing from the source" do
+    entry = create(:tournament_entry, tournament: @main, name: "Majestic Red", boat: @boat)
+    entry.tournament_entry_members.create!(user: @kurtis)
+
+    # Side's counterpart already carries Nate — a crew member Main doesn't
+    # have. A prune: false sync (used by Join's back-fill) must leave Nate in
+    # place rather than dropping him and his placements.
+    side_entry = create(:tournament_entry, tournament: @side, name: "Majestic Red", boat: @boat)
+    side_entry.tournament_entry_members.create!(user: @nate)
+
+    TournamentLinks::SyncEntry.call(entry: entry, prune: false)
+
+    assert_equal [@kurtis, @nate].sort_by(&:id), side_entry.reload.users.sort_by(&:id)
+  end
+
+  test "prune: true (the default) still removes crew no longer on the source" do
+    entry = create(:tournament_entry, tournament: @main, name: "Majestic Red", boat: @boat)
+    entry.tournament_entry_members.create!(user: @kurtis)
+
+    side_entry = create(:tournament_entry, tournament: @side, name: "Majestic Red", boat: @boat)
+    side_entry.tournament_entry_members.create!(user: @nate)
+
+    TournamentLinks::SyncEntry.call(entry: entry)
+
+    assert_equal [@kurtis], side_entry.reload.users
+  end
+
   test "broadcasts once per sibling after a successful sync" do
     entry = create(:tournament_entry, tournament: @main, name: "Majestic Red", boat: @boat)
     entry.tournament_entry_members.create!(user: @kurtis)

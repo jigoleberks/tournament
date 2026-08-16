@@ -24,8 +24,15 @@ module TournamentLinks
         # sync — otherwise the pair is left linked with a half-mirrored
         # roster, exactly the "never sit half-synced" state Join exists to
         # prevent.
-        @tournament.tournament_entries.each { |e| SyncEntry.call(entry: e) }
-        @other.tournament_entries.each { |e| SyncEntry.call(entry: e) }
+        #
+        # prune: false on both passes: this back-fill is a union of the two
+        # rosters, not "whichever side called Join wins". Without it, syncing
+        # @tournament's entries first would use its (possibly smaller) crew
+        # as the source of truth and prune members off @other's matching
+        # entry that were never meant to be removed — dropping their catch
+        # placements along with them.
+        @tournament.tournament_entries.each { |e| SyncEntry.call(entry: e, prune: false) }
+        @other.tournament_entries.each { |e| SyncEntry.call(entry: e, prune: false) }
       end
     end
   end

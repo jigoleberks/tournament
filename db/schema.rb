@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_08_16_000003) do
+ActiveRecord::Schema[8.1].define(version: 2026_08_16_120000) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -372,6 +372,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_16_000003) do
     t.bigint "tournament_id", null: false
     t.datetime "updated_at", null: false
     t.index ["boat_id"], name: "index_tournament_entries_on_boat_id"
+    t.index ["tournament_id", "boat_id"], name: "index_tournament_entries_on_tournament_and_boat_uniq", unique: true, where: "(boat_id IS NOT NULL)"
     t.index ["tournament_id"], name: "index_tournament_entries_on_tournament_id"
   end
 

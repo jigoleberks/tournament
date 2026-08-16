@@ -65,6 +65,8 @@ class Admin::TournamentEntryMembersController < Admin::BaseController
     Catches::DropMemberFromEntry.call(entry: @entry, user: member.user)
     TournamentLinks::SyncEntry.call(entry: @entry)
     redirect_to edit_admin_tournament_path(@tournament), notice: "Removed #{name}."
+  rescue ActiveRecord::RecordInvalid => e
+    redirect_to edit_admin_tournament_path(@tournament), alert: e.message
   end
 
   private

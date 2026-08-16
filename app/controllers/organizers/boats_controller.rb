@@ -1,6 +1,7 @@
 class Organizers::BoatsController < Organizers::BaseController
   def index
-    @boats = current_club.boats.active.alphabetical
+    @boats = current_club.boats.includes(:captain).active.alphabetical
+    @retired_boats = current_club.boats.includes(:captain).where(active: false).alphabetical
   end
 
   def enter
@@ -11,6 +12,8 @@ class Organizers::BoatsController < Organizers::BaseController
     boat = current_club.boats.find(params[:id])
     ::Boats::Enter.call(tournament: tournament, boat: boat)
     redirect_to edit_organizers_tournament_path(tournament), notice: "#{boat.name} entered."
+  rescue ActiveRecord::RecordInvalid => e
+    redirect_to edit_organizers_tournament_path(tournament), alert: e.message
   end
 
   def create
@@ -35,6 +38,8 @@ class Organizers::BoatsController < Organizers::BaseController
     else
       redirect_to edit_organizers_tournament_path(tournament), alert: boat.errors.full_messages.to_sentence
     end
+  rescue ActiveRecord::RecordInvalid => e
+    redirect_to edit_organizers_tournament_path(tournament), alert: e.message
   end
 
   def update
@@ -50,5 +55,11 @@ class Organizers::BoatsController < Organizers::BaseController
     boat = current_club.boats.find(params[:id])
     boat.update!(active: false)
     redirect_to organizers_boats_path, notice: "#{boat.name} retired."
+  end
+
+  def restore
+    boat = current_club.boats.find(params[:id])
+    boat.update!(active: true)
+    redirect_to organizers_boats_path, notice: "#{boat.name} restored."
   end
 end
