@@ -34,7 +34,11 @@ Rails.application.routes.draw do
       end
       resources :tournament_judges,   only: [:create, :destroy]
       resources :tournament_deputies, only: [:create, :destroy]
+      resources :boats, only: [] do
+        member { post :enter }
+      end
     end
+    resources :boats, only: [:index, :create, :update, :destroy]
     resources :members, only: [:index, :new, :create, :destroy] do
       member do
         post :reactivate
@@ -78,7 +82,11 @@ Rails.application.routes.draw do
       end
       resources :tournament_judges,  only: [:create, :destroy]
       resources :tournament_deputies, only: [:create, :destroy]
+      resources :boats, only: [] do
+        member { post :enter }
+      end
     end
+    resources :boats, only: [:index, :create, :update, :destroy]
     resources :members, only: [:index, :new, :create, :edit, :update, :destroy] do
       member do
         patch  :role
