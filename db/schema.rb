@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_08_16_000002) do
+ActiveRecord::Schema[8.1].define(version: 2026_08_16_000003) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -440,6 +440,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_16_000002) do
     t.decimal "hidden_length_target", precision: 5, scale: 2
     t.boolean "judged", default: false, null: false
     t.datetime "lifecycle_ended_announced_at"
+    t.string "link_group_id"
     t.boolean "local", default: true, null: false
     t.integer "mode", default: 0, null: false
     t.string "name", null: false
@@ -455,6 +456,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_16_000002) do
     t.index ["club_id"], name: "index_tournaments_on_club_id"
     t.index ["drawn_by_user_id"], name: "index_tournaments_on_drawn_by_user_id"
     t.index ["drawn_winning_placement_id"], name: "index_tournaments_on_drawn_winning_placement_id"
+    t.index ["link_group_id"], name: "index_tournaments_on_link_group_id"
   end
 
   create_table "user_events", force: :cascade do |t|

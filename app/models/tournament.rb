@@ -46,6 +46,7 @@ class Tournament < ApplicationRecord
   validate :bingo_layout_locked_after_start, on: :update
   validate :bingo_not_blind
   validate :bingo_species_present
+  validate :link_group_id_only_on_team_tournaments
 
   scope :active_at, ->(time) {
     where("starts_at <= ?", time).where("ends_at IS NULL OR ends_at >= ?", time)
@@ -79,6 +80,20 @@ class Tournament < ApplicationRecord
   # and would be silently reverted by the next reconcile.
   def supports_forced_slot?
     format_standard? || format_big_fish_season? || format_fish_train?
+  end
+
+  # Other tournaments sharing this one's link group. Club-scoped as well as
+  # group-scoped: a group id is generated per link, but scoping to the club
+  # means a stray duplicate can never reach across clubs.
+  def linked_tournaments
+    return [] if link_group_id.blank?
+    Tournament.where(club_id: club_id, link_group_id: link_group_id)
+              .where.not(id: id)
+              .to_a
+  end
+
+  def linked?
+    linked_tournaments.any?
   end
 
   after_save :schedule_lifecycle_jobs
@@ -383,5 +398,13 @@ class Tournament < ApplicationRecord
     missing = Catches::Bingo::EvaluateCard.species_id_map.select { |_, id| id.nil? }.keys
     return if missing.empty?
     errors.add(:base, "Bingo needs these species defined first: #{missing.map { |s| s.to_s.titleize }.join(', ')}")
+  end
+
+  # Link groups are team-mode only: solo tournaments (the season-long Big Walleye
+  # Local/Travel pair) stay independent by design.
+  def link_group_id_only_on_team_tournaments
+    return if link_group_id.blank?
+    return if mode_team?
+    errors.add(:link_group_id, "is only available for team tournaments")
   end
 end

@@ -770,4 +770,30 @@ class TournamentTest < ActiveSupport::TestCase
     t.target_max_inches = t.target_max_inches.to_d + 10
     assert t.valid?, t.errors.full_messages.to_sentence
   end
+
+  test "linked_tournaments returns the other tournaments in the group" do
+    club = create(:club)
+    group = SecureRandom.uuid
+    main = create(:tournament, club: club, mode: :team, link_group_id: group)
+    side = create(:tournament, club: club, mode: :team, link_group_id: group)
+    unrelated = create(:tournament, club: club, mode: :team)
+
+    assert_equal [side], main.linked_tournaments
+    assert_equal [main], side.linked_tournaments
+    assert_empty unrelated.linked_tournaments
+  end
+
+  test "a solo tournament cannot be linked" do
+    solo = build(:tournament, mode: :solo, link_group_id: SecureRandom.uuid)
+    assert_not solo.valid?
+    assert_includes solo.errors[:link_group_id], "is only available for team tournaments"
+  end
+
+  test "linked_tournaments never crosses clubs" do
+    group = SecureRandom.uuid
+    mine = create(:tournament, club: create(:club), mode: :team, link_group_id: group)
+    theirs = create(:tournament, club: create(:club), mode: :team, link_group_id: group)
+    assert_empty mine.linked_tournaments
+    assert_empty theirs.linked_tournaments
+  end
 end
