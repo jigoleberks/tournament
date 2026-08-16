@@ -30,7 +30,9 @@ Rails.application.routes.draw do
         delete :link,   to: "tournament_links#destroy"
       end
       resources :tournament_entries, only: [:create, :update, :destroy] do
-        resources :tournament_entry_members, only: [:create, :destroy]
+        resources :tournament_entry_members, only: [:create, :destroy] do
+          collection { post :same_as_last_week }
+        end
       end
       resources :tournament_judges,   only: [:create, :destroy]
       resources :tournament_deputies, only: [:create, :destroy]
@@ -78,7 +80,9 @@ Rails.application.routes.draw do
         delete :link,   to: "tournament_links#destroy"
       end
       resources :tournament_entries, only: [:create, :update, :destroy] do
-        resources :tournament_entry_members, only: [:create, :destroy]
+        resources :tournament_entry_members, only: [:create, :destroy] do
+          collection { post :same_as_last_week }
+        end
       end
       resources :tournament_judges,  only: [:create, :destroy]
       resources :tournament_deputies, only: [:create, :destroy]

@@ -24,6 +24,35 @@ class Admin::TournamentEntryMembersController < Admin::BaseController
     redirect_to edit_admin_tournament_path(@tournament), alert: e.message
   end
 
+  def same_as_last_week
+    unless @tournament.mode_team? && @entry.boat
+      return redirect_to edit_admin_tournament_path(@tournament),
+                         alert: "This entry isn't a saved boat."
+    end
+    crew = Boats::LastCrew.call(boat: @entry.boat, before_tournament: @tournament)
+    if crew.empty?
+      return redirect_to edit_admin_tournament_path(@tournament),
+                         alert: "#{@entry.boat.name} hasn't fished before."
+    end
+
+    already = @entry.tournament_entry_members.pluck(:user_id)
+    added_users = []
+    crew.each do |user|
+      next if already.include?(user.id)
+      next unless ClubMembership.active.exists?(club_id: @tournament.club_id, user_id: user.id)
+      @entry.tournament_entry_members.create!(user_id: user.id)
+      added_users << user
+    end
+    if @tournament.backfill_late_entrants? && added_users.any?
+      Tournaments::BackfillEntrantCatches.call(tournament: @tournament, users: added_users)
+    end
+    TournamentLinks::SyncEntry.call(entry: @entry)
+    redirect_to edit_admin_tournament_path(@tournament),
+                notice: added_users.empty? ? "Same crew already aboard." : "Added #{added_users.size} from last time."
+  rescue ActiveRecord::RecordInvalid => e
+    redirect_to edit_admin_tournament_path(@tournament), alert: e.message
+  end
+
   def destroy
     unless @tournament.mode_team?
       return redirect_to edit_admin_tournament_path(@tournament),

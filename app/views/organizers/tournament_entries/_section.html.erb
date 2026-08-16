@@ -23,6 +23,13 @@
                 </li>
               <% end %>
             </ul>
+            <% if entry.boat %>
+              <%= button_to "Same as last week",
+                            same_as_last_week_organizers_tournament_tournament_entry_tournament_entry_members_path(
+                              tournament_id: @tournament.id, tournament_entry_id: entry.id),
+                            method: :post,
+                            class: "mt-2 h-10 px-3 rounded-full bg-slate-700 active:bg-slate-600 text-slate-100 text-sm" %>
+            <% end %>
           <% else %>
             <div class="text-sm text-slate-200"><%= entry.users.map(&:name).join(", ") %></div>
           <% end %>

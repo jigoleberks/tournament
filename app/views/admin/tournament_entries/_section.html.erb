@@ -104,6 +104,13 @@
                   </li>
                 <% end %>
               </ul>
+              <% if entry.boat %>
+                <%= button_to "Same as last week",
+                              same_as_last_week_admin_tournament_tournament_entry_tournament_entry_members_path(
+                                tournament_id: @tournament.id, tournament_entry_id: entry.id),
+                              method: :post,
+                              class: "mt-2 h-8 px-2 rounded bg-slate-800 hover:bg-slate-700 text-slate-100 text-xs" %>
+              <% end %>
             <% else %>
               <div class="text-xs text-slate-400 truncate">
                 <%= entry.users.map(&:name).join(", ") %>
