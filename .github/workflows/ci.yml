@@ -16,7 +16,7 @@ jobs:
       RAILS_ENV: test
     steps:
       - uses: actions/checkout@v7
-      - run: sudo apt-get update && sudo apt-get install --no-install-recommends -y libvips42
+      - run: sudo apt-get update && sudo apt-get install --no-install-recommends -y libvips42 libheif-plugin-libde265
       - uses: ruby/setup-ruby@v1
         with: { bundler-cache: true }
       - run: bin/rails db:test:prepare
