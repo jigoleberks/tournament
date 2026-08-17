@@ -53,6 +53,7 @@ Rails.application.routes.draw do
     resources :catches, only: [:index, :show, :update]
     resources :tournament_templates do
       member { post :clone }
+      resource :league_night, only: [:new, :create], controller: "league_nights"
     end
   end
 
@@ -107,6 +108,7 @@ Rails.application.routes.draw do
     resources :catches, only: [:index, :show, :update]
     resources :tournament_templates do
       member { post :clone }
+      resource :league_night, only: [:new, :create], controller: "league_nights"
     end
     resources :rules, only: [ :index, :new, :create, :show ] do
       collection do

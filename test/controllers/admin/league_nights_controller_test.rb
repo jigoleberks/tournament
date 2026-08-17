@@ -1,0 +1,72 @@
+require "test_helper"
+
+# The /admin scheduler is a twin of the /organizers one, which carries the full
+# behavioural suite. This covers the parts that can drift between the two:
+# the routes, the path helpers each view and redirect uses, and the view itself.
+class Admin::LeagueNightsControllerTest < ActionDispatch::IntegrationTest
+  setup do
+    @club = create(:club)
+    @organizer = create(:user, club: @club, role: :organizer)
+    @walleye = create(:species, name: "Walleye")
+    @main = create(:tournament_template, club: @club, name: "League Night - Main", mode: :team,
+                   default_weekday: 3, default_start_time: "18:00", default_end_time: "21:00",
+                   blind_leaderboard: true)
+    @side = create(:tournament_template, club: @club, name: "League Night - Side", mode: :team,
+                   default_weekday: 3, default_start_time: "18:00", default_end_time: "21:00")
+    @main.update!(paired_template: @side)
+    sign_in_as(@organizer)
+  end
+
+  test "the screen renders and names both columns" do
+    get new_admin_tournament_template_league_night_path(tournament_template_id: @main.id)
+    assert_response :success
+    assert_match(/League Night - Main/, response.body)
+    assert_match(/League Night - Side/, response.body)
+  end
+
+  test "an unpaired template can't be scheduled as a league night" do
+    solo = create(:tournament_template, club: @club, name: "Saturday", mode: :team)
+    get new_admin_tournament_template_league_night_path(tournament_template_id: solo.id)
+    assert_redirected_to admin_tournament_templates_path
+    assert_equal "That template isn't paired with another one.", flash[:alert]
+  end
+
+  test "creating a league night makes both tournaments, linked" do
+    starts_at, ends_at = @main.next_occurrence_at
+
+    assert_difference "Tournament.count", 2 do
+      post admin_tournament_template_league_night_path(tournament_template_id: @main.id),
+           params: { league_night: {
+             starts_at: starts_at.iso8601, ends_at: ends_at.iso8601,
+             main: { format: "standard", species_id: @walleye.id },
+             side: { format: "smallest_fish", species_id: @walleye.id, slot_count: 1 }
+           } }
+    end
+
+    main_t = Tournament.find_by(template_source_id: @main.id)
+    side_t = Tournament.find_by(template_source_id: @side.id)
+    assert_equal main_t.link_group_id, side_t.link_group_id
+    assert_redirected_to edit_admin_tournament_path(main_t)
+  end
+
+  test "a validation failure creates neither and re-renders" do
+    starts_at, ends_at = @main.next_occurrence_at
+
+    assert_no_difference "Tournament.count" do
+      post admin_tournament_template_league_night_path(tournament_template_id: @main.id),
+           params: { league_night: {
+             starts_at: starts_at.iso8601, ends_at: ends_at.iso8601,
+             main: { format: "standard", species_id: @walleye.id },
+             side: { format: "smallest_fish", species_id: "" }
+           } }
+    end
+    assert_response :unprocessable_entity
+  end
+
+  private
+
+  def sign_in_as(user)
+    token = SignInToken.issue!(user: user)
+    get consume_session_path(token: token.token)
+  end
+end

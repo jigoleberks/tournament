@@ -1,0 +1,122 @@
+<div class="flex items-center justify-between mb-8">
+  <div>
+    <h1 class="text-3xl font-bold">Schedule League Night</h1>
+    <p class="text-sm text-slate-400 mt-1">
+      Creates <%= @occurrence.main_template.name %> and <%= @occurrence.side_template.name %>,
+      already linked.
+    </p>
+  </div>
+  <%= link_to "Back to Templates", admin_tournament_templates_path, class: "text-slate-400 hover:text-white transition-colors" %>
+</div>
+
+<div class="max-w-4xl">
+  <% if @error.present? %>
+    <div class="bg-red-900/40 border border-red-800 rounded-lg p-4 mb-6 text-sm text-red-300">
+      <%= @error %>
+    </div>
+  <% end %>
+
+  <% if @occurrence.starts_at.nil? %>
+    <%# No default weekday/times means there is no next occurrence to prefill, so
+        there is nothing to schedule yet. %>
+    <div class="bg-slate-800 rounded-xl border border-slate-700 p-6 text-slate-300 shadow-xl">
+      <p>
+        These templates need a weekday, a start time and an end time before a league
+        night can be scheduled. Set them on
+        <strong><%= @occurrence.main_template.name %></strong>, then come back.
+      </p>
+      <%= link_to "Edit #{@occurrence.main_template.name}",
+                  edit_admin_tournament_template_path(@occurrence.main_template),
+                  class: "inline-flex items-center h-10 px-4 mt-4 rounded-lg bg-blue-600 hover:bg-blue-500 text-white text-sm font-semibold transition-colors" %>
+    </div>
+  <% elsif @occurrence.fully_scheduled? %>
+    <div class="bg-slate-800 rounded-xl border border-slate-700 p-6 text-slate-300 shadow-xl">
+      That week is already scheduled.
+    </div>
+  <% else %>
+    <%= form_with url: admin_tournament_template_league_night_path(tournament_template_id: @occurrence.main_template.id),
+                  local: true, class: "space-y-6",
+                  data: { controller: "league-night" } do %>
+      <div class="bg-slate-800 rounded-xl border border-slate-700 p-6 shadow-xl">
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div>
+            <%= label_tag "league_night[starts_at]", "Starts", class: "block text-sm font-semibold text-slate-300 mb-1.5" %>
+            <%= datetime_local_field_tag "league_night[starts_at]", @occurrence.starts_at.strftime("%Y-%m-%dT%H:%M"),
+                                         class: "w-full h-11 px-3 rounded-lg bg-slate-900 border border-slate-700 text-slate-100 focus:ring-2 focus:ring-blue-500 outline-none transition-all" %>
+          </div>
+          <div>
+            <%= label_tag "league_night[ends_at]", "Ends", class: "block text-sm font-semibold text-slate-300 mb-1.5" %>
+            <%= datetime_local_field_tag "league_night[ends_at]", @occurrence.ends_at.strftime("%Y-%m-%dT%H:%M"),
+                                         class: "w-full h-11 px-3 rounded-lg bg-slate-900 border border-slate-700 text-slate-100 focus:ring-2 focus:ring-blue-500 outline-none transition-all" %>
+          </div>
+        </div>
+      </div>
+
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <% [[:main, @occurrence.main_template], [:side, @occurrence.side_template]].each do |column, template| %>
+          <div class="bg-slate-800 rounded-xl border border-slate-700 overflow-hidden shadow-xl">
+            <div class="p-4 border-b border-slate-700 bg-slate-700/30">
+              <h2 class="text-lg font-semibold"><%= template.name %></h2>
+            </div>
+            <div class="p-6 space-y-4">
+              <div>
+                <%= label_tag "league_night[#{column}][format]", "Format", class: "block text-sm font-semibold text-slate-300 mb-1.5" %>
+                <%= select_tag "league_night[#{column}][format]",
+                               options_for_select(@formats.map { |key| [format_label(key), key] }, template.format),
+                               class: "w-full h-11 px-3 rounded-lg bg-slate-900 border border-slate-700 text-slate-100 focus:ring-2 focus:ring-blue-500 outline-none transition-all",
+                               data: { league_night_target: "#{column}Format", action: "change->league-night#sync" } %>
+              </div>
+
+              <div>
+                <%= label_tag "league_night[#{column}][species_id]", "Species", class: "block text-sm font-semibold text-slate-300 mb-1.5" %>
+                <%= select_tag "league_night[#{column}][species_id]",
+                               options_from_collection_for_select(Species.order(:name), :id, :name),
+                               class: "w-full h-11 px-3 rounded-lg bg-slate-900 border border-slate-700 text-slate-100 focus:ring-2 focus:ring-blue-500 outline-none transition-all",
+                               data: { league_night_target: "#{column}Species", action: "change->league-night#sync" } %>
+              </div>
+
+              <div data-league-night-target="<%= column %>CountRow">
+                <%= label_tag "league_night[#{column}][slot_count]", "How many count", class: "block text-sm font-semibold text-slate-300 mb-1.5" %>
+                <%= number_field_tag "league_night[#{column}][slot_count]", 1, min: 1,
+                                     class: "w-full h-11 px-4 rounded-lg bg-slate-900 border border-slate-700 text-slate-100 focus:ring-2 focus:ring-blue-500 outline-none transition-all" %>
+              </div>
+
+              <div class="hidden grid grid-cols-2 gap-4" data-league-night-target="<%= column %>RangeRow">
+                <div>
+                  <%= label_tag "league_night[#{column}][target_min_inches]", "Target min", class: "block text-sm font-semibold text-slate-300 mb-1.5" %>
+                  <%= number_field_tag "league_night[#{column}][target_min_inches]", 70, step: "0.25",
+                                       class: "w-full h-11 px-4 rounded-lg bg-slate-900 border border-slate-700 text-slate-100 focus:ring-2 focus:ring-blue-500 outline-none transition-all" %>
+                </div>
+                <div>
+                  <%= label_tag "league_night[#{column}][target_max_inches]", "Target max", class: "block text-sm font-semibold text-slate-300 mb-1.5" %>
+                  <%= number_field_tag "league_night[#{column}][target_max_inches]", 100, step: "0.25",
+                                       class: "w-full h-11 px-4 rounded-lg bg-slate-900 border border-slate-700 text-slate-100 focus:ring-2 focus:ring-blue-500 outline-none transition-all" %>
+                </div>
+              </div>
+
+              <% if column == :side %>
+                <label class="flex items-center gap-3 pt-1 cursor-pointer group">
+                  <%= check_box_tag "league_night[side][blind_leaderboard]", "1", false,
+                                    class: "h-5 w-5 rounded border-slate-700 bg-slate-900 text-blue-600 focus:ring-offset-slate-800",
+                                    data: { league_night_target: "sideBlind", action: "change->league-night#sync" } %>
+                  <span class="font-medium text-slate-200 group-hover:text-white transition-colors">Blind leaderboard</span>
+                </label>
+                <p class="hidden bg-amber-900/30 border border-amber-700 rounded-lg p-3 text-sm text-amber-200"
+                   data-league-night-target="leakWarning"></p>
+              <% end %>
+            </div>
+          </div>
+        <% end %>
+      </div>
+
+      <%= submit_tag "Create both",
+                     class: "h-11 px-6 rounded-lg bg-blue-600 hover:bg-blue-500 text-white font-semibold transition-colors cursor-pointer" %>
+    <% end %>
+
+    <p class="text-xs text-slate-500 mt-4">
+      From the templates: season tag <%= @occurrence.main_template.season_tag %> ·
+      season points on <%= @occurrence.main_template.awards_season_points ? @occurrence.main_template.name : @occurrence.side_template.name %> ·
+      entrants-only · local · not judged · <%= @occurrence.main_template.name %> always blind.
+    </p>
+  <% end %>
+</div>
