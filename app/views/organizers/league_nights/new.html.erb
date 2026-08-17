@@ -1,7 +1,11 @@
 <h1 class="text-2xl font-semibold mt-4 mb-1">Schedule league night</h1>
 <p class="text-sm text-slate-400 mb-4">
-  Creates <%= @occurrence.main_template.name %> and <%= @occurrence.side_template.name %>,
-  already linked.
+  <% if @occurrence.partially_scheduled? %>
+    Creates whichever half of the pair that week is still missing.
+  <% else %>
+    Creates <%= @occurrence.main_template.name %> and <%= @occurrence.side_template.name %>,
+    already linked.
+  <% end %>
 </p>
 
 <% if @error.present? %>
@@ -32,47 +36,66 @@
     <div class="bg-slate-800 rounded-xl p-4 space-y-3">
       <div>
         <%= label_tag "league_night[starts_at]", "Starts", class: "block text-sm text-slate-300 mb-1" %>
-        <%= datetime_local_field_tag "league_night[starts_at]", @occurrence.starts_at.strftime("%Y-%m-%dT%H:%M"),
+        <%= datetime_local_field_tag "league_night[starts_at]",
+                                     @submitted&.dig(:starts_at).presence || @occurrence.starts_at.strftime("%Y-%m-%dT%H:%M"),
                                      class: "w-full h-12 px-3 rounded-lg bg-slate-900 border border-slate-700" %>
       </div>
       <div>
         <%= label_tag "league_night[ends_at]", "Ends", class: "block text-sm text-slate-300 mb-1" %>
-        <%= datetime_local_field_tag "league_night[ends_at]", @occurrence.ends_at.strftime("%Y-%m-%dT%H:%M"),
+        <%= datetime_local_field_tag "league_night[ends_at]",
+                                     @submitted&.dig(:ends_at).presence || @occurrence.ends_at.strftime("%Y-%m-%dT%H:%M"),
                                      class: "w-full h-12 px-3 rounded-lg bg-slate-900 border border-slate-700" %>
       </div>
     </div>
 
-    <% [[:main, @occurrence.main_template], [:side, @occurrence.side_template]].each do |column, template| %>
+    <% if @occurrence.partially_scheduled? %>
+      <% existing = @occurrence.existing_main || @occurrence.existing_side %>
+      <div class="bg-slate-800 border border-amber-700/50 rounded-lg p-3 mb-3 text-sm text-amber-100">
+        That week already has <strong><%= existing.name %></strong>. Only the missing half will be created.
+      </div>
+    <% end %>
+
+    <%# A half-scheduled night renders only the column that's missing: the other
+        tournament already exists and #create leaves it alone. %>
+    <% columns = if @occurrence.partially_scheduled?
+                   @occurrence.existing_main ? [[:side, @occurrence.side_template]] : [[:main, @occurrence.main_template]]
+                 else
+                   [[:main, @occurrence.main_template], [:side, @occurrence.side_template]]
+                 end %>
+    <% columns.each do |column, template| %>
+      <%# Whatever was submitted on a failed attempt, so the re-render doesn't
+          quietly revert the operator's choices to the template's defaults. %>
+      <% chosen = (@submitted || {})[column] || {} %>
       <div class="bg-slate-800 rounded-xl p-4 space-y-3">
         <h2 class="text-lg font-semibold"><%= template.name %></h2>
 
         <%= label_tag "league_night[#{column}][format]", "Format", class: "block text-sm text-slate-300" %>
         <%= select_tag "league_night[#{column}][format]",
-                       options_for_select(@formats.map { |key| [format_label(key), key] }, template.format),
+                       options_for_select(@formats.map { |key| [format_label(key), key] }, chosen[:format].presence || template.format),
                        class: "w-full h-12 px-3 rounded-lg bg-slate-900 border border-slate-700",
                        data: { league_night_target: "#{column}Format", action: "change->league-night#sync" } %>
 
         <%= label_tag "league_night[#{column}][species_id]", "Species", class: "block text-sm text-slate-300" %>
         <%= select_tag "league_night[#{column}][species_id]",
-                       options_from_collection_for_select(Species.order(:name), :id, :name),
+                       options_from_collection_for_select(Species.order(:name), :id, :name, chosen[:species_id].presence),
                        class: "w-full h-12 px-3 rounded-lg bg-slate-900 border border-slate-700",
                        data: { league_night_target: "#{column}Species", action: "change->league-night#sync" } %>
 
         <div data-league-night-target="<%= column %>CountRow">
           <%= label_tag "league_night[#{column}][slot_count]", "How many count", class: "block text-sm text-slate-300" %>
-          <%= number_field_tag "league_night[#{column}][slot_count]", 1, min: 1,
+          <%= number_field_tag "league_night[#{column}][slot_count]", chosen[:slot_count].presence || 1, min: 1,
                                class: "w-full h-12 px-3 rounded-lg bg-slate-900 border border-slate-700" %>
         </div>
 
         <div class="hidden grid grid-cols-2 gap-2" data-league-night-target="<%= column %>RangeRow">
           <div>
             <%= label_tag "league_night[#{column}][target_min_inches]", "Target min", class: "block text-sm text-slate-300" %>
-            <%= number_field_tag "league_night[#{column}][target_min_inches]", 70, step: "0.25",
+            <%= number_field_tag "league_night[#{column}][target_min_inches]", chosen[:target_min_inches].presence || 70, step: "0.25",
                                  class: "w-full h-12 px-3 rounded-lg bg-slate-900 border border-slate-700" %>
           </div>
           <div>
             <%= label_tag "league_night[#{column}][target_max_inches]", "Target max", class: "block text-sm text-slate-300" %>
-            <%= number_field_tag "league_night[#{column}][target_max_inches]", 100, step: "0.25",
+            <%= number_field_tag "league_night[#{column}][target_max_inches]", chosen[:target_max_inches].presence || 100, step: "0.25",
                                  class: "w-full h-12 px-3 rounded-lg bg-slate-900 border border-slate-700" %>
           </div>
         </div>
@@ -86,7 +109,8 @@
                 hidden field keeps the key always present; id: nil stops it stealing
                 the checkbox's id and the sideBlind Stimulus target with it. %>
             <%= hidden_field_tag "league_night[side][blind_leaderboard]", "0", id: nil %>
-            <%= check_box_tag "league_night[side][blind_leaderboard]", "1", template.blind_leaderboard,
+            <%= check_box_tag "league_night[side][blind_leaderboard]", "1",
+                              chosen.key?(:blind_leaderboard) ? chosen[:blind_leaderboard].to_s == "1" : template.blind_leaderboard,
                               class: "h-5 w-5", data: { league_night_target: "sideBlind", action: "change->league-night#sync" } %>
             <span class="text-slate-200">Blind leaderboard</span>
           </label>
@@ -96,7 +120,9 @@
       </div>
     <% end %>
 
-    <%= submit_tag "Create both",
+    <%# Only one tournament gets built when the night is half-scheduled, so the
+        button can't keep saying "Create both". %>
+    <%= submit_tag @occurrence.partially_scheduled? ? "Create the missing half" : "Create both",
                    class: "w-full h-14 rounded-lg bg-blue-600 active:bg-blue-700 text-white text-lg font-semibold" %>
   <% end %>
 

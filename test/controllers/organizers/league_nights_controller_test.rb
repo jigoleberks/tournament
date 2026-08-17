@@ -182,6 +182,144 @@ class Organizers::LeagueNightsControllerTest < ActionDispatch::IntegrationTest
     assert_match(/already scheduled/i, flash[:alert])
   end
 
+  # 2026-08-06 really happened: the Main was created and its Side never was. The
+  # scheduler has to be able to build the missing half without duplicating — or
+  # disturbing — the one that already ran.
+  test "a half-scheduled night offers to create the missing half only" do
+    starts_at, ends_at = @main.next_occurrence_at
+    existing = create(:tournament, club: @club, name: @main.name, mode: :team,
+                      starts_at: starts_at, ends_at: ends_at, template_source_id: @main.id)
+
+    get new_organizers_tournament_template_league_night_path(tournament_template_id: @main.id)
+    assert_response :success
+    assert_match(/already has .*League Night - Main/i, response.body)
+    # Only the missing column is offered, and the button says what it will do —
+    # "Create both" would be a lie here.
+    assert_select "select[name='league_night[side][format]']", 1
+    assert_select "select[name='league_night[main][format]']", 0
+    assert_select "input[type=submit][value='Create the missing half']"
+    assert_no_match(/Create both/, response.body)
+
+    assert_difference "Tournament.count", 1 do
+      post organizers_tournament_template_league_night_path(tournament_template_id: @main.id),
+           params: { league_night: {
+             starts_at: starts_at.iso8601, ends_at: ends_at.iso8601,
+             side: { format: "standard", species_id: @walleye.id, slot_count: 1 }
+           } }
+    end
+
+    side_t = Tournament.find_by(template_source_id: @side.id)
+    assert_not_nil side_t
+    assert_equal "League Night - Side", side_t.name
+    assert_redirected_to edit_organizers_tournament_path(side_t)
+    assert_equal existing.id, Tournament.find_by(template_source_id: @main.id).id
+  end
+
+  # The mirror image of the above: whichever half is missing is the one built.
+  test "a half-scheduled night missing the main builds the main" do
+    starts_at, ends_at = @main.next_occurrence_at
+    create(:tournament, club: @club, name: @side.name, mode: :team,
+           starts_at: starts_at, ends_at: ends_at, template_source_id: @side.id)
+
+    get new_organizers_tournament_template_league_night_path(tournament_template_id: @main.id)
+    assert_response :success
+    assert_match(/already has .*League Night - Side/i, response.body)
+    assert_select "select[name='league_night[main][format]']", 1
+    assert_select "select[name='league_night[side][format]']", 0
+
+    assert_difference "Tournament.count", 1 do
+      post organizers_tournament_template_league_night_path(tournament_template_id: @main.id),
+           params: { league_night: {
+             starts_at: starts_at.iso8601, ends_at: ends_at.iso8601,
+             main: { format: "standard", species_id: @walleye.id, slot_count: 1 }
+           } }
+    end
+
+    main_t = Tournament.find_by(template_source_id: @main.id)
+    assert_not_nil main_t
+    assert_redirected_to edit_organizers_tournament_path(main_t)
+  end
+
+  # The excluded-format list was a picker affordance only: nothing stopped a
+  # hand-rolled POST from naming a format the screen never offered. Bingo can
+  # genuinely save here (all three card species exist, and the Side column isn't
+  # blind), so without the check this really does create the league night the
+  # exclusion exists to prevent.
+  test "a format outside the schedulable list is refused" do
+    create(:species, name: Species::PERCH_NAME)
+    create(:species, name: Species::PIKE_NAME)
+    starts_at, ends_at = @main.next_occurrence_at
+
+    assert_no_difference "Tournament.count" do
+      post organizers_tournament_template_league_night_path(tournament_template_id: @main.id),
+           params: { league_night: {
+             starts_at: starts_at.iso8601, ends_at: ends_at.iso8601,
+             main: { format: "standard", species_id: @walleye.id },
+             side: { format: "bingo", species_id: @walleye.id }
+           } }
+    end
+    assert_response :unprocessable_entity
+    assert_match(/isn&#39;t a format a league night can use/, response.body)
+  end
+
+  # An unknown key never reaches a validation at all — the enum setter raises
+  # ArgumentError, which the RecordInvalid rescue doesn't catch, so this 500s
+  # unless it's turned away first.
+  test "an unknown format is refused instead of raising" do
+    starts_at, ends_at = @main.next_occurrence_at
+
+    assert_no_difference "Tournament.count" do
+      post organizers_tournament_template_league_night_path(tournament_template_id: @main.id),
+           params: { league_night: {
+             starts_at: starts_at.iso8601, ends_at: ends_at.iso8601,
+             main: { format: "nonsense", species_id: @walleye.id },
+             side: { format: "standard", species_id: @walleye.id }
+           } }
+    end
+    assert_response :unprocessable_entity
+  end
+
+  # And the same check on the repair path, which submits only one column and so
+  # runs through a different set of arguments. Bingo again, for the same reason:
+  # it is the one excluded format that would otherwise save cleanly here.
+  test "an excluded format is refused when repairing a half-scheduled night" do
+    create(:species, name: Species::PERCH_NAME)
+    create(:species, name: Species::PIKE_NAME)
+    starts_at, ends_at = @main.next_occurrence_at
+    create(:tournament, club: @club, name: @main.name, mode: :team,
+           starts_at: starts_at, ends_at: ends_at, template_source_id: @main.id)
+
+    assert_no_difference "Tournament.count" do
+      post organizers_tournament_template_league_night_path(tournament_template_id: @main.id),
+           params: { league_night: {
+             starts_at: starts_at.iso8601, ends_at: ends_at.iso8601,
+             side: { format: "bingo", species_id: @walleye.id }
+           } }
+    end
+    assert_response :unprocessable_entity
+  end
+
+  # Re-rendering a pristine form throws away every choice the operator just made
+  # and hands back only the error text.
+  test "a failed submit re-renders with the operator's own choices" do
+    perch = create(:species, name: "Perch")
+    starts_at, ends_at = @main.next_occurrence_at
+    moved_start = starts_at + 1.hour
+
+    post organizers_tournament_template_league_night_path(tournament_template_id: @main.id),
+         params: { league_night: {
+           starts_at: moved_start.iso8601, ends_at: ends_at.iso8601,
+           main: { format: "smallest_fish", species_id: perch.id, slot_count: "4" },
+           side: { format: "standard", species_id: "" }
+         } }
+
+    assert_response :unprocessable_entity
+    assert_select "input[name='league_night[starts_at]'][value=?]", moved_start.strftime("%Y-%m-%dT%H:%M")
+    assert_select "select[name='league_night[main][format]'] option[value=?][selected]", "smallest_fish"
+    assert_select "select[name='league_night[main][species_id]'] option[value=?][selected]", perch.id.to_s
+    assert_select "input[name='league_night[main][slot_count]'][value='4']"
+  end
+
   test "members are forbidden" do
     sign_in_as(@member)
     get new_organizers_tournament_template_league_night_path(tournament_template_id: @main.id)

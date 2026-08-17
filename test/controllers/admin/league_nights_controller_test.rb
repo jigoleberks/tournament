@@ -62,6 +62,30 @@ class Admin::LeagueNightsControllerTest < ActionDispatch::IntegrationTest
     assert_redirected_to edit_admin_tournament_path(main_t)
   end
 
+  # The repair branch is a second full copy of the column loop and the submit
+  # button in this view, so it can drift from the organizers one on its own.
+  test "a half-scheduled night offers to create the missing half only" do
+    starts_at, ends_at = @main.next_occurrence_at
+    create(:tournament, club: @club, name: @main.name, mode: :team,
+           starts_at: starts_at, ends_at: ends_at, template_source_id: @main.id)
+
+    get new_admin_tournament_template_league_night_path(tournament_template_id: @main.id)
+    assert_response :success
+    assert_match(/already has .*League Night - Main/i, response.body)
+    assert_select "select[name='league_night[side][format]']", 1
+    assert_select "select[name='league_night[main][format]']", 0
+    assert_select "input[type=submit][value='Create the missing half']"
+
+    assert_difference "Tournament.count", 1 do
+      post admin_tournament_template_league_night_path(tournament_template_id: @main.id),
+           params: { league_night: {
+             starts_at: starts_at.iso8601, ends_at: ends_at.iso8601,
+             side: { format: "standard", species_id: @walleye.id, slot_count: 1 }
+           } }
+    end
+    assert_redirected_to edit_admin_tournament_path(Tournament.find_by(template_source_id: @side.id))
+  end
+
   test "a validation failure creates neither and re-renders" do
     starts_at, ends_at = @main.next_occurrence_at
 

@@ -40,4 +40,56 @@ module LeagueNightParams
   def schedulable_formats
     ::Tournament.formats.keys - EXCLUDED_FORMATS
   end
+
+  # One column's week-specific settings, shaped the way LeagueNights::Schedule
+  # wants them. nil when that column wasn't submitted at all — which is the
+  # normal case on the repair path, where only the missing half has a form.
+  def column_params(column)
+    league_night_params[column]&.to_h&.symbolize_keys
+  end
+
+  # EXCLUDED_FORMATS is only a picker affordance until it's enforced here. A
+  # hand-rolled POST naming a real-but-excluded format ("bingo") creates exactly
+  # the league night the exclusion exists to prevent; an unknown one raises
+  # ArgumentError from the enum setter, which #create's RecordInvalid rescue
+  # does NOT catch, so it 500s instead of re-rendering; and a missing one leaves
+  # format nil, which is a NOT NULL column and so fails at the database rather
+  # than in validation. Returns the offending value, or nil when all are fine.
+  #
+  # Takes the same argument hash that goes to LeagueNights::Schedule so it
+  # checks the columns actually about to be built — on the repair path there is
+  # only one, and the other column's params are ignored entirely.
+  def unschedulable_format(args)
+    allowed = schedulable_formats
+    weeks = [args[:main]]
+    weeks << args[:side] if args[:side_template]
+    weeks.map { |week| week.to_h[:format].to_s }.find { |value| allowed.exclude?(value) }
+  end
+
+  def format_rejection_message(value)
+    return "Pick a format for each tournament." if value.blank?
+    "\"#{value}\" isn't a format a league night can use."
+  end
+
+  # What the operator actually submitted, for redisplay after a failed submit.
+  # The form's per-column controls have nothing to fall back on but the
+  # templates' own defaults, so without this every format, species, count and
+  # time just chosen is silently reverted and only the error text survives.
+  def submitted_values
+    {
+      starts_at: local_datetime_value(league_night_params[:starts_at]),
+      ends_at: local_datetime_value(league_night_params[:ends_at]),
+      main: column_params(:main) || {},
+      side: column_params(:side) || {}
+    }
+  end
+
+  # datetime-local inputs only accept "YYYY-MM-DDTHH:MM". Echoing back the raw
+  # submitted string — which carries seconds and a zone offset whenever the POST
+  # came from anywhere but the form itself — leaves the field blank instead.
+  def local_datetime_value(value)
+    ::Time.zone.parse(value.to_s)&.strftime("%Y-%m-%dT%H:%M")
+  rescue ArgumentError
+    nil
+  end
 end
