@@ -124,8 +124,14 @@
 
   <div class="bg-slate-800 rounded-xl p-4 space-y-2">
     <%= f.label :paired_template_id, "Pairs with", class: "block text-sm font-medium text-slate-300" %>
+    <%# Team templates only. A league night's two tournaments share one roster
+        through a link group, which Tournament allows on team mode alone — so a
+        solo candidate here is an offer that can only end in a validation
+        failure. TournamentTemplate refuses the pairing either way; this keeps
+        the picker from proposing it in the first place. %>
     <% candidates = current_club.tournament_templates
          .where.not(id: @template.id)
+         .where(mode: :team)
          .where("paired_template_id IS NULL OR paired_template_id = ?", @template.id)
          .order(:name) %>
     <%= f.select :paired_template_id,
@@ -135,6 +141,9 @@
     <p class="text-xs text-slate-500">
       Paired templates are scheduled together as one league night — both tournaments are created at
       once and linked, so they share a roster.
+      <% unless @template.mode_team? %>
+        Both halves have to be team templates, so this one can't be paired while it is solo.
+      <% end %>
     </p>
   </div>
 

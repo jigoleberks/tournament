@@ -64,9 +64,17 @@
       That week is already scheduled.
     </div>
   <% else %>
+    <%# Main's blind flag is inherited from its template — MAIN_FIELDS omits
+        blind_leaderboard, so this screen never sets it — and nothing requires a
+        paired template to be blind. The same-species leak warning is only true
+        when Main actually is, so hand the controller the template's flag; the
+        chosen format can force blind on top of that, which the controller works
+        out for itself because that select changes without a reload. On the repair
+        path the Main half already exists, so its own flag is the answer. %>
+    <% main_blind = repairing ? @occurrence.existing_main&.blind_leaderboard : @occurrence.main_template.blind_leaderboard %>
     <%= form_with url: admin_tournament_template_league_night_path(tournament_template_id: @occurrence.main_template.id),
                   local: true, class: "space-y-6",
-                  data: { controller: "league-night" } do %>
+                  data: { controller: "league-night", league_night_main_blind_value: !!main_blind } do %>
       <div class="bg-slate-800 rounded-xl border border-slate-700 p-6 shadow-xl">
         <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
@@ -174,10 +182,15 @@
                      class: "h-11 px-6 rounded-lg bg-blue-600 hover:bg-blue-500 text-white font-semibold transition-colors cursor-pointer" %>
     <% end %>
 
+    <%# The blind clause is conditional because the templates are: nothing forces a
+        paired template to be blind, and claiming it unconditionally was false for
+        any pair whose Main isn't. Left off rather than negated — a Main that isn't
+        template-blind can still end up blind from the format chosen above, so
+        "not blind" would be its own wrong claim. %>
     <p class="text-xs text-slate-500 mt-4">
       From the templates: season tag <%= @occurrence.main_template.season_tag %> ·
       season points on <%= @occurrence.main_template.awards_season_points ? @occurrence.main_template.name : @occurrence.side_template.name %> ·
-      entrants-only · local · not judged · <%= @occurrence.main_template.name %> always blind.
+      entrants-only · local · not judged<%= " · #{@occurrence.main_template.name} always blind" if @occurrence.main_template.blind_leaderboard %>.
     </p>
   <% end %>
 </div>

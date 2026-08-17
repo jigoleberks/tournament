@@ -71,6 +71,46 @@ class LeagueNights::ScheduleTest < ActiveSupport::TestCase
     assert side.blind_leaderboard
   end
 
+  test "a Random Bag column applies the submitted target range" do
+    main, _side = schedule({ format: "random_bag", target_min_inches: "72.5", target_max_inches: "96.0" })
+
+    assert main.format_random_bag?
+    assert_equal 72.5, main.target_min_inches.to_f
+    assert_equal 96.0, main.target_max_inches.to_f
+  end
+
+  # The scheduler's range inputs are hidden with a CSS class, not removed, so they
+  # submit on EVERY format: pick Random Bag, clear "Target min", switch back to
+  # Standard, and a blank target_min_inches arrives on a Standard column.
+  # random_bag_range_valid returns early for a non-Random-Bag format, so an
+  # explicit nil went straight past validation and tripped the NOT NULL
+  # constraint — a 500 out of an ordinary sequence of clicks.
+  test "a non-Random-Bag column keeps the column defaults when a blank range is submitted" do
+    main, _side = schedule({ format: "standard", target_min_inches: "", target_max_inches: "100" })
+
+    assert_equal 70.0, main.target_min_inches.to_f
+    assert_equal 100.0, main.target_max_inches.to_f
+  end
+
+  # And a range that IS filled in is still ignored off Random Bag — the columns
+  # mean nothing to any other format, so leaving them at the defaults keeps a
+  # stale hidden value from being recorded as a real setting.
+  test "a non-Random-Bag column ignores a filled-in target range" do
+    main, _side = schedule({ format: "standard", target_min_inches: "72.5", target_max_inches: "96.0" })
+
+    assert_equal 70.0, main.target_min_inches.to_f
+    assert_equal 100.0, main.target_max_inches.to_f
+  end
+
+  # A Random Bag week with a blank range must still fail in validation, not fall
+  # back to 70/100 behind the operator's back.
+  test "a Random Bag column with a blank range is a validation failure" do
+    error = assert_raises(ActiveRecord::RecordInvalid) do
+      schedule({ format: "random_bag", target_min_inches: "" })
+    end
+    assert_match(/target range/i, error.message)
+  end
+
   test "creates only the main tournament when there is no side template" do
     main = LeagueNights::Schedule.call(
       main_template: @main_template, side_template: nil,

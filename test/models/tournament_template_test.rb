@@ -304,8 +304,8 @@ class TournamentTemplateTest < ActiveSupport::TestCase
 
   test "pairing is mirrored onto the partner" do
     club = create(:club)
-    main = create(:tournament_template, club: club, name: "Main")
-    side = create(:tournament_template, club: club, name: "Side")
+    main = create(:tournament_template, club: club, name: "Main", mode: :team)
+    side = create(:tournament_template, club: club, name: "Side", mode: :team)
 
     main.update!(paired_template: side)
 
@@ -316,8 +316,8 @@ class TournamentTemplateTest < ActiveSupport::TestCase
 
   test "unpairing clears both sides" do
     club = create(:club)
-    main = create(:tournament_template, club: club, name: "Main")
-    side = create(:tournament_template, club: club, name: "Side")
+    main = create(:tournament_template, club: club, name: "Main", mode: :team)
+    side = create(:tournament_template, club: club, name: "Side", mode: :team)
     main.update!(paired_template: side)
 
     main.update!(paired_template: nil)
@@ -327,15 +327,15 @@ class TournamentTemplateTest < ActiveSupport::TestCase
   end
 
   test "a template can't pair with itself" do
-    template = create(:tournament_template)
+    template = create(:tournament_template, mode: :team)
     template.paired_template_id = template.id
     assert_not template.valid?
     assert_includes template.errors[:paired_template], "can't be the same template"
   end
 
   test "a template can't pair across clubs" do
-    mine = create(:tournament_template, club: create(:club))
-    theirs = create(:tournament_template, club: create(:club))
+    mine = create(:tournament_template, club: create(:club), mode: :team)
+    theirs = create(:tournament_template, club: create(:club), mode: :team)
     mine.paired_template = theirs
     assert_not mine.valid?
     assert_includes mine.errors[:paired_template], "must belong to the same club"
@@ -343,9 +343,9 @@ class TournamentTemplateTest < ActiveSupport::TestCase
 
   test "a template already paired to someone else can't be taken" do
     club = create(:club)
-    main = create(:tournament_template, club: club, name: "Main")
-    side = create(:tournament_template, club: club, name: "Side")
-    third = create(:tournament_template, club: club, name: "Third")
+    main = create(:tournament_template, club: club, name: "Main", mode: :team)
+    side = create(:tournament_template, club: club, name: "Side", mode: :team)
+    third = create(:tournament_template, club: club, name: "Third", mode: :team)
     main.update!(paired_template: side)
 
     third.paired_template = side
@@ -354,17 +354,64 @@ class TournamentTemplateTest < ActiveSupport::TestCase
   end
 
   test "a dangling paired_template_id is invalid" do
-    template = create(:tournament_template)
+    template = create(:tournament_template, mode: :team)
     template.paired_template_id = TournamentTemplate.maximum(:id).to_i + 1
 
     assert_not template.valid?
     assert_includes template.errors[:paired_template], "must exist"
   end
 
+  # A league night's two tournaments share a roster through a link group, which
+  # Tournament allows on team mode only. Pairing two solo templates used to save
+  # cleanly and then dead-end the scheduler on "Link group is only available for
+  # team tournaments" at every submit, with no way back.
+  test "two solo templates can't be paired" do
+    club = create(:club)
+    main = create(:tournament_template, club: club, name: "Local", mode: :solo)
+    side = create(:tournament_template, club: club, name: "Travel", mode: :solo)
+
+    main.paired_template = side
+
+    assert_not main.valid?
+    assert_includes main.errors[:mode], "must be team while paired with another template"
+    assert_includes main.errors[:paired_template],
+                    "must be a team template — league nights are team-mode only"
+  end
+
+  test "a team template can't pair with a solo one" do
+    club = create(:club)
+    main = create(:tournament_template, club: club, name: "Main", mode: :team)
+    side = create(:tournament_template, club: club, name: "Side", mode: :solo)
+
+    main.paired_template = side
+
+    assert_not main.valid?
+    assert_empty main.errors[:mode]
+    assert_includes main.errors[:paired_template],
+                    "must be a team template — league nights are team-mode only"
+  end
+
+  # The rule keeps applying after the pairing is made, or flipping a paired
+  # template back to solo would quietly re-create the same dead end.
+  test "a paired template can't be switched to solo" do
+    club = create(:club)
+    main = create(:tournament_template, club: club, name: "Main", mode: :team)
+    side = create(:tournament_template, club: club, name: "Side", mode: :team)
+    main.update!(paired_template: side)
+
+    main.mode = :solo
+
+    assert_not main.valid?
+    assert_includes main.errors[:mode], "must be team while paired with another template"
+    # And unpairing first is the way out.
+    main.paired_template = nil
+    assert main.valid?, main.errors.full_messages.inspect
+  end
+
   test "destroying a template clears the partner's pairing" do
     club = create(:club)
-    main = create(:tournament_template, club: club, name: "Main")
-    side = create(:tournament_template, club: club, name: "Side")
+    main = create(:tournament_template, club: club, name: "Main", mode: :team)
+    side = create(:tournament_template, club: club, name: "Side", mode: :team)
     main.update!(paired_template: side)
 
     main.destroy

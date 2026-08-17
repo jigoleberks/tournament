@@ -28,6 +28,10 @@ class Organizers::LeagueNightsControllerTest < ActionDispatch::IntegrationTest
 
   test "solo-only and excluded formats are not offered" do
     get new_organizers_tournament_template_league_night_path(tournament_template_id: @main.id)
+    # Positive anchor first: every assert_no_match below passes against an empty
+    # body, so without this a redirect or a 500 leaves the whole test green.
+    assert_response :success
+    assert_match(/>Standard</, response.body)
     assert_no_match(/Big Fish Season/, response.body)
     assert_no_match(/Tagged Walleye/, response.body)
     assert_no_match(/Fish Train/, response.body)
@@ -46,6 +50,23 @@ class Organizers::LeagueNightsControllerTest < ActionDispatch::IntegrationTest
     get new_organizers_tournament_template_league_night_path(tournament_template_id: @main.id)
     assert_match(/>Catch the Average</, response.body)
     assert_no_match(/Beat The Average/, response.body)
+  end
+
+  # Nothing requires a paired template to be blind, and MAIN_FIELDS deliberately
+  # omits blind_leaderboard so Main just inherits the template's flag. The footer
+  # used to claim "always blind" for every pair, and the leak warning's premise
+  # rides on the same fact — so the screen has to state the flag it actually has.
+  test "the footer claims Main is always blind only when its template is" do
+    get new_organizers_tournament_template_league_night_path(tournament_template_id: @main.id)
+    assert_response :success
+    assert_match(/League Night - Main always blind/, response.body)
+    assert_select "form[data-league-night-main-blind-value='true']", 1
+
+    @main.update!(blind_leaderboard: false)
+    get new_organizers_tournament_template_league_night_path(tournament_template_id: @main.id)
+    assert_response :success
+    assert_no_match(/always blind/, response.body)
+    assert_select "form[data-league-night-main-blind-value='false']", 1
   end
 
   test "an unpaired template can't be scheduled as a league night" do
@@ -87,8 +108,55 @@ class Organizers::LeagueNightsControllerTest < ActionDispatch::IntegrationTest
     assert_redirected_to edit_organizers_tournament_path(main_t)
   end
 
-  # Main is always blind; the same-species leak warning on the Side column rests
-  # on that. A crafted POST must not be able to un-blind it.
+  # The range fields are only meaningful for Random Bag, and only Random Bag
+  # sends them through — so this is the one path that has to carry a NON-default
+  # range all the way onto the tournament.
+  test "a Random Bag league night carries a non-default target range" do
+    starts_at, ends_at = @main.next_occurrence_at
+
+    post organizers_tournament_template_league_night_path(tournament_template_id: @main.id),
+         params: { league_night: {
+           starts_at: starts_at.iso8601, ends_at: ends_at.iso8601,
+           main: { format: "standard", species_id: @walleye.id },
+           side: { format: "random_bag", species_id: @walleye.id, slot_count: 1,
+                   target_min_inches: "72.5", target_max_inches: "96.0" }
+         } }
+
+    side_t = Tournament.find_by(template_source_id: @side.id)
+    assert_not_nil side_t
+    assert side_t.format_random_bag?
+    assert_equal 72.5, side_t.target_min_inches.to_f
+    assert_equal 96.0, side_t.target_max_inches.to_f
+  end
+
+  # The range inputs are hidden with a CSS class, not removed, so they submit on
+  # every format. Pick Random Bag, clear "Target min", switch back to Standard,
+  # submit: a blank target_min_inches arrives on a Standard column, which
+  # random_bag_range_valid skips — and the explicit nil used to override the
+  # column default and raise NotNullViolation, a 500 out of ordinary clicking.
+  test "a blank target range left behind by a format switch doesn't 500" do
+    starts_at, ends_at = @main.next_occurrence_at
+
+    assert_difference "Tournament.count", 2 do
+      post organizers_tournament_template_league_night_path(tournament_template_id: @main.id),
+           params: { league_night: {
+             starts_at: starts_at.iso8601, ends_at: ends_at.iso8601,
+             main: { format: "standard", species_id: @walleye.id,
+                     target_min_inches: "", target_max_inches: "100" },
+             side: { format: "standard", species_id: @walleye.id, slot_count: 1,
+                     target_min_inches: "", target_max_inches: "100" }
+           } }
+    end
+
+    main_t = Tournament.find_by(template_source_id: @main.id)
+    assert_redirected_to edit_organizers_tournament_path(main_t)
+    assert_equal 70.0, main_t.target_min_inches.to_f
+    assert_equal 100.0, main_t.target_max_inches.to_f
+  end
+
+  # This screen never sets Main's blind flag: MAIN_FIELDS omits it so Main always
+  # inherits the template's. A crafted POST must not be able to un-blind a Main
+  # whose template is blind.
   test "a crafted blind_leaderboard on the main column is ignored" do
     starts_at, ends_at = @main.next_occurrence_at
 
@@ -448,6 +516,9 @@ class Organizers::LeagueNightsControllerTest < ActionDispatch::IntegrationTest
     assert_select "input[name='league_night[main][target_min_inches]'][value='72.5']"
     assert_select "input[name='league_night[main][target_max_inches]'][value='96.0']"
     # The Side template is blind, so falling back to it would come back checked.
+    # The unqualified selector is the positive anchor: without it, a form that
+    # stopped rendering the box at all would satisfy the count-of-zero below.
+    assert_select "input[type=checkbox][name='league_night[side][blind_leaderboard]']", 1
     assert_select "input[type=checkbox][name='league_night[side][blind_leaderboard]'][checked]", 0
   end
 

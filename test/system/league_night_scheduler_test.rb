@@ -5,6 +5,11 @@ class LeagueNightSchedulerTest < ApplicationSystemTestCase
   SIDE_COUNT = "[data-league-night-target='sideCountRow']".freeze
   SIDE_RANGE = "[data-league-night-target='sideRangeRow']".freeze
   SIDE_BLIND = "[data-league-night-target='sideBlind']".freeze
+  # How the controller locks a checkbox it is forcing on — the same idiom
+  # tournament_format_controller uses. Deliberately not `disabled`, so the box
+  # still submits its own "1" instead of leaning entirely on the model's
+  # force_*_blind hooks.
+  LOCKED = ".pointer-events-none.opacity-60".freeze
 
   setup do
     @club = create(:club, name: "Test Anglers")
@@ -50,6 +55,24 @@ class LeagueNightSchedulerTest < ApplicationSystemTestCase
     assert_text "reveals its standings"
   end
 
+  # Nothing requires a paired template to be blind, and this screen never sets
+  # Main's flag. With a non-blind Main there is no leak for a visible Side to
+  # reveal, so the warning would be advice about a leak that doesn't exist —
+  # and its effective state has to be recomputed as the Main format changes,
+  # since a forced-blind format makes Main blind without a reload.
+  test "the leak warning tracks whether Main is actually blind" do
+    @main.update!(blind_leaderboard: false)
+    visit_scheduler
+
+    assert_no_text "reveals its standings"
+
+    select "Catch the Average", from: "league_night[main][format]"
+    assert_text "reveals its standings"
+
+    select "Standard", from: "league_night[main][format]"
+    assert_no_text "reveals its standings"
+  end
+
   test "the slot-count field disappears for a format that pins the count" do
     assert_selector MAIN_COUNT, visible: true
 
@@ -83,21 +106,25 @@ class LeagueNightSchedulerTest < ApplicationSystemTestCase
 
   test "Side's blind box locks on for a format that forces blind, and unlocks after" do
     assert_selector "#{SIDE_BLIND}:not(:checked)"
-    assert_selector "#{SIDE_BLIND}:not([disabled])"
+    assert_no_selector "#{SIDE_BLIND}#{LOCKED}"
 
     select "Catch the Average", from: "league_night[side][format]"
     assert_selector "#{SIDE_BLIND}:checked"
-    assert_selector "#{SIDE_BLIND}[disabled]"
+    assert_selector "#{SIDE_BLIND}#{LOCKED}"
+    # Locked, but never `disabled` — a disabled box submits nothing, which would
+    # make Tournament's force_*_blind hooks the ONLY thing setting the flag.
+    assert_no_selector "#{SIDE_BLIND}[disabled]"
 
     select "Random Bag", from: "league_night[side][format]"
     assert_selector "#{SIDE_BLIND}:checked"
-    assert_selector "#{SIDE_BLIND}[disabled]"
+    assert_selector "#{SIDE_BLIND}#{LOCKED}"
+    assert_no_selector "#{SIDE_BLIND}[disabled]"
 
     # Back to a format that leaves blind up to the operator: the box unlocks and
     # goes back to the "off" it was rendered with, rather than keeping the tick
     # the forced format put there.
     select "Standard", from: "league_night[side][format]"
-    assert_selector "#{SIDE_BLIND}:not([disabled])"
+    assert_no_selector "#{SIDE_BLIND}#{LOCKED}"
     assert_selector "#{SIDE_BLIND}:not(:checked)"
   end
 
@@ -109,13 +136,14 @@ class LeagueNightSchedulerTest < ApplicationSystemTestCase
     visit_scheduler
 
     assert_selector "#{SIDE_BLIND}:checked"
-    assert_selector "#{SIDE_BLIND}:not([disabled])"
+    assert_no_selector "#{SIDE_BLIND}#{LOCKED}"
 
     select "Catch the Average", from: "league_night[side][format]"
-    assert_selector "#{SIDE_BLIND}[disabled]"
+    assert_selector "#{SIDE_BLIND}#{LOCKED}"
+    assert_selector "#{SIDE_BLIND}:checked"
 
     select "Standard", from: "league_night[side][format]"
-    assert_selector "#{SIDE_BLIND}:not([disabled])"
+    assert_no_selector "#{SIDE_BLIND}#{LOCKED}"
     assert_selector "#{SIDE_BLIND}:checked"
   end
 

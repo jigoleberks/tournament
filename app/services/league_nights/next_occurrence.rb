@@ -59,8 +59,13 @@ module LeagueNights
 
     def scheduled_from(template, starts_at)
       return nil if starts_at.nil?
+      # Ordered explicitly: more than one tournament can share a template and a
+      # day (a duplicate created by hand, say), and #first would otherwise lean
+      # on Rails' implicit primary-key ordering to decide which one the screen
+      # calls "the half that already exists".
       ::Tournament.where(template_source_id: template.id)
                   .where(starts_at: starts_at.beginning_of_day..starts_at.end_of_day)
+                  .order(:id)
                   .first
     end
   end

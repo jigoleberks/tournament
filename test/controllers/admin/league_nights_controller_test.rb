@@ -24,6 +24,21 @@ class Admin::LeagueNightsControllerTest < ActionDispatch::IntegrationTest
     assert_match(/League Night - Side/, response.body)
   end
 
+  # The footer clause and the Stimulus value the leak warning reads are written
+  # into both views by hand, so they can drift between the twins.
+  test "the footer claims Main is always blind only when its template is" do
+    get new_admin_tournament_template_league_night_path(tournament_template_id: @main.id)
+    assert_response :success
+    assert_match(/League Night - Main always blind/, response.body)
+    assert_select "form[data-league-night-main-blind-value='true']", 1
+
+    @main.update!(blind_leaderboard: false)
+    get new_admin_tournament_template_league_night_path(tournament_template_id: @main.id)
+    assert_response :success
+    assert_no_match(/always blind/, response.body)
+    assert_select "form[data-league-night-main-blind-value='false']", 1
+  end
+
   test "an unpaired template can't be scheduled as a league night" do
     solo = create(:tournament_template, club: @club, name: "Saturday", mode: :team)
     get new_admin_tournament_template_league_night_path(tournament_template_id: solo.id)

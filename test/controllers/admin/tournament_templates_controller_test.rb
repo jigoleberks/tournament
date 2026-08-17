@@ -47,10 +47,26 @@ class Admin::TournamentTemplatesControllerTest < ActionDispatch::IntegrationTest
     assert_equal "2026", Tournament.last.season_tag
   end
 
+  # Twin of the organizers picker: a solo candidate is an offer that can only end
+  # in a validation failure, since link groups are team-mode only.
+  test "the pairing picker offers team templates only" do
+    main = create(:tournament_template, club: @club, name: "Wednesday Main", mode: :team)
+    team_candidate = create(:tournament_template, club: @club, name: "Wednesday Side", mode: :team)
+    solo_candidate = create(:tournament_template, club: @club, name: "Saturday Solo", mode: :solo)
+
+    get edit_admin_tournament_template_path(main)
+
+    assert_response :success
+    assert_select "select#tournament_template_paired_template_id option[value=?]",
+                  team_candidate.id.to_s, 1
+    assert_select "select#tournament_template_paired_template_id option[value=?]",
+                  solo_candidate.id.to_s, 0
+  end
+
   test "a paired template shows once, with a league-night action instead of Schedule next" do
-    main = create(:tournament_template, club: @club, name: "League Night - Main",
+    main = create(:tournament_template, club: @club, name: "League Night - Main", mode: :team,
                   default_weekday: 3, default_start_time: "18:00", default_end_time: "21:00")
-    side = create(:tournament_template, club: @club, name: "League Night - Side",
+    side = create(:tournament_template, club: @club, name: "League Night - Side", mode: :team,
                   default_weekday: 3, default_start_time: "18:00", default_end_time: "21:00")
     main.update!(paired_template: side)
 
@@ -72,8 +88,8 @@ class Admin::TournamentTemplatesControllerTest < ActionDispatch::IntegrationTest
   end
 
   test "a paired template with no weekday or times still links to the scheduler" do
-    main = create(:tournament_template, club: @club, name: "League Night - Main")
-    side = create(:tournament_template, club: @club, name: "League Night - Side")
+    main = create(:tournament_template, club: @club, name: "League Night - Main", mode: :team)
+    side = create(:tournament_template, club: @club, name: "League Night - Side", mode: :team)
     main.update!(paired_template: side)
 
     get admin_tournament_templates_path

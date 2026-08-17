@@ -69,11 +69,23 @@ module LeagueNights
 
     # target_min_inches/target_max_inches are NOT NULL columns with model
     # defaults (70/100) that only apply when the attribute is left unset —
-    # passing an explicit nil (as every non-Random-Bag week's hash would,
-    # since the brief only sends these for Random Bag) overrides the default
-    # and trips the DB's NOT NULL constraint on save. Only send them when the
-    # caller actually supplied one, so every other format keeps its default.
+    # passing an explicit nil overrides the default and trips the DB's NOT NULL
+    # constraint on save, which is a 500 rather than a validation failure.
+    #
+    # Key-presence alone is NOT enough to gate on: the scheduler's range inputs
+    # are HIDDEN with a CSS class, not removed, so they submit on every format.
+    # Pick Random Bag, clear "Target min", switch back to Standard and submit,
+    # and this hash arrives carrying target_min_inches => "" — which casts to
+    # nil, and random_bag_range_valid (the validation that would otherwise
+    # catch it) returns early because the format isn't Random Bag any more.
+    # Only Random Bag can set these at all; every other format keeps the
+    # column defaults untouched. A blank one on an actual Random Bag week is
+    # still sent, so it surfaces as "needs a target range" rather than
+    # silently becoming 70.
+    RANGE_FORMAT = "random_bag".freeze
+
     def target_range_for(week)
+      return {} unless week[:format].to_s == RANGE_FORMAT
       range = {}
       range[:target_min_inches] = week[:target_min_inches] if week.key?(:target_min_inches)
       range[:target_max_inches] = week[:target_max_inches] if week.key?(:target_max_inches)

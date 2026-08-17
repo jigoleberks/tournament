@@ -26,6 +26,7 @@ class TournamentTemplate < ApplicationRecord
   validate :paired_template_must_exist
   validate :paired_template_must_be_same_club
   validate :paired_template_must_be_available
+  validate :paired_templates_must_be_team_mode
   after_save :sync_pairing
   before_destroy :clear_partner_pairing
 
@@ -212,6 +213,28 @@ class TournamentTemplate < ApplicationRecord
     return if current_partner_id.nil?
     return if current_partner_id == id
     errors.add(:paired_template, "is already paired with another template")
+  end
+
+  # A league night is two TEAM tournaments sharing one roster: LeagueNights::Schedule
+  # always mints a link_group_id for the pair, and Tournament's
+  # link_group_id_only_on_team_tournaments refuses a link group on a solo
+  # tournament. Pairing two solo templates therefore builds a scheduler screen
+  # that 422s on every submit with "Link group is only available for team
+  # tournaments" — a message naming neither the cause nor the fix, on a screen
+  # that has no way back. This is not hypothetical: the season-long Big Walleye
+  # Local/Travel pair (see link_group_id_only_on_team_tournaments) is solo and is
+  # exactly what an organizer would reach for the "Pairs with" picker to join.
+  #
+  # Both halves are checked, and the self half keeps firing for as long as the
+  # pairing stands — so flipping an already-paired template back to solo is
+  # refused too, rather than quietly re-creating the dead end. Unpair first, then
+  # change the mode. sync_pairing writes the partner's id with update_column and
+  # so runs no validations of its own; it doesn't need to, because the pairing
+  # that triggers it has already been checked from this side.
+  def paired_templates_must_be_team_mode
+    return if paired_template.nil?
+    errors.add(:mode, "must be team while paired with another template") unless mode_team?
+    errors.add(:paired_template, "must be a team template — league nights are team-mode only") unless paired_template.mode_team?
   end
 
   # Pairing is symmetric: whichever side you set it from, both rows end up

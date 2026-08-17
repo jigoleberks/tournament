@@ -11,12 +11,16 @@ module LeagueNightParams
     :target_min_inches, :target_max_inches
   ].freeze
 
-  # :blind_leaderboard is permitted on the Side column ONLY. Main is always
-  # blind — that's the premise the screen's same-species leak warning rests on —
-  # and LeagueNights::Schedule honours whatever :blind_leaderboard key it's
-  # handed, so permitting it on Main would let a crafted POST
-  # (main[blind_leaderboard]=0) quietly un-blind Main. Leaving the key out means
-  # Main always inherits the template's flag.
+  # :blind_leaderboard is permitted on the Side column ONLY. Main's blind flag is
+  # the template's decision, not this screen's, and LeagueNights::Schedule
+  # honours whatever :blind_leaderboard key it's handed — so permitting it on
+  # Main would let a crafted POST (main[blind_leaderboard]=0) quietly un-blind a
+  # Main whose template is blind. Leaving the key out means Main always inherits.
+  #
+  # Note this is inheritance, NOT a guarantee: nothing requires a paired template
+  # to be blind, so the screen reads Main's effective state (template flag OR a
+  # forced-blind format) rather than asserting it. See the leak warning in
+  # league_night_controller.js.
   MAIN_FIELDS = COLUMN_FIELDS
   SIDE_FIELDS = (COLUMN_FIELDS + [:blind_leaderboard]).freeze
 

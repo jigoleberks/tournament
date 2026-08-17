@@ -134,8 +134,8 @@ class Organizers::TournamentTemplatesControllerTest < ActionDispatch::Integratio
   end
 
   test "an organizer pairs two templates from the form" do
-    main = create(:tournament_template, club: @club, name: "Wednesday Main")
-    side = create(:tournament_template, club: @club, name: "Wednesday Side")
+    main = create(:tournament_template, club: @club, name: "Wednesday Main", mode: :team)
+    side = create(:tournament_template, club: @club, name: "Wednesday Side", mode: :team)
 
     patch organizers_tournament_template_path(main),
           params: { tournament_template: { name: main.name, paired_template_id: side.id } }
@@ -144,9 +144,39 @@ class Organizers::TournamentTemplatesControllerTest < ActionDispatch::Integratio
     assert_equal main, side.reload.paired_template
   end
 
+  # Offering a solo template in the picker is an offer that can only end in a
+  # validation failure: a league night's two tournaments share a roster through
+  # a link group, and Tournament allows link groups on team mode only.
+  test "the pairing picker offers team templates only" do
+    main = create(:tournament_template, club: @club, name: "Wednesday Main", mode: :team)
+    team_candidate = create(:tournament_template, club: @club, name: "Wednesday Side", mode: :team)
+    solo_candidate = create(:tournament_template, club: @club, name: "Saturday Solo", mode: :solo)
+
+    get edit_organizers_tournament_template_path(main)
+
+    assert_response :success
+    assert_select "select#tournament_template_paired_template_id option[value=?]",
+                  team_candidate.id.to_s, 1
+    assert_select "select#tournament_template_paired_template_id option[value=?]",
+                  solo_candidate.id.to_s, 0
+  end
+
+  test "pairing two solo templates is rejected" do
+    main = create(:tournament_template, club: @club, name: "Big Walleye Local", mode: :solo)
+    side = create(:tournament_template, club: @club, name: "Big Walleye Travel", mode: :solo)
+
+    patch organizers_tournament_template_path(main),
+          params: { tournament_template: { name: main.name, paired_template_id: side.id } }
+
+    assert_response :unprocessable_entity
+    assert_nil main.reload.paired_template_id
+    assert_nil side.reload.paired_template_id
+    assert_match(/team template/, response.body)
+  end
+
   test "pairing with a template from another club is rejected" do
-    main = create(:tournament_template, club: @club, name: "Wednesday Main")
-    foreign = create(:tournament_template, club: create(:club))
+    main = create(:tournament_template, club: @club, name: "Wednesday Main", mode: :team)
+    foreign = create(:tournament_template, club: create(:club), mode: :team)
 
     patch organizers_tournament_template_path(main),
           params: { tournament_template: { name: main.name, paired_template_id: foreign.id } }
@@ -155,9 +185,9 @@ class Organizers::TournamentTemplatesControllerTest < ActionDispatch::Integratio
   end
 
   test "a paired template shows once, with a league-night action instead of Schedule next" do
-    main = create(:tournament_template, club: @club, name: "League Night - Main",
+    main = create(:tournament_template, club: @club, name: "League Night - Main", mode: :team,
                   default_weekday: 3, default_start_time: "18:00", default_end_time: "21:00")
-    side = create(:tournament_template, club: @club, name: "League Night - Side",
+    side = create(:tournament_template, club: @club, name: "League Night - Side", mode: :team,
                   default_weekday: 3, default_start_time: "18:00", default_end_time: "21:00")
     main.update!(paired_template: side)
 
@@ -175,8 +205,8 @@ class Organizers::TournamentTemplatesControllerTest < ActionDispatch::Integratio
   end
 
   test "a paired template with no weekday or times still links to the scheduler" do
-    main = create(:tournament_template, club: @club, name: "League Night - Main")
-    side = create(:tournament_template, club: @club, name: "League Night - Side")
+    main = create(:tournament_template, club: @club, name: "League Night - Main", mode: :team)
+    side = create(:tournament_template, club: @club, name: "League Night - Side", mode: :team)
     main.update!(paired_template: side)
 
     get organizers_tournament_templates_path
@@ -192,9 +222,9 @@ class Organizers::TournamentTemplatesControllerTest < ActionDispatch::Integratio
   end
 
   test "the paired row keeps an Edit link and a Delete button for each half" do
-    main = create(:tournament_template, club: @club, name: "League Night - Main",
+    main = create(:tournament_template, club: @club, name: "League Night - Main", mode: :team,
                   default_weekday: 3, default_start_time: "18:00", default_end_time: "21:00")
-    side = create(:tournament_template, club: @club, name: "League Night - Side",
+    side = create(:tournament_template, club: @club, name: "League Night - Side", mode: :team,
                   default_weekday: 3, default_start_time: "18:00", default_end_time: "21:00")
     main.update!(paired_template: side)
 
