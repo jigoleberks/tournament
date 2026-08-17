@@ -47,6 +47,37 @@ class Admin::TournamentTemplatesControllerTest < ActionDispatch::IntegrationTest
     assert_equal "2026", Tournament.last.season_tag
   end
 
+  test "a paired template shows once, with a league-night action instead of Schedule next" do
+    main = create(:tournament_template, club: @club, name: "League Night - Main",
+                  default_weekday: 3, default_start_time: "18:00", default_end_time: "21:00")
+    side = create(:tournament_template, club: @club, name: "League Night - Side",
+                  default_weekday: 3, default_start_time: "18:00", default_end_time: "21:00")
+    main.update!(paired_template: side)
+
+    get admin_tournament_templates_path
+
+    assert_response :success
+    assert_select "form[action=?]",
+                  new_admin_tournament_template_league_night_path(tournament_template_id: main.id),
+                  count: 1
+    assert_match(/League Night - Main \+ League Night - Side/, response.body)
+    assert_select "form[action=?]", clone_admin_tournament_template_path(main), count: 0
+    assert_select "form[action=?]", clone_admin_tournament_template_path(side), count: 0
+    assert_select "a[href=?]", edit_admin_tournament_template_path(main), count: 1
+    assert_select "a[href=?]", edit_admin_tournament_template_path(side), count: 1
+    assert_select "form[action=?]", admin_tournament_template_path(main), count: 1
+    assert_select "form[action=?]", admin_tournament_template_path(side), count: 1
+  end
+
+  test "an unpaired template keeps its own Schedule next button" do
+    solo = create(:tournament_template, club: @club, name: "Saturday LML",
+                  default_weekday: 6, default_start_time: "08:00", default_end_time: "16:00")
+
+    get admin_tournament_templates_path
+
+    assert_select "form[action=?]", clone_admin_tournament_template_path(solo), count: 1
+  end
+
   private
 
   def sign_in_as(user)
