@@ -1,6 +1,14 @@
+<%# Mirrors the controller's own guard: partially_scheduled? is XOR on presence,
+    so an UNPAIRED template reports "half done" the moment anything exists for
+    its week, when in fact nothing is missing — and the repair branch below
+    would then render a column with a nil template. load_template turns unpaired
+    templates away before this renders; the guard keeps the view from depending
+    on that staying true, and keeps it symmetric with #create. %>
+<% repairing = @occurrence.partially_scheduled? && @occurrence.side_template.present? %>
+
 <h1 class="text-2xl font-semibold mt-4 mb-1">Schedule league night</h1>
 <p class="text-sm text-slate-400 mb-4">
-  <% if @occurrence.partially_scheduled? %>
+  <% if repairing %>
     Creates whichever half of the pair that week is still missing.
   <% else %>
     Creates <%= @occurrence.main_template.name %> and <%= @occurrence.side_template.name %>,
@@ -48,7 +56,7 @@
       </div>
     </div>
 
-    <% if @occurrence.partially_scheduled? %>
+    <% if repairing %>
       <% existing = @occurrence.existing_main || @occurrence.existing_side %>
       <div class="bg-slate-800 border border-amber-700/50 rounded-lg p-3 mb-3 text-sm text-amber-100">
         That week already has <strong><%= existing.name %></strong>. Only the missing half will be created.
@@ -57,7 +65,7 @@
 
     <%# A half-scheduled night renders only the column that's missing: the other
         tournament already exists and #create leaves it alone. %>
-    <% columns = if @occurrence.partially_scheduled?
+    <% columns = if repairing
                    @occurrence.existing_main ? [[:side, @occurrence.side_template]] : [[:main, @occurrence.main_template]]
                  else
                    [[:main, @occurrence.main_template], [:side, @occurrence.side_template]]
@@ -122,7 +130,7 @@
 
     <%# Only one tournament gets built when the night is half-scheduled, so the
         button can't keep saying "Create both". %>
-    <%= submit_tag @occurrence.partially_scheduled? ? "Create the missing half" : "Create both",
+    <%= submit_tag repairing ? "Create the missing half" : "Create both",
                    class: "w-full h-14 rounded-lg bg-blue-600 active:bg-blue-700 text-white text-lg font-semibold" %>
   <% end %>
 

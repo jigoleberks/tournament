@@ -234,6 +234,29 @@ class TournamentLinks::SyncEntryTest < ActiveSupport::TestCase
     assert_equal "/tournaments/#{@side.id}", calls.first[:url]
   end
 
+  # notify: false is the administrative back-fill mode. Repairing a
+  # half-scheduled league night mirrors a roster onto a tournament for a night
+  # that may already be over, and DeliverPushNotificationJob has no
+  # started/ended guard — so the push has to be suppressible. The mirroring
+  # itself and the leaderboard broadcast are display/state, not an alert, and
+  # must still happen.
+  test "notify: false suppresses the push but still mirrors and broadcasts" do
+    entry = create(:tournament_entry, tournament: @main, name: "Majestic Red", boat: @boat)
+    entry.tournament_entry_members.create!(user: @kurtis)
+
+    calls = []
+    broadcasts = nil
+    with_class_method_stub(DeliverPushNotificationJob, :perform_later, ->(**kwargs) { calls << kwargs }) do
+      broadcasts = with_broadcast_spy { TournamentLinks::SyncEntry.call(entry: entry, notify: false) }
+    end
+
+    assert_empty calls
+    assert_includes broadcasts, @side.id
+    counterpart = @side.tournament_entries.find_by(name: "Majestic Red")
+    assert_not_nil counterpart
+    assert_equal [@kurtis.id], counterpart.tournament_entry_members.pluck(:user_id)
+  end
+
   test "enqueues a push only for the newly added member, not the whole crew, when crew is added" do
     entry = create(:tournament_entry, tournament: @main, name: "Majestic Red", boat: @boat)
     entry.tournament_entry_members.create!(user: @kurtis)

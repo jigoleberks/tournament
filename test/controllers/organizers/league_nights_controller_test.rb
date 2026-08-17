@@ -299,25 +299,83 @@ class Organizers::LeagueNightsControllerTest < ActionDispatch::IntegrationTest
     assert_response :unprocessable_entity
   end
 
-  # Re-rendering a pristine form throws away every choice the operator just made
-  # and hands back only the error text.
-  test "a failed submit re-renders with the operator's own choices" do
-    perch = create(:species, name: "Perch")
+  # LeagueNights::Schedule only mints a link_group_id when it builds a pair, so
+  # the repaired half comes out unlinked — no shared roster, no shared boats,
+  # which is the whole point of a league-night pair.
+  test "repairing a half-scheduled night links it to the tournament that exists" do
     starts_at, ends_at = @main.next_occurrence_at
-    moved_start = starts_at + 1.hour
+    existing = create(:tournament, club: @club, name: @main.name, mode: :team,
+                      starts_at: starts_at, ends_at: ends_at, template_source_id: @main.id)
+    entry = create(:tournament_entry, tournament: existing, name: "Team Walleye")
+    create(:tournament_entry_member, tournament_entry: entry, user: @member)
 
     post organizers_tournament_template_league_night_path(tournament_template_id: @main.id),
          params: { league_night: {
-           starts_at: moved_start.iso8601, ends_at: ends_at.iso8601,
-           main: { format: "smallest_fish", species_id: perch.id, slot_count: "4" },
-           side: { format: "standard", species_id: "" }
+           starts_at: starts_at.iso8601, ends_at: ends_at.iso8601,
+           side: { format: "standard", species_id: @walleye.id, slot_count: 1 }
+         } }
+
+    side_t = Tournament.find_by(template_source_id: @side.id)
+    assert side_t.link_group_id.present?
+    assert_equal existing.reload.link_group_id, side_t.link_group_id
+    # And the roster that already existed is mirrored onto the new half.
+    assert_equal 1, side_t.tournament_entries.count
+    counterpart = side_t.tournament_entries.first
+    assert_equal "Team Walleye", counterpart.name
+    assert_equal [@member.id], counterpart.tournament_entry_members.pluck(:user_id)
+  end
+
+  # A repair back-fills a roster for a night that may already be over, and
+  # DeliverPushNotificationJob has no started/ended guard — so an un-suppressed
+  # sync would tell every angler who fished the Main that they've "been entered
+  # into" the Side of a tournament that finished days ago.
+  test "repairing a half-scheduled night sends no push notifications" do
+    starts_at, ends_at = @main.next_occurrence_at
+    existing = create(:tournament, club: @club, name: @main.name, mode: :team,
+                      starts_at: starts_at, ends_at: ends_at, template_source_id: @main.id)
+    entry = create(:tournament_entry, tournament: existing, name: "Team Walleye")
+    create(:tournament_entry_member, tournament_entry: entry, user: @member)
+
+    assert_no_enqueued_jobs only: DeliverPushNotificationJob do
+      post organizers_tournament_template_league_night_path(tournament_template_id: @main.id),
+           params: { league_night: {
+             starts_at: starts_at.iso8601, ends_at: ends_at.iso8601,
+             side: { format: "standard", species_id: @walleye.id, slot_count: 1 }
+           } }
+    end
+    # The sync really did run — otherwise this proves nothing.
+    assert_equal 1, Tournament.find_by(template_source_id: @side.id).tournament_entries.count
+  end
+
+  # Re-rendering a pristine form throws away every choice the operator just made
+  # and hands back only the error text. Every control the form carries is
+  # asserted here — the Side blind box especially, whose fallback is the only
+  # one with real logic (key-presence, not value-presence).
+  test "a failed submit re-renders with the operator's own choices" do
+    perch = create(:species, name: "Perch")
+    @side.update!(blind_leaderboard: true)
+    starts_at, ends_at = @main.next_occurrence_at
+    moved_start = starts_at + 1.hour
+    moved_end = ends_at + 1.hour
+
+    post organizers_tournament_template_league_night_path(tournament_template_id: @main.id),
+         params: { league_night: {
+           starts_at: moved_start.iso8601, ends_at: moved_end.iso8601,
+           main: { format: "random_bag", species_id: perch.id, slot_count: "4",
+                   target_min_inches: "72.5", target_max_inches: "96.0" },
+           side: { format: "standard", species_id: "", blind_leaderboard: "0" }
          } }
 
     assert_response :unprocessable_entity
     assert_select "input[name='league_night[starts_at]'][value=?]", moved_start.strftime("%Y-%m-%dT%H:%M")
-    assert_select "select[name='league_night[main][format]'] option[value=?][selected]", "smallest_fish"
+    assert_select "input[name='league_night[ends_at]'][value=?]", moved_end.strftime("%Y-%m-%dT%H:%M")
+    assert_select "select[name='league_night[main][format]'] option[value=?][selected]", "random_bag"
     assert_select "select[name='league_night[main][species_id]'] option[value=?][selected]", perch.id.to_s
     assert_select "input[name='league_night[main][slot_count]'][value='4']"
+    assert_select "input[name='league_night[main][target_min_inches]'][value='72.5']"
+    assert_select "input[name='league_night[main][target_max_inches]'][value='96.0']"
+    # The Side template is blind, so falling back to it would come back checked.
+    assert_select "input[type=checkbox][name='league_night[side][blind_leaderboard]'][checked]", 0
   end
 
   test "members are forbidden" do

@@ -3,13 +3,16 @@ module TournamentLinks
   # directions so a pair linked after the roster was started doesn't sit half
   # synced. Adopts an existing group id when either side already has one.
   class Join
-    def self.call(tournament:, other:)
-      new(tournament: tournament, other: other).call
+    def self.call(tournament:, other:, notify: true)
+      new(tournament: tournament, other: other, notify: notify).call
     end
 
-    def initialize(tournament:, other:)
+    # notify: is passed straight through to both back-fill passes; see
+    # SyncEntry for why it exists and why it defaults to true.
+    def initialize(tournament:, other:, notify: true)
       @tournament = tournament
       @other = other
+      @notify = notify
     end
 
     def call
@@ -31,8 +34,8 @@ module TournamentLinks
         # as the source of truth and prune members off @other's matching
         # entry that were never meant to be removed — dropping their catch
         # placements along with them.
-        @tournament.tournament_entries.each { |e| SyncEntry.call(entry: e, prune: false) }
-        @other.tournament_entries.each { |e| SyncEntry.call(entry: e, prune: false) }
+        @tournament.tournament_entries.each { |e| SyncEntry.call(entry: e, prune: false, notify: @notify) }
+        @other.tournament_entries.each { |e| SyncEntry.call(entry: e, prune: false, notify: @notify) }
       end
     end
   end

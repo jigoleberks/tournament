@@ -93,11 +93,15 @@ class Admin::LeagueNightsControllerTest < ActionDispatch::IntegrationTest
       post admin_tournament_template_league_night_path(tournament_template_id: @main.id),
            params: { league_night: {
              starts_at: starts_at.iso8601, ends_at: ends_at.iso8601,
-             main: { format: "standard", species_id: @walleye.id },
+             main: { format: "progressive_length", species_id: @walleye.id },
              side: { format: "smallest_fish", species_id: "" }
            } }
     end
     assert_response :unprocessable_entity
+    # The admin view carries its own copy of the "fall back to what was
+    # submitted" logic. The Main template's own format is standard, so this
+    # only holds if the re-render reads the submission.
+    assert_select "select[name='league_night[main][format]'] option[value=?][selected]", "progressive_length"
   end
 
   private

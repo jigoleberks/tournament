@@ -11,13 +11,21 @@ module TournamentLinks
   # blank-name hop without losing its counterpart. See Counterpart for the
   # matching rule itself.
   class SyncEntry
-    def self.call(entry:, prune: true)
-      new(entry: entry, prune: prune).call
+    def self.call(entry:, prune: true, notify: true)
+      new(entry: entry, prune: prune, notify: notify).call
     end
 
-    def initialize(entry:, prune: true)
+    # notify: false suppresses the per-member push below. Defaults to true, so
+    # every ordinary path (create, rename, crew change, a fresh link) is
+    # unchanged. It exists for administrative back-fills — repairing a
+    # half-scheduled league night links a tournament for a night that may
+    # already be over, and DeliverPushNotificationJob has no started/ended
+    # guard, so notifying there would tell every angler they've "been entered
+    # into" a tournament that finished days ago.
+    def initialize(entry:, prune: true, notify: true)
       @entry = entry
       @prune = prune
+      @notify = notify
     end
 
     def call
@@ -50,15 +58,19 @@ module TournamentLinks
 
       siblings.zip(results).each do |sibling, (counterpart, added_user_ids)|
         # Only members newly added to the counterpart get a push — a rename
-        # or a no-op resync must not re-notify anyone already aboard.
-        added_user_ids.each do |uid|
-          ::DeliverPushNotificationJob.perform_later(
-            user_id: uid,
-            title: sibling.name,
-            body: "You've been entered into #{sibling.name}.",
-            url: "/tournaments/#{sibling.id}",
-            tournament_id: sibling.id
-          )
+        # or a no-op resync must not re-notify anyone already aboard. The
+        # broadcast below is NOT gated on @notify: a leaderboard frame is a
+        # display update for whoever is looking, not an alert.
+        if @notify
+          added_user_ids.each do |uid|
+            ::DeliverPushNotificationJob.perform_later(
+              user_id: uid,
+              title: sibling.name,
+              body: "You've been entered into #{sibling.name}.",
+              url: "/tournaments/#{sibling.id}",
+              tournament_id: sibling.id
+            )
+          end
         end
         ::Placements::BroadcastLeaderboard.call(
           tournament: sibling, changed_entry_ids: [counterpart.id]
