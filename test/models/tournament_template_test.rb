@@ -352,4 +352,23 @@ class TournamentTemplateTest < ActiveSupport::TestCase
     assert_not third.valid?
     assert_includes third.errors[:paired_template], "is already paired with another template"
   end
+
+  test "a dangling paired_template_id is invalid" do
+    template = create(:tournament_template)
+    template.paired_template_id = TournamentTemplate.maximum(:id).to_i + 1
+
+    assert_not template.valid?
+    assert_includes template.errors[:paired_template], "must exist"
+  end
+
+  test "destroying a template clears the partner's pairing" do
+    club = create(:club)
+    main = create(:tournament_template, club: club, name: "Main")
+    side = create(:tournament_template, club: club, name: "Side")
+    main.update!(paired_template: side)
+
+    main.destroy
+
+    assert_nil side.reload.paired_template_id
+  end
 end

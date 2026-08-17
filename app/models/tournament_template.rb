@@ -23,9 +23,11 @@ class TournamentTemplate < ApplicationRecord
   before_validation :force_pro_walleye_slot_count
   validate :progressive_length_requires_one_scoring_slot
   validate :paired_template_cannot_be_self
+  validate :paired_template_must_exist
   validate :paired_template_must_be_same_club
   validate :paired_template_must_be_available
   after_save :sync_pairing
+  before_destroy :clear_partner_pairing
 
   def paired?
     paired_template_id.present?
@@ -173,6 +175,15 @@ class TournamentTemplate < ApplicationRecord
     errors.add(:paired_template, "can't be the same template")
   end
 
+  # belongs_to resolves a dangling id to nil rather than raising, which would
+  # let the same-club/availability guards below silently no-op on a crafted
+  # or orphaned id (e.g. a former partner's row getting destroyed).
+  def paired_template_must_exist
+    return if paired_template_id.blank?
+    return if paired_template.present?
+    errors.add(:paired_template, "must exist")
+  end
+
   def paired_template_must_be_same_club
     return if paired_template.nil?
     return if paired_template.club_id == club_id
@@ -214,5 +225,14 @@ class TournamentTemplate < ApplicationRecord
     end
   ensure
     @syncing_pairing = false
+  end
+
+  # Without this, destroying a paired template leaves the partner's
+  # paired_template_id pointing at a row that no longer exists — the same
+  # dangling-id state paired_template_must_exist guards against on save.
+  # update_all bypasses validations/callbacks so it can't recurse back here.
+  def clear_partner_pairing
+    return if paired_template_id.blank?
+    TournamentTemplate.where(id: paired_template_id).update_all(paired_template_id: nil)
   end
 end
