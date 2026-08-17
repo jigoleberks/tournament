@@ -22,8 +22,10 @@ module LeagueNightParams
 
   private
 
+  # Memoized: #create reads this four times to fill LeagueNights::Schedule's
+  # keyword arguments, and require + permit is not free.
   def league_night_params
-    params.require(:league_night).permit(
+    @league_night_params ||= params.require(:league_night).permit(
       :starts_at, :ends_at, main: MAIN_FIELDS, side: SIDE_FIELDS
     )
   end

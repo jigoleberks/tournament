@@ -31,6 +31,19 @@ class Admin::LeagueNightsControllerTest < ActionDispatch::IntegrationTest
     assert_equal "That template isn't paired with another one.", flash[:alert]
   end
 
+  # Also the only branch of this view that names edit_admin_tournament_template_path.
+  test "a pair with no weekday or times says so instead of rendering the form" do
+    unscheduled_main = create(:tournament_template, club: @club, name: "Someday - Main", mode: :team)
+    unscheduled_side = create(:tournament_template, club: @club, name: "Someday - Side", mode: :team)
+    unscheduled_main.update!(paired_template: unscheduled_side)
+
+    get new_admin_tournament_template_league_night_path(tournament_template_id: unscheduled_main.id)
+    assert_response :success
+    assert_match(/weekday/i, response.body)
+    assert_no_match(/Create both/, response.body)
+    assert_select "a[href=?]", edit_admin_tournament_template_path(unscheduled_main)
+  end
+
   test "creating a league night makes both tournaments, linked" do
     starts_at, ends_at = @main.next_occurrence_at
 

@@ -16,10 +16,14 @@ class Organizers::LeagueNightsControllerTest < ActionDispatch::IntegrationTest
   end
 
   test "the screen prefills the next occurrence and names both columns" do
+    starts_at, ends_at = @main.next_occurrence_at
+
     get new_organizers_tournament_template_league_night_path(tournament_template_id: @main.id)
     assert_response :success
     assert_match(/League Night - Main/, response.body)
     assert_match(/League Night - Side/, response.body)
+    assert_select "input[name='league_night[starts_at]'][value=?]", starts_at.strftime("%Y-%m-%dT%H:%M")
+    assert_select "input[name='league_night[ends_at]'][value=?]", ends_at.strftime("%Y-%m-%dT%H:%M")
   end
 
   test "solo-only and excluded formats are not offered" do
@@ -96,6 +100,54 @@ class Organizers::LeagueNightsControllerTest < ActionDispatch::IntegrationTest
          } }
 
     assert Tournament.find_by(template_source_id: @main.id).blind_leaderboard?
+  end
+
+  # This screen is the authority for the Side column's blind flag each week, so
+  # the control has to be able to say "off" as well as "on". A bare check_box_tag
+  # submits nothing at all when unchecked, and LeagueNights::Schedule then falls
+  # back to the template's own flag — so unchecking the box would be a silent
+  # no-op for a Side template that has blind_leaderboard set.
+  test "unchecking the side blind box turns the flag off even when the template has it on" do
+    @side.update!(blind_leaderboard: true)
+    starts_at, ends_at = @main.next_occurrence_at
+
+    get new_organizers_tournament_template_league_night_path(tournament_template_id: @main.id)
+
+    # Reproduce exactly what a browser submits with that box unchecked: every
+    # input under the name EXCEPT the checkbox itself (i.e. the companion hidden
+    # field, if there is one).
+    unchecked_value = css_select("input[name='league_night[side][blind_leaderboard]']")
+                        .reject { |input| input["type"] == "checkbox" }
+                        .map { |input| input["value"] }
+                        .last
+    side = { format: "standard", species_id: @walleye.id }
+    side[:blind_leaderboard] = unchecked_value unless unchecked_value.nil?
+
+    post organizers_tournament_template_league_night_path(tournament_template_id: @main.id),
+         params: { league_night: {
+           starts_at: starts_at.iso8601, ends_at: ends_at.iso8601,
+           main: { format: "standard", species_id: @walleye.id },
+           side: side
+         } }
+
+    assert_not Tournament.find_by(template_source_id: @side.id).blind_leaderboard?
+  end
+
+  # The other half of the same finding: the box's rendered state has to be its
+  # effective state, or it reports the wrong thing before anyone touches it.
+  test "the side blind box renders checked when the side template is blind" do
+    @side.update!(blind_leaderboard: true)
+    get new_organizers_tournament_template_league_night_path(tournament_template_id: @main.id)
+    assert_select "input[type=checkbox][name='league_night[side][blind_leaderboard]'][checked]"
+  end
+
+  # The companion hidden field must stay out of the checkbox's way: no duplicate
+  # id, and the sideBlind Stimulus target still on the checkbox itself.
+  test "the side blind hidden field doesn't collide with the checkbox" do
+    get new_organizers_tournament_template_league_night_path(tournament_template_id: @main.id)
+    assert_select "input[type=hidden][name='league_night[side][blind_leaderboard]'][value='0']:not([id])", 1
+    assert_select "#league_night_side_blind_leaderboard", 1
+    assert_select "input[type=checkbox]#league_night_side_blind_leaderboard[data-league-night-target='sideBlind']", 1
   end
 
   test "a validation failure creates neither and re-renders" do

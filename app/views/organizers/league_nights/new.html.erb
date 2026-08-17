@@ -79,7 +79,14 @@
 
         <% if column == :side %>
           <label class="flex items-center gap-2 pt-1">
-            <%= check_box_tag "league_night[side][blind_leaderboard]", "1", false,
+            <%# This screen is the authority for Side's blind flag each week, so the
+                box has to be able to submit "off" too. A bare check_box_tag submits
+                nothing when unchecked and LeagueNights::Schedule then falls back to
+                the template's flag, making an un-tick a silent no-op. The companion
+                hidden field keeps the key always present; id: nil stops it stealing
+                the checkbox's id and the sideBlind Stimulus target with it. %>
+            <%= hidden_field_tag "league_night[side][blind_leaderboard]", "0", id: nil %>
+            <%= check_box_tag "league_night[side][blind_leaderboard]", "1", template.blind_leaderboard,
                               class: "h-5 w-5", data: { league_night_target: "sideBlind", action: "change->league-night#sync" } %>
             <span class="text-slate-200">Blind leaderboard</span>
           </label>
