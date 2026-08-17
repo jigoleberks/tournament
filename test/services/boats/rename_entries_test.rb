@@ -1,6 +1,8 @@
 require "test_helper"
 
 class Boats::RenameEntriesTest < ActiveSupport::TestCase
+  include ActiveJob::TestHelper
+
   setup do
     @club = create(:club)
     @kurtis = create(:user, club: @club, name: "Kurtis Sanguin")
@@ -31,6 +33,25 @@ class Boats::RenameEntriesTest < ActiveSupport::TestCase
     assert_equal "Majestic Red", e2.reload.name
   end
 
+  # Boats::SeedFromHistory#apply attaches boat_id to a whole NearMatch-grouped
+  # cluster of historical entries via a bare update_all — it never rewrites
+  # any entry's name to the boat's chosen "newest spelling". So an entry like
+  # this, straight out of a seed run, has NEVER exactly equalled the boat's
+  # name — matching on exact equality would leave it permanently unfixable.
+  # Matching on the same NearMatch.normalize key SeedFromHistory grouped by
+  # (which also strips a leading "Team ") re-admits it.
+  test "renames a seeded entry whose historical spelling never exactly matched the boat" do
+    tournament = create(:tournament, club: @club, mode: :team,
+                         starts_at: 3.days.ago, ends_at: 2.days.ago)
+    entry = create(:tournament_entry, tournament: tournament, name: "Team Majestic Red")
+    ::TournamentEntry.where(id: entry.id).update_all(boat_id: @boat.id)
+
+    @boat.update!(name: "Majestic Red II")
+    Boats::RenameEntries.call(boat: @boat)
+
+    assert_equal "Majestic Red II", entry.reload.name
+  end
+
   test "does not touch entries when only the captain changes" do
     other_captain = create(:user, club: @club, name: "Other Captain")
     tournament = create(:tournament, club: @club, mode: :team)
@@ -53,12 +74,19 @@ class Boats::RenameEntriesTest < ActiveSupport::TestCase
     assert_equal "Majestic red - DQ'd", entry.reload.name
   end
 
-  test "covers a linked pair by boat_id alone, with no extra syncing needed" do
+  test "covers a linked pair created via Boats::Enter, by boat_id alone" do
     group = SecureRandom.uuid
     main = create(:tournament, club: @club, mode: :team, name: "Main", link_group_id: group)
     side = create(:tournament, club: @club, mode: :team, name: "Side", link_group_id: group)
-    main_entry = create(:tournament_entry, tournament: main, name: "Majestic red", boat: @boat)
-    side_entry = create(:tournament_entry, tournament: side, name: "Majestic red", boat: @boat)
+
+    main_entry = Boats::Enter.call(tournament: main, boat: @boat)
+    side_entry = side.tournament_entries.sole
+
+    # Load-bearing on SyncEntry actually copying boat_id onto the mirrored
+    # counterpart — if that ever stopped, this assertion (not just the rename
+    # below) would catch it, rather than the test only proving true-by-
+    # construction against a hand-built fixture.
+    assert_equal @boat.id, side_entry.boat_id
 
     @boat.update!(name: "Majestic Red")
     Boats::RenameEntries.call(boat: @boat)
@@ -67,48 +95,60 @@ class Boats::RenameEntriesTest < ActiveSupport::TestCase
     assert_equal "Majestic Red", side_entry.reload.name
   end
 
-  test "broadcasts once per affected tournament, not once per entry" do
+  test "enqueues one background broadcast job carrying every renamed entry id" do
     group = SecureRandom.uuid
     main = create(:tournament, club: @club, mode: :team, name: "Main", link_group_id: group)
     side = create(:tournament, club: @club, mode: :team, name: "Side", link_group_id: group)
     other = create(:tournament, club: @club, mode: :team, name: "Other",
                     starts_at: 3.days.ago, ends_at: 2.days.ago)
-    create(:tournament_entry, tournament: main, name: "Majestic red", boat: @boat)
-    create(:tournament_entry, tournament: side, name: "Majestic red", boat: @boat)
-    create(:tournament_entry, tournament: other, name: "Majestic red", boat: @boat)
+    e1 = create(:tournament_entry, tournament: main, name: "Majestic red", boat: @boat)
+    e2 = create(:tournament_entry, tournament: side, name: "Majestic red", boat: @boat)
+    e3 = create(:tournament_entry, tournament: other, name: "Majestic red", boat: @boat)
 
     @boat.update!(name: "Majestic Red")
+
+    assert_enqueued_with(job: BroadcastBoatRenameJob) do
+      Boats::RenameEntries.call(boat: @boat)
+    end
+
+    enqueued_ids = enqueued_jobs.find { |j| j["job_class"] == "BroadcastBoatRenameJob" }["arguments"].first["entry_ids"]
+    assert_equal [e1.id, e2.id, e3.id].sort, enqueued_ids.sort
+  end
+
+  test "actually broadcasting the redraw does not happen inline in the request — only enqueuing does" do
+    tournament = create(:tournament, club: @club, mode: :team)
+    create(:tournament_entry, tournament: tournament, name: "Majestic red", boat: @boat)
+
+    @boat.update!(name: "Majestic Red")
+
     tournament_ids = with_broadcast_spy do
       Boats::RenameEntries.call(boat: @boat)
     end
 
-    assert_equal [main.id, side.id, other.id].sort, tournament_ids.sort
-    assert_equal 3, tournament_ids.size
+    assert_empty tournament_ids, "the redraw must be deferred to BroadcastBoatRenameJob, not fired inline"
   end
 
-  test "does nothing and does not broadcast when the boat has no matching entries" do
+  test "does nothing and enqueues no job when the boat has no matching entries" do
     @boat.update!(name: "Majestic Red")
-    tournament_ids = with_broadcast_spy do
+    assert_no_enqueued_jobs do
       assert_empty Boats::RenameEntries.call(boat: @boat)
     end
-    assert_empty tournament_ids
   end
 
   test "does nothing when the boat's name did not change" do
     tournament = create(:tournament, club: @club, mode: :team)
     entry = create(:tournament_entry, tournament: tournament, name: "Majestic red", boat: @boat)
 
-    tournament_ids = with_broadcast_spy do
+    assert_no_enqueued_jobs do
       # Saving with the same name is a no-op change; saved_change_to_name? is false.
       @boat.update!(name: "Majestic red")
       assert_empty Boats::RenameEntries.call(boat: @boat)
     end
 
-    assert_empty tournament_ids
     assert_equal "Majestic red", entry.reload.name
   end
 
-  test "rolls back every rename and broadcasts nothing when one entry fails to save" do
+  test "rolls back every rename and enqueues no broadcast job when one entry fails to save" do
     t1 = create(:tournament, club: @club, mode: :team, name: "T1")
     t2 = create(:tournament, club: @club, mode: :team, name: "T2")
     entry1 = create(:tournament_entry, tournament: t1, name: "Majestic red", boat: @boat)
@@ -117,17 +157,12 @@ class Boats::RenameEntriesTest < ActiveSupport::TestCase
     @boat.update!(name: "Majestic Red")
 
     # Force the SAME rows the service will load to include one whose update!
-    # raises, so the whole rename transaction rolls back. If broadcasting ever
-    # moved inside the transaction (the bug TournamentLinks::SyncEntry guards
-    # against — see its own pinning test), entry1's frame would already be on
-    # the wire by the time entry2's raise unwound the write.
-    loaded = ::TournamentEntry.where(boat_id: @boat.id, name: "Majestic red").to_a
+    # raises, so the whole rename transaction rolls back. If the job were
+    # ever enqueued from inside the transaction instead of after it commits,
+    # this would catch it enqueuing for a write that then rolled back.
+    loaded = ::TournamentEntry.where(boat_id: @boat.id).to_a
     failing = loaded.find { |e| e.id == entry2.id }
     failing.define_singleton_method(:update!) { |*| raise ::ActiveRecord::RecordInvalid.new(self) }
-
-    broadcast_calls = 0
-    original_broadcast = Placements::BroadcastLeaderboard.method(:call)
-    Placements::BroadcastLeaderboard.define_singleton_method(:call) { |**| broadcast_calls += 1 }
 
     expected_boat_id = @boat.id
     original_where = ::TournamentEntry.method(:where)
@@ -136,15 +171,15 @@ class Boats::RenameEntriesTest < ActiveSupport::TestCase
     end
 
     begin
-      assert_raises(::ActiveRecord::RecordInvalid) do
-        Boats::RenameEntries.call(boat: @boat)
+      assert_no_enqueued_jobs do
+        assert_raises(::ActiveRecord::RecordInvalid) do
+          Boats::RenameEntries.call(boat: @boat)
+        end
       end
     ensure
       ::TournamentEntry.define_singleton_method(:where, original_where)
-      Placements::BroadcastLeaderboard.define_singleton_method(:call, original_broadcast)
     end
 
-    assert_equal 0, broadcast_calls, "a rolled-back rename must not have broadcast entry1's phantom new name"
     assert_equal "Majestic red", entry1.reload.name
   end
 end

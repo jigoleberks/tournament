@@ -1,6 +1,8 @@
 require "test_helper"
 
 class Organizers::BoatsControllerTest < ActionDispatch::IntegrationTest
+  include ActiveJob::TestHelper
+
   setup do
     @club = create(:club)
     @organizer = create(:user, club: @club, role: :organizer)
@@ -149,10 +151,20 @@ class Organizers::BoatsControllerTest < ActionDispatch::IntegrationTest
     create(:tournament_entry, tournament: @team, name: "Majestic Red", boat: @boat)
 
     tournament_ids = with_broadcast_spy do
-      patch organizers_boat_path(@boat), params: { boat: { name: "Majestic Red II", captain_user_id: @kurtis.id } }
+      perform_enqueued_jobs do
+        patch organizers_boat_path(@boat), params: { boat: { name: "Majestic Red II", captain_user_id: @kurtis.id } }
+      end
     end
 
     assert_equal [finished.id, @team.id].sort, tournament_ids.sort
+  end
+
+  test "renaming a boat enqueues the redraw rather than broadcasting inline in the request" do
+    create(:tournament_entry, tournament: @team, name: "Majestic Red", boat: @boat)
+
+    assert_enqueued_with(job: BroadcastBoatRenameJob) do
+      patch organizers_boat_path(@boat), params: { boat: { name: "Majestic Red II", captain_user_id: @kurtis.id } }
+    end
   end
 
   test "retiring a boat moves it out of the active list into a Retired section, not deleted" do

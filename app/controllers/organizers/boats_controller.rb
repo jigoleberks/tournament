@@ -50,6 +50,8 @@ class Organizers::BoatsController < Organizers::BaseController
     else
       redirect_to organizers_boats_path, alert: boat.errors.full_messages.to_sentence
     end
+  rescue ActiveRecord::RecordInvalid => e
+    redirect_to organizers_boats_path, alert: e.message
   end
 
   def destroy
