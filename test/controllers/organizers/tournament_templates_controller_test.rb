@@ -166,8 +166,27 @@ class Organizers::TournamentTemplatesControllerTest < ActionDispatch::Integratio
     assert_response :success
     assert_select "form[action=?]",
                   new_organizers_tournament_template_league_night_path(tournament_template_id: main.id),
-                  count: 1
+                  count: 1 do
+      assert_select "button", text: "Schedule next league night", count: 1
+    end
     assert_match(/League Night - Main \+ League Night - Side/, response.body)
+    assert_select "form[action=?]", clone_organizers_tournament_template_path(main), count: 0
+    assert_select "form[action=?]", clone_organizers_tournament_template_path(side), count: 0
+  end
+
+  test "a paired template with no weekday or times still links to the scheduler" do
+    main = create(:tournament_template, club: @club, name: "League Night - Main")
+    side = create(:tournament_template, club: @club, name: "League Night - Side")
+    main.update!(paired_template: side)
+
+    get organizers_tournament_templates_path
+
+    assert_select "form[action=?]",
+                  new_organizers_tournament_template_league_night_path(tournament_template_id: main.id),
+                  count: 1 do
+      assert_select "button", text: "Schedule next league night", count: 1
+    end
+    assert_no_match(/either template/, response.body)
     assert_select "form[action=?]", clone_organizers_tournament_template_path(main), count: 0
     assert_select "form[action=?]", clone_organizers_tournament_template_path(side), count: 0
   end

@@ -7,19 +7,24 @@
   <ul class="space-y-2">
     <% @templates.each do |t| %>
       <li class="bg-slate-800 rounded-lg p-4">
+        <%# `t` is the pair's canonical half: #index drops the partner and keeps whichever
+            name sorts first, and that half alone decides the scheduler's window,
+            fills its Main column, and is the tournament #create redirects to. The
+            partner's own weekday/times are never read. Deterministic but arbitrary
+            — order(:name) is load-bearing here, not cosmetic. The scheduler button
+            is unconditional: with no window set, the scheduler screen is where the
+            operator is told so, by name, with an Edit link. %>
         <% if t.paired? && t.paired_template %>
           <p class="text-lg font-medium text-blue-300 mb-1">
             <%= t.name %> + <%= t.paired_template.name %>
           </p>
           <% if t.scheduled? %>
             <p class="text-sm text-slate-400 mb-3"><%= t.default_schedule_summary %></p>
-            <%= button_to "Schedule next league night",
-                          new_organizers_tournament_template_league_night_path(tournament_template_id: t.id),
-                          method: :get,
-                          class: "h-12 px-4 rounded-lg bg-blue-600 active:bg-blue-700 text-white" %>
-          <% else %>
-            <p class="text-sm text-slate-400">Set a weekday and times on either template to schedule it.</p>
           <% end %>
+          <%= button_to "Schedule next league night",
+                        new_organizers_tournament_template_league_night_path(tournament_template_id: t.id),
+                        method: :get,
+                        class: "h-12 px-4 rounded-lg bg-blue-600 active:bg-blue-700 text-white" %>
           <div class="flex flex-wrap gap-2 mt-2">
             <%= link_to "Edit #{t.name}", edit_organizers_tournament_template_path(t),
                         class: "h-10 px-3 leading-[2.5rem] rounded bg-slate-700 text-slate-100 text-sm" %>

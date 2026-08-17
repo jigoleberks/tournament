@@ -59,7 +59,9 @@ class Admin::TournamentTemplatesControllerTest < ActionDispatch::IntegrationTest
     assert_response :success
     assert_select "form[action=?]",
                   new_admin_tournament_template_league_night_path(tournament_template_id: main.id),
-                  count: 1
+                  count: 1 do
+      assert_select "button", text: "Schedule next league night", count: 1
+    end
     assert_match(/League Night - Main \+ League Night - Side/, response.body)
     assert_select "form[action=?]", clone_admin_tournament_template_path(main), count: 0
     assert_select "form[action=?]", clone_admin_tournament_template_path(side), count: 0
@@ -69,6 +71,23 @@ class Admin::TournamentTemplatesControllerTest < ActionDispatch::IntegrationTest
     assert_select "form[action=?]", admin_tournament_template_path(side), count: 1
   end
 
+  test "a paired template with no weekday or times still links to the scheduler" do
+    main = create(:tournament_template, club: @club, name: "League Night - Main")
+    side = create(:tournament_template, club: @club, name: "League Night - Side")
+    main.update!(paired_template: side)
+
+    get admin_tournament_templates_path
+
+    assert_select "form[action=?]",
+                  new_admin_tournament_template_league_night_path(tournament_template_id: main.id),
+                  count: 1 do
+      assert_select "button", text: "Schedule next league night", count: 1
+    end
+    assert_no_match(/either template/, response.body)
+    assert_select "form[action=?]", clone_admin_tournament_template_path(main), count: 0
+    assert_select "form[action=?]", clone_admin_tournament_template_path(side), count: 0
+  end
+
   test "an unpaired template keeps its own Schedule next button" do
     solo = create(:tournament_template, club: @club, name: "Saturday LML",
                   default_weekday: 6, default_start_time: "08:00", default_end_time: "16:00")
@@ -76,6 +95,9 @@ class Admin::TournamentTemplatesControllerTest < ActionDispatch::IntegrationTest
     get admin_tournament_templates_path
 
     assert_select "form[action=?]", clone_admin_tournament_template_path(solo), count: 1
+    assert_select "form[action=?]",
+                  new_admin_tournament_template_league_night_path(tournament_template_id: solo.id),
+                  count: 0
   end
 
   private
