@@ -140,6 +140,40 @@ class LeagueNightSchedulerTest < ApplicationSystemTestCase
     assert_selector SIDE_COUNT, visible: :hidden
   end
 
+  # The whole flow, from the pair's row on the templates index through to two
+  # linked tournaments. Every other test here drives the scheduler screen
+  # directly; this one is the only check that the row's button reaches it and
+  # that #create's redirect lands somewhere that shows the pair.
+  test "scheduling a league night from the templates index creates both, linked" do
+    visit organizers_tournament_templates_path
+    assert_text "League Night - Main + League Night - Side"
+    click_button "Schedule next league night"
+
+    select "Pro Walleye", from: "league_night[main][format]"
+    select "Walleye", from: "league_night[main][species_id]"
+    select "Smallest Fish", from: "league_night[side][format]"
+    select "Perch", from: "league_night[side][species_id]"
+    click_button "Create both"
+
+    assert_text "League night scheduled."
+
+    main_t = Tournament.find_by(template_source_id: @main.id)
+    side_t = Tournament.find_by(template_source_id: @side.id)
+    assert_not_nil main_t
+    assert_not_nil side_t
+    # Both being nil would satisfy the equality on its own, and an unlinked pair
+    # is exactly the failure this test exists to catch.
+    assert_not_nil main_t.link_group_id
+    assert_equal main_t.link_group_id, side_t.link_group_id
+    assert main_t.format_pro_walleye?
+    assert side_t.format_smallest_fish?
+    # The "Linked with" heading on the tournament edit page is unconditional, so
+    # it only proves the redirect landed there. The blurb below it renders only
+    # when the tournament actually has a linked partner.
+    assert_text "Linked with"
+    assert_text "Entries are shared. Adding a boat here adds it there."
+  end
+
   private
 
   def visit_scheduler
