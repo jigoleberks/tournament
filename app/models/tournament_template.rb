@@ -1,5 +1,6 @@
 class TournamentTemplate < ApplicationRecord
   belongs_to :club
+  belongs_to :paired_template, class_name: "TournamentTemplate", optional: true
   has_many :tournament_template_scoring_slots, dependent: :destroy
   accepts_nested_attributes_for :tournament_template_scoring_slots, allow_destroy: true,
                                 reject_if: ->(attrs) { attrs["species_id"].blank? }
@@ -21,6 +22,14 @@ class TournamentTemplate < ApplicationRecord
   validate :pro_walleye_requires_one_walleye_scoring_slot
   before_validation :force_pro_walleye_slot_count
   validate :progressive_length_requires_one_scoring_slot
+  validate :paired_template_cannot_be_self
+  validate :paired_template_must_be_same_club
+  validate :paired_template_must_be_available
+  after_save :sync_pairing
+
+  def paired?
+    paired_template_id.present?
+  end
 
   def scheduled?
     default_weekday.present? && default_start_time.present? && default_end_time.present?
@@ -156,5 +165,54 @@ class TournamentTemplate < ApplicationRecord
     return if remaining.size == 1
     errors.add(:tournament_template_scoring_slots,
                "Progressive Length tournaments must have exactly one species configured")
+  end
+
+  def paired_template_cannot_be_self
+    return if paired_template_id.blank?
+    return unless paired_template_id == id
+    errors.add(:paired_template, "can't be the same template")
+  end
+
+  def paired_template_must_be_same_club
+    return if paired_template.nil?
+    return if paired_template.club_id == club_id
+    errors.add(:paired_template, "must belong to the same club")
+  end
+
+  # A league night is exactly two templates, so a partner already spoken for
+  # can't be taken. Without this, pairing C to B would silently orphan A.
+  #
+  # Reads the partner's current pairing straight from the DB rather than off
+  # `paired_template` — an in-memory association object can be a stale copy
+  # (e.g. loaded before another template's `sync_pairing` repointed it via
+  # `update_column`, which never touches Ruby objects held elsewhere).
+  def paired_template_must_be_available
+    return if paired_template.nil?
+    current_partner_id = TournamentTemplate.where(id: paired_template_id).pick(:paired_template_id)
+    return if current_partner_id.nil?
+    return if current_partner_id == id
+    errors.add(:paired_template, "is already paired with another template")
+  end
+
+  # Pairing is symmetric: whichever side you set it from, both rows end up
+  # pointing at each other. The guard stops the partner's own after_save from
+  # bouncing the update back.
+  def sync_pairing
+    return if @syncing_pairing
+    return unless saved_change_to_paired_template_id?
+
+    previous_id, current_id = saved_change_to_paired_template_id
+    @syncing_pairing = true
+
+    if previous_id
+      former = TournamentTemplate.find_by(id: previous_id)
+      former&.update_column(:paired_template_id, nil)
+    end
+    if current_id
+      partner = TournamentTemplate.find_by(id: current_id)
+      partner&.update_column(:paired_template_id, id)
+    end
+  ensure
+    @syncing_pairing = false
   end
 end

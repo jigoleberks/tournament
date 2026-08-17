@@ -301,4 +301,55 @@ class TournamentTemplateTest < ActiveSupport::TestCase
     tpl.tournament_template_scoring_slots.build(species: walleye, slot_count: 1)
     assert tpl.valid?, tpl.errors.full_messages.inspect
   end
+
+  test "pairing is mirrored onto the partner" do
+    club = create(:club)
+    main = create(:tournament_template, club: club, name: "Main")
+    side = create(:tournament_template, club: club, name: "Side")
+
+    main.update!(paired_template: side)
+
+    assert_equal side, main.reload.paired_template
+    assert_equal main, side.reload.paired_template
+    assert main.paired?
+  end
+
+  test "unpairing clears both sides" do
+    club = create(:club)
+    main = create(:tournament_template, club: club, name: "Main")
+    side = create(:tournament_template, club: club, name: "Side")
+    main.update!(paired_template: side)
+
+    main.update!(paired_template: nil)
+
+    assert_nil main.reload.paired_template
+    assert_nil side.reload.paired_template
+  end
+
+  test "a template can't pair with itself" do
+    template = create(:tournament_template)
+    template.paired_template_id = template.id
+    assert_not template.valid?
+    assert_includes template.errors[:paired_template], "can't be the same template"
+  end
+
+  test "a template can't pair across clubs" do
+    mine = create(:tournament_template, club: create(:club))
+    theirs = create(:tournament_template, club: create(:club))
+    mine.paired_template = theirs
+    assert_not mine.valid?
+    assert_includes mine.errors[:paired_template], "must belong to the same club"
+  end
+
+  test "a template already paired to someone else can't be taken" do
+    club = create(:club)
+    main = create(:tournament_template, club: club, name: "Main")
+    side = create(:tournament_template, club: club, name: "Side")
+    third = create(:tournament_template, club: club, name: "Third")
+    main.update!(paired_template: side)
+
+    third.paired_template = side
+    assert_not third.valid?
+    assert_includes third.errors[:paired_template], "is already paired with another template"
+  end
 end
