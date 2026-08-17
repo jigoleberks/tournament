@@ -4,12 +4,15 @@ class Organizers::LeagueNightsController < Organizers::BaseController
   before_action :load_template
 
   def new
-    @occurrence = LeagueNights::NextOccurrence.call(template: @template)
+    @occurrence = LeagueNights::NextOccurrence.call(template: @template, on: requested_date)
     @formats = schedulable_formats
   end
 
   def create
-    occurrence = LeagueNights::NextOccurrence.call(template: @template)
+    # Resolved against the date being SUBMITTED, not the template's next
+    # occurrence — see LeagueNightParams#submitted_date. This is what makes a
+    # backdated repair see the half that already exists.
+    occurrence = LeagueNights::NextOccurrence.call(template: @template, on: submitted_date)
     if occurrence.fully_scheduled?
       redirect_to organizers_tournament_templates_path,
                   alert: "That week is already scheduled." and return
@@ -46,13 +49,13 @@ class Organizers::LeagueNightsController < Organizers::BaseController
       ends_at: league_night_params[:ends_at],
       **args
     )
-    notice =
+    flash_message =
       if repairing
         link_repaired_half(tournaments.first, occurrence.existing_main || occurrence.existing_side)
       else
-        "League night scheduled."
+        { notice: "League night scheduled." }
       end
-    redirect_to edit_organizers_tournament_path(tournaments.first), notice: notice
+    redirect_to edit_organizers_tournament_path(tournaments.first), **flash_message
   rescue ActiveRecord::RecordInvalid => e
     render_new_with_error(e.message)
   end
@@ -85,9 +88,11 @@ class Organizers::LeagueNightsController < Organizers::BaseController
   # fully_scheduled? and dead-end on "That week is already scheduled."
   def link_repaired_half(created, existing)
     TournamentLinks::Join.call(tournament: created, other: existing, notify: false)
-    "League night scheduled."
+    { notice: "League night scheduled." }
   rescue ActiveRecord::RecordInvalid
-    "Created, but couldn't link it to the existing tournament — link them from the tournament page."
+    # alert:, not notice: — the tournament exists but the pair is half-made, so
+    # this belongs in the failure channel rather than the green success flash.
+    { alert: "Created, but couldn't link it to the existing tournament — link them from the tournament page." }
   end
 
   # Both failure paths come back here. @submitted carries the operator's own
@@ -95,7 +100,9 @@ class Organizers::LeagueNightsController < Organizers::BaseController
   # pristine form, throwing away every format, species, count and time just
   # picked and leaving only the error text behind.
   def render_new_with_error(message)
-    @occurrence = LeagueNights::NextOccurrence.call(template: @template)
+    # Same date the submission was resolved against, so a failed repair
+    # re-renders as a repair rather than reverting to the next occurrence.
+    @occurrence = LeagueNights::NextOccurrence.call(template: @template, on: submitted_date)
     @formats = schedulable_formats
     @submitted = submitted_values
     @error = message

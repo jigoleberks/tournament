@@ -41,6 +41,28 @@ module LeagueNightParams
     ::Tournament.formats.keys - EXCLUDED_FORMATS
   end
 
+  # The night #new was asked to show. Optional ?date=YYYY-MM-DD, so an organizer
+  # can load a past night to repair it — the whole point of the repair path is
+  # a night that already ran, and NextOccurrence without a date only ever rolls
+  # forward. nil means "the next occurrence", which is the default landing.
+  def requested_date
+    ::Date.parse(params[:date].to_s)
+  rescue ::Date::Error
+    nil
+  end
+
+  # The date #create is actually building on. Detection has to key off THIS,
+  # not off the template's next occurrence, or the two disagree: a backdated
+  # repair would find nothing on the old date and happily create a second copy
+  # of the half that already exists. It also closes a rollover race — a screen
+  # opened Tuesday night and submitted after midnight would otherwise be
+  # checked against the following week's occurrence.
+  def submitted_date
+    ::Time.zone.parse(league_night_params[:starts_at].to_s)&.to_date
+  rescue ArgumentError
+    nil
+  end
+
   # One column's week-specific settings, shaped the way LeagueNights::Schedule
   # wants them. nil when that column wasn't submitted at all — which is the
   # normal case on the repair path, where only the missing half has a form.

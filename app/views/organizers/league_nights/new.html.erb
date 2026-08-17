@@ -22,6 +22,24 @@
   </div>
 <% end %>
 
+<%# The screen lands on the next occurrence. This loads a different night —
+    including one in the PAST, which is the only way to reach the repair path
+    for a half-night that already ran. Its own GET form, outside the schedule
+    form below, and rendered above the "already scheduled" state too so that
+    isn't a dead end. %>
+<% unless @occurrence.starts_at.nil? %>
+  <%= form_with url: new_organizers_tournament_template_league_night_path(tournament_template_id: @occurrence.main_template.id),
+                method: :get, local: true, class: "bg-slate-800 rounded-xl p-4 mb-4 flex items-end gap-2" do %>
+    <div class="flex-1">
+      <%= label_tag :date, "Night", class: "block text-sm text-slate-300 mb-1" %>
+      <%= date_field_tag :date, @occurrence.starts_at.to_date,
+                         class: "w-full h-12 px-3 rounded-lg bg-slate-900 border border-slate-700" %>
+    </div>
+    <%= submit_tag "Load this date",
+                   class: "h-12 px-4 rounded-lg bg-slate-700 active:bg-slate-600 text-white font-semibold" %>
+  <% end %>
+<% end %>
+
 <% if @occurrence.starts_at.nil? %>
   <%# No default weekday/times means there is no next occurrence to prefill, so
       there is nothing to schedule yet. %>

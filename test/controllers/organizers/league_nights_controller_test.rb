@@ -325,6 +325,79 @@ class Organizers::LeagueNightsControllerTest < ActionDispatch::IntegrationTest
     assert_equal [@member.id], counterpart.tournament_entry_members.pluck(:user_id)
   end
 
+  # The motivating case, end to end: 2026-08-06 ran with a Main and no Side.
+  # Repairing it means naming a date in the PAST, which the template's next
+  # occurrence can never be — without ?date= the screen sees an untouched future
+  # night and would create a second Main on the old date.
+  test "a past half-scheduled night can be loaded by date and repaired" do
+    past = 3.weeks.ago.to_date
+    starts_at, ends_at = @main.occurrence_at(past)
+    existing = create(:tournament, club: @club, name: @main.name, mode: :team,
+                      starts_at: starts_at, ends_at: ends_at, template_source_id: @main.id)
+    entry = create(:tournament_entry, tournament: existing, name: "Team Walleye")
+    create(:tournament_entry_member, tournament_entry: entry, user: @member)
+
+    get new_organizers_tournament_template_league_night_path(tournament_template_id: @main.id, date: past.to_s)
+    assert_response :success
+    assert_match(/already has .*League Night - Main/i, response.body)
+    assert_select "select[name='league_night[side][format]']", 1
+    assert_select "select[name='league_night[main][format]']", 0
+    assert_select "input[name='league_night[starts_at]'][value=?]", starts_at.strftime("%Y-%m-%dT%H:%M")
+    assert_select "input[type=date][name='date'][value=?]", past.to_s
+
+    assert_difference "Tournament.count", 1 do
+      assert_no_enqueued_jobs only: DeliverPushNotificationJob do
+        post organizers_tournament_template_league_night_path(tournament_template_id: @main.id),
+             params: { league_night: {
+               starts_at: starts_at.iso8601, ends_at: ends_at.iso8601,
+               side: { format: "standard", species_id: @walleye.id, slot_count: 1 }
+             } }
+      end
+    end
+
+    side_t = Tournament.find_by(template_source_id: @side.id)
+    assert_equal past, side_t.starts_at.to_date
+    assert side_t.link_group_id.present?
+    assert_equal existing.reload.link_group_id, side_t.link_group_id
+    assert_equal 1, side_t.tournament_entries.count
+  end
+
+  # The screen lands on the next occurrence, so the picker has to be there to
+  # get anywhere else.
+  test "the screen offers a date picker prefilled with the night it is showing" do
+    starts_at, _ends_at = @main.next_occurrence_at
+
+    get new_organizers_tournament_template_league_night_path(tournament_template_id: @main.id)
+    assert_select "input[type=date][name='date'][value=?]", starts_at.to_date.to_s
+    assert_select "input[type=submit][value='Load this date']"
+  end
+
+  # A link failure must not 422 a create that already committed — the retry
+  # would hit fully_scheduled? and dead-end on "already scheduled". It redirects,
+  # and says so in the alert channel rather than the green success flash.
+  test "a failed link still redirects and reports it as an alert" do
+    starts_at, ends_at = @main.next_occurrence_at
+    create(:tournament, club: @club, name: @main.name, mode: :team,
+           starts_at: starts_at, ends_at: ends_at, template_source_id: @main.id)
+
+    raiser = ->(**_kwargs) { raise ActiveRecord::RecordInvalid.new(Tournament.new) }
+    with_class_method_stub(TournamentLinks::Join, :call, raiser) do
+      assert_difference "Tournament.count", 1 do
+        post organizers_tournament_template_league_night_path(tournament_template_id: @main.id),
+             params: { league_night: {
+               starts_at: starts_at.iso8601, ends_at: ends_at.iso8601,
+               side: { format: "standard", species_id: @walleye.id, slot_count: 1 }
+             } }
+      end
+    end
+
+    assert_redirected_to edit_organizers_tournament_path(Tournament.find_by(template_source_id: @side.id))
+    # In the alert channel, and NOT in the success one. (flash[:notice] is not
+    # nil here — the sign-in helper's own "Welcome" notice is still in it.)
+    assert_match(/couldn't link/i, flash[:alert])
+    assert_no_match(/couldn't link/i, flash[:notice].to_s)
+  end
+
   # A repair back-fills a roster for a night that may already be over, and
   # DeliverPushNotificationJob has no started/ended guard — so an un-suppressed
   # sync would tell every angler who fished the Main that they've "been entered

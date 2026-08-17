@@ -62,6 +62,30 @@ class Admin::LeagueNightsControllerTest < ActionDispatch::IntegrationTest
     assert_redirected_to edit_admin_tournament_path(main_t)
   end
 
+  # The picker's form action is a path helper, and its own copy of the markup.
+  test "a past night can be loaded by date" do
+    past = 3.weeks.ago.to_date
+    starts_at, ends_at = @main.occurrence_at(past)
+    create(:tournament, club: @club, name: @main.name, mode: :team,
+           starts_at: starts_at, ends_at: ends_at, template_source_id: @main.id)
+
+    get new_admin_tournament_template_league_night_path(tournament_template_id: @main.id, date: past.to_s)
+    assert_response :success
+    assert_select "form[action=?][method=get]",
+                  new_admin_tournament_template_league_night_path(tournament_template_id: @main.id)
+    assert_select "input[type=date][name='date'][value=?]", past.to_s
+    assert_match(/already has .*League Night - Main/i, response.body)
+
+    assert_difference "Tournament.count", 1 do
+      post admin_tournament_template_league_night_path(tournament_template_id: @main.id),
+           params: { league_night: {
+             starts_at: starts_at.iso8601, ends_at: ends_at.iso8601,
+             side: { format: "standard", species_id: @walleye.id, slot_count: 1 }
+           } }
+    end
+    assert_equal past, Tournament.find_by(template_source_id: @side.id).starts_at.to_date
+  end
+
   # The repair branch is a second full copy of the column loop and the submit
   # button in this view, so it can drift from the organizers one on its own.
   test "a half-scheduled night offers to create the missing half only" do

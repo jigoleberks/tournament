@@ -37,6 +37,15 @@ class TournamentTemplate < ApplicationRecord
     default_weekday.present? && default_start_time.present? && default_end_time.present?
   end
 
+  # The window this template's times describe on a named date, whatever weekday
+  # that date falls on. next_occurrence_at is this plus "work out which date";
+  # repairing a night that already ran needs to name the date itself, since
+  # next_occurrence_at only ever rolls forward.
+  def occurrence_at(date)
+    return nil unless scheduled?
+    [combine(date, default_start_time), combine(date, default_end_time)]
+  end
+
   def next_occurrence_at(now: Time.zone.now)
     return nil unless scheduled?
     today = now.to_date

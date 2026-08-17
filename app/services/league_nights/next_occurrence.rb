@@ -17,17 +17,25 @@ module LeagueNights
       end
     end
 
-    def self.call(template:, now: Time.zone.now)
-      new(template: template, now: now).call
+    def self.call(template:, now: Time.zone.now, on: nil)
+      new(template: template, now: now, on: on).call
     end
 
-    def initialize(template:, now:)
+    # on: names the night explicitly (a Date) instead of rolling forward to the
+    # next matching weekday. Repairing an already-run half-night — 2026-08-06
+    # was a Main with no Side — means naming a date in the PAST, which
+    # next_occurrence_at can never return, so without this the half that exists
+    # is never detected and the scheduler would build a duplicate of it.
+    # #create passes the date it is actually building on for the same reason.
+    # Nil restores the plain "next occurrence" behaviour.
+    def initialize(template:, now:, on: nil)
       @template = template
       @now = now
+      @on = on
     end
 
     def call
-      starts_at, ends_at = @template.next_occurrence_at(now: @now)
+      starts_at, ends_at = resolve_window
       partner = @template.paired_template
 
       Result.new(
@@ -41,6 +49,13 @@ module LeagueNights
     end
 
     private
+
+    # Both branches return nil when the template has no weekday/times at all,
+    # so the screen's "set a weekday first" state is reached either way.
+    def resolve_window
+      return @template.next_occurrence_at(now: @now) if @on.nil?
+      @template.occurrence_at(@on)
+    end
 
     def scheduled_from(template, starts_at)
       return nil if starts_at.nil?
