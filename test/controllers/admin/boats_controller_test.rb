@@ -23,6 +23,55 @@ class Admin::BoatsControllerTest < ActionDispatch::IntegrationTest
     assert_equal "Boats are for team tournaments.", flash[:alert]
   end
 
+  test "renaming a boat keeps its captain" do
+    patch admin_boat_path(@boat), params: { boat: { name: "Majestic Red II", captain_user_id: @kurtis.id } }
+    assert_equal "Majestic Red II", @boat.reload.name
+    assert_equal @kurtis, @boat.captain
+  end
+
+  test "renaming a boat cascades the new name to its entries, including a finished tournament" do
+    finished = create(:tournament, club: @club, mode: :team,
+                       starts_at: 2.days.ago, ends_at: 1.day.ago)
+    finished_entry = create(:tournament_entry, tournament: finished, name: "Majestic Red", boat: @boat)
+    live_entry = create(:tournament_entry, tournament: @team, name: "Majestic Red", boat: @boat)
+
+    patch admin_boat_path(@boat), params: { boat: { name: "Majestic Red II", captain_user_id: @kurtis.id } }
+
+    assert_equal "Majestic Red II", finished_entry.reload.name
+    assert_equal "Majestic Red II", live_entry.reload.name
+  end
+
+  test "renaming a boat does not touch an entry whose name was deliberately edited away from it" do
+    entry = create(:tournament_entry, tournament: @team, name: "Majestic Red - DQ'd", boat: @boat)
+
+    patch admin_boat_path(@boat), params: { boat: { name: "Majestic Red II", captain_user_id: @kurtis.id } }
+
+    assert_equal "Majestic Red - DQ'd", entry.reload.name
+  end
+
+  test "changing only the captain does not touch entries" do
+    other_captain = create(:user, club: @club, name: "Other Captain")
+    entry = create(:tournament_entry, tournament: @team, name: "Majestic Red", boat: @boat)
+
+    patch admin_boat_path(@boat), params: { boat: { name: "Majestic Red", captain_user_id: other_captain.id } }
+
+    assert_equal "Majestic Red", entry.reload.name
+    assert_equal other_captain, @boat.reload.captain
+  end
+
+  test "renaming a boat re-broadcasts the leaderboard for every affected tournament" do
+    finished = create(:tournament, club: @club, mode: :team,
+                       starts_at: 2.days.ago, ends_at: 1.day.ago)
+    create(:tournament_entry, tournament: finished, name: "Majestic Red", boat: @boat)
+    create(:tournament_entry, tournament: @team, name: "Majestic Red", boat: @boat)
+
+    tournament_ids = with_broadcast_spy do
+      patch admin_boat_path(@boat), params: { boat: { name: "Majestic Red II", captain_user_id: @kurtis.id } }
+    end
+
+    assert_equal [finished.id, @team.id].sort, tournament_ids.sort
+  end
+
   test "a retired boat is not offered as a near-match" do
     @boat.update!(active: false)
     assert_difference "Boat.count", 1 do

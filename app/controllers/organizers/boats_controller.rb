@@ -45,6 +45,7 @@ class Organizers::BoatsController < Organizers::BaseController
   def update
     boat = current_club.boats.find(params[:id])
     if boat.update(name: params.dig(:boat, :name), captain_user_id: params.dig(:boat, :captain_user_id))
+      ::Boats::RenameEntries.call(boat: boat)
       redirect_to organizers_boats_path, notice: "Boat updated."
     else
       redirect_to organizers_boats_path, alert: boat.errors.full_messages.to_sentence
