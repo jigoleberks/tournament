@@ -114,6 +114,23 @@
     </div>
   </div>
 
+  <div class="pt-6 border-t border-slate-700">
+    <div class="bg-slate-900/50 rounded-xl p-6 border border-slate-700 space-y-2 max-w-md">
+      <%= f.label :paired_template_id, "Pairs With", class: "block text-sm font-semibold text-slate-300 mb-1.5" %>
+      <% candidates = current_club.tournament_templates
+           .where.not(id: @template.id)
+           .where("paired_template_id IS NULL OR paired_template_id = ?", @template.id)
+           .order(:name) %>
+      <%= f.select :paired_template_id,
+                   options_from_collection_for_select(candidates, :id, :name, @template.paired_template_id),
+                   { include_blank: "Not paired" },
+                   class: "w-full h-11 px-4 rounded-lg bg-slate-900 border border-slate-700 text-slate-100 focus:ring-2 focus:ring-blue-500 outline-none transition-all" %>
+      <span class="block text-xs text-slate-500 italic mt-1">
+        Paired templates are scheduled together as one league night — both tournaments are created at once and linked, so they share a roster.
+      </span>
+    </div>
+  </div>
+
   <div class="flex justify-end pt-6 border-t border-slate-700">
     <%= f.submit class: "h-12 px-8 text-base font-bold rounded-lg bg-blue-600 hover:bg-blue-700 text-white shadow-lg shadow-blue-900/20 transition-all cursor-pointer" %>
   </div>

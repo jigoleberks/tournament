@@ -122,5 +122,21 @@
     <%= render "organizers/shared/fish_train_builder", f: f, record: @template, club: current_club %>
   </div>
 
+  <div class="bg-slate-800 rounded-xl p-4 space-y-2">
+    <%= f.label :paired_template_id, "Pairs with", class: "block text-sm font-medium text-slate-300" %>
+    <% candidates = current_club.tournament_templates
+         .where.not(id: @template.id)
+         .where("paired_template_id IS NULL OR paired_template_id = ?", @template.id)
+         .order(:name) %>
+    <%= f.select :paired_template_id,
+                 options_from_collection_for_select(candidates, :id, :name, @template.paired_template_id),
+                 { include_blank: "Not paired" },
+                 class: "w-full h-12 px-3 rounded-lg bg-slate-900 border border-slate-700 text-base" %>
+    <p class="text-xs text-slate-500">
+      Paired templates are scheduled together as one league night — both tournaments are created at
+      once and linked, so they share a roster.
+    </p>
+  </div>
+
   <%= f.submit class: "w-full h-14 px-6 text-lg font-semibold rounded-lg bg-blue-600 active:bg-blue-700 text-white" %>
 <% end %>

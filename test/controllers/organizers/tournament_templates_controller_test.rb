@@ -133,6 +133,27 @@ class Organizers::TournamentTemplatesControllerTest < ActionDispatch::Integratio
     assert_equal [perch.id, pike.id, perch.id], created.train_cars
   end
 
+  test "an organizer pairs two templates from the form" do
+    main = create(:tournament_template, club: @club, name: "Wednesday Main")
+    side = create(:tournament_template, club: @club, name: "Wednesday Side")
+
+    patch organizers_tournament_template_path(main),
+          params: { tournament_template: { name: main.name, paired_template_id: side.id } }
+
+    assert_equal side, main.reload.paired_template
+    assert_equal main, side.reload.paired_template
+  end
+
+  test "pairing with a template from another club is rejected" do
+    main = create(:tournament_template, club: @club, name: "Wednesday Main")
+    foreign = create(:tournament_template, club: create(:club))
+
+    patch organizers_tournament_template_path(main),
+          params: { tournament_template: { name: main.name, paired_template_id: foreign.id } }
+
+    assert_nil main.reload.paired_template_id
+  end
+
   private
 
   def sign_in_as(user)

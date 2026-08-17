@@ -10,6 +10,7 @@ module TemplateParams
   def template_params
     params.require(:tournament_template).permit(
       :name, :mode, :format, :default_duration_days, :season_tag,
+      :paired_template_id,
       :default_weekday, :default_start_time, :default_end_time,
       :awards_season_points, :blind_leaderboard, :entrants_only_leaderboard,
       train_cars: [],
