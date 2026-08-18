@@ -113,6 +113,25 @@ class HomeControllerTest < ActionDispatch::IntegrationTest
     assert_no_match "Log for teammate", response.body
   end
 
+  test "the club banner renders the admin's line breaks" do
+    club = create(:club, banner_message: "  Ice is off the lake\nWeigh-in moves to 7pm  ",
+                         banner_style: :alert)
+    user = create(:user, club: club)
+    user.club_memberships.find_by!(club: club).update!(show_banner: true)
+    sign_in_as(user)
+
+    get root_path
+
+    assert_response :success
+    banner = css_select("p#club-banner").first
+    assert_not_nil banner
+    assert_includes banner["class"], "whitespace-pre-line",
+                    "without this the browser collapses the newline into a single space"
+    assert_equal "Ice is off the lake\nWeigh-in moves to 7pm", banner.text,
+                 "the <p> and the ERB output must stay adjacent and the message stripped, " \
+                 "or pre-line renders stray blank lines around it"
+  end
+
   private
 
   def sign_in_as(user)
