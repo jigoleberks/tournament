@@ -56,25 +56,37 @@ module TournamentLinks
         siblings.map { |sibling| sync_into(sibling) }
       end
 
-      siblings.zip(results).each do |sibling, (counterpart, added_user_ids)|
-        # Only members newly added to the counterpart get a push — a rename
-        # or a no-op resync must not re-notify anyone already aboard. The
-        # broadcast below is NOT gated on @notify: a leaderboard frame is a
-        # display update for whoever is looking, not an alert.
-        if @notify
-          added_user_ids.each do |uid|
-            ::DeliverPushNotificationJob.perform_later(
-              user_id: uid,
-              title: sibling.name,
-              body: "You've been entered into #{sibling.name}.",
-              url: "/tournaments/#{sibling.id}",
-              tournament_id: sibling.id
-            )
+      # after_all_transactions_commit, not a bare block: the transaction above
+      # is only the OUTERMOST one when SyncEntry is called on its own. Several
+      # callers wrap it in one of their own — TournamentLinks::Join, the
+      # tournament-entry controllers, Boats::Enter — precisely so a rejected
+      # mirror rolls their local write back too. Inside such a wrapper the
+      # `transaction` above is a no-op nested block that commits nothing, so
+      # running this loop straight after it would put frames on the wire while
+      # the real transaction is still open, defeating the whole discipline the
+      # paragraph above describes. This defers to the outermost commit, and
+      # runs immediately when there is no outer transaction at all.
+      ::ActiveRecord.after_all_transactions_commit do
+        siblings.zip(results).each do |sibling, (counterpart, added_user_ids)|
+          # Only members newly added to the counterpart get a push — a rename
+          # or a no-op resync must not re-notify anyone already aboard. The
+          # broadcast below is NOT gated on @notify: a leaderboard frame is a
+          # display update for whoever is looking, not an alert.
+          if @notify
+            added_user_ids.each do |uid|
+              ::DeliverPushNotificationJob.perform_later(
+                user_id: uid,
+                title: sibling.name,
+                body: "You've been entered into #{sibling.name}.",
+                url: "/tournaments/#{sibling.id}",
+                tournament_id: sibling.id
+              )
+            end
           end
+          ::Placements::BroadcastLeaderboard.call(
+            tournament: sibling, changed_entry_ids: [counterpart.id]
+          )
         end
-        ::Placements::BroadcastLeaderboard.call(
-          tournament: sibling, changed_entry_ids: [counterpart.id]
-        )
       end
 
       results.map(&:first)

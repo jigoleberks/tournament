@@ -57,7 +57,15 @@ module Tournaments
         placed += 1 if result[:affected_tournaments].any?
       end
 
-      ::Placements::BroadcastLeaderboard.call(tournament: tournament) if placed.positive?
+      # Deferred to the outermost commit: SyncEntry backfills a sibling from
+      # inside its transaction, so firing here would broadcast placements a
+      # later sibling's raise can still roll back. Runs immediately when
+      # there is no outer transaction.
+      if placed.positive?
+        ::ActiveRecord.after_all_transactions_commit do
+          ::Placements::BroadcastLeaderboard.call(tournament: tournament)
+        end
+      end
       placed
     end
 

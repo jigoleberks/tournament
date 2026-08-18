@@ -25,7 +25,17 @@ module Catches
         end
       end
       # Only this entry's card changed (bingo); other anglers' cards are untouched.
-      ::Placements::BroadcastLeaderboard.call(tournament: tournament, changed_entry_ids: [@entry.id])
+      #
+      # Deferred to the outermost commit rather than fired here: the block
+      # above is the outermost transaction only when this service is called
+      # directly. TournamentLinks::SyncEntry calls it from inside its own
+      # transaction when pruning a counterpart's crew, and a later sibling's
+      # raise there rolls this drop back — a frame already on the wire would
+      # leave viewers looking at a basket that never actually changed.
+      # Runs immediately when there is no outer transaction.
+      ::ActiveRecord.after_all_transactions_commit do
+        ::Placements::BroadcastLeaderboard.call(tournament: tournament, changed_entry_ids: [@entry.id])
+      end
     end
   end
 end

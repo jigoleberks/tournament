@@ -28,6 +28,10 @@ module TournamentLinks
         # roster, exactly the "never sit half-synced" state Join exists to
         # prevent.
         #
+        # Wrapping SyncEntry doesn't cost its broadcast discipline: SyncEntry
+        # defers its frames and pushes with after_all_transactions_commit, so
+        # nothing reaches connected viewers until THIS transaction commits.
+        #
         # prune: false on both passes: this back-fill is a union of the two
         # rosters, not "whichever side called Join wins". Without it, syncing
         # @tournament's entries first would use its (possibly smaller) crew

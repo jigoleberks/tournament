@@ -14,7 +14,7 @@
               <%= text_field_tag "boat[name]", boat.name,
                                  class: "h-9 px-2 rounded bg-slate-900 border border-slate-700 text-slate-100 text-sm w-40" %>
               <%= select_tag "boat[captain_user_id]",
-                             options_from_collection_for_select(current_club.members.active.order(:name), :id, :name, boat.captain_user_id),
+                             boat_captain_options(current_club, boat),
                              class: "h-9 px-2 rounded bg-slate-900 border border-slate-700 text-slate-100 text-sm" %>
               <%= submit_tag "Save",
                              class: "h-9 px-3 rounded bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium transition-colors" %>

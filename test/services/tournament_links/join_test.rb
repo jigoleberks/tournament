@@ -90,4 +90,41 @@ class TournamentLinks::JoinTest < ActiveSupport::TestCase
     assert_nil @side.reload.link_group_id
     assert_empty @side.tournament_entries.reload
   end
+
+  # Join wraps SyncEntry in a transaction of its own, which turns SyncEntry's
+  # own transaction into a no-op nested block — so SyncEntry's "broadcast only
+  # after commit" discipline has to reach the OUTER commit, not its own.
+  # Majestic Red mirrors cleanly and would have broadcast immediately;
+  # Nate's Boat then raises and rolls the entire link back, leaving viewers
+  # holding a row for an entry that no longer exists, with nothing to correct
+  # it. Nothing may go out over the wire until Join itself commits.
+  test "broadcasts nothing when a later entry rolls the whole link back" do
+    create(:tournament_judge, tournament: @side, user: @nate)
+
+    clean = create(:tournament_entry, tournament: @main, name: "Majestic Red", boat: @boat)
+    clean.tournament_entry_members.create!(user: @kurtis)
+    doomed = create(:tournament_entry, tournament: @main, name: "Nate's Boat")
+    doomed.tournament_entry_members.create!(user: @nate)
+
+    seen = nil
+    assert_raises(ActiveRecord::RecordInvalid) do
+      with_broadcast_spy do |calls|
+        seen = calls
+        TournamentLinks::Join.call(tournament: @main, other: @side)
+      end
+    end
+
+    assert_empty seen, "a rolled-back link must not have broadcast the mirrored row"
+    assert_nil @main.reload.link_group_id
+    assert_empty @side.tournament_entries.reload
+  end
+
+  test "broadcasts the back-filled entries once the link commits" do
+    entry = create(:tournament_entry, tournament: @main, name: "Majestic Red", boat: @boat)
+    entry.tournament_entry_members.create!(user: @kurtis)
+
+    broadcasts = with_broadcast_spy { TournamentLinks::Join.call(tournament: @main, other: @side) }
+
+    assert_includes broadcasts, @side.id
+  end
 end

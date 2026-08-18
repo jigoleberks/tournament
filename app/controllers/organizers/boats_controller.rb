@@ -35,6 +35,9 @@ class Organizers::BoatsController < Organizers::BaseController
     if boat.save
       ::Boats::Enter.call(tournament: tournament, boat: boat)
       redirect_to edit_organizers_tournament_path(tournament), notice: "#{boat.name} entered."
+    elsif (retired = retired_boat_named(name))
+      redirect_to organizers_boats_path,
+                  alert: "#{retired.name} is retired. Restore it on the Boats screen to enter it."
     else
       redirect_to edit_organizers_tournament_path(tournament), alert: boat.errors.full_messages.to_sentence
     end
@@ -64,5 +67,19 @@ class Organizers::BoatsController < Organizers::BaseController
     boat = current_club.boats.find(params[:id])
     boat.update!(active: true)
     redirect_to organizers_boats_path, notice: "#{boat.name} restored."
+  end
+
+  private
+
+  # Boat name uniqueness spans retired boats (both Boat#name_unique_in_club
+  # and index_boats_on_club_id_and_lower_name do), but the picker and
+  # Boats::NearMatch cover only active ones. So retiring "Majestic Red" and
+  # then typing it again in "+ New boat…" fails the save with a bare "is
+  # already a boat in this club" for a boat that is nowhere on screen — a dead
+  # end mid-league-night. Name where the fix actually is instead.
+  def retired_boat_named(name)
+    key = name.to_s.strip.downcase
+    return nil if key.blank?
+    current_club.boats.where(active: false).detect { |boat| boat.name.downcase == key }
   end
 end

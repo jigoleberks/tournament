@@ -30,6 +30,31 @@ class Organizers::BoatsControllerTest < ActionDispatch::IntegrationTest
     end
   end
 
+  # The picker is built from the club's ACTIVE members. Without the current
+  # captain forced into the list, a deactivated captain matches no option,
+  # nothing is marked selected, and the browser preselects the first member
+  # alphabetically — so saving a typo fix silently hands the boat to them.
+  test "the captain picker keeps a deactivated captain as the selected option" do
+    create(:user, club: @club, name: "Aaron Aardvark", role: :member)
+    @kurtis.update!(deactivated_at: 1.day.ago)
+
+    get organizers_boats_path
+
+    assert_response :success
+    assert_select "select[name='boat[captain_user_id]'] option[selected][value=?]", @kurtis.id.to_s
+  end
+
+  test "a boat whose captain has left the club can still be renamed" do
+    @kurtis.update!(deactivated_at: 1.day.ago)
+
+    patch organizers_boat_path(@boat),
+          params: { boat: { name: "Majestic Red II", captain_user_id: @kurtis.id } }
+
+    assert_equal "Boat updated.", flash[:notice]
+    assert_equal "Majestic Red II", @boat.reload.name
+    assert_equal @kurtis.id, @boat.captain_user_id
+  end
+
   test "a solo tournament refuses a boat" do
     solo = create(:tournament, club: @club, mode: :solo,
                   starts_at: 1.hour.from_now, ends_at: 4.hours.from_now)
@@ -275,4 +300,23 @@ class Organizers::BoatsControllerTest < ActionDispatch::IntegrationTest
     token = SignInToken.issue!(user: user)
     get consume_session_path(token: token.token)
   end
+  # Name uniqueness spans retired boats, but the picker and NearMatch cover
+  # only active ones — so retyping a retired boat's own name hits the index
+  # and, without this branch, reports "is already a boat in this club" for a
+  # boat that is nowhere on screen, with no hint that Restore is the fix.
+  test "retyping a retired boat's exact name points at Restore" do
+    @boat.update!(active: false)
+
+    assert_no_difference "Boat.count" do
+      post organizers_boats_path, params: {
+        tournament_id: @team.id,
+        boat: { name: "majestic red", captain_user_id: @kurtis.id }
+      }
+    end
+
+    assert_redirected_to organizers_boats_path
+    assert_match(/retired/i, flash[:alert])
+    assert_match(/Restore/, flash[:alert])
+  end
+
 end

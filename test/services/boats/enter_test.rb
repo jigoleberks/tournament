@@ -44,4 +44,31 @@ class Boats::EnterTest < ActiveSupport::TestCase
       Boats::Enter.call(tournament: @main, boat: @boat)
     end
   end
+
+  # Two organizers tapping the same boat at once (or one impatient double-tap
+  # on the button_to) both pass the find_by pre-check; the loser's INSERT then
+  # trips index_tournament_entries_on_tournament_and_boat_uniq and raises
+  # RecordNotUnique — a StatementInvalid, so the controllers' `rescue
+  # RecordInvalid` misses it and the organizer gets an error page. The promise
+  # is idempotence: return the winner's entry.
+  test "returns the winner's entry after losing the double-tap race" do
+    winner = @main.tournament_entries.create!(name: @boat.name, boat: @boat)
+
+    # Blind only the pre-check, so the insert below races into the index the
+    # way a genuinely concurrent second tap would.
+    main = @main
+    blinded = false
+    main.define_singleton_method(:tournament_entries) do
+      relation = TournamentEntry.where(tournament_id: id)
+      unless blinded
+        blinded = true
+        relation.define_singleton_method(:find_by) { |*| nil }
+      end
+      relation
+    end
+
+    assert_no_difference "TournamentEntry.count" do
+      assert_equal winner, Boats::Enter.call(tournament: main, boat: @boat)
+    end
+  end
 end

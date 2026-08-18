@@ -32,6 +32,35 @@ class BoatTest < ActiveSupport::TestCase
     assert_includes boat.errors[:captain], "must be an active member of this club"
   end
 
+  # The real deactivation path: Admin::MembersController#destroy writes
+  # users.deactivated_at and never touches the membership row, so a guard that
+  # only consults ClubMembership.active lets a departed angler captain a boat.
+  test "rejects a captain whose user account has been deactivated" do
+    @captain.update!(deactivated_at: 1.day.ago)
+    boat = Boat.new(club: @club, name: "Stratos", captain: @captain)
+    assert_not boat.valid?
+    assert_includes boat.errors[:captain], "must be an active member of this club"
+  end
+
+  test "rejects reassigning an existing boat to a deactivated member" do
+    boat = Boat.create!(club: @club, name: "Majestic Red", captain: @captain)
+    departed = create(:user, club: @club, name: "Departed Angler")
+    departed.update!(deactivated_at: 1.day.ago)
+    boat.captain = departed
+    assert_not boat.valid?
+    assert_includes boat.errors[:captain], "must be an active member of this club"
+  end
+
+  # Only a *change* of captain is gated. Otherwise a boat whose captain left
+  # would be frozen: an organizer couldn't fix a typo in its name without
+  # reassigning it first, and the captain picker couldn't save it unchanged.
+  test "an existing boat stays valid when its captain is later deactivated" do
+    boat = Boat.create!(club: @club, name: "Majestic Red", captain: @captain)
+    @captain.update!(deactivated_at: 1.day.ago)
+    boat.name = "Majestic Red II"
+    assert boat.valid?, boat.errors.full_messages.to_sentence
+  end
+
   test "label reads name then captain" do
     boat = Boat.create!(club: @club, name: "Majestic Red", captain: @captain)
     assert_equal "Majestic Red — Kurtis Sanguin", boat.label

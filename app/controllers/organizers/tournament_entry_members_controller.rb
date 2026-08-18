@@ -14,11 +14,20 @@ class Organizers::TournamentEntryMembersController < Organizers::BaseController
     # tournament's window before being added to the entry are NOT retroactively
     # placed. The admin-only backfill_late_entrants flag lifts that restriction —
     # when set, replay this user's in-window catches immediately after the add.
-    @entry.tournament_entry_members.create!(user_id: user.id)
-    if @tournament.backfill_late_entrants?
-      Tournaments::BackfillEntrantCatches.call(tournament: @tournament, users: [ user ])
+    #
+    # The mirror runs inside the same transaction as the local add. SyncEntry
+    # can legitimately reject — a crew member who judges the sibling, or who is
+    # already in another entry over there — and without the transaction the
+    # local row stays committed while the rescue below tells the organizer the
+    # add failed. The member would sit on the Main entry only, permanently out
+    # of sync with its pair, with nothing offering a repair.
+    ActiveRecord::Base.transaction do
+      @entry.tournament_entry_members.create!(user_id: user.id)
+      if @tournament.backfill_late_entrants?
+        Tournaments::BackfillEntrantCatches.call(tournament: @tournament, users: [ user ])
+      end
+      TournamentLinks::SyncEntry.call(entry: @entry)
     end
-    TournamentLinks::SyncEntry.call(entry: @entry)
     redirect_to edit_organizers_tournament_path(@tournament), notice: "Added #{user.name}."
   rescue ActiveRecord::RecordInvalid => e
     redirect_to edit_organizers_tournament_path(@tournament), alert: e.message
@@ -40,15 +49,21 @@ class Organizers::TournamentEntryMembersController < Organizers::BaseController
     ActiveRecord::Base.transaction do
       crew.each do |user|
         next if already.include?(user.id)
-        next unless ClubMembership.active.exists?(club_id: @tournament.club_id, user_id: user.id)
+        # with_active_user, not active: nothing writes club_memberships'
+        # own deactivated_at (see ClubMembership), so `active` alone filters
+        # nobody out and one tap here would re-add an angler who has left the
+        # club — contradicting the per-entry "Add" dropdown on this same
+        # screen, which lists current_club.members.active.
+        next unless ClubMembership.with_active_user.exists?(club_id: @tournament.club_id, user_id: user.id)
         @entry.tournament_entry_members.create!(user_id: user.id)
         added_users << user
       end
+      if @tournament.backfill_late_entrants? && added_users.any?
+        Tournaments::BackfillEntrantCatches.call(tournament: @tournament, users: added_users)
+      end
+      # Mirrored inside the transaction for the reason spelled out in #create.
+      TournamentLinks::SyncEntry.call(entry: @entry)
     end
-    if @tournament.backfill_late_entrants? && added_users.any?
-      Tournaments::BackfillEntrantCatches.call(tournament: @tournament, users: added_users)
-    end
-    TournamentLinks::SyncEntry.call(entry: @entry)
     redirect_to edit_organizers_tournament_path(@tournament),
                 notice: added_users.empty? ? "Same crew already aboard." : "Added #{added_users.size} from last time."
   rescue ActiveRecord::RecordInvalid => e
@@ -62,8 +77,14 @@ class Organizers::TournamentEntryMembersController < Organizers::BaseController
     end
     member = @entry.tournament_entry_members.find(params[:id])
     name = member.user&.name || "Member"
-    Catches::DropMemberFromEntry.call(entry: @entry, user: member.user)
-    TournamentLinks::SyncEntry.call(entry: @entry)
+    # Mirrored inside the transaction for the reason spelled out in #create:
+    # the rescue below tells the organizer the removal failed, so it must
+    # actually have failed. Otherwise the member is off this entry and still
+    # aboard the sibling, with nothing offering a repair.
+    ActiveRecord::Base.transaction do
+      Catches::DropMemberFromEntry.call(entry: @entry, user: member.user)
+      TournamentLinks::SyncEntry.call(entry: @entry)
+    end
     redirect_to edit_organizers_tournament_path(@tournament), notice: "Removed #{name}."
   rescue ActiveRecord::RecordInvalid => e
     redirect_to edit_organizers_tournament_path(@tournament), alert: e.message

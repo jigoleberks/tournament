@@ -175,6 +175,32 @@ class Organizers::TournamentEntryMembersControllerTest < ActionDispatch::Integra
                  side.tournament_entries.sole.users.sort_by(&:id)
   end
 
+  # A mirror can legitimately reject — here @teammate judges the Side, so
+  # TournamentEntryMember's user_not_a_judge validation raises. The organizer
+  # is told the add failed, so it must actually have failed: without the
+  # transaction the member stays on the Main entry alone, permanently out of
+  # sync with the pair and with nothing offering a repair.
+  test "a rejected mirror rolls the local add back too" do
+    group = SecureRandom.uuid
+    @team.update!(link_group_id: group)
+    side = create(:tournament, club: @club, mode: :team, name: "Side",
+                  starts_at: 1.hour.from_now, ends_at: 3.hours.from_now, link_group_id: group)
+    post organizers_tournament_tournament_entries_path(tournament_id: @team.id),
+         params: { tournament_entry: { name: "Majestic Red", member_user_ids: [@member.id] } }
+    entry = @team.tournament_entries.sole
+    create(:tournament_judge, tournament: side, user: @teammate)
+
+    assert_no_difference "TournamentEntryMember.count" do
+      post organizers_tournament_tournament_entry_tournament_entry_members_path(
+        tournament_id: @team.id, tournament_entry_id: entry.id
+      ), params: { user_id: @teammate.id }
+    end
+
+    assert_not_nil flash[:alert]
+    assert_equal [@member], entry.reload.users
+    assert_equal [@member], side.tournament_entries.sole.users
+  end
+
   test "same_as_last_week rejects an entry with no saved boat" do
     entry = create(:tournament_entry, tournament: @team, name: "Ad hoc team")
     create(:tournament_entry_member, tournament_entry: entry, user: @a)
@@ -237,6 +263,28 @@ class Organizers::TournamentEntryMembersControllerTest < ActionDispatch::Integra
     assert_equal [@a], tonight_entry.reload.users
   end
 
+  # Same case via the path the app actually uses: only users.deactivated_at is
+  # written, the membership row is left untouched. The per-entry "Add"
+  # dropdown on this same screen lists current_club.members.active, so the two
+  # must agree.
+  test "same_as_last_week skips a crew member whose account has been deactivated" do
+    boat = create(:boat, club: @club, name: "Team Patterson", captain: @a)
+    last_week = create(:tournament, club: @club, mode: :team,
+                       starts_at: 8.days.ago, ends_at: 8.days.ago + 3.hours)
+    old_entry = create(:tournament_entry, tournament: last_week, name: "Team Patterson", boat: boat)
+    create(:tournament_entry_member, tournament_entry: old_entry, user: @a)
+    create(:tournament_entry_member, tournament_entry: old_entry, user: @b)
+    @b.update!(deactivated_at: 1.day.ago)
+
+    tonight_entry = create(:tournament_entry, tournament: @team, name: "Team Patterson", boat: boat)
+
+    assert_difference "TournamentEntryMember.count", 1 do
+      post same_as_last_week_organizers_tournament_tournament_entry_tournament_entry_members_path(
+        tournament_id: @team.id, tournament_entry_id: tonight_entry.id)
+    end
+    assert_equal [@a], tonight_entry.reload.users
+  end
+
   test "same_as_last_week backfills in-window catches for the added crew when the flag is on" do
     boat = create(:boat, club: @club, name: "Team Patterson", captain: @a)
     last_week = create(:tournament, club: @club, mode: :team,
@@ -281,7 +329,11 @@ class Organizers::TournamentEntryMembersControllerTest < ActionDispatch::Integra
     assert_equal [@a, @b].sort_by(&:id), side_entry.reload.users.sort_by(&:id)
   end
 
-  test "removing a member whose sync can't be mirrored redirects with an alert instead of crashing" do
+  # The rescue reports the removal failed, so it has to have failed on both
+  # sides: dropping @b here while the mirror is rejected would leave him off
+  # this entry and still aboard the sibling, permanently out of sync with the
+  # pair and with nothing offering a repair.
+  test "removing a member whose sync can't be mirrored rolls the local removal back" do
     create_boat1_entry! # @entry on @team, crew [@a]
     create(:tournament_entry_member, tournament_entry: @entry, user: @b) # crew [@a, @b]
 
@@ -298,12 +350,13 @@ class Organizers::TournamentEntryMembersControllerTest < ActionDispatch::Integra
 
     member = TournamentEntryMember.find_by(tournament_entry_id: @entry.id, user_id: @b.id)
 
-    assert_difference "TournamentEntryMember.count", -1 do
+    assert_no_difference "TournamentEntryMember.count" do
       delete organizers_tournament_tournament_entry_tournament_entry_member_path(
         tournament_id: @team.id, tournament_entry_id: @entry.id, id: member.id)
     end
     assert_redirected_to edit_organizers_tournament_path(@team)
     assert_match(/judging/i, flash[:alert])
+    assert_equal [@a, @b].sort_by(&:id), @entry.reload.users.sort_by(&:id)
     assert_equal [@b], side_counterpart.reload.users
   end
 

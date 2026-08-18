@@ -32,9 +32,18 @@ class Boat < ApplicationRecord
     errors.add(:name, "is already a boat in this club") if clash
   end
 
+  # Enforced only when the captain is being set or changed. A boat whose
+  # captain has since left the club stays valid, so an organizer can still fix
+  # a typo in its name without being forced to reassign it first — and so the
+  # captain picker (which keeps the departed captain as the selected option,
+  # see BoatsHelper#boat_captain_options) can save unchanged.
+  #
+  # with_active_user, not active: see ClubMembership for why the membership's
+  # own deactivated_at can't be trusted on its own.
   def captain_is_an_active_club_member
-    return if club_id.nil? || captain.nil?
-    member = ClubMembership.active.exists?(club_id: club_id, user_id: captain_user_id)
+    return if club_id.nil? || captain_user_id.nil?
+    return unless new_record? || captain_user_id_changed?
+    member = ClubMembership.with_active_user.exists?(club_id: club_id, user_id: captain_user_id)
     errors.add(:captain, "must be an active member of this club") unless member
   end
 end

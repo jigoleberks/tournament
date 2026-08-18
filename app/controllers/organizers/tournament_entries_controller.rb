@@ -22,23 +22,31 @@ class Organizers::TournamentEntriesController < Organizers::BaseController
         valid_ids.each { |uid| entry.tournament_entry_members.create!(user_id: uid) }
         created_entry_ids << entry.id
       end
-    end
 
-    # Linked tournaments (the Wednesday Main + Side pair) share one roster:
-    # mirror each new entry across the group. Solo entries have neither a boat
-    # nor a name, so SyncEntry no-ops on them.
-    TournamentEntry.where(id: created_entry_ids).each do |created|
-      TournamentLinks::SyncEntry.call(entry: created)
-    end
+      # Linked tournaments (the Wednesday Main + Side pair) share one roster:
+      # mirror each new entry across the group. Solo entries have neither a boat
+      # nor a name, so SyncEntry no-ops on them.
+      #
+      # Inside the transaction: SyncEntry can legitimately reject (a crew
+      # member who judges the sibling), and outside it the local entries would
+      # stay committed while the rescue below tells the organizer the add
+      # failed — leaving entries on this side only, permanently out of sync
+      # with the pair, and skipping the pushes and the broadcast besides.
+      # SyncEntry defers its own frames to the outermost commit, so wrapping
+      # it costs nothing.
+      TournamentEntry.where(id: created_entry_ids).each do |created|
+        TournamentLinks::SyncEntry.call(entry: created)
+      end
 
-    # Adds are forward-only by default. With the admin-only backfill flag set,
-    # replay the new entrants' already-logged in-window catches now — before the
-    # broadcast below, so it reflects the backfilled standings. The sweep skips
-    # already-placed catches, so on-time entrants are no-ops.
-    if @tournament.backfill_late_entrants?
-      Tournaments::BackfillEntrantCatches.call(
-        tournament: @tournament, users: User.where(id: valid_ids).to_a
-      )
+      # Adds are forward-only by default. With the admin-only backfill flag set,
+      # replay the new entrants' already-logged in-window catches now — before the
+      # broadcast below, so it reflects the backfilled standings. The sweep skips
+      # already-placed catches, so on-time entrants are no-ops.
+      if @tournament.backfill_late_entrants?
+        Tournaments::BackfillEntrantCatches.call(
+          tournament: @tournament, users: User.where(id: valid_ids).to_a
+        )
+      end
     end
 
     valid_ids.each do |uid|

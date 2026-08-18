@@ -98,7 +98,11 @@ class Admin::TournamentEntryMembersControllerTest < ActionDispatch::IntegrationT
     assert_empty CatchPlacement.where(tournament: @team)
   end
 
-  test "removing a member whose sync can't be mirrored redirects with an alert instead of crashing" do
+  # The rescue reports the removal failed, so it has to have failed on both
+  # sides: dropping @b here while the mirror is rejected would leave him off
+  # this entry and still aboard the sibling, permanently out of sync with the
+  # pair and with nothing offering a repair.
+  test "removing a member whose sync can't be mirrored rolls the local removal back" do
     create(:tournament_entry_member, tournament_entry: @entry, user: @b) # crew [@a, @b]
 
     group = SecureRandom.uuid
@@ -114,12 +118,13 @@ class Admin::TournamentEntryMembersControllerTest < ActionDispatch::IntegrationT
 
     member = TournamentEntryMember.find_by(tournament_entry_id: @entry.id, user_id: @b.id)
 
-    assert_difference "TournamentEntryMember.count", -1 do
+    assert_no_difference "TournamentEntryMember.count" do
       delete admin_tournament_tournament_entry_tournament_entry_member_path(
         tournament_id: @team.id, tournament_entry_id: @entry.id, id: member.id)
     end
     assert_redirected_to edit_admin_tournament_path(@team)
     assert_match(/judging/i, flash[:alert])
+    assert_equal [@a, @b].sort_by(&:id), @entry.reload.users.sort_by(&:id)
     assert_equal [@b], side_counterpart.reload.users
   end
 

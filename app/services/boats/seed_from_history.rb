@@ -73,9 +73,14 @@ module Boats
     # Boat requires an active captain — proposing them would only fail at
     # save time, so they're filtered out of consideration entirely and the
     # group falls through to the proxy-logger signal, or to :none.
+    #
+    # with_active_user, not active: deactivating a member writes
+    # users.deactivated_at and never the membership's own column, so `active`
+    # alone filters nobody out and this seeds boats captained by anglers who
+    # have left. See ClubMembership.
     def active_member_ids(ids)
       return [] if ids.empty?
-      ::ClubMembership.active.where(club_id: @club.id, user_id: ids).pluck(:user_id)
+      ::ClubMembership.with_active_user.where(club_id: @club.id, user_id: ids).pluck(:user_id)
     end
 
     # Validates a would-be boat without saving it, so the preview can flag a

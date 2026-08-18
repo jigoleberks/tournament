@@ -76,6 +76,18 @@ class Boats::SeedFromHistoryTest < ActiveSupport::TestCase
     assert_equal :none, proposal[:signal]
   end
 
+  # Same case via the path the app actually uses to remove a member: the
+  # membership row is left alone and only users.deactivated_at is written.
+  test "does not propose a captain whose user account has been deactivated" do
+    night("Wk1", [@curtis], weeks_ago: 2, entry_name: "Team Willow River")
+    night("Wk2", [@curtis], weeks_ago: 1, entry_name: "Team Willow River")
+    @curtis.update!(deactivated_at: 1.day.ago)
+
+    proposal = Boats::SeedFromHistory.call(club: @club).sole
+    assert_nil proposal[:captain]
+    assert_equal :none, proposal[:signal]
+  end
+
   test "a real run creates nothing for a boat whose only captain candidate has left the club" do
     entry = night("Wk1", [@curtis], weeks_ago: 1, entry_name: "Team Willow River")
     @curtis.club_memberships.find_by(club: @club).update!(deactivated_at: 1.day.ago)
