@@ -39,6 +39,44 @@ class Boats::EnterTest < ActiveSupport::TestCase
     assert_equal [@kurtis, @nate].sort_by(&:id), entry.users.sort_by(&:id)
   end
 
+  # Boat#captain_is_an_active_club_member only fires on create or a captain
+  # change, so "boat whose captain has since left" is a valid, designed-in
+  # state and the boat stays in the picker. One tap must not seat them —
+  # TournamentEntryMember checks cap, already-entered and judge, but not this.
+  test "refuses a boat whose captain has left the club" do
+    @kurtis.update!(deactivated_at: 1.day.ago)
+
+    assert_no_difference "TournamentEntry.count" do
+      error = assert_raises(Boats::Enter::InactiveCrew) do
+        Boats::Enter.call(tournament: @main, boat: @boat)
+      end
+      assert_match(/Kurtis Sanguin has left the club/, error.message)
+      assert_match(/Reassign Majestic Red's captain/, error.message)
+    end
+  end
+
+  test "refuses an explicit crew that includes a departed member" do
+    @nate.update!(deactivated_at: 1.day.ago)
+
+    assert_no_difference "TournamentEntry.count" do
+      error = assert_raises(Boats::Enter::InactiveCrew) do
+        Boats::Enter.call(tournament: @main, boat: @boat, user_ids: [@kurtis.id, @nate.id])
+      end
+      assert_match(/Nate Rosengren has left the club/, error.message)
+      assert_match(/Update Majestic Red's crew/, error.message)
+    end
+  end
+
+  # The idempotent early return comes first: a boat already entered before its
+  # captain left stays entered, and a stray second tap must not start alarming
+  # anyone about a crew nobody is changing.
+  test "an already-entered boat still returns its entry after the captain leaves" do
+    entry = Boats::Enter.call(tournament: @main, boat: @boat)
+    @kurtis.update!(deactivated_at: 1.day.ago)
+
+    assert_equal entry, Boats::Enter.call(tournament: @main, boat: @boat)
+  end
+
   test "queues a push for each angler aboard" do
     assert_enqueued_with(job: DeliverPushNotificationJob) do
       Boats::Enter.call(tournament: @main, boat: @boat)

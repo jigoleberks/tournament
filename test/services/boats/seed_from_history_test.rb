@@ -115,6 +115,36 @@ class Boats::SeedFromHistoryTest < ActiveSupport::TestCase
     assert_nil colliding_entry.reload.boat_id
   end
 
+  # Two entries from one night can't both take the same boat_id — the boat's
+  # partial unique index forbids it. TournamentEntryMember keeps the two crews
+  # disjoint, so the group ends up with no constant member and no captain, and
+  # without this the organizer just sees an unexplained "— pick one —".
+  test "flags a group holding two entries from the same night" do
+    entry = night("Wk1", [@curtis, @ellen], weeks_ago: 1, entry_name: "Team Loos")
+    dupe = create(:tournament_entry, tournament: entry.tournament, name: "Loos")
+    dupe.tournament_entry_members.create!(user: @scott)
+
+    proposal = Boats::SeedFromHistory.call(club: @club).sole
+
+    assert_nil proposal[:captain]
+    assert_match(/one boat can't hold two entries in one tournament/, proposal[:errors].join)
+    assert_match(/Loos and Team Loos/, proposal[:errors].join)
+  end
+
+  # A flagged proposal that DOES carry a captain (only reachable from rows that
+  # predate user_not_already_in_tournament) must stop the batch at the check
+  # rather than at the index, where RecordNotUnique would escape the rake task.
+  test "a real run rolls back rather than writing a flagged proposal" do
+    create(:boat, club: @club, name: "Team Willow River")
+    night("Wk1", [@galen], weeks_ago: 2, entry_name: "Team Patterson")
+    colliding = night("Wk2", [@curtis], weeks_ago: 1, entry_name: "team willow river")
+
+    assert_no_difference "Boat.count" do
+      Boats::SeedFromHistory.call(club: @club, dry_run: false)
+    end
+    assert_nil colliding.reload.boat_id
+  end
+
   test "a whitespace-only entry name does not form its own boat" do
     night("Wk1", [@curtis], weeks_ago: 1, entry_name: "   ")
     assert_equal [], Boats::SeedFromHistory.call(club: @club)

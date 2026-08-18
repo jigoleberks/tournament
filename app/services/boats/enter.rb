@@ -4,6 +4,12 @@ module Boats
   # tapping the same boat twice returns the entry that already exists rather
   # than creating a second one.
   class Enter
+    # Raised when the crew a tap would seat is no longer in the club. Not a
+    # RecordInvalid: nothing failed to validate — the boat is fine and the
+    # entry was never built — so the callers rescue this on its own and say
+    # what to fix.
+    class InactiveCrew < StandardError; end
+
     def self.call(tournament:, boat:, user_ids: nil)
       new(tournament: tournament, boat: boat, user_ids: user_ids).call
     end
@@ -17,6 +23,8 @@ module Boats
     def call
       existing = @tournament.tournament_entries.find_by(boat_id: @boat.id)
       return existing if existing
+
+      ensure_crew_is_in_the_club!
 
       entry = nil
       begin
@@ -56,6 +64,37 @@ module Boats
     end
 
     private
+
+    # Boat#captain_is_an_active_club_member only fires on create or a captain
+    # change, so "boat whose captain has since left" is a designed-in state
+    # (BoatsHelper#boat_captain_options renders them "(inactive)"). The picker
+    # lists every active boat regardless of captain and TournamentEntryMember
+    # validates cap, already-entered and judge but never active-user — so
+    # without this, one tap seats a departed angler, while the two sibling
+    # controls on that same screen refuse exactly that: TournamentEntries
+    # #create gates on current_club.members.active, and #same_as_last_week on
+    # ClubMembership.with_active_user.
+    #
+    # with_active_user, not active: see ClubMembership for why the
+    # membership's own deactivated_at can't be trusted on its own.
+    def ensure_crew_is_in_the_club!
+      return if @user_ids.empty?
+      in_club = ::ClubMembership.with_active_user
+                                .where(club_id: @tournament.club_id, user_id: @user_ids)
+                                .pluck(:user_id)
+      departed = @user_ids - in_club
+      return if departed.empty?
+
+      names = ::User.where(id: departed).order(:name).pluck(:name)
+      verb = departed.one? ? "has" : "have"
+      fix =
+        if departed.include?(@boat.captain_user_id)
+          "Reassign #{@boat.name}'s captain on the Boats screen to enter it."
+        else
+          "Update #{@boat.name}'s crew to enter it."
+        end
+      raise InactiveCrew, "#{names.to_sentence} #{verb} left the club. #{fix}"
+    end
 
     def notify(entry)
       @user_ids.each do |uid|

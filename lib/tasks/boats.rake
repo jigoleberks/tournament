@@ -7,7 +7,7 @@ namespace :boats do
     rows.each do |row|
       status =
         if row[:captain].nil?
-          "—"
+          row[:errors].present? ? "— #{row[:errors].join('; ')}" : "—"
         elsif row[:errors].present?
           "BLOCKED: #{row[:errors].join('; ')}"
         else

@@ -71,10 +71,22 @@ class Admin::TournamentEntriesController < Admin::BaseController
 
   def update
     entry = @tournament.tournament_entries.find(params[:id])
-    if entry.update(name: params.dig(:tournament_entry, :name).to_s.strip.presence)
+    renamed = false
+    # Inside the transaction, and before the broadcast, for the reason spelled
+    # out in #create: SyncEntry can legitimately reject (it may have to mint a
+    # fresh counterpart, and a crew member who judges the sibling — or is
+    # already in another entry there — refuses it). Renaming first and
+    # broadcasting first would put the new name on the wire and leave it
+    # committed on this side alone, while the rescue below tells the organizer
+    # the rename failed and the pair sits out of sync with nothing to repair it.
+    Tournament.transaction do
+      renamed = entry.update(name: params.dig(:tournament_entry, :name).to_s.strip.presence)
+      TournamentLinks::SyncEntry.call(entry: entry) if renamed
+    end
+
+    if renamed
       # A rename only affects the leaderboard row, not the bingo card grids.
       Placements::BroadcastLeaderboard.call(tournament: @tournament, changed_entry_ids: [entry.id])
-      TournamentLinks::SyncEntry.call(entry: entry)
       redirect_to edit_admin_tournament_path(@tournament), notice: "Entry renamed."
     else
       redirect_to edit_admin_tournament_path(@tournament), alert: entry.errors.full_messages.to_sentence
@@ -85,11 +97,23 @@ class Admin::TournamentEntriesController < Admin::BaseController
 
   def destroy
     entry = @tournament.tournament_entries.find(params[:id])
-    TournamentLinks::RemoveEntry.call(entry: entry)
-    entry.destroy
+    entry_id = entry.id
+    # One transaction, as in #create: RemoveEntry hard-destroys the counterpart
+    # entries and cascades their catch_placements, so a failure between it and
+    # the local destroy would leave the Side entry and its placements gone while
+    # the Main entry survived — and the flash still said "Entry removed".
+    # destroy!, not destroy, so that failure actually reaches the rescue instead
+    # of being swallowed as a falsy return. RemoveEntry defers its sibling
+    # broadcasts to this transaction's commit.
+    Tournament.transaction do
+      TournamentLinks::RemoveEntry.call(entry: entry)
+      entry.destroy!
+    end
     # The removed entry drops off the leaderboard; sibling cards are untouched.
-    Placements::BroadcastLeaderboard.call(tournament: @tournament, changed_entry_ids: [entry.id])
+    Placements::BroadcastLeaderboard.call(tournament: @tournament, changed_entry_ids: [entry_id])
     redirect_to edit_admin_tournament_path(@tournament), notice: "Entry removed."
+  rescue ActiveRecord::RecordInvalid, ActiveRecord::RecordNotDestroyed => e
+    redirect_to edit_admin_tournament_path(@tournament), alert: e.message
   end
 
   private

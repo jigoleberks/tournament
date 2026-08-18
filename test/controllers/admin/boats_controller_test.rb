@@ -162,4 +162,51 @@ class Admin::BoatsControllerTest < ActionDispatch::IntegrationTest
     token = SignInToken.issue!(user: user)
     get consume_session_path(token: token.token)
   end
+  # The picker lists active boats only, but the page is a snapshot: one
+  # organizer can retire a boat while another still has the row on screen.
+  # Tapping it then went around the Restore flow entirely.
+  test "entering a retired boat points at Restore instead of entering it" do
+    @boat.update!(active: false)
+
+    assert_no_difference "TournamentEntry.count" do
+      post enter_admin_tournament_boat_path(tournament_id: @team.id, id: @boat.id)
+    end
+
+    assert_redirected_to admin_boats_path
+    assert_match(/retired/i, flash[:alert])
+    assert_match(/Restore/, flash[:alert])
+  end
+
+  # A boat keeps its captain after they leave the club (see Boat), so it stays
+  # in the picker — but the tap must not seat a departed angler, which is what
+  # the per-member controls on the same screen already refuse.
+  test "entering a boat whose captain has left the club is refused" do
+    @kurtis.update!(deactivated_at: 1.day.ago)
+
+    assert_no_difference "TournamentEntry.count" do
+      post enter_admin_tournament_boat_path(tournament_id: @team.id, id: @boat.id)
+    end
+
+    assert_match(/Kurtis Sanguin has left the club/, flash[:alert])
+    assert_match(/Reassign/, flash[:alert])
+  end
+
+  # Creating refuses a near-match; renaming has to as well, or the rename
+  # recreates the exact Majestic Red / Magestic Red split the guard prevents.
+  test "renaming a boat onto another boat's near-match is refused" do
+    other = create(:boat, club: @club, name: "Magestic Red", captain: @organizer)
+
+    patch admin_boat_path(other),
+          params: { boat: { name: "Team Majestic Red", captain_user_id: @organizer.id } }
+
+    assert_equal "Magestic Red", other.reload.name
+    assert_match(/Majestic Red is already a boat/, flash[:alert])
+  end
+
+  test "renaming a boat to a variant of its own name is still allowed" do
+    patch admin_boat_path(@boat),
+          params: { boat: { name: "Team Majestic Red", captain_user_id: @kurtis.id } }
+
+    assert_equal "Team Majestic Red", @boat.reload.name
+  end
 end

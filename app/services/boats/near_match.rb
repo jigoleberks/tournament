@@ -10,10 +10,15 @@ module Boats
   # index spans retired boats — and the boats controllers handle it after the
   # save fails, pointing at Restore rather than at a bare uniqueness error.
   class NearMatch
-    def self.call(club:, name:)
+    # except: the boat being renamed. Without it a rename would always match
+    # itself and every rename would be refused; with it, #update can run the
+    # same guard #create does.
+    def self.call(club:, name:, except: nil)
       key = normalize(name)
       return nil if key.blank?
-      club.boats.active.detect { |boat| normalize(boat.name) == key }
+      scope = club.boats.active
+      scope = scope.where.not(id: except.id) if except&.id
+      scope.detect { |boat| normalize(boat.name) == key }
     end
 
     def self.normalize(name)

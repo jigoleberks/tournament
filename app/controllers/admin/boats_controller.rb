@@ -10,9 +10,17 @@ class Admin::BoatsController < Admin::BaseController
       redirect_to edit_admin_tournament_path(tournament), alert: "Boats are for team tournaments." and return
     end
     boat = current_club.boats.find(params[:id])
+    # The picker lists active boats only, but the page is a snapshot: one
+    # organizer can retire a boat while another still has the row on screen.
+    # Without this the tap enters the retired boat, going around the very
+    # Restore flow the retired_boat_named branch in #create steers people into.
+    unless boat.active?
+      redirect_to admin_boats_path,
+                  alert: "#{boat.name} is retired. Restore it on the Boats screen to enter it." and return
+    end
     ::Boats::Enter.call(tournament: tournament, boat: boat)
     redirect_to edit_admin_tournament_path(tournament), notice: "#{boat.name} entered."
-  rescue ActiveRecord::RecordInvalid => e
+  rescue ActiveRecord::RecordInvalid, ::Boats::Enter::InactiveCrew => e
     redirect_to edit_admin_tournament_path(tournament), alert: e.message
   end
 
@@ -41,12 +49,21 @@ class Admin::BoatsController < Admin::BaseController
     else
       redirect_to edit_admin_tournament_path(tournament), alert: boat.errors.full_messages.to_sentence
     end
-  rescue ActiveRecord::RecordInvalid => e
+  rescue ActiveRecord::RecordInvalid, ::Boats::Enter::InactiveCrew => e
     redirect_to edit_admin_tournament_path(tournament), alert: e.message
   end
 
   def update
     boat = current_club.boats.find(params[:id])
+    # #create refuses a near-match; a rename must too. The name index is unique
+    # on exact lower(name) only, so renaming "Big Tiller" to "Team Majestic Red"
+    # while "Magestic Red" is active saves fine and recreates the very
+    # duplicate-spelling split this feature exists to prevent — and leaves
+    # NearMatch.call picking whichever of the two `detect` reaches first.
+    if (match = ::Boats::NearMatch.call(club: current_club, name: params.dig(:boat, :name), except: boat))
+      redirect_to admin_boats_path,
+                  alert: "#{match.name} is already a boat. Rename or retire it first." and return
+    end
     if boat.update(name: params.dig(:boat, :name), captain_user_id: params.dig(:boat, :captain_user_id))
       ::Boats::RenameEntries.call(boat: boat)
       redirect_to admin_boats_path, notice: "Boat updated."

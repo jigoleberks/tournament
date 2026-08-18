@@ -165,6 +165,11 @@ class Admin::TournamentEntriesControllerTest < ActionDispatch::IntegrationTest
     end
     assert_redirected_to edit_admin_tournament_path(@team)
     assert_match(/judging/i, flash[:alert])
+    # The alert says the rename failed, so it has to have failed on both sides:
+    # committing it locally would leave the pair permanently out of sync, with
+    # the new name already broadcast to whoever is watching the leaderboard.
+    assert_equal "Old Boat", entry.reload.name
+    assert_equal "Old Boat", side_counterpart.reload.name
   end
 
   private

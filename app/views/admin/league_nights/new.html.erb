@@ -189,7 +189,12 @@
         "not blind" would be its own wrong claim. %>
     <p class="text-xs text-slate-500 mt-4">
       From the templates: season tag <%= @occurrence.main_template.season_tag %> ·
-      season points on <%= @occurrence.main_template.awards_season_points ? @occurrence.main_template.name : @occurrence.side_template.name %> ·
+      <%# Three states, not two: either half can award season points, both can,
+          or neither can. The old two-way ternary read "season points on <Side>"
+          for a pair where neither template awards them — a flatly false claim,
+          sitting right under a blind clause written to avoid exactly that. %>
+      <% points_on = [@occurrence.main_template, @occurrence.side_template].select(&:awards_season_points).map(&:name) %>
+      <%= points_on.any? ? "season points on #{points_on.to_sentence}" : "no season points" %> ·
       entrants-only · local · not judged<%= " · #{@occurrence.main_template.name} always blind" if @occurrence.main_template.blind_leaderboard %>.
     </p>
   <% end %>

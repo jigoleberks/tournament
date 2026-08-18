@@ -65,8 +65,33 @@ module Boats
         signal: signal,
         nights: nights,
         entry_ids: entries.map(&:id),
-        errors: writability_errors(name, captain)
+        errors: writability_errors(name, captain) + same_night_errors(entries)
       }
+    end
+
+    # A group is built across the whole club, but one boat can hold at most one
+    # entry per tournament — index_tournament_entries_on_tournament_and_boat_uniq
+    # is unique on [tournament_id, boat_id] where boat_id is not null. So a night
+    # that ran both "Team Loos" and "Loos" lands two same-tournament entries in
+    # one group, and apply's update_all writes the same boat_id across both.
+    #
+    # That can't reach the index today: TournamentEntryMember's
+    # user_not_already_in_tournament keeps the two crews disjoint, so the
+    # group's crew intersection is empty, no captain is proposed, and apply
+    # skips it. What the organizer sees instead is a boat stuck on "— pick one
+    # —" for no visible reason. So this exists to say why — and to stop the
+    # write outright for rows that predate that validation or were made by
+    # hand in SQL, where the index would raise RecordNotUnique: a
+    # StatementInvalid, which escapes the rake task as a stack trace rather
+    # than the clean rollback everything else here gets.
+    def same_night_errors(entries)
+      entries.group_by(&:tournament_id).filter_map do |_, night|
+        next if night.size < 2
+        spellings = night.map { |e| e.name.to_s.strip }.uniq.sort
+        "#{night.first.tournament.name} has #{night.size} entries in this group " \
+          "(#{spellings.to_sentence}) — one boat can't hold two entries in one " \
+          "tournament; rename or merge them before seeding"
+      end
     end
 
     # A departed member can still be the constant crew in old entries, but
@@ -128,6 +153,12 @@ module Boats
 
       ::Boat.transaction do
         attempted.each do |proposal|
+          # A proposal the dry checks already rejected — a name collision, or
+          # two entries from one night in the same group — can't be written.
+          # Stop the batch here rather than discovering it mid-write, so the
+          # rollback is the same clean all-or-nothing one a save failure gets.
+          raise ActiveRecord::Rollback if proposal[:errors].any?
+
           boat = @club.boats.new(name: proposal[:name], captain: proposal[:captain])
           unless boat.save
             proposal[:errors] = boat.errors.full_messages

@@ -69,6 +69,26 @@ class Organizers::LeagueNightsControllerTest < ActionDispatch::IntegrationTest
     assert_select "form[data-league-night-main-blind-value='false']", 1
   end
 
+  # Three states, not two. The old two-way ternary named the Side template
+  # whenever Main didn't award points, so a pair where neither does read
+  # "season points on <Side>" — a flat falsehood in the one line of the page
+  # that claims to report what the templates say.
+  test "the footer names every half that awards season points, and says so when none do" do
+    get new_organizers_tournament_template_league_night_path(tournament_template_id: @main.id)
+    assert_response :success
+    assert_match(/no season points/, response.body)
+
+    @side.update!(awards_season_points: true)
+    get new_organizers_tournament_template_league_night_path(tournament_template_id: @main.id)
+    assert_response :success
+    assert_match(/season points on League Night - Side/, response.body)
+
+    @main.update!(awards_season_points: true)
+    get new_organizers_tournament_template_league_night_path(tournament_template_id: @main.id)
+    assert_response :success
+    assert_match(/season points on League Night - Main and League Night - Side/, response.body)
+  end
+
   test "an unpaired template can't be scheduled as a league night" do
     solo = create(:tournament_template, club: @club, name: "Saturday", mode: :team)
     get new_organizers_tournament_template_league_night_path(tournament_template_id: solo.id)
