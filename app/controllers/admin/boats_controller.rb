@@ -3,8 +3,11 @@ class Admin::BoatsController < Admin::BaseController
     @boats = current_club.boats.includes(:captain).active.alphabetical
     @retired_boats = current_club.boats.includes(:captain).where(active: false).alphabetical
     # One grouped query for the whole Retired section, so the Delete confirm can
-    # name how many entries it would unlink without a count per row.
-    @retired_entry_counts = ::TournamentEntry.where(boat_id: @retired_boats.map(&:id))
+    # name how many entries it would unlink without a count per row. Finished
+    # tournaments only: the confirm calls these "past entries", and #purge
+    # refuses outright while any of them is still live.
+    @retired_entry_counts = ::TournamentEntry.in_finished_tournaments
+                                             .where(boat_id: @retired_boats.map(&:id))
                                              .group(:boat_id).count
   end
 
@@ -103,6 +106,10 @@ class Admin::BoatsController < Admin::BaseController
     boat = current_club.boats.find(params[:id])
     if boat.active?
       redirect_to admin_boats_path, alert: "Retire #{boat.name} before deleting it."
+    elsif ::TournamentEntry.in_unfinished_tournaments.exists?(boat_id: boat.id)
+      redirect_to admin_boats_path,
+                  alert: "#{boat.name} is still entered in a tournament that hasn't ended. " \
+                         "Remove the entry first, or delete the boat once the tournament is over."
     else
       name = boat.name
       boat.destroy!

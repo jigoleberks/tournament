@@ -251,6 +251,47 @@ class Admin::BoatsControllerTest < ActionDispatch::IntegrationTest
     assert_match(/retire/i, flash[:alert])
   end
 
+  # Retire does not touch entries, so a boat can be retired while it is still
+  # entered in tonight's league night. Delete nullifies boat_id, which drops
+  # that entry out of every single-entry guard at once -- Boats::Enter's
+  # find_by(boat_id:), the partial unique index, and the picker's filter -- so
+  # re-creating the freed name and tapping it makes a second entry for the same
+  # crew in the same live tournament.
+  test "deleting a retired boat still entered in a tournament that has not ended is refused" do
+    live = create(:tournament, club: @club, mode: :team,
+                  starts_at: 1.hour.ago, ends_at: 3.hours.from_now)
+    create(:tournament_entry, tournament: live, name: "Majestic Red", boat: @boat)
+    @boat.update!(active: false)
+
+    assert_no_difference "Boat.count" do
+      delete purge_admin_boat_path(@boat)
+    end
+    assert_match(/still entered/i, flash[:alert])
+  end
+
+  test "deleting a retired boat entered only in finished tournaments is allowed" do
+    finished = create(:tournament, club: @club, mode: :team,
+                      starts_at: 2.days.ago, ends_at: 1.day.ago)
+    create(:tournament_entry, tournament: finished, name: "Majestic Red", boat: @boat)
+    @boat.update!(active: false)
+
+    assert_difference "Boat.count", -1 do
+      delete purge_admin_boat_path(@boat)
+    end
+    assert_match(/deleted/i, flash[:notice])
+  end
+
+  # The confirm calls these "past entries", so an entry in a tournament that is
+  # still to come must not be counted among them.
+  test "the Delete confirmation counts only entries in finished tournaments" do
+    create(:tournament_entry, tournament: @team, name: "Majestic Red", boat: @boat)
+    @boat.update!(active: false)
+
+    get admin_boats_path
+
+    assert_no_match(/past entr/, response.body)
+  end
+
   test "deleting a boat in another club is out of reach" do
     other = create(:boat, club: create(:club), name: "Someone Else's Boat", active: false)
 
