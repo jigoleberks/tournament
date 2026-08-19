@@ -1,0 +1,178 @@
+<%# Mirrors the controller's own guard: partially_scheduled? is XOR on presence,
+    so an UNPAIRED template reports "half done" the moment anything exists for
+    its week, when in fact nothing is missing — and the repair branch below
+    would then render a column with a nil template. load_template turns unpaired
+    templates away before this renders; the guard keeps the view from depending
+    on that staying true, and keeps it symmetric with #create. %>
+<% repairing = @occurrence.partially_scheduled? && @occurrence.side_template.present? %>
+
+<h1 class="text-2xl font-semibold mt-4 mb-1">Schedule league night</h1>
+<p class="text-sm text-slate-400 mb-4">
+  <% if repairing %>
+    Creates whichever half of the pair that week is still missing.
+  <% else %>
+    Creates <%= @occurrence.main_template.name %> and <%= @occurrence.side_template.name %>,
+    already linked.
+  <% end %>
+</p>
+
+<% if @error.present? %>
+  <div class="bg-red-900/30 border border-red-700 rounded-lg p-3 mb-4 text-sm text-red-200">
+    <%= @error %>
+  </div>
+<% end %>
+
+<%# The screen lands on the next occurrence. This loads a different night —
+    including one in the PAST, which is the only way to reach the repair path
+    for a half-night that already ran. Its own GET form, outside the schedule
+    form below, and rendered above the "already scheduled" state too so that
+    isn't a dead end. %>
+<% unless @occurrence.starts_at.nil? %>
+  <%= form_with url: new_organizers_tournament_template_league_night_path(tournament_template_id: @occurrence.main_template.id),
+                method: :get, local: true, class: "bg-slate-800 rounded-xl p-4 mb-4 flex items-end gap-2" do %>
+    <div class="flex-1">
+      <%= label_tag :date, "Night", class: "block text-sm text-slate-300 mb-1" %>
+      <%= date_field_tag :date, @occurrence.starts_at.to_date,
+                         class: "w-full h-12 px-3 rounded-lg bg-slate-900 border border-slate-700" %>
+    </div>
+    <%= submit_tag "Load this date",
+                   class: "h-12 px-4 rounded-lg bg-slate-700 active:bg-slate-600 text-white font-semibold" %>
+  <% end %>
+<% end %>
+
+<% if @occurrence.starts_at.nil? %>
+  <%# No default weekday/times means there is no next occurrence to prefill, so
+      there is nothing to schedule yet. %>
+  <div class="bg-slate-800 rounded-lg p-4 text-slate-300 space-y-3">
+    <p>
+      These templates need a weekday, a start time and an end time before a league
+      night can be scheduled. Set them on
+      <strong><%= @occurrence.main_template.name %></strong>, then come back.
+    </p>
+    <%= link_to "Edit #{@occurrence.main_template.name}",
+                edit_organizers_tournament_template_path(@occurrence.main_template),
+                class: "inline-flex items-center justify-center h-12 px-4 rounded-lg bg-blue-600 active:bg-blue-700 text-white font-semibold" %>
+  </div>
+<% elsif @occurrence.fully_scheduled? %>
+  <p class="bg-slate-800 rounded-lg p-3 text-slate-300">That week is already scheduled.</p>
+<% else %>
+  <%# Main's blind flag is inherited from its template — MAIN_FIELDS omits
+      blind_leaderboard, so this screen never sets it — and nothing requires a
+      paired template to be blind. The same-species leak warning is only true
+      when Main actually is, so hand the controller the template's flag; the
+      chosen format can force blind on top of that, which the controller works
+      out for itself because that select changes without a reload. On the repair
+      path the Main half already exists, so its own flag is the answer. %>
+  <% main_blind = repairing ? @occurrence.existing_main&.blind_leaderboard : @occurrence.main_template.blind_leaderboard %>
+  <%= form_with url: organizers_tournament_template_league_night_path(tournament_template_id: @occurrence.main_template.id),
+                local: true, class: "space-y-4",
+                data: { controller: "league-night", league_night_main_blind_value: !!main_blind } do %>
+    <div class="bg-slate-800 rounded-xl p-4 space-y-3">
+      <div>
+        <%= label_tag "league_night[starts_at]", "Starts", class: "block text-sm text-slate-300 mb-1" %>
+        <%= datetime_local_field_tag "league_night[starts_at]",
+                                     @submitted&.dig(:starts_at).presence || @occurrence.starts_at.strftime("%Y-%m-%dT%H:%M"),
+                                     class: "w-full h-12 px-3 rounded-lg bg-slate-900 border border-slate-700" %>
+      </div>
+      <div>
+        <%= label_tag "league_night[ends_at]", "Ends", class: "block text-sm text-slate-300 mb-1" %>
+        <%= datetime_local_field_tag "league_night[ends_at]",
+                                     @submitted&.dig(:ends_at).presence || @occurrence.ends_at.strftime("%Y-%m-%dT%H:%M"),
+                                     class: "w-full h-12 px-3 rounded-lg bg-slate-900 border border-slate-700" %>
+      </div>
+    </div>
+
+    <% if repairing %>
+      <% existing = @occurrence.existing_main || @occurrence.existing_side %>
+      <div class="bg-slate-800 border border-amber-700/50 rounded-lg p-3 mb-3 text-sm text-amber-100">
+        That week already has <strong><%= existing.name %></strong>. Only the missing half will be created.
+      </div>
+    <% end %>
+
+    <%# A half-scheduled night renders only the column that's missing: the other
+        tournament already exists and #create leaves it alone. %>
+    <% columns = if repairing
+                   @occurrence.existing_main ? [[:side, @occurrence.side_template]] : [[:main, @occurrence.main_template]]
+                 else
+                   [[:main, @occurrence.main_template], [:side, @occurrence.side_template]]
+                 end %>
+    <% columns.each do |column, template| %>
+      <%# Whatever was submitted on a failed attempt, so the re-render doesn't
+          quietly revert the operator's choices to the template's defaults. %>
+      <% chosen = (@submitted || {})[column] || {} %>
+      <div class="bg-slate-800 rounded-xl p-4 space-y-3">
+        <h2 class="text-lg font-semibold"><%= template.name %></h2>
+
+        <%= label_tag "league_night[#{column}][format]", "Format", class: "block text-sm text-slate-300" %>
+        <%= select_tag "league_night[#{column}][format]",
+                       options_for_select(@formats.map { |key| [format_label(key), key] }, chosen[:format].presence || template.format),
+                       class: "w-full h-12 px-3 rounded-lg bg-slate-900 border border-slate-700",
+                       data: { league_night_target: "#{column}Format", action: "change->league-night#sync" } %>
+
+        <%= label_tag "league_night[#{column}][species_id]", "Species", class: "block text-sm text-slate-300" %>
+        <%= select_tag "league_night[#{column}][species_id]",
+                       options_from_collection_for_select(Species.order(:name), :id, :name, chosen[:species_id].presence),
+                       class: "w-full h-12 px-3 rounded-lg bg-slate-900 border border-slate-700",
+                       data: { league_night_target: "#{column}Species", action: "change->league-night#sync" } %>
+
+        <div data-league-night-target="<%= column %>CountRow">
+          <%= label_tag "league_night[#{column}][slot_count]", "How many count", class: "block text-sm text-slate-300" %>
+          <%= number_field_tag "league_night[#{column}][slot_count]", chosen[:slot_count].presence || 1, min: 1,
+                               class: "w-full h-12 px-3 rounded-lg bg-slate-900 border border-slate-700" %>
+        </div>
+
+        <div class="hidden grid grid-cols-2 gap-2" data-league-night-target="<%= column %>RangeRow">
+          <div>
+            <%= label_tag "league_night[#{column}][target_min_inches]", "Target min", class: "block text-sm text-slate-300" %>
+            <%= number_field_tag "league_night[#{column}][target_min_inches]", chosen[:target_min_inches].presence || 70, step: "0.25",
+                                 class: "w-full h-12 px-3 rounded-lg bg-slate-900 border border-slate-700" %>
+          </div>
+          <div>
+            <%= label_tag "league_night[#{column}][target_max_inches]", "Target max", class: "block text-sm text-slate-300" %>
+            <%= number_field_tag "league_night[#{column}][target_max_inches]", chosen[:target_max_inches].presence || 100, step: "0.25",
+                                 class: "w-full h-12 px-3 rounded-lg bg-slate-900 border border-slate-700" %>
+          </div>
+        </div>
+
+        <% if column == :side %>
+          <label class="flex items-center gap-2 pt-1">
+            <%# This screen is the authority for Side's blind flag each week, so the
+                box has to be able to submit "off" too. A bare check_box_tag submits
+                nothing when unchecked and LeagueNights::Schedule then falls back to
+                the template's flag, making an un-tick a silent no-op. The companion
+                hidden field keeps the key always present; id: nil stops it stealing
+                the checkbox's id and the sideBlind Stimulus target with it. %>
+            <%= hidden_field_tag "league_night[side][blind_leaderboard]", "0", id: nil %>
+            <%= check_box_tag "league_night[side][blind_leaderboard]", "1",
+                              chosen.key?(:blind_leaderboard) ? chosen[:blind_leaderboard].to_s == "1" : template.blind_leaderboard,
+                              class: "h-5 w-5", data: { league_night_target: "sideBlind", action: "change->league-night#sync" } %>
+            <span class="text-slate-200">Blind leaderboard</span>
+          </label>
+          <p class="hidden bg-amber-900/30 border border-amber-700 rounded-lg p-3 text-sm text-amber-200"
+             data-league-night-target="leakWarning"></p>
+        <% end %>
+      </div>
+    <% end %>
+
+    <%# Only one tournament gets built when the night is half-scheduled, so the
+        button can't keep saying "Create both". %>
+    <%= submit_tag repairing ? "Create the missing half" : "Create both",
+                   class: "w-full h-14 rounded-lg bg-blue-600 active:bg-blue-700 text-white text-lg font-semibold" %>
+  <% end %>
+
+  <%# The blind clause is conditional because the templates are: nothing forces a
+      paired template to be blind, and claiming it unconditionally was false for
+      any pair whose Main isn't. Left off rather than negated — a Main that isn't
+      template-blind can still end up blind from the format chosen above, so
+      "not blind" would be its own wrong claim. %>
+  <p class="text-xs text-slate-500 mt-3">
+    From the templates: season tag <%= @occurrence.main_template.season_tag %> ·
+    <%# Three states, not two: either half can award season points, both can,
+        or neither can. The old two-way ternary read "season points on <Side>"
+        for a pair where neither template awards them — a flatly false claim,
+        sitting right under a blind clause written to avoid exactly that. %>
+    <% points_on = [@occurrence.main_template, @occurrence.side_template].select(&:awards_season_points).map(&:name) %>
+    <%= points_on.any? ? "season points on #{points_on.to_sentence}" : "no season points" %> ·
+    entrants-only · local · not judged<%= " · #{@occurrence.main_template.name} always blind" if @occurrence.main_template.blind_leaderboard %>.
+  </p>
+<% end %>

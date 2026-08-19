@@ -24,12 +24,24 @@ Rails.application.routes.draw do
 
   namespace :organizers do
     resources :tournaments do
-      member { post :draw }
+      member do
+        post   :draw
+        post   :link,   to: "tournament_links#create"
+        delete :link,   to: "tournament_links#destroy"
+      end
       resources :tournament_entries, only: [:create, :update, :destroy] do
-        resources :tournament_entry_members, only: [:create, :destroy]
+        resources :tournament_entry_members, only: [:create, :destroy] do
+          collection { post :same_as_last_week }
+        end
       end
       resources :tournament_judges,   only: [:create, :destroy]
       resources :tournament_deputies, only: [:create, :destroy]
+      resources :boats, only: [] do
+        member { post :enter }
+      end
+    end
+    resources :boats, only: [:index, :create, :update, :destroy] do
+      member { post :restore }
     end
     resources :members, only: [:index, :new, :create, :destroy] do
       member do
@@ -41,6 +53,7 @@ Rails.application.routes.draw do
     resources :catches, only: [:index, :show, :update]
     resources :tournament_templates do
       member { post :clone }
+      resource :league_night, only: [:new, :create], controller: "league_nights"
     end
   end
 
@@ -64,12 +77,24 @@ Rails.application.routes.draw do
       end
     end
     resources :tournaments do
-      member { get :results }
+      member do
+        get    :results
+        post   :link,   to: "tournament_links#create"
+        delete :link,   to: "tournament_links#destroy"
+      end
       resources :tournament_entries, only: [:create, :update, :destroy] do
-        resources :tournament_entry_members, only: [:create, :destroy]
+        resources :tournament_entry_members, only: [:create, :destroy] do
+          collection { post :same_as_last_week }
+        end
       end
       resources :tournament_judges,  only: [:create, :destroy]
       resources :tournament_deputies, only: [:create, :destroy]
+      resources :boats, only: [] do
+        member { post :enter }
+      end
+    end
+    resources :boats, only: [:index, :create, :update, :destroy] do
+      member { post :restore }
     end
     resources :members, only: [:index, :new, :create, :edit, :update, :destroy] do
       member do
@@ -83,6 +108,7 @@ Rails.application.routes.draw do
     resources :catches, only: [:index, :show, :update]
     resources :tournament_templates do
       member { post :clone }
+      resource :league_night, only: [:new, :create], controller: "league_nights"
     end
     resources :rules, only: [ :index, :new, :create, :show ] do
       collection do

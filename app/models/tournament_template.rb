@@ -1,5 +1,6 @@
 class TournamentTemplate < ApplicationRecord
   belongs_to :club
+  belongs_to :paired_template, class_name: "TournamentTemplate", optional: true
   has_many :tournament_template_scoring_slots, dependent: :destroy
   accepts_nested_attributes_for :tournament_template_scoring_slots, allow_destroy: true,
                                 reject_if: ->(attrs) { attrs["species_id"].blank? }
@@ -21,9 +22,29 @@ class TournamentTemplate < ApplicationRecord
   validate :pro_walleye_requires_one_walleye_scoring_slot
   before_validation :force_pro_walleye_slot_count
   validate :progressive_length_requires_one_scoring_slot
+  validate :paired_template_cannot_be_self
+  validate :paired_template_must_exist
+  validate :paired_template_must_be_same_club
+  validate :paired_template_must_be_available
+  validate :paired_templates_must_be_team_mode
+  after_save :sync_pairing
+  before_destroy :clear_partner_pairing
+
+  def paired?
+    paired_template_id.present?
+  end
 
   def scheduled?
     default_weekday.present? && default_start_time.present? && default_end_time.present?
+  end
+
+  # The window this template's times describe on a named date, whatever weekday
+  # that date falls on. next_occurrence_at is this plus "work out which date";
+  # repairing a night that already ran needs to name the date itself, since
+  # next_occurrence_at only ever rolls forward.
+  def occurrence_at(date)
+    return nil unless scheduled?
+    [combine(date, default_start_time), combine(date, default_end_time)]
   end
 
   def next_occurrence_at(now: Time.zone.now)
@@ -156,5 +177,94 @@ class TournamentTemplate < ApplicationRecord
     return if remaining.size == 1
     errors.add(:tournament_template_scoring_slots,
                "Progressive Length tournaments must have exactly one species configured")
+  end
+
+  def paired_template_cannot_be_self
+    return if paired_template_id.blank?
+    return unless paired_template_id == id
+    errors.add(:paired_template, "can't be the same template")
+  end
+
+  # belongs_to resolves a dangling id to nil rather than raising, which would
+  # let the same-club/availability guards below silently no-op on a crafted
+  # or orphaned id (e.g. a former partner's row getting destroyed).
+  def paired_template_must_exist
+    return if paired_template_id.blank?
+    return if paired_template.present?
+    errors.add(:paired_template, "must exist")
+  end
+
+  def paired_template_must_be_same_club
+    return if paired_template.nil?
+    return if paired_template.club_id == club_id
+    errors.add(:paired_template, "must belong to the same club")
+  end
+
+  # A league night is exactly two templates, so a partner already spoken for
+  # can't be taken. Without this, pairing C to B would silently orphan A.
+  #
+  # Reads the partner's current pairing straight from the DB rather than off
+  # `paired_template` — an in-memory association object can be a stale copy
+  # (e.g. loaded before another template's `sync_pairing` repointed it via
+  # `update_column`, which never touches Ruby objects held elsewhere).
+  def paired_template_must_be_available
+    return if paired_template.nil?
+    current_partner_id = TournamentTemplate.where(id: paired_template_id).pick(:paired_template_id)
+    return if current_partner_id.nil?
+    return if current_partner_id == id
+    errors.add(:paired_template, "is already paired with another template")
+  end
+
+  # A league night is two TEAM tournaments sharing one roster: LeagueNights::Schedule
+  # always mints a link_group_id for the pair, and Tournament's
+  # link_group_id_only_on_team_tournaments refuses a link group on a solo
+  # tournament. Pairing two solo templates therefore builds a scheduler screen
+  # that 422s on every submit with "Link group is only available for team
+  # tournaments" — a message naming neither the cause nor the fix, on a screen
+  # that has no way back. This is not hypothetical: the season-long Big Walleye
+  # Local/Travel pair (see link_group_id_only_on_team_tournaments) is solo and is
+  # exactly what an organizer would reach for the "Pairs with" picker to join.
+  #
+  # Both halves are checked, and the self half keeps firing for as long as the
+  # pairing stands — so flipping an already-paired template back to solo is
+  # refused too, rather than quietly re-creating the dead end. Unpair first, then
+  # change the mode. sync_pairing writes the partner's id with update_column and
+  # so runs no validations of its own; it doesn't need to, because the pairing
+  # that triggers it has already been checked from this side.
+  def paired_templates_must_be_team_mode
+    return if paired_template.nil?
+    errors.add(:mode, "must be team while paired with another template") unless mode_team?
+    errors.add(:paired_template, "must be a team template — league nights are team-mode only") unless paired_template.mode_team?
+  end
+
+  # Pairing is symmetric: whichever side you set it from, both rows end up
+  # pointing at each other. The guard stops the partner's own after_save from
+  # bouncing the update back.
+  def sync_pairing
+    return if @syncing_pairing
+    return unless saved_change_to_paired_template_id?
+
+    previous_id, current_id = saved_change_to_paired_template_id
+    @syncing_pairing = true
+
+    if previous_id
+      former = TournamentTemplate.find_by(id: previous_id)
+      former&.update_column(:paired_template_id, nil)
+    end
+    if current_id
+      partner = TournamentTemplate.find_by(id: current_id)
+      partner&.update_column(:paired_template_id, id)
+    end
+  ensure
+    @syncing_pairing = false
+  end
+
+  # Without this, destroying a paired template leaves the partner's
+  # paired_template_id pointing at a row that no longer exists — the same
+  # dangling-id state paired_template_must_exist guards against on save.
+  # update_all bypasses validations/callbacks so it can't recurse back here.
+  def clear_partner_pairing
+    return if paired_template_id.blank?
+    TournamentTemplate.where(id: paired_template_id).update_all(paired_template_id: nil)
   end
 end

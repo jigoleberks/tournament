@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[8.1].define(version: 2026_08_09_002538) do
+ActiveRecord::Schema[8.1].define(version: 2026_08_17_000001) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pg_catalog.plpgsql"
 
@@ -50,6 +50,18 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_09_002538) do
     t.bigint "blob_id", null: false
     t.string "variation_digest", null: false
     t.index ["blob_id", "variation_digest"], name: "index_active_storage_variant_records_uniqueness", unique: true
+  end
+
+  create_table "boats", force: :cascade do |t|
+    t.boolean "active", default: true, null: false
+    t.bigint "captain_user_id", null: false
+    t.bigint "club_id", null: false
+    t.datetime "created_at", null: false
+    t.string "name", null: false
+    t.datetime "updated_at", null: false
+    t.index "club_id, lower((name)::text)", name: "index_boats_on_club_id_and_lower_name", unique: true
+    t.index ["captain_user_id"], name: "index_boats_on_captain_user_id"
+    t.index ["club_id"], name: "index_boats_on_club_id"
   end
 
   create_table "catch_placements", force: :cascade do |t|
@@ -353,11 +365,14 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_09_002538) do
   end
 
   create_table "tournament_entries", force: :cascade do |t|
+    t.bigint "boat_id"
     t.datetime "created_at", null: false
     t.string "name"
     t.decimal "random_bag_target_inches", precision: 5, scale: 2
     t.bigint "tournament_id", null: false
     t.datetime "updated_at", null: false
+    t.index ["boat_id"], name: "index_tournament_entries_on_boat_id"
+    t.index ["tournament_id", "boat_id"], name: "index_tournament_entries_on_tournament_and_boat_uniq", unique: true, where: "(boat_id IS NOT NULL)"
     t.index ["tournament_id"], name: "index_tournament_entries_on_tournament_id"
   end
 
@@ -404,14 +419,17 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_09_002538) do
     t.integer "format", default: 0, null: false
     t.integer "mode", default: 0, null: false
     t.string "name", null: false
+    t.bigint "paired_template_id"
     t.string "season_tag"
     t.integer "train_cars", default: [], null: false, array: true
     t.datetime "updated_at", null: false
     t.index ["club_id"], name: "index_tournament_templates_on_club_id"
+    t.index ["paired_template_id"], name: "index_tournament_templates_on_paired_template_id"
   end
 
   create_table "tournaments", force: :cascade do |t|
     t.boolean "awards_season_points", default: false, null: false
+    t.boolean "backfill_late_entrants", default: false, null: false
     t.jsonb "bingo_layout"
     t.boolean "blind_leaderboard", default: false, null: false
     t.bigint "club_id", null: false
@@ -425,6 +443,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_09_002538) do
     t.decimal "hidden_length_target", precision: 5, scale: 2
     t.boolean "judged", default: false, null: false
     t.datetime "lifecycle_ended_announced_at"
+    t.string "link_group_id"
     t.boolean "local", default: true, null: false
     t.integer "mode", default: 0, null: false
     t.string "name", null: false
@@ -440,6 +459,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_09_002538) do
     t.index ["club_id"], name: "index_tournaments_on_club_id"
     t.index ["drawn_by_user_id"], name: "index_tournaments_on_drawn_by_user_id"
     t.index ["drawn_winning_placement_id"], name: "index_tournaments_on_drawn_winning_placement_id"
+    t.index ["link_group_id"], name: "index_tournaments_on_link_group_id"
   end
 
   create_table "user_events", force: :cascade do |t|
@@ -468,6 +488,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_09_002538) do
 
   add_foreign_key "active_storage_attachments", "active_storage_blobs", column: "blob_id"
   add_foreign_key "active_storage_variant_records", "active_storage_blobs", column: "blob_id"
+  add_foreign_key "boats", "clubs"
   add_foreign_key "catch_placements", "catches"
   add_foreign_key "catch_placements", "species"
   add_foreign_key "catch_placements", "tournament_entries"
@@ -496,6 +517,7 @@ ActiveRecord::Schema[8.1].define(version: 2026_08_09_002538) do
   add_foreign_key "tournament_deputies", "tournaments"
   add_foreign_key "tournament_deputies", "users"
   add_foreign_key "tournament_deputies", "users", column: "granted_by_user_id"
+  add_foreign_key "tournament_entries", "boats"
   add_foreign_key "tournament_entries", "tournaments"
   add_foreign_key "tournament_entry_members", "tournament_entries"
   add_foreign_key "tournament_entry_members", "users"

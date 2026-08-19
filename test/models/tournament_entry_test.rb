@@ -53,4 +53,40 @@ class TournamentEntryTest < ActiveSupport::TestCase
     assert_equal 0, user_queries,
                  "display_name should read the preloaded :users association, not re-query"
   end
+
+  test "an entry can carry the boat it was created from" do
+    club = create(:club)
+    tournament = create(:tournament, club: club, mode: :team)
+    boat = create(:boat, club: club, name: "Team Loos")
+    entry = create(:tournament_entry, tournament: tournament, name: "Team Loos", boat: boat)
+    assert_equal boat, entry.reload.boat
+    assert_equal [entry], boat.tournament_entries
+  end
+
+  test "an entry without a boat is still valid" do
+    entry = create(:tournament_entry)
+    assert_nil entry.boat
+  end
+
+  test "a boat can't have two live entries in the same tournament (DB-level guard)" do
+    boat = create(:boat, club: @club)
+    create(:tournament_entry, tournament: @team_t, boat: boat)
+    assert_raises(ActiveRecord::RecordNotUnique) do
+      TournamentEntry.create!(tournament: @team_t, boat: boat)
+    end
+  end
+
+  test "the same boat can have one entry each in two different tournaments" do
+    boat = create(:boat, club: @club)
+    create(:tournament_entry, tournament: @solo_t, boat: boat)
+    assert_nothing_raised do
+      TournamentEntry.create!(tournament: @team_t, boat: boat)
+    end
+  end
+
+  test "multiple boat-less entries in the same tournament don't collide on the partial index" do
+    assert_nothing_raised do
+      2.times { TournamentEntry.create!(tournament: @team_t) }
+    end
+  end
 end

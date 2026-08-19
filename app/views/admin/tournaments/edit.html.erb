@@ -38,6 +38,15 @@
   </div>
 
   <div class="space-y-8">
+    <div class="bg-slate-800 rounded-xl border border-slate-700 overflow-hidden shadow-xl">
+      <div class="p-6 border-b border-slate-700 bg-slate-700/30">
+        <h2 class="text-lg font-semibold">Linked with</h2>
+      </div>
+      <div class="p-6">
+        <%= render "admin/tournament_links/section" %>
+      </div>
+    </div>
+
     <% if @tournament.format_tagged? && @tournament.drawn_at.present? %>
       <div class="bg-slate-800 rounded-xl border border-amber-700/40 overflow-hidden shadow-xl">
         <div class="p-6 border-b border-slate-700 bg-amber-900/20">

@@ -57,6 +57,12 @@ FactoryBot.define do
     association :user
   end
 
+  factory :boat do
+    association :club
+    sequence(:name) { |n| "Boat #{n}" }
+    captain { create(:user, club: club) }
+  end
+
   factory :tournament_judge do
     association :tournament
     association :user

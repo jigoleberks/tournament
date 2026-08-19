@@ -4,7 +4,15 @@ class Organizers::TournamentTemplatesController < Organizers::BaseController
   before_action :load_template, only: [:edit, :update, :destroy, :clone]
 
   def index
-    @templates = current_club.tournament_templates.order(:name)
+    all = current_club.tournament_templates.order(:name).to_a
+    # A pair is one league night, so show it once: drop the partner of any
+    # template already in the list.
+    seen = []
+    @templates = all.reject do |template|
+      hide = template.paired? && seen.include?(template.paired_template_id)
+      seen << template.id
+      hide
+    end
   end
 
   def new

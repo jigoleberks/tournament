@@ -1,37 +1,83 @@
 <% available = current_club.members.active.order(:name) %>
-<%= form_with url: admin_tournament_tournament_entries_path(tournament_id: @tournament.id), local: true,
-              class: "mb-8 space-y-4" do |f| %>
 
-  <div class="bg-slate-900 rounded-xl border border-slate-700 overflow-hidden">
+<% if @tournament.mode_team? %>
+  <div class="bg-slate-900 rounded-xl border border-slate-700 overflow-hidden mb-8">
     <div class="p-3 border-b border-slate-700 bg-slate-800/50 flex items-center justify-between">
-      <span class="text-xs font-bold text-slate-400 uppercase tracking-widest">Add Entry</span>
+      <span class="text-xs font-bold text-slate-400 uppercase tracking-widest">Add a Boat</span>
       <span class="text-[10px] text-slate-500 italic"><%= @tournament.mode %> mode</span>
     </div>
     <div class="p-4 space-y-4">
-      <% if @tournament.mode_team? %>
-        <div>
-          <%= label_tag "tournament_entry[name]", "Boat/Team Name (Optional)", class: "block text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1.5" %>
-          <%= text_field_tag "tournament_entry[name]", nil, placeholder: "e.g. Bass Hunters",
-                             class: "w-full h-10 px-3 rounded bg-slate-800 border border-slate-700 text-sm text-slate-100 focus:ring-1 focus:ring-blue-500 outline-none" %>
-        </div>
+      <% if @tournament.linked_tournaments.any? %>
+        <p class="text-xs text-slate-400">
+          Adds to <%= @tournament.linked_tournaments.map(&:name).to_sentence %> as well.
+        </p>
       <% end %>
 
-      <div>
-        <span class="block text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-2">Select Members (max <%= TournamentEntryMember::MAX_TEAM_MEMBERS %>)</span>
-        <div class="max-h-48 overflow-y-auto pr-2 space-y-1 scrollbar-thin scrollbar-thumb-slate-700">
-          <% available.each do |u| %>
-            <label class="flex items-center gap-3 p-2 rounded hover:bg-slate-800 cursor-pointer transition-colors group">
-              <%= check_box_tag "tournament_entry[member_user_ids][]", u.id, false, class: "h-4 w-4 rounded border-slate-700 bg-slate-700 text-blue-600" %>
-              <span class="text-sm text-slate-300 group-hover:text-white transition-colors"><%= u.name %></span>
-            </label>
+      <% entered_boat_ids = @tournament.tournament_entries.pluck(:boat_id).compact %>
+      <div class="max-h-48 overflow-y-auto pr-2 space-y-1 scrollbar-thin scrollbar-thumb-slate-700">
+        <% current_club.boats.active.alphabetical.each do |boat| %>
+          <% next if entered_boat_ids.include?(boat.id) %>
+          <%= button_to enter_admin_tournament_boat_path(tournament_id: @tournament.id, id: boat.id),
+                        method: :post,
+                        class: "w-full text-left p-2 rounded bg-slate-800 hover:bg-slate-700 transition-colors" do %>
+            <span class="text-sm font-bold text-white"><%= boat.name %></span>
+            <span class="text-slate-500"> — </span>
+            <span class="text-sm text-slate-300"><%= boat.captain.name.strip %></span>
           <% end %>
-        </div>
+        <% end %>
       </div>
 
-      <%= submit_tag(@tournament.mode_team? ? "Add Team Entry" : "Add Individual Entries",
-                     class: "w-full h-10 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-sm font-bold transition-colors cursor-pointer") %>
+      <details class="bg-slate-800 border border-slate-700 rounded">
+        <summary class="h-10 px-3 leading-[2.5rem] cursor-pointer text-blue-300 text-sm select-none">+ New boat…</summary>
+        <%= form_with url: admin_boats_path, local: true, class: "p-3 pt-1 space-y-2" do %>
+          <%= hidden_field_tag :tournament_id, @tournament.id %>
+          <%= text_field_tag "boat[name]", nil, placeholder: "Boat name",
+                             class: "w-full h-10 px-3 rounded bg-slate-900 border border-slate-700 text-sm text-slate-100" %>
+          <%= select_tag "boat[captain_user_id]",
+                         options_from_collection_for_select(current_club.members.active.order(:name), :id, :name),
+                         prompt: "Captain",
+                         class: "w-full h-10 px-2 rounded bg-slate-900 border border-slate-700 text-sm text-slate-100" %>
+          <%= submit_tag "Create and enter",
+                         class: "w-full h-10 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-sm font-bold transition-colors cursor-pointer" %>
+        <% end %>
+      </details>
     </div>
   </div>
+<% else %>
+  <%= form_with url: admin_tournament_tournament_entries_path(tournament_id: @tournament.id), local: true,
+                class: "mb-8 space-y-4" do |f| %>
+
+    <div class="bg-slate-900 rounded-xl border border-slate-700 overflow-hidden">
+      <div class="p-3 border-b border-slate-700 bg-slate-800/50 flex items-center justify-between">
+        <span class="text-xs font-bold text-slate-400 uppercase tracking-widest">Add Entry</span>
+        <span class="text-[10px] text-slate-500 italic"><%= @tournament.mode %> mode</span>
+      </div>
+      <div class="p-4 space-y-4">
+        <% if @tournament.mode_team? %>
+          <div>
+            <%= label_tag "tournament_entry[name]", "Boat/Team Name (Optional)", class: "block text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1.5" %>
+            <%= text_field_tag "tournament_entry[name]", nil, placeholder: "e.g. Bass Hunters",
+                               class: "w-full h-10 px-3 rounded bg-slate-800 border border-slate-700 text-sm text-slate-100 focus:ring-1 focus:ring-blue-500 outline-none" %>
+          </div>
+        <% end %>
+
+        <div>
+          <span class="block text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-2">Select Members (max <%= TournamentEntryMember::MAX_TEAM_MEMBERS %>)</span>
+          <div class="max-h-48 overflow-y-auto pr-2 space-y-1 scrollbar-thin scrollbar-thumb-slate-700">
+            <% available.each do |u| %>
+              <label class="flex items-center gap-3 p-2 rounded hover:bg-slate-800 cursor-pointer transition-colors group">
+                <%= check_box_tag "tournament_entry[member_user_ids][]", u.id, false, class: "h-4 w-4 rounded border-slate-700 bg-slate-700 text-blue-600" %>
+                <span class="text-sm text-slate-300 group-hover:text-white transition-colors"><%= u.name %></span>
+              </label>
+            <% end %>
+          </div>
+        </div>
+
+        <%= submit_tag(@tournament.mode_team? ? "Add Team Entry" : "Add Individual Entries",
+                       class: "w-full h-10 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-sm font-bold transition-colors cursor-pointer") %>
+      </div>
+    </div>
+  <% end %>
 <% end %>
 
 <div class="space-y-3">
@@ -58,6 +104,13 @@
                   </li>
                 <% end %>
               </ul>
+              <% if entry.boat %>
+                <%= button_to "Same as last week",
+                              same_as_last_week_admin_tournament_tournament_entry_tournament_entry_members_path(
+                                tournament_id: @tournament.id, tournament_entry_id: entry.id),
+                              method: :post,
+                              class: "mt-2 h-8 px-2 rounded bg-slate-800 hover:bg-slate-700 text-slate-100 text-xs" %>
+              <% end %>
             <% else %>
               <div class="text-xs text-slate-400 truncate">
                 <%= entry.users.map(&:name).join(", ") %>

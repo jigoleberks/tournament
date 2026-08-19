@@ -1,5 +1,6 @@
 class TournamentEntry < ApplicationRecord
   belongs_to :tournament
+  belongs_to :boat, optional: true
   has_many :tournament_entry_members, dependent: :destroy
   has_many :users, through: :tournament_entry_members
   has_many :catch_placements, dependent: :destroy
