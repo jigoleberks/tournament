@@ -3,6 +3,7 @@ on: [push, pull_request]
 jobs:
   test:
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     services:
       postgres:
         image: postgres:16
@@ -16,7 +17,28 @@ jobs:
       RAILS_ENV: test
     steps:
       - uses: actions/checkout@v7
-      - run: sudo apt-get update && sudo apt-get install --no-install-recommends -y libvips42 libheif-plugin-libde265
+      # apt wedges on this runner pool with no output and no error -- not on a
+      # socket its own timeouts cover, since the Acquire options below fire
+      # correctly on the azure mirror and the hang happens after the last
+      # InRelease lands. timeout(1) does not care where it is stuck: kill the
+      # attempt and retry on a fresh connection, rather than spending the whole
+      # job budget on one wedge. 150s x 2 commands x 3 attempts = 15.5 min, so
+      # all three attempts fit inside timeout-minutes; a healthy run takes ~110s
+      # for both commands together.
+      - name: Install libvips
+        env:
+          APT_OPTS: -o Acquire::Retries=3 -o Acquire::http::Timeout=30 -o Acquire::https::Timeout=30
+        run: |
+          for attempt in 1 2 3; do
+            if timeout 150 sudo apt-get $APT_OPTS update &&
+               timeout 150 sudo apt-get $APT_OPTS install --no-install-recommends -y libvips42 libheif-plugin-libde265; then
+              exit 0
+            fi
+            echo "::warning::apt attempt $attempt timed out or failed; retrying"
+            sleep 15
+          done
+          echo "::error::apt failed three times"
+          exit 1
       - uses: ruby/setup-ruby@v1
         with: { bundler-cache: true }
       - run: bin/rails db:test:prepare

@@ -40,8 +40,13 @@
       <% @retired_boats.each do |boat| %>
         <li class="p-4 flex flex-wrap items-center justify-between gap-3">
           <div class="text-slate-400"><%= boat.label %></div>
-          <%= button_to "Restore", restore_admin_boat_path(boat), method: :post,
-                        class: "h-9 px-3 rounded bg-slate-700 hover:bg-slate-600 text-slate-100 text-sm font-medium transition-colors" %>
+          <div class="flex flex-wrap items-center gap-2">
+            <%= button_to "Restore", restore_admin_boat_path(boat), method: :post,
+                          class: "h-9 px-3 rounded bg-slate-700 hover:bg-slate-600 text-slate-100 text-sm font-medium transition-colors" %>
+            <%= button_to "Delete", purge_admin_boat_path(boat), method: :delete,
+                          data: { turbo_confirm: boat_delete_confirm(boat, @retired_entry_counts[boat.id]) },
+                          class: "h-9 px-3 rounded bg-red-800 hover:bg-red-700 text-red-50 text-sm font-medium transition-colors" %>
+          </div>
         </li>
       <% end %>
     </ul>

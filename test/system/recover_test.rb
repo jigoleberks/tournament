@@ -114,7 +114,8 @@ class RecoverTest < ApplicationSystemTestCase
     # Queued long enough ago to be stuck rather than in-flight. The age is what
     # makes this the pending-STUCK case: seeded at Date.now() it would be
     # indistinguishable from a catch that is simply mid-upload.
-    seed_catch(uuid: SecureRandom.uuid, status: "pending", queued_ago_ms: 10 * 60 * 1000)
+    seed_catch(uuid: SecureRandom.uuid, status: "pending", queued_ago_ms: 10 * 60 * 1000,
+               held_for_ms: 60_000)
     # Re-render the widget without firing drain() (which would upload the record
     # and empty the pending bucket). The controller refreshes on this event.
     page.execute_script("window.dispatchEvent(new CustomEvent('bsfamilies:catch-failed', { detail: {} }))")
@@ -129,7 +130,7 @@ class RecoverTest < ApplicationSystemTestCase
     sign_in_as(@user)
     visit root_path
 
-    seed_catch(uuid: SecureRandom.uuid, status: "pending", queued_ago_ms: 0)
+    seed_catch(uuid: SecureRandom.uuid, status: "pending", queued_ago_ms: 0, held_for_ms: 60_000)
     page.execute_script("window.dispatchEvent(new CustomEvent('bsfamilies:catch-failed', { detail: {} }))")
     # The widget re-renders on that event; wait for the pending row to prove the
     # render happened, so the link assertion isn't just winning a race.
@@ -160,9 +161,23 @@ class RecoverTest < ApplicationSystemTestCase
     last
   end
 
-  def seed_catch(uuid:, status: "failed", queued_ago_ms: 0)
+  # held_for_ms sets hold_until, which is what submit() uses while it waits for
+  # a GPS fix: drainOnce skips the record entirely, and the widget still
+  # renders it as a plain pending row (the amber "retrying" variant keys off
+  # next_attempt_at, not hold_until, and the recover link keys off queued_at).
+  #
+  # Any test that seeds a PENDING record and then asserts on it needs this.
+  # drain() fires from eight triggers, several of them during page and module
+  # init, and Capybara's visit can return before the last of them lands. A
+  # drain arriving after the seed uploads the fish and empties the pending
+  # bucket — and because the widget only re-renders on an event, that empty
+  # render is final and the assertion's wait polls a DOM that will never
+  # change again.
+  def seed_catch(uuid:, status: "failed", queued_ago_ms: 0, held_for_ms: nil)
+    extra = { reason: '"test"', length_unit: '"inches"' }
+    extra[:hold_until] = "Date.now() + #{Integer(held_for_ms)}" if held_for_ms
     seed_idb_catch(uuid: uuid, species_id: @walleye.id, trigger_js: "void 0",
                    status: status, queued_ago_ms: queued_ago_ms,
-                   extra_fields: { reason: '"test"', length_unit: '"inches"' })
+                   extra_fields: extra)
   end
 end
