@@ -3,6 +3,7 @@ on: [push, pull_request]
 jobs:
   test:
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     services:
       postgres:
         image: postgres:16
@@ -16,6 +17,16 @@ jobs:
       RAILS_ENV: test
     steps:
       - uses: actions/checkout@v7
+      # The runners' default mirror (azure.archive.ubuntu.com) intermittently
+      # accepts the TCP connection and never answers, which hangs apt-get until
+      # the job is killed. Point apt at the canonical archive instead.
+      - name: Use the canonical Ubuntu mirror
+        run: |
+          for f in /etc/apt/sources.list /etc/apt/sources.list.d/*.sources /etc/apt/sources.list.d/*.list; do
+            if [ -f "$f" ]; then
+              sudo sed -i 's|azure\.archive\.ubuntu\.com|archive.ubuntu.com|g' "$f"
+            fi
+          done
       - run: sudo apt-get update && sudo apt-get install --no-install-recommends -y libvips42 libheif-plugin-libde265
       - uses: ruby/setup-ruby@v1
         with: { bundler-cache: true }
