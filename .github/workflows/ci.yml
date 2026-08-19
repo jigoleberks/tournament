@@ -3,6 +3,10 @@ on: [push, pull_request]
 jobs:
   test:
     runs-on: ubuntu-latest
+    # Same-repo branches already get a push run; the duplicate pull_request run
+    # doubles CI minutes and was the half that kept wedging. Fork PRs have no
+    # push run, so they still need this.
+    if: github.event_name == 'push' || github.event.pull_request.head.repo.full_name != github.repository
     timeout-minutes: 20
     services:
       postgres:
@@ -17,17 +21,15 @@ jobs:
       RAILS_ENV: test
     steps:
       - uses: actions/checkout@v7
-      # The runners' default mirror (azure.archive.ubuntu.com) intermittently
-      # accepts the TCP connection and never answers, which hangs apt-get until
-      # the job is killed. Point apt at the canonical archive instead.
-      - name: Use the canonical Ubuntu mirror
+      # A mirror that accepts the connection and then never sends data will hang
+      # apt forever -- apt has no read timeout by default. These options turn
+      # that silent stall into a retry and then a real error.
+      - name: Install libvips
+        env:
+          APT_OPTS: -o Acquire::Retries=3 -o Acquire::http::Timeout=30 -o Acquire::https::Timeout=30
         run: |
-          for f in /etc/apt/sources.list /etc/apt/sources.list.d/*.sources /etc/apt/sources.list.d/*.list; do
-            if [ -f "$f" ]; then
-              sudo sed -i 's|azure\.archive\.ubuntu\.com|archive.ubuntu.com|g' "$f"
-            fi
-          done
-      - run: sudo apt-get update && sudo apt-get install --no-install-recommends -y libvips42 libheif-plugin-libde265
+          sudo apt-get $APT_OPTS update
+          sudo apt-get $APT_OPTS install --no-install-recommends -y libvips42 libheif-plugin-libde265
       - uses: ruby/setup-ruby@v1
         with: { bundler-cache: true }
       - run: bin/rails db:test:prepare
