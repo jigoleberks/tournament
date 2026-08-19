@@ -2,6 +2,10 @@ class Admin::BoatsController < Admin::BaseController
   def index
     @boats = current_club.boats.includes(:captain).active.alphabetical
     @retired_boats = current_club.boats.includes(:captain).where(active: false).alphabetical
+    # One grouped query for the whole Retired section, so the Delete confirm can
+    # name how many entries it would unlink without a count per row.
+    @retired_entry_counts = ::TournamentEntry.where(boat_id: @retired_boats.map(&:id))
+                                             .group(:boat_id).count
   end
 
   def enter
@@ -84,6 +88,26 @@ class Admin::BoatsController < Admin::BaseController
     boat = current_club.boats.find(params[:id])
     boat.update!(active: true)
     redirect_to admin_boats_path, notice: "#{boat.name} restored."
+  end
+
+  # #destroy above retires; this is the real delete. It mirrors
+  # Admin::MembersController#purge — a boat must be retired first, so a row
+  # still live in the picker can't be destroyed by one stray tap, and the
+  # Retired section is the only place the button renders.
+  #
+  # tournament_entries is dependent: :nullify, so history survives: past
+  # leaderboards rank off the entry and its own name column and never read
+  # boat_id. What the club loses is the boat-keyed machinery — the rename
+  # cascade, "same as last week", and the [tournament_id, boat_id] guard.
+  def purge
+    boat = current_club.boats.find(params[:id])
+    if boat.active?
+      redirect_to admin_boats_path, alert: "Retire #{boat.name} before deleting it."
+    else
+      name = boat.name
+      boat.destroy!
+      redirect_to admin_boats_path, notice: "#{name} permanently deleted."
+    end
   end
 
   private

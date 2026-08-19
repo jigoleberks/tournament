@@ -41,7 +41,13 @@ Rails.application.routes.draw do
       end
     end
     resources :boats, only: [:index, :create, :update, :destroy] do
-      member { post :restore }
+      # #destroy retires (soft); #purge is the real delete. The names read
+      # backwards, but #destroy shipped as Retire and is what the retire
+      # button, its tests and both namespaces already point at.
+      member do
+        post   :restore
+        delete :purge
+      end
     end
     resources :members, only: [:index, :new, :create, :destroy] do
       member do
@@ -94,7 +100,13 @@ Rails.application.routes.draw do
       end
     end
     resources :boats, only: [:index, :create, :update, :destroy] do
-      member { post :restore }
+      # #destroy retires (soft); #purge is the real delete. The names read
+      # backwards, but #destroy shipped as Retire and is what the retire
+      # button, its tests and both namespaces already point at.
+      member do
+        post   :restore
+        delete :purge
+      end
     end
     resources :members, only: [:index, :new, :create, :edit, :update, :destroy] do
       member do

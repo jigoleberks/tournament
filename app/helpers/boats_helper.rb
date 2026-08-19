@@ -16,4 +16,17 @@ module BoatsHelper
     end
     options_for_select(pairs, boat.captain_user_id)
   end
+
+  # Shared by both Boats screens so the twins can't drift on the one piece of
+  # copy that has to be right. Deleting a boat unlinks its entries, which is
+  # invisible on leaderboards — Leaderboards::Build ranks off the entry and its
+  # own name column — but does cost the rename cascade and "same as last week",
+  # so the count goes in front of the organizer at the moment of the click.
+  def boat_delete_confirm(boat, entry_count)
+    return "Delete #{boat.name}? This cannot be undone." if entry_count.to_i.zero?
+
+    "Delete #{boat.name}? #{pluralize(entry_count, 'past entry')} will stay on the " \
+      "leaderboards but lose the boat link, and \"same as last week\" will no longer " \
+      "find its crews. This cannot be undone."
+  end
 end

@@ -209,4 +209,92 @@ class Admin::BoatsControllerTest < ActionDispatch::IntegrationTest
 
     assert_equal "Team Majestic Red", @boat.reload.name
   end
+
+  # Retire is reversible and keeps history attached. Delete is the escape hatch
+  # for a boat that should never have existed — a duplicate spelling, a typo, a
+  # seed proposal that came out wrong — and is gated behind Retire so a boat
+  # still in the picker can't be destroyed by one stray tap.
+  test "deleting a retired boat removes it permanently" do
+    @boat.update!(active: false)
+
+    assert_difference "Boat.count", -1 do
+      delete purge_admin_boat_path(@boat)
+    end
+    assert_redirected_to admin_boats_path
+    assert_match(/deleted/i, flash[:notice])
+  end
+
+  # The property that makes Delete safe to offer at all: boat_id is read by the
+  # picker, the rename cascade and "same as last week", never by
+  # Leaderboards::Build, which ranks off the entry and its own name column.
+  test "deleting a retired boat leaves its entries and their names standing, only unlinked" do
+    finished = create(:tournament, club: @club, mode: :team,
+                      starts_at: 2.days.ago, ends_at: 1.day.ago)
+    entry = create(:tournament_entry, tournament: finished, name: "Majestic Red", boat: @boat)
+    @boat.update!(active: false)
+
+    assert_no_difference "TournamentEntry.count" do
+      delete purge_admin_boat_path(@boat)
+    end
+
+    assert_nil entry.reload.boat_id
+    assert_equal "Majestic Red", entry.name
+  end
+
+  # The Delete button renders only in the Retired section, but the page is a
+  # snapshot — another organizer can restore a boat while this one still has
+  # the row on screen, the same race #enter guards against.
+  test "deleting a boat that is still active is refused" do
+    assert_no_difference "Boat.count" do
+      delete purge_admin_boat_path(@boat)
+    end
+    assert_match(/retire/i, flash[:alert])
+  end
+
+  test "deleting a boat in another club is out of reach" do
+    other = create(:boat, club: create(:club), name: "Someone Else's Boat", active: false)
+
+    assert_no_difference "Boat.count" do
+      delete purge_admin_boat_path(other)
+    end
+    assert_response :not_found
+  end
+
+  test "the Retired section offers Delete alongside Restore, naming how many entries it unlinks" do
+    finished = create(:tournament, club: @club, mode: :team,
+                      starts_at: 2.days.ago, ends_at: 1.day.ago)
+    create(:tournament_entry, tournament: finished, name: "Majestic Red", boat: @boat)
+    @boat.update!(active: false)
+
+    get admin_boats_path
+
+    assert_select "form[action=?]", purge_admin_boat_path(@boat), count: 1
+    assert_select "form[action=?]", restore_admin_boat_path(@boat), count: 1
+    assert_match(/1 past entry/, response.body)
+  end
+
+  test "the Delete confirmation on a boat with no history does not mention entries" do
+    @boat.update!(active: false)
+
+    get admin_boats_path
+
+    assert_select "form[action=?]", purge_admin_boat_path(@boat), count: 1
+    assert_no_match(/past entr/, response.body)
+  end
+
+  # See the captain eager-loading test above for why this compares query counts
+  # at 1 vs 3 retired boats rather than asserting an absolute cap.
+  test "the retired list counts entries in one query rather than one per boat" do
+    @boat.update!(active: false)
+    one_boat = count_queries(/\bfrom\s+"?tournament_entries"?/i) { get admin_boats_path }
+
+    create(:boat, club: @club, name: "Old Tiller", active: false)
+    create(:boat, club: @club, name: "Old Pearl", active: false)
+
+    three_boats = count_queries(/\bfrom\s+"?tournament_entries"?/i) { get admin_boats_path }
+
+    assert_equal one_boat, three_boats,
+                 "entry counts should be batched, not scale with the retired list"
+  end
+
 end
