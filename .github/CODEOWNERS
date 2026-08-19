@@ -1,8 +1,10 @@
-# Code owners for jigoleberks/tournament.
+# Code owners for pattersongalen/tournament.
 # Lines later in the file take precedence over earlier lines.
 # See https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/customizing-your-repository/about-code-owners
 #
-# Enforced by the JBR1 ruleset on main: every PR into main requires
-# review from at least one owner listed here. Admins can bypass.
+# Advisory only. The JBR1 ruleset on main still requires a pull request,
+# but no longer requires an approving review or a code-owner review, so
+# nothing here blocks a merge. Kept so reviews are auto-requested if a
+# collaborator is added later.
 
-* @jigoleberks
+* @pattersongalen
