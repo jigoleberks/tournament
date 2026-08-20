@@ -138,4 +138,82 @@ class ClubTest < ActiveSupport::TestCase
     assert_equal "5, 4, 3", club.season_points_base_ladder_text
     assert_equal "1, 1.5, 2, 2.5", club.season_points_tier_multipliers_text
   end
+
+  # FIX 1 regression: a band that fails to parse used to shift every later
+  # band down one slot via `parsed.compact`, so the re-rendered form showed
+  # the wrong ladder under the wrong band's label.
+  test "a rejected band leaves the other three bands' text intact on re-render, with no shift" do
+    club = create(:club)
+    club.season_points_ladders_text = ["10, 8, 6", "12,10,8", "14, 12, 10", "16, 14, 12"]
+
+    club.season_points_ladders_text = ["10, 8, 6", "12,1O,8", "14, 12, 10", "16, 14, 12"]
+
+    assert_not club.valid?
+    assert_equal "10, 8, 6",    club.season_points_ladder_text(0)
+    assert_equal "12,1O,8",     club.season_points_ladder_text(1)
+    assert_equal "14, 12, 10",  club.season_points_ladder_text(2)
+    assert_equal "16, 14, 12",  club.season_points_ladder_text(3)
+  end
+
+  # FIX 1 regression: reproduces the full two-submit sequence from the code
+  # review. Because the re-render no longer shifts bands, retyping only the
+  # broken band and resubmitting the rest exactly as shown must save each
+  # ladder against its ORIGINAL band — never swap a ladder into a
+  # neighbouring band.
+  test "retyping only the broken band and resubmitting the rest cannot swap a ladder into the wrong band" do
+    club = create(:club)
+    club.season_points_ladders_text = ["10, 8, 6", "12, 10, 8", "14, 12, 10", "16, 14, 12"]
+    club.save!
+
+    # First submit: band index 1 has a typo.
+    club.season_points_ladders_text = ["10, 8, 6", "12,1O,8", "14, 12, 10", "16, 14, 12"]
+    assert_not club.valid?
+
+    # Admin retypes band 1 correctly and resubmits exactly what the
+    # re-rendered form showed for the other three bands.
+    club.season_points_ladders_text = [
+      club.season_points_ladder_text(0),
+      "12, 10, 8",
+      club.season_points_ladder_text(2),
+      club.season_points_ladder_text(3)
+    ]
+
+    assert club.valid?, club.errors.full_messages.join(", ")
+    assert_equal [[10.0, 8.0, 6.0], [12.0, 10.0, 8.0], [14.0, 12.0, 10.0], [16.0, 14.0, 12.0]],
+                 club.season_points_ladders
+  end
+
+  # FIX 2: jsonb happily stores strings, and validate_ladder used to coerce
+  # with #to_f, so a string amount passed validation and only blew up
+  # downstream (a TypeError in SeasonPointsAwarded's accumulator).
+  test "a ladder containing a string amount is invalid" do
+    club = create(:club)
+    club.season_points_ladders = [["9", "6", "3"], [6, 4, 2], [9, 6, 3], [9, 6, 3]]
+    assert_not club.valid?
+    assert_includes club.errors[:season_points_ladders].join, "numbers"
+  end
+
+  # FIX 4: labels and sample field sizes are derived from SEASON_POINTS_BANDS
+  # in one place, so the admin editor, its preview table, and the member
+  # explainer can't drift out of sync.
+  test "season_points_bands derives labels and top-of-band samples from SEASON_POINTS_BANDS" do
+    assert_equal [
+      { label: "1–9", sample: 9 },
+      { label: "10–19", sample: 19 },
+      { label: "20–29", sample: 29 },
+      { label: "30+", sample: 30 }
+    ], Club.season_points_bands
+  end
+
+  test "a base ladder or tier multipliers containing a string amount is invalid" do
+    club = create(:club)
+    club.season_points_base_ladder = ["3", "2", "1"]
+    assert_not club.valid?
+    assert_includes club.errors[:season_points_base_ladder].join, "numbers"
+
+    club = create(:club)
+    club.season_points_tier_multipliers = ["1", 2, 3, 3]
+    assert_not club.valid?
+    assert_includes club.errors[:season_points_tier_multipliers].join, "numbers"
+  end
 end

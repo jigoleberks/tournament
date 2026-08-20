@@ -66,6 +66,18 @@ class ApplicationHelperTest < ActionView::TestCase
     assert_equal "0.5", format_season_points(0.5)
   end
 
+  # FIX 3 regression: the base_ladder scheme rounds multiplier results to 2
+  # dp (e.g. base [3, 2, 1] x multiplier 1.25 = [3.75, 2.5, 1.25]). Formatting
+  # at 1 dp truncated 3.75 to "3.8", so a member's nightly values no longer
+  # added up to their own season total.
+  test "format_season_points keeps two decimal places when the value needs them" do
+    assert_equal "3.75", format_season_points(3.75)
+  end
+
+  test "format_season_points still trims a trailing zero at two decimal places" do
+    assert_equal "2.5", format_season_points(2.5)
+  end
+
   test "ordered_species returns species alphabetically and memoizes the load" do
     club = create(:club)
     %w[Zander Bass Walleye].each { |n| create(:species, club: club, name: n) }

@@ -55,5 +55,19 @@ module Tournaments
       @club.update!(season_points_scheme: :full_field)
       assert_nil PointsScale.call(club: @club, entry_count: 2)
     end
+
+    # FIX 2 regression: jsonb stores whatever is written, so a ladder saved
+    # by any path that skips validation (update_column here stands in for a
+    # legacy row, a console fix, etc.) can hold Strings. The dispatch point
+    # is the last guard before SeasonPointsAwarded sums placement points
+    # into an accumulator with `+=`, where a String used to raise TypeError.
+    test "tiered_ladders returns numerics even when the stored ladder holds strings" do
+      @club.update_column(:season_points_ladders, [["9", "6", "3"], [6, 4, 2], [9, 6, 3], [9, 6, 3]])
+
+      scale = PointsScale.call(club: @club, entry_count: 5)
+
+      assert_equal [9.0, 6.0, 3.0], scale
+      assert(scale.all? { |amount| amount.is_a?(Numeric) })
+    end
   end
 end

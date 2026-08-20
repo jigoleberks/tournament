@@ -63,6 +63,23 @@ class SeasonPointsControllerTest < ActionDispatch::IntegrationTest
     assert_not_includes response.body, "Boats out"
   end
 
+  # FIX 5 regression: the explainer used to sample a fixed mid-band size (6)
+  # for the 1–9 row. With season_points_min_entries raised to 8, that sampled
+  # size fell below the minimum and rendered "—", telling members a 1–9 boat
+  # night never pays placement points even though an 8- or 9-boat night does.
+  # Sampling the TOP of the band (9) fixes it.
+  test "standings page explainer shows the band still pays after a raised minimum" do
+    @club.update!(season_points_min_entries: 8)
+    create(:tournament, club: @club, awards_season_points: true, season_tag: "Spring 2026",
+           starts_at: 6.days.ago, ends_at: 5.days.ago)
+    sign_in_member!
+    get season_points_path
+    assert_response :success
+    row = Nokogiri::HTML(response.body).css("tr").find { |tr| tr.text.include?("1–9") }
+    assert row, "expected a 1–9 row in the explainer table"
+    assert_not_includes row.text, "—"
+  end
+
   test "standings page reports a customised attendance value and minimum" do
     @club.update!(season_points_attendance: 1, season_points_min_entries: 5)
     create(:tournament, club: @club, awards_season_points: true, season_tag: "Spring 2026",

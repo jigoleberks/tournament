@@ -1,7 +1,10 @@
 class Admin::Clubs::SeasonPointsController < Admin::Clubs::BaseController
-  # Field sizes shown in the preview table — one per band, so an admin can see
-  # what a small, medium, large and very large night pays before saving.
-  PREVIEW_FIELD_SIZES = [6, 14, 24, 34].freeze
+  # Field sizes shown in the preview table — one per band, derived from
+  # Club::SEASON_POINTS_BANDS (see Club.season_points_bands) so this can't
+  # drift out of sync with the labels or with the member-facing explainer.
+  # Set on every action, not just #edit, since #update re-renders :edit on
+  # both failure paths.
+  before_action :set_preview_field_sizes
 
   def edit
   end
@@ -21,6 +24,10 @@ class Admin::Clubs::SeasonPointsController < Admin::Clubs::BaseController
   end
 
   private
+
+  def set_preview_field_sizes
+    @preview_field_sizes = Club.season_points_bands.map { |band| band[:sample] }
+  end
 
   def season_points_params
     params.require(:club).permit(

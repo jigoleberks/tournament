@@ -62,6 +62,49 @@ class Admin::Clubs::SeasonPointsControllerTest < ActionDispatch::IntegrationTest
     assert_equal [[3, 2, 1], [6, 4, 2], [9, 6, 3], [9, 6, 3]], @target_club.reload.season_points_ladders
   end
 
+  # FIX 1 regression, end to end through the controller/view: a typo in one
+  # band used to shift the OTHER bands' displayed text down a slot on 422
+  # re-render, so retyping just the broken band and resubmitting the rest
+  # (as shown) silently saved a ladder against the wrong band.
+  test "a typo in one band, fixed and resubmitted, saves every band against its original position" do
+    sign_in_as(@admin)
+    @target_club.update!(
+      season_points_ladders: [[10, 8, 6], [12, 10, 8], [14, 12, 10], [16, 14, 12]]
+    )
+
+    patch admin_club_season_points_path(@target_club), params: {
+      club: {
+        season_points_scheme: "tiered_ladders",
+        season_points_attendance: "0.5",
+        season_points_min_entries: "3",
+        season_points_ladders_text: ["10, 8, 6", "12,1O,8", "14, 12, 10", "16, 14, 12"],
+        season_points_base_ladder_text: "3, 2, 1",
+        season_points_tier_multipliers_text: "1, 2, 3, 3"
+      }
+    }
+    assert_response :unprocessable_entity
+    assert_select "input[name='club[season_points_ladders_text][]']" do |inputs|
+      assert_equal "10, 8, 6",   inputs[0]["value"]
+      assert_equal "12,1O,8",    inputs[1]["value"]
+      assert_equal "14, 12, 10", inputs[2]["value"]
+      assert_equal "16, 14, 12", inputs[3]["value"]
+    end
+
+    patch admin_club_season_points_path(@target_club), params: {
+      club: {
+        season_points_scheme: "tiered_ladders",
+        season_points_attendance: "0.5",
+        season_points_min_entries: "3",
+        season_points_ladders_text: ["10, 8, 6", "12, 10, 8", "14, 12, 10", "16, 14, 12"],
+        season_points_base_ladder_text: "3, 2, 1",
+        season_points_tier_multipliers_text: "1, 2, 3, 3"
+      }
+    }
+    assert_redirected_to admin_club_path(@target_club)
+    assert_equal [[10.0, 8.0, 6.0], [12.0, 10.0, 8.0], [14.0, 12.0, 10.0], [16.0, 14.0, 12.0]],
+                 @target_club.reload.season_points_ladders
+  end
+
   test "an out-of-range scheme is a 422, not a 500" do
     sign_in_as(@admin)
     patch admin_club_season_points_path(@target_club), params: {

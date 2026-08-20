@@ -14,10 +14,10 @@
         </tr>
       </thead>
       <tbody>
-        <% [["1–9", 6], ["10–19", 14], ["20–29", 24], ["30+", 34]].each do |band, sample| %>
-          <% scale = Tournaments::PointsScale.call(club: club, entry_count: sample) %>
+        <% Club.season_points_bands.each do |band| %>
+          <% scale = Tournaments::PointsScale.call(club: club, entry_count: band[:sample]) %>
           <tr class="border-t border-slate-700">
-            <td class="px-2 py-1"><%= band %></td>
+            <td class="px-2 py-1"><%= band[:label] %></td>
             <td class="px-2 py-1 font-mono">
               <%= scale ? scale.map { |amount| format_season_points(amount) }.join(", ") : "—" %>
             </td>
