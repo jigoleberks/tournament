@@ -52,12 +52,20 @@ module SeasonPoints
           total_capacity: capacity_by_tid[t.id] || 0,
           bingo_species_ids: bingo_species_ids
         )
-        top_three = ::Leaderboards::QualifiedRows.call(tournament: t, rows: rows).first(3)
+        entry_count = (entries_by_tid[t.id] || []).count { |e| e.users.any? }
+        # Ask for the scale first: full_field's ladder is as long as the field,
+        # so the number of ranked rows to keep isn't a constant 3 any more.
+        scale = ::Tournaments::PointsScale.call(club: club, entry_count: entry_count)
+        top_entries = if scale
+          ::Leaderboards::QualifiedRows.call(tournament: t, rows: rows).first(scale.length)
+        else
+          []
+        end
         awards = ::Tournaments::SeasonPointsAwarded.call(
           tournament: t,
-          top_three: top_three,
+          top_entries: top_entries,
           member_ids: member_ids_by_tid[t.id] || [],
-          entry_count: (entries_by_tid[t.id] || []).count { |e| e.users.any? }
+          entry_count: entry_count
         )
         awards.each do |user_id, points|
           totals[user_id] += points
