@@ -16,7 +16,6 @@ class Admin::Clubs::SeasonPointsController < Admin::Clubs::BaseController
   rescue ArgumentError
     # An out-of-range scheme (the radios are bypassable) raises on enum
     # assignment before any validation runs. Nothing is persisted; re-render.
-    @foreign_club.reload
     @foreign_club.errors.add(:season_points_scheme, "isn't a scheme we know")
     render :edit, status: :unprocessable_entity
   end
