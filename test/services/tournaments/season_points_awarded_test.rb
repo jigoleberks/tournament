@@ -167,12 +167,83 @@ module Tournaments
       teams.flatten.each { |u| assert_equal 0.5, result[u.id], "member #{u.id} should get only the attendance bonus" }
     end
 
-    test "team mode: 3 teams with 10 anglers uses the angler-based [6,4,2] tier" do
-      teams = build_finished_teams([4, 3, 3])
-      result = SeasonPointsAwarded.call(tournament: @team_tournament)
-      teams[0].each { |u| assert_equal 6.5, result[u.id] }
-      teams[1].each { |u| assert_equal 4.5, result[u.id] }
-      teams[2].each { |u| assert_equal 2.5, result[u.id] }
+    test "team mode: 3 teams with 10 anglers uses the 3-entry [3,2,1] tier" do
+      # Field size counts entries (boats/teams), not anglers: 3 teams lands in
+      # the 1-9 band even though 10 people fished.
+      tournament = create(
+        :tournament, club: @club, mode: :team, awards_season_points: true,
+        starts_at: 2.days.ago, ends_at: 1.day.ago
+      )
+      create(:scoring_slot, tournament: tournament, species: @walleye, slot_count: 2)
+
+      teams = [[4, 20], [3, 15], [3, 10]].map do |size, length|
+        entry = create(:tournament_entry, tournament: tournament)
+        members = size.times.map do
+          u = create(:user, club: @club)
+          create(:tournament_entry_member, tournament_entry: entry, user: u)
+          u
+        end
+        Catches::PlaceInSlots.call(catch: create(:catch, user: members.first, species: @walleye,
+                                                  length_inches: length, captured_at_device: 1.5.days.ago))
+        members
+      end
+
+      result = SeasonPointsAwarded.call(tournament: tournament)
+      assert_equal 3.5, result[teams[0][0].id]   # 3 placement + 0.5 attendance
+      assert_equal 2.5, result[teams[1][0].id]
+      assert_equal 1.5, result[teams[2][0].id]
+      assert_equal 3.5, result[teams[0][3].id]   # every teammate gets the same as the skipper
+    end
+
+    test "full_field pays every scoring entry, ladder sized by the entries that fished" do
+      @club.update!(season_points_scheme: :full_field)
+      # 8 solo entries, only the first 5 catch anything.
+      tournament, anglers = build_finished_solo(
+        8, { 0 => [30], 1 => [25], 2 => [20], 3 => [15], 4 => [10] }
+      )
+
+      result = SeasonPointsAwarded.call(tournament: tournament)
+
+      assert_equal 8.5, result[anglers[0].id]   # 8 placement + 0.5 attendance
+      assert_equal 7.5, result[anglers[1].id]
+      assert_equal 6.5, result[anglers[2].id]
+      assert_equal 5.5, result[anglers[3].id]
+      assert_equal 4.5, result[anglers[4].id]
+      # Rungs 3, 2 and 1 go unclaimed — the blanked boats get attendance only.
+      assert_equal 0.5, result[anglers[5].id]
+      assert_equal 0.5, result[anglers[6].id]
+      assert_equal 0.5, result[anglers[7].id]
+    end
+
+    test "a customised attendance value replaces the 0.5 default" do
+      @club.update!(season_points_attendance: 2)
+      tournament, anglers = build_finished_solo(3, { 0 => [20], 1 => [15], 2 => [10] })
+
+      result = SeasonPointsAwarded.call(tournament: tournament)
+
+      assert_equal 5, result[anglers[0].id]   # 3 placement + 2 attendance
+      assert_equal 4, result[anglers[1].id]
+      assert_equal 3, result[anglers[2].id]
+    end
+
+    test "zero attendance points means non-placers earn nothing" do
+      @club.update!(season_points_attendance: 0)
+      tournament, anglers = build_finished_solo(4, { 0 => [20], 1 => [15], 2 => [10], 3 => [] })
+
+      result = SeasonPointsAwarded.call(tournament: tournament)
+
+      assert_equal 3, result[anglers[0].id]
+      assert_equal 0, result[anglers[3].id]
+    end
+
+    test "a customised minimum entry count gates placement points" do
+      @club.update!(season_points_min_entries: 5)
+      tournament, anglers = build_finished_solo(4, { 0 => [20], 1 => [15], 2 => [10] })
+
+      result = SeasonPointsAwarded.call(tournament: tournament)
+
+      assert_equal({ anglers[0].id => 0.5, anglers[1].id => 0.5,
+                     anglers[2].id => 0.5, anglers[3].id => 0.5 }, result)
     end
   end
 end
