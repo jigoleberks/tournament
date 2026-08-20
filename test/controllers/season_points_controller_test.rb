@@ -41,4 +41,36 @@ class SeasonPointsControllerTest < ActionDispatch::IntegrationTest
     assert_no_match "Ask an organizer to add you", response.body
     assert_select "a[href=?]", tournament_path(t)
   end
+
+  test "standings page explains the tiered ladder in force" do
+    create(:tournament, club: @club, awards_season_points: true, season_tag: "Spring 2026",
+           starts_at: 6.days.ago, ends_at: 5.days.ago)
+    sign_in_member!
+    get season_points_path
+    assert_response :success
+    assert_includes response.body, "How points are awarded"
+    assert_includes response.body, "9, 6, 3"
+  end
+
+  test "standings page explains full-field scoring without a ladder table" do
+    @club.update!(season_points_scheme: :full_field)
+    create(:tournament, club: @club, awards_season_points: true, season_tag: "Spring 2026",
+           starts_at: 6.days.ago, ends_at: 5.days.ago)
+    sign_in_member!
+    get season_points_path
+    assert_response :success
+    assert_includes response.body, "every boat that scores"
+    assert_not_includes response.body, "Boats out"
+  end
+
+  test "standings page reports a customised attendance value and minimum" do
+    @club.update!(season_points_attendance: 1, season_points_min_entries: 5)
+    create(:tournament, club: @club, awards_season_points: true, season_tag: "Spring 2026",
+           starts_at: 6.days.ago, ends_at: 5.days.ago)
+    sign_in_member!
+    get season_points_path
+    assert_response :success
+    assert_includes response.body, "1 points"
+    assert_includes response.body, "5 entries"
+  end
 end
