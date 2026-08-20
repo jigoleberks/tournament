@@ -56,6 +56,14 @@ class Club < ApplicationRecord
     Array(season_points_ladders[index]).map { |n| format_points_amount(n) }.join(", ")
   end
 
+  def season_points_base_ladder_text
+    Array(season_points_base_ladder).map { |n| format_points_amount(n) }.join(", ")
+  end
+
+  def season_points_tier_multipliers_text
+    Array(season_points_tier_multipliers).map { |n| format_points_amount(n) }.join(", ")
+  end
+
   private
 
   # Ladders are stored as floats once they pass through a _text= writer

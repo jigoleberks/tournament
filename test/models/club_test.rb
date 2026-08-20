@@ -130,4 +130,12 @@ class ClubTest < ActiveSupport::TestCase
     club.season_points_ladders_text = ["10, 8, 6", "6,4,2", "9,6,3", "9,6,3"]
     assert_equal "10, 8, 6", club.season_points_ladder_text(0)
   end
+
+  test "base ladder and tier multiplier text readers trim .0 after a round-trip" do
+    club = create(:club)
+    club.season_points_base_ladder_text = "5, 4, 3"
+    club.season_points_tier_multipliers_text = "1, 1.5, 2, 2.5"
+    assert_equal "5, 4, 3", club.season_points_base_ladder_text
+    assert_equal "1, 1.5, 2, 2.5", club.season_points_tier_multipliers_text
+  end
 end
