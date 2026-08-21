@@ -79,6 +79,8 @@ class TournamentsControllerTest < ActionDispatch::IntegrationTest
     rows = css_select("li").map(&:text)
     winner_row = rows.find { |r| r.include?("BigFishNight") }
     empty_row  = rows.find { |r| r.include?("EmptyTourney") }
+    assert_not_nil winner_row, "BigFishNight row not found"
+    assert_not_nil empty_row, "EmptyTourney row not found"
     assert_match "Galen Patterson", winner_row, "placed-catch tournament should show the winner"
     assert_match "winner", winner_row
     assert_no_match "winner", empty_row, "tournament with no placed catches should omit the winner suffix"
@@ -102,6 +104,8 @@ class TournamentsControllerTest < ActionDispatch::IntegrationTest
     rows = css_select("li").map(&:text)
     closed_row = rows.find { |r| r.include?("Closed Active") }
     open_row   = rows.find { |r| r.include?("Open Active") }
+    assert_not_nil closed_row, "Closed Active row not found"
+    assert_not_nil open_row, "Open Active row not found"
     assert_match "Ask an organizer to add you", closed_row, "locked entrants-only row should show the hint"
     assert_no_match "Ask an organizer to add you", open_row, "open row should not show the hint"
   end

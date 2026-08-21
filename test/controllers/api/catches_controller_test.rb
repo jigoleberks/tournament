@@ -245,7 +245,7 @@ class Api::CatchesControllerTest < ActionDispatch::IntegrationTest
       }
     }, headers: { "Accept" => "application/json" }
     assert_response :created
-    assert_equal "4 lbs 3oz", Catch.find_by(client_uuid: uuid2).weight_text
+    assert_equal "4 lbs 3oz", Catch.find_by(client_uuid: uuid2).weight_text, "weight_text should persist"
 
     uuid3 = SecureRandom.uuid
     post "/api/catches", params: {

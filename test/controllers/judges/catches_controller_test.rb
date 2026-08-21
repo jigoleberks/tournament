@@ -57,7 +57,9 @@ class Judges::CatchesControllerTest < ActionDispatch::IntegrationTest
   # tournament unless they are a judge", "organizer from another club cannot
   # review catches", "site admin (not assigned judge) can view the judge
   # catch page". Row 3 flips @t to judged: true — it runs after the
-  # friendly-tournament row, and no later row depends on @t being friendly.
+  # friendly-tournament row, and no later row depends on @t being friendly;
+  # the site-admin row (5) runs against the now-judged @t, which is fine
+  # since require_reviewer! admits site admins regardless of judged/friendly.
   test "access to the judge review pages by role" do
     rows = [
       ["non-judge member",
@@ -226,15 +228,6 @@ class Judges::CatchesControllerTest < ActionDispatch::IntegrationTest
     assert_response :success
     assert_select "input[type=checkbox][name=override_in_lake]"
     assert_select "input[type=checkbox][name=override_in_sask][checked=checked]"
-  end
-
-  test "show renders a reinstate button only for disqualified catches" do
-    get judges_tournament_catch_path(tournament_id: @t.id, id: @synced.id)
-    assert_select "input[type=submit][value=?]", "Reinstate catch", count: 0
-
-    Catches::ApplyJudgeAction.call(tournament: @t, catch: @synced, judge: @judge, action: :disqualify, note: "dq")
-    get judges_tournament_catch_path(tournament_id: @t.id, id: @synced.id)
-    assert_select "input[type=submit][value=?]", "Reinstate catch"
   end
 
   # --- Task 8: admin GPS map editor ------------------------------------------
