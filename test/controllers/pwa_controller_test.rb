@@ -22,10 +22,6 @@ class PwaControllerTest < ActionDispatch::IntegrationTest
     assert_select "meta[name='current-user-id']", count: 0
   end
 
-  # iOS rotates PWA push subscriptions (SW updates, OS events). Without a
-  # pushsubscriptionchange handler the server hits ExpiredSubscription,
-  # deletes the row, and the angler silently stops getting alerts while the
-  # home-page toggle still reads "on".
   # Downgraded from test/system/pwa_install_test.rb "manifest is linked from the layout".
   test "the layout links the web app manifest" do
     get "/"
@@ -35,6 +31,10 @@ class PwaControllerTest < ActionDispatch::IntegrationTest
     assert_select "link[rel='manifest'][href='/manifest.webmanifest']"
   end
 
+  # iOS rotates PWA push subscriptions (SW updates, OS events). Without a
+  # pushsubscriptionchange handler the server hits ExpiredSubscription,
+  # deletes the row, and the angler silently stops getting alerts while the
+  # home-page toggle still reads "on".
   test "service worker ships the pushsubscriptionchange self-heal" do
     get "/service-worker.js"
     assert_response :success

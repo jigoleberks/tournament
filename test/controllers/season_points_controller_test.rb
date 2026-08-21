@@ -43,8 +43,11 @@ class SeasonPointsControllerTest < ActionDispatch::IntegrationTest
   end
 
   # Downgraded from test/system/season_points_test.rb "view full standings page shows
-  # all entered anglers including 0.5 attendance bonus".
-  test "standings page renders ranked rows, longest length first" do
+  # all entered anglers including 0.5 attendance bonus". Club defaults: min_entries 3,
+  # attendance 0.5, tiered_ladders band 1..9 => [3, 2, 1]. 4 solo entries (a 4th
+  # catch-less angler included) => placers get ladder + 0.5 attendance, the catch-less
+  # angler gets the 0.5 attendance bonus only.
+  test "standings page renders ranked rows, longest length first, with points and the attendance-only row" do
     walleye = create(:species, club: @club)
     t = create(:tournament, club: @club, mode: :solo, awards_season_points: true,
                season_tag: "Wednesday 2026", starts_at: 5.hours.ago, ends_at: 1.hour.ago,
@@ -57,6 +60,11 @@ class SeasonPointsControllerTest < ActionDispatch::IntegrationTest
       Catches::PlaceInSlots.call(catch: create(:catch, user: u, species: walleye,
                                  length_inches: length, captured_at_device: 2.hours.ago))
     end
+    # A 4th entrant who fished but caught nothing: still earns the attendance bonus,
+    # never earns placement points, and must still render its own row.
+    no_fish_angler = create(:user, club: @club, name: "Angler Four")
+    no_fish_entry = create(:tournament_entry, tournament: t)
+    create(:tournament_entry_member, tournament_entry: no_fish_entry, user: no_fish_angler)
 
     sign_in_member!
     get season_points_path
@@ -64,10 +72,15 @@ class SeasonPointsControllerTest < ActionDispatch::IntegrationTest
     assert_response :success
     standings_table = css_select("table").first # the "How points are awarded" explainer renders its own table below
     rows = standings_table.css("tbody tr")
-    assert_equal 3, rows.size
+    assert_equal 4, rows.size
     assert_match "Angler One", rows[0].text
+    assert_match "3.5", rows[0].text, "1st place: 3 placement pts + 0.5 attendance"
     assert_match "Angler Two", rows[1].text
+    assert_match "2.5", rows[1].text, "2nd place: 2 placement pts + 0.5 attendance"
     assert_match "Angler Three", rows[2].text
+    assert_match "1.5", rows[2].text, "3rd place: 1 placement pt + 0.5 attendance"
+    assert_match "Angler Four", rows[3].text
+    assert_match "0.5", rows[3].text, "no catch: attendance bonus only, no placement points"
   end
 
   # Downgraded from test/system/season_points_test.rb "past league nights page lists

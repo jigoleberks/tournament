@@ -136,7 +136,7 @@ class Tournaments::CatchesControllerTest < ActionDispatch::IntegrationTest
 
     assert_response :success
     assert_select "a[href=?]", catch_path(@catch, t: @tournament.id)
-    assert_select "a[data-turbo-frame]", false,
+    assert_select "#leaderboard a[data-turbo-frame]", false,
       "organizer should link straight to /catches/:id, not the framed tournament_catch_path"
 
     blind = create(:tournament, club: @club,

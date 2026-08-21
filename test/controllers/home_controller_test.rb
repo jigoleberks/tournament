@@ -136,6 +136,11 @@ class HomeControllerTest < ActionDispatch::IntegrationTest
       assert_response :success
       rendered = css_select("a").any? { |a| a.text.strip == "Merch" }
       assert_equal expect_link, rendered, "#{label}: Merch link rendered? expected #{expect_link}"
+
+      if expect_link
+        assert_select "a[href='#{value}'][target='_blank'][rel~='noopener'][rel~='noreferrer']",
+          { text: "Merch" }, "#{label}: Merch link should target the configured URL in a new tab with noopener noreferrer"
+      end
     end
   ensure
     if original_merch_url.nil?
@@ -143,6 +148,37 @@ class HomeControllerTest < ActionDispatch::IntegrationTest
     else
       ENV["MERCH_URL"] = original_merch_url
     end
+  end
+
+  # Downgraded from test/system/season_points_test.rb "shows top 5 with correct points
+  # for a 10-angler solo tournament" (home_controller_test.rb#L118's Merch test sits
+  # between this and the current-season gate below; season_points_test.rb #1 "no
+  # standings section when no points-eligible tournaments" is covered by the gate
+  # itself: SeasonPoints::CurrentSeasonTag.call returning nil, proven by
+  # test/services/season_points/current_season_tag_test.rb, means home/index.html.erb
+  # never renders this partial at all — see the `<% if current_tag %>` guard).
+  test "home page season standings shows the top 5 of the current season, with a link to full standings" do
+    walleye = create(:species, club: @club)
+    t = create(:tournament, club: @club, mode: :solo, awards_season_points: true,
+               season_tag: "Wednesday 2026", starts_at: 5.hours.ago, ends_at: 1.hour.ago,
+               name: "League Night")
+    create(:scoring_slot, tournament: t, species: walleye, slot_count: 2)
+    [["Angler One", 26], ["Angler Two", 24], ["Angler Three", 22],
+     ["Angler Four", 20], ["Angler Five", 18], ["Angler Six", 16]].each do |name, length|
+      u = create(:user, club: @club, name: name)
+      e = create(:tournament_entry, tournament: t)
+      create(:tournament_entry_member, tournament_entry: e, user: u)
+      Catches::PlaceInSlots.call(catch: create(:catch, user: u, species: walleye,
+                                 length_inches: length, captured_at_device: 2.hours.ago))
+    end
+
+    sign_in_as(@member)
+    get root_path
+
+    assert_response :success
+    assert_match "Wednesday 2026 League Night Standings", response.body
+    assert_select "ol li", 5, "the partial truncates to standings.first(5) even with 6 ranked anglers"
+    assert_select "a[href=?]", season_points_path, text: "Full standings →"
   end
 
   test "the club banner renders the admin's line breaks" do

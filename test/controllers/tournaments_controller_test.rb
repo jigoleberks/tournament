@@ -125,6 +125,13 @@ class TournamentsControllerTest < ActionDispatch::IntegrationTest
     assert_response :success
     assert_select "a[href=?]", tournaments_path(season: "Open Water 2026"), text: "Open Water 2026"
     assert_select "a[href=?]", tournaments_path(season: "Ice 2026/27"), text: "Ice 2026/27"
+
+    # Exercise the link's target, not just its href: params[:season] actually filters
+    # tournaments_controller.rb's scope (`scope.where(season_tag: params[:season])`).
+    get tournaments_path(season: "Open Water 2026")
+    assert_response :success
+    assert_match "OW Wed", response.body
+    assert_no_match "Ice Friday", response.body
   end
 
   test "archived renders a clickable link (no hint) for an ended entrants-only tournament" do
