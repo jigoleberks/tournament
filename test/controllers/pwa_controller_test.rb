@@ -26,6 +26,15 @@ class PwaControllerTest < ActionDispatch::IntegrationTest
   # pushsubscriptionchange handler the server hits ExpiredSubscription,
   # deletes the row, and the angler silently stops getting alerts while the
   # home-page toggle still reads "on".
+  # Downgraded from test/system/pwa_install_test.rb "manifest is linked from the layout".
+  test "the layout links the web app manifest" do
+    get "/"
+    follow_redirect! # unauthenticated -> sign-in page, same layout carries the manifest link
+
+    assert_response :success
+    assert_select "link[rel='manifest'][href='/manifest.webmanifest']"
+  end
+
   test "service worker ships the pushsubscriptionchange self-heal" do
     get "/service-worker.js"
     assert_response :success

@@ -42,6 +42,57 @@ class SeasonPointsControllerTest < ActionDispatch::IntegrationTest
     assert_select "a[href=?]", tournament_path(t)
   end
 
+  # Downgraded from test/system/season_points_test.rb "view full standings page shows
+  # all entered anglers including 0.5 attendance bonus".
+  test "standings page renders ranked rows, longest length first" do
+    walleye = create(:species, club: @club)
+    t = create(:tournament, club: @club, mode: :solo, awards_season_points: true,
+               season_tag: "Wednesday 2026", starts_at: 5.hours.ago, ends_at: 1.hour.ago,
+               name: "League Night")
+    create(:scoring_slot, tournament: t, species: walleye, slot_count: 2)
+    [["Angler One", 24], ["Angler Two", 20], ["Angler Three", 18]].each do |name, length|
+      u = create(:user, club: @club, name: name)
+      e = create(:tournament_entry, tournament: t)
+      create(:tournament_entry_member, tournament_entry: e, user: u)
+      Catches::PlaceInSlots.call(catch: create(:catch, user: u, species: walleye,
+                                 length_inches: length, captured_at_device: 2.hours.ago))
+    end
+
+    sign_in_member!
+    get season_points_path
+
+    assert_response :success
+    standings_table = css_select("table").first # the "How points are awarded" explainer renders its own table below
+    rows = standings_table.css("tbody tr")
+    assert_equal 3, rows.size
+    assert_match "Angler One", rows[0].text
+    assert_match "Angler Two", rows[1].text
+    assert_match "Angler Three", rows[2].text
+  end
+
+  # Downgraded from test/system/season_points_test.rb "past league nights page lists
+  # ended points-eligible tournaments with winner".
+  test "past league nights page lists ended tournaments with the winner" do
+    walleye = create(:species, club: @club)
+    t = create(:tournament, club: @club, mode: :solo, awards_season_points: true,
+               season_tag: "Wednesday 2026", starts_at: 1.week.ago - 4.hours, ends_at: 1.week.ago,
+               name: "League Night #1")
+    create(:scoring_slot, tournament: t, species: walleye, slot_count: 2)
+    winner = create(:user, club: @club, name: "Winner")
+    e = create(:tournament_entry, tournament: t)
+    create(:tournament_entry_member, tournament_entry: e, user: winner)
+    Catches::PlaceInSlots.call(catch: create(:catch, user: winner, species: walleye,
+                               length_inches: 25, captured_at_device: t.ends_at - 1.hour))
+
+    sign_in_member!
+    get season_points_tournaments_path
+
+    assert_response :success
+    assert_match "League Night #1", response.body
+    assert_match "Won by: Winner", response.body
+    assert_select "a[href=?]", tournament_path(t)
+  end
+
   test "standings page explains the tiered ladder in force" do
     create(:tournament, club: @club, awards_season_points: true, season_tag: "Spring 2026",
            starts_at: 6.days.ago, ends_at: 5.days.ago)

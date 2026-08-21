@@ -115,6 +115,18 @@ class TournamentsControllerTest < ActionDispatch::IntegrationTest
     assert_no_match "Ask an organizer to add you", response.body
   end
 
+  # Downgraded from test/system/season_filter_test.rb.
+  test "index renders a season filter link that emits ?season= for each season tag" do
+    create(:tournament, club: @club, name: "OW Wed", season_tag: "Open Water 2026")
+    create(:tournament, club: @club, name: "Ice Friday", season_tag: "Ice 2026/27")
+
+    get tournaments_path
+
+    assert_response :success
+    assert_select "a[href=?]", tournaments_path(season: "Open Water 2026"), text: "Open Water 2026"
+    assert_select "a[href=?]", tournaments_path(season: "Ice 2026/27"), text: "Ice 2026/27"
+  end
+
   test "archived renders a clickable link (no hint) for an ended entrants-only tournament" do
     tournament = create(:tournament, club: @club, name: "Closed Archive",
            starts_at: 6.days.ago, ends_at: 5.days.ago, entrants_only_leaderboard: true)

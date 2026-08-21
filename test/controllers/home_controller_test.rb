@@ -113,6 +113,38 @@ class HomeControllerTest < ActionDispatch::IntegrationTest
     assert_no_match "Log for teammate", response.body
   end
 
+  # Downgraded from test/system/merch_button_test.rb (4 system tests -> 1 table test):
+  # the Merch button only renders for a present, http(s) MERCH_URL.
+  test "Merch button renders only for a present http(s) MERCH_URL" do
+    original_merch_url = ENV["MERCH_URL"]
+    sign_in_as(@member)
+
+    {
+      "present https URL"    => ["https://example.test/merch", true],
+      "unset"                => [nil, false],
+      "blank string"         => ["", false],
+      "non-http(s) scheme"   => ["javascript:alert(1)", false],
+    }.each do |label, (value, expect_link)|
+      if value.nil?
+        ENV.delete("MERCH_URL")
+      else
+        ENV["MERCH_URL"] = value
+      end
+
+      get root_path
+
+      assert_response :success
+      rendered = css_select("a").any? { |a| a.text.strip == "Merch" }
+      assert_equal expect_link, rendered, "#{label}: Merch link rendered? expected #{expect_link}"
+    end
+  ensure
+    if original_merch_url.nil?
+      ENV.delete("MERCH_URL")
+    else
+      ENV["MERCH_URL"] = original_merch_url
+    end
+  end
+
   test "the club banner renders the admin's line breaks" do
     club = create(:club, banner_message: "  Ice is off the lake\nWeigh-in moves to 7pm  ",
                          banner_style: :alert)

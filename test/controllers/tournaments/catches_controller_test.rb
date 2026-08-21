@@ -125,6 +125,39 @@ class Tournaments::CatchesControllerTest < ActionDispatch::IntegrationTest
     assert_response :not_found
   end
 
+  # Downgraded from test/system/tournament_catch_photo_test.rb: "member sees fish as
+  # plain text (not a link) on a blind tournament leaderboard" and "organizer link
+  # still goes to full /catches/:id (no Turbo Frame)".
+  test "leaderboard photo link targets: organizer gets the full catch page, an active-blind member's own fish gets no link" do
+    organizer = create(:user, club: @club, name: "Org O", role: :organizer)
+    sign_in_as(organizer)
+
+    get tournament_path(@tournament)
+
+    assert_response :success
+    assert_select "a[href=?]", catch_path(@catch, t: @tournament.id)
+    assert_select "a[data-turbo-frame]", false,
+      "organizer should link straight to /catches/:id, not the framed tournament_catch_path"
+
+    blind = create(:tournament, club: @club,
+                   starts_at: 1.hour.ago, ends_at: 1.hour.from_now, blind_leaderboard: true)
+    create(:scoring_slot, tournament: blind, species: @walleye, slot_count: 1)
+    entry = create(:tournament_entry, tournament: blind, name: "My Boat")
+    create(:tournament_entry_member, tournament_entry: entry, user: @member)
+    my_catch = create(:catch, user: @member, species: @walleye, length_inches: 19.0,
+                              captured_at_device: 30.minutes.ago)
+    create(:catch_placement, catch: my_catch, tournament: blind,
+                              tournament_entry: entry, species: @walleye, slot_index: 0)
+
+    sign_in_as(@member)
+    get tournament_path(blind)
+
+    assert_response :success
+    assert_match(/#{Regexp.escape(@walleye.name)}.*19/, response.body)
+    assert_select "a[href=?]", tournament_catch_path(blind, my_catch), false,
+      "an active blind tournament should render the member's own fish as plain text, not a link"
+  end
+
   test "not signed in redirects to sign-in" do
     get tournament_catch_path(@tournament, @catch)
 
