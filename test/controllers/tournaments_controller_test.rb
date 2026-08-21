@@ -1,6 +1,14 @@
 require "test_helper"
 
 class TournamentsControllerTest < ActionDispatch::IntegrationTest
+  include LengthHelper
+
+  # Nokogiri's #text keeps the template's literal whitespace, unlike Capybara's.
+  # Squeeze it so assertions can be written the way the browser rendered them.
+  def leaderboard_rows
+    css_select("#leaderboard tbody tr").map { |tr| tr.text.gsub(/\s+/, " ").strip }
+  end
+
   setup do
     @club = create(:club)
     @user = create(:user, club: @club)
@@ -498,14 +506,6 @@ class TournamentsControllerTest < ActionDispatch::IntegrationTest
   # test/system/tournament_format_switch_test.rb.
   # ---------------------------------------------------------------------------
 
-  include LengthHelper
-
-  # Nokogiri's #text keeps the template's literal whitespace, unlike Capybara's.
-  # Squeeze it so assertions can be written the way the browser rendered them.
-  def leaderboard_rows
-    css_select("#leaderboard tbody tr").map { |tr| tr.text.gsub(/\s+/, " ").strip }
-  end
-
   test "big_fish_season leaderboard renders one row per catch, longest first, under a Length header" do
     walleye  = create(:species, club: @club, name: "Walleye")
     galen    = create(:user, club: @club, name: "Galen Patterson")
@@ -801,7 +801,8 @@ class TournamentsControllerTest < ActionDispatch::IntegrationTest
     rows = leaderboard_rows
     assert_equal 1, rows.size
     assert_match "Tagged Angler", rows.first
-    assert_match "2",     rows.first   # ticket count
+    # Scope the ticket count to its own cell — the row also contains "A0002".
+    assert_select "#leaderboard tbody tr td.font-mono", text: "2"
     assert_match "A0001", rows.first
     assert_match "A0002", rows.first
 
