@@ -34,7 +34,7 @@ module OrganizerActions
       ActiveRecord::Base.transaction do
         @entry.tournament_entry_members.create!(user_id: user.id)
         if @tournament.backfill_late_entrants?
-          Tournaments::BackfillEntrantCatches.call(tournament: @tournament, users: [ user ])
+          ::Tournaments::BackfillEntrantCatches.call(tournament: @tournament, users: [ user ])
         end
         ::TournamentLinks::SyncEntry.call(entry: @entry)
       end
@@ -69,7 +69,7 @@ module OrganizerActions
           added_users << user
         end
         if @tournament.backfill_late_entrants? && added_users.any?
-          Tournaments::BackfillEntrantCatches.call(tournament: @tournament, users: added_users)
+          ::Tournaments::BackfillEntrantCatches.call(tournament: @tournament, users: added_users)
         end
         # Mirrored inside the transaction for the reason spelled out in #create.
         ::TournamentLinks::SyncEntry.call(entry: @entry)
@@ -92,7 +92,7 @@ module OrganizerActions
       # actually have failed. Otherwise the member is off this entry and still
       # aboard the sibling, with nothing offering a repair.
       ActiveRecord::Base.transaction do
-        Catches::DropMemberFromEntry.call(entry: @entry, user: member.user)
+        ::Catches::DropMemberFromEntry.call(entry: @entry, user: member.user)
         ::TournamentLinks::SyncEntry.call(entry: @entry)
       end
       redirect_to tournament_edit_path(@tournament), notice: "Removed #{name}."
