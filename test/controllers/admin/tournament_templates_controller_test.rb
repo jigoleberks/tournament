@@ -29,6 +29,7 @@ class Admin::TournamentTemplatesControllerTest < ActionDispatch::IntegrationTest
     post clone_admin_tournament_template_path(template),
          params: { starts_at: 1.day.from_now, ends_at: 1.day.from_now + 4.hours }
 
+    assert_redirected_to admin_tournaments_path
     assert_equal "2026", Tournament.last.season_tag
   end
 

@@ -1076,13 +1076,11 @@ class CatchesControllerTest < ActionDispatch::IntegrationTest
     get consume_session_path(token: token.token)
   end
 
-  def create_catch(captured_at:, length: 18.0, species: @walleye, photo_attached: true)
+  def create_catch(captured_at:, length: 18.0, species: @walleye)
     rec = build(:catch, user: @user, species: species, length_inches: length,
                         captured_at_device: captured_at)
-    if photo_attached
-      rec.photo.attach(io: file_fixture("sample_walleye.jpg").open,
-                       filename: "sample_walleye.jpg", content_type: "image/jpeg")
-    end
+    rec.photo.attach(io: file_fixture("sample_walleye.jpg").open,
+                     filename: "sample_walleye.jpg", content_type: "image/jpeg")
     rec.save!
     rec
   end

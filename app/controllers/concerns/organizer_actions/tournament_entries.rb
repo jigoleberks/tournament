@@ -20,7 +20,7 @@ module OrganizerActions
       end
 
       created_entry_ids = []
-      Tournament.transaction do
+      ::Tournament.transaction do
         if @tournament.mode_solo?
           valid_ids.each do |uid|
             entry = @tournament.tournament_entries.create!
@@ -44,7 +44,7 @@ module OrganizerActions
         # with the pair, and skipping the pushes and the broadcast besides.
         # SyncEntry defers its own frames to the outermost commit, so wrapping
         # it costs nothing.
-        TournamentEntry.where(id: created_entry_ids).each do |created|
+        ::TournamentEntry.where(id: created_entry_ids).each do |created|
           ::TournamentLinks::SyncEntry.call(entry: created)
         end
 
@@ -54,13 +54,13 @@ module OrganizerActions
         # already-placed catches, so on-time entrants are no-ops.
         if @tournament.backfill_late_entrants?
           ::Tournaments::BackfillEntrantCatches.call(
-            tournament: @tournament, users: User.where(id: valid_ids).to_a
+            tournament: @tournament, users: ::User.where(id: valid_ids).to_a
           )
         end
       end
 
       valid_ids.each do |uid|
-        DeliverPushNotificationJob.perform_later(
+        ::DeliverPushNotificationJob.perform_later(
           user_id: uid,
           title: @tournament.name,
           body: "You've been entered into #{@tournament.name}.",
@@ -89,7 +89,7 @@ module OrganizerActions
       # broadcasting first would put the new name on the wire and leave it
       # committed on this side alone, while the rescue below tells the organizer
       # the rename failed and the pair sits out of sync with nothing to repair it.
-      Tournament.transaction do
+      ::Tournament.transaction do
         renamed = entry.update(name: params.dig(:tournament_entry, :name).to_s.strip.presence)
         ::TournamentLinks::SyncEntry.call(entry: entry) if renamed
       end
@@ -115,7 +115,7 @@ module OrganizerActions
       # destroy!, not destroy, so that failure actually reaches the rescue instead
       # of being swallowed as a falsy return. RemoveEntry defers its sibling
       # broadcasts to this transaction's commit.
-      Tournament.transaction do
+      ::Tournament.transaction do
         ::TournamentLinks::RemoveEntry.call(entry: entry)
         entry.destroy!
       end
