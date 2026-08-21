@@ -1,5 +1,9 @@
 require "test_helper"
 
+# The /admin templates screen is a twin of the /organizers one, which carries
+# the full behavioural suite (strong-params permit families, clone). This
+# covers the admin view + one smoke per action; the actions themselves are the
+# shared OrganizerActions::TournamentTemplates concern.
 class Admin::TournamentTemplatesControllerTest < ActionDispatch::IntegrationTest
   setup do
     @club = create(:club)
@@ -15,25 +19,6 @@ class Admin::TournamentTemplatesControllerTest < ActionDispatch::IntegrationTest
     end
     assert_redirected_to admin_tournament_templates_path
     assert_equal "2026", TournamentTemplate.last.season_tag
-  end
-
-  test "create permits format and blind_leaderboard like the organizers controller" do
-    walleye = create(:species, club: @club)
-    assert_difference -> { TournamentTemplate.count }, 1 do
-      post admin_tournament_templates_path, params: {
-        tournament_template: {
-          name: "Big Fish League",
-          mode: "solo",
-          format: "big_fish_season",
-          blind_leaderboard: true,
-          tournament_template_scoring_slots_attributes: { "0" => { species_id: walleye.id, slot_count: 1 } }
-        }
-      }
-    end
-
-    t = TournamentTemplate.last
-    assert t.format_big_fish_season?, "format param should be permitted and persisted"
-    assert t.blind_leaderboard?, "blind_leaderboard param should be permitted and persisted"
   end
 
   test "POST clone carries the template's season_tag onto the tournament" do
