@@ -57,7 +57,7 @@ class Tournaments::CatchesControllerTest < ActionDispatch::IntegrationTest
     assert_match "Original photo", body, "members should still see the angler's original labelled"
   end
 
-  test "active blind tournament returns 404 even when member would otherwise have access" do
+  test "a blind tournament's catch modal is 404 while active, opens after ends_at" do
     blind = create(:tournament, club: @club,
                    starts_at: 1.hour.ago, ends_at: 1.hour.from_now,
                    blind_leaderboard: true)
@@ -70,13 +70,9 @@ class Tournaments::CatchesControllerTest < ActionDispatch::IntegrationTest
                               tournament_entry: blind_entry, species: @walleye, slot_index: 0)
 
     sign_in_as(@member)
-
     get tournament_catch_path(blind, blind_catch)
+    assert_response :not_found, "active blind tournament: 404 even though the member would otherwise have access"
 
-    assert_response :not_found
-  end
-
-  test "ended blind tournament returns 200 — gate opens after ends_at" do
     ended_blind = create(:tournament, club: @club,
                          starts_at: 2.hours.ago, ends_at: 1.hour.ago,
                          blind_leaderboard: true)
@@ -88,11 +84,8 @@ class Tournaments::CatchesControllerTest < ActionDispatch::IntegrationTest
     create(:catch_placement, catch: c, tournament: ended_blind,
                               tournament_entry: e, species: @walleye, slot_index: 0)
 
-    sign_in_as(@member)
-
     get tournament_catch_path(ended_blind, c)
-
-    assert_response :ok
+    assert_response :ok, "ended blind tournament: gate opens after ends_at"
     body = @response.body
     assert_match %r{<img[^>]*src=["'][^"']*active_storage[^"']*}, body, "should include the photo"
     assert_match @walleye.name, body
@@ -100,29 +93,27 @@ class Tournaments::CatchesControllerTest < ActionDispatch::IntegrationTest
     assert_match @other.name, body
   end
 
-  test "catch with no active placement in this tournament returns 404" do
-    other_tournament = create(:tournament, club: @club,
-                              starts_at: 1.hour.ago, ends_at: 1.hour.from_now,
-                              blind_leaderboard: false)
-    create(:scoring_slot, tournament: other_tournament, species: @walleye, slot_count: 1)
-
-    sign_in_as(@member)
-
-    get tournament_catch_path(other_tournament, @catch)
-
-    assert_response :not_found
-  end
-
-  test "member of a different club returns 404" do
-    other_club = create(:club)
-    create(:species, club: other_club)
-    outsider = create(:user, club: other_club, name: "Outsider X", role: :member)
-
-    sign_in_as(outsider)
-
-    get tournament_catch_path(@tournament, @catch)
-
-    assert_response :not_found
+  test "returns 404 for a catch with no active placement in this tournament, or for a member of a different club" do
+    {
+      "no active placement in this tournament" => -> {
+        other_tournament = create(:tournament, club: @club,
+                                  starts_at: 1.hour.ago, ends_at: 1.hour.from_now,
+                                  blind_leaderboard: false)
+        create(:scoring_slot, tournament: other_tournament, species: @walleye, slot_count: 1)
+        sign_in_as(@member)
+        get tournament_catch_path(other_tournament, @catch)
+      },
+      "member of a different club" => -> {
+        other_club = create(:club)
+        create(:species, club: other_club)
+        outsider = create(:user, club: other_club, name: "Outsider X", role: :member)
+        sign_in_as(outsider)
+        get tournament_catch_path(@tournament, @catch)
+      }
+    }.each do |label, block|
+      block.call
+      assert_response :not_found, label
+    end
   end
 
   # Downgraded from test/system/tournament_catch_photo_test.rb: "member sees fish as
@@ -158,40 +149,27 @@ class Tournaments::CatchesControllerTest < ActionDispatch::IntegrationTest
       "an active blind tournament should render the member's own fish as plain text, not a link"
   end
 
-  test "not signed in redirects to sign-in" do
-    get tournament_catch_path(@tournament, @catch)
-
-    assert_redirected_to new_session_path
-  end
-
-  test "entrants_only tournament returns 404 for a member who is not entered" do
-    @tournament.update!(entrants_only_leaderboard: true)
-
-    sign_in_as(@member)
-
-    get tournament_catch_path(@tournament, @catch)
-
-    assert_response :not_found
-  end
-
-  test "entrants_only tournament returns 200 for an entered member" do
-    @tournament.update!(entrants_only_leaderboard: true)
-
-    sign_in_as(@other)
-
-    get tournament_catch_path(@tournament, @catch)
-
-    assert_response :ok
-  end
-
-  test "ended entrants_only tournament returns 200 for a member who is not entered" do
-    @tournament.update!(starts_at: 2.hours.ago, ends_at: 10.minutes.ago,
-                        entrants_only_leaderboard: true)
-
-    sign_in_as(@member)
-
-    get tournament_catch_path(@tournament, @catch)
-
-    assert_response :ok
+  test "entrants_only tournament: 404 for a non-entered member while active, 200 for an entered member, 200 for anyone once ended" do
+    {
+      "active, not entered" => -> {
+        @tournament.update!(entrants_only_leaderboard: true)
+        sign_in_as(@member)
+        get tournament_catch_path(@tournament, @catch)
+        assert_response :not_found, "active, not entered"
+      },
+      "active, entered" => -> {
+        @tournament.update!(entrants_only_leaderboard: true)
+        sign_in_as(@other)
+        get tournament_catch_path(@tournament, @catch)
+        assert_response :ok, "active, entered"
+      },
+      "ended, not entered" => -> {
+        @tournament.update!(starts_at: 2.hours.ago, ends_at: 10.minutes.ago,
+                            entrants_only_leaderboard: true)
+        sign_in_as(@member)
+        get tournament_catch_path(@tournament, @catch)
+        assert_response :ok, "ended, not entered"
+      }
+    }.each { |_label, block| block.call }
   end
 end

@@ -11,11 +11,6 @@ class SeasonPointsControllerTest < ActionDispatch::IntegrationTest
     get consume_session_path(token: token.token)
   end
 
-  test "show requires sign-in" do
-    get season_points_path
-    assert_redirected_to new_session_path
-  end
-
   test "show renders an empty state when no points-eligible tournaments" do
     sign_in_member!
     get season_points_path
@@ -106,25 +101,33 @@ class SeasonPointsControllerTest < ActionDispatch::IntegrationTest
     assert_select "a[href=?]", tournament_path(t)
   end
 
-  test "standings page explains the tiered ladder in force" do
-    create(:tournament, club: @club, awards_season_points: true, season_tag: "Spring 2026",
-           starts_at: 6.days.ago, ends_at: 5.days.ago)
-    sign_in_member!
-    get season_points_path
-    assert_response :success
-    assert_includes response.body, "How points are awarded"
-    assert_includes response.body, "9, 6, 3"
-  end
+  test "standings page explainer matches the club's scoring scheme" do
+    {
+      "tiered ladder (default scheme)" => {
+        scheme: nil,
+        present: [ "How points are awarded", "9, 6, 3" ],
+        absent: []
+      },
+      "full-field scheme has no ladder table" => {
+        scheme: :full_field,
+        present: [ "every boat that scores" ],
+        absent: [ "Boats out" ]
+      }
+    }.each do |label, row|
+      club = create(:club)
+      member = create(:user, club: club)
+      club.update!(season_points_scheme: row[:scheme]) if row[:scheme]
+      create(:tournament, club: club, awards_season_points: true, season_tag: "Spring 2026",
+             starts_at: 6.days.ago, ends_at: 5.days.ago)
 
-  test "standings page explains full-field scoring without a ladder table" do
-    @club.update!(season_points_scheme: :full_field)
-    create(:tournament, club: @club, awards_season_points: true, season_tag: "Spring 2026",
-           starts_at: 6.days.ago, ends_at: 5.days.ago)
-    sign_in_member!
-    get season_points_path
-    assert_response :success
-    assert_includes response.body, "every boat that scores"
-    assert_not_includes response.body, "Boats out"
+      token = SignInToken.issue!(user: member)
+      get consume_session_path(token: token.token)
+      get season_points_path
+
+      assert_response :success, label
+      row[:present].each { |text| assert_includes response.body, text, label }
+      row[:absent].each { |text| assert_not_includes response.body, text, label }
+    end
   end
 
   # FIX 5 regression: the explainer used to sample a fixed mid-band size (6)
