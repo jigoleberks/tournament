@@ -29,8 +29,7 @@ module ApplicationHelper
   # how whole numbers or halves render. Mirrors Club#format_points_amount,
   # which does the same job for ladder text fields.
   def format_season_points(n)
-    formatted = format("%.2f", n)
-    formatted.sub(/\.?0+\z/, "")
+    SeasonPoints::FormatAmount.call(n)
   end
 
   BANNER_STRIP_CLASSES = {

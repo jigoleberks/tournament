@@ -142,9 +142,12 @@ class SeasonPointsControllerTest < ActionDispatch::IntegrationTest
     sign_in_member!
     get season_points_path
     assert_response :success
-    row = Nokogiri::HTML(response.body).css("tr").find { |tr| tr.text.include?("1–9") }
-    assert row, "expected a 1–9 row in the explainer table"
+    # The band is now labelled from the minimum ("8–9", not "1–9") — see
+    # Club#effective_season_points_bands — and must still show its ladder.
+    row = Nokogiri::HTML(response.body).css("tr").find { |tr| tr.text.include?("8–9") }
+    assert row, "expected an 8–9 row in the explainer table"
     assert_not_includes row.text, "—"
+    assert_match "3, 2, 1", row.text
   end
 
   test "standings page reports a customised attendance value and minimum" do
@@ -156,5 +159,17 @@ class SeasonPointsControllerTest < ActionDispatch::IntegrationTest
     assert_response :success
     assert_includes response.body, "1 points"
     assert_includes response.body, "5 entries"
+  end
+
+  test "standings page explainer labels the first band from the club's minimum and shows the attendance-only range" do
+    @club.update!(season_points_min_entries: 5)
+    create(:tournament, club: @club, awards_season_points: true, season_tag: "Spring 2026",
+           starts_at: 6.days.ago, ends_at: 5.days.ago)
+    sign_in_member!
+    get season_points_path
+    assert_response :success
+    assert_includes response.body, "5–9", "first band starts at the minimum"
+    assert_not_includes response.body, "1–9", "the unclipped label would promise points a 4-boat night never pays"
+    assert_includes response.body, "1–4", "the attendance-only range is spelled out"
   end
 end

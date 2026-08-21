@@ -235,5 +235,13 @@ module Tournaments
       assert_equal({ anglers[0].id => 0.5, anglers[1].id => 0.5,
                      anglers[2].id => 0.5, anglers[3].id => 0.5 }, result)
     end
+
+    test "a batch caller can inject the scale so it is not recomputed per tournament" do
+      tournament, anglers = build_finished_solo(3, { 0 => [20], 1 => [18], 2 => [16] })
+      awards = SeasonPointsAwarded.call(tournament: tournament, scale: [10, 5, 1])
+      assert_equal 10.5, awards[anglers[0].id], "injected rung 1 + 0.5 attendance"
+      assert_equal 5.5,  awards[anglers[1].id]
+      assert_equal 1.5,  awards[anglers[2].id]
+    end
   end
 end

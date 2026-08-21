@@ -173,4 +173,58 @@ class ClubTest < ActiveSupport::TestCase
       { label: "30+", sample: 30 }
     ], Club.season_points_bands
   end
+
+  test "a parse failure stashes the raw base-ladder and multiplier text and keeps the saved values; reload clears the flags" do
+    club = create(:club)
+    club.season_points_base_ladder_text = "3, 2, x"
+    assert_equal "3, 2, x", club.season_points_base_ladder_text, "re-render echoes what was typed"
+    assert_equal [3, 2, 1], club.season_points_base_ladder, "the saved ladder is not replaced by []"
+    club.season_points_tier_multipliers_text = "1, 1.5, 2, 2.S"
+    assert_equal "1, 1.5, 2, 2.S", club.season_points_tier_multipliers_text
+    assert_equal [1, 2, 3, 3], club.season_points_tier_multipliers
+    assert_not club.valid?
+
+    club.reload
+    assert club.valid?, "reload must clear the parse-failure flags: #{club.errors.full_messages.join(', ')}"
+    assert_equal "3, 2, 1", club.season_points_base_ladder_text
+  end
+
+  test "a later valid write to the jsonb column clears a stale parse-failure flag" do
+    club = create(:club)
+    club.season_points_base_ladder_text = "3,x"
+    club.season_points_base_ladder = [3, 2, 1]
+    assert club.valid?, club.errors.full_messages.join(", ")
+    club.season_points_ladders_text = ["3,x", "6, 4, 2", "9, 6, 3", "9, 6, 3"]
+    club.season_points_ladders = [[3, 2, 1], [6, 4, 2], [9, 6, 3], [9, 6, 3]]
+    assert club.valid?, club.errors.full_messages.join(", ")
+  end
+
+  test "a non-finite amount is a validation error, not a null in jsonb" do
+    club = create(:club)
+    club.season_points_base_ladder_text = "9" * 400
+    assert_not club.valid?, "400 nines to_f is Infinity"
+    assert_equal [3, 2, 1], club.season_points_base_ladder
+    club.reload
+    club.season_points_base_ladder = [Float::INFINITY, 1]
+    assert_not club.valid?
+  end
+
+  test "amounts are stored to two decimals and every text reader uses the shared formatter" do
+    club = create(:club)
+    club.season_points_base_ladder_text = "3.333, 2, 1"
+    assert_equal [3.33, 2.0, 1.0], club.season_points_base_ladder
+    assert_equal "3.33, 2, 1", club.season_points_base_ladder_text
+    club.season_points_base_ladder = [3.333, 2]  # e.g. written via update_column
+    assert_equal "3.33, 2", club.season_points_base_ladder_text
+  end
+
+  test "effective_season_points_bands clips the first band to the minimum entry count and drops bands below it" do
+    club = create(:club, season_points_min_entries: 5)
+    assert_equal ["5–9", "10–19", "20–29", "30+"], club.effective_season_points_bands.map { |b| b[:label] }
+    assert_equal [9, 19, 29, 30], club.effective_season_points_bands.map { |b| b[:sample] }
+    club.season_points_min_entries = 12
+    assert_equal ["12–19", "20–29", "30+"], club.effective_season_points_bands.map { |b| b[:label] }
+    club.season_points_min_entries = 1
+    assert_equal Club.season_points_bands, club.effective_season_points_bands
+  end
 end

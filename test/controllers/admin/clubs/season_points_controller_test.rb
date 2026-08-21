@@ -121,7 +121,62 @@ class Admin::Clubs::SeasonPointsControllerTest < ActionDispatch::IntegrationTest
     assert_equal "tiered_ladders", @target_club.reload.season_points_scheme
   end
 
+  # The 422 re-render used to 500 when a numeric field came back blank: the
+  # "What the saved settings pay" preview read the invalid in-memory record
+  # (Integer <=> nil inside PointsScale; format("%.2f", nil) for attendance).
+  test "blank minimum entries or attendance re-renders as 422, not a 500" do
+    sign_in_as(@admin)
+    { "season_points_min_entries" => "", "season_points_attendance" => "" }.each do |field, blank|
+      patch admin_club_season_points_path(@target_club), params: { club: valid_params.merge(field => blank) }
+      assert_response :unprocessable_entity, "#{field} blank"
+      assert_includes response.body, "9, 6, 3", "#{field} blank: the preview still shows the SAVED ladder"
+    end
+    assert_equal 3, @target_club.reload.season_points_min_entries
+  end
+
+  # decimal(5,2) and int4 columns raise ActiveRecord::RangeError at save for
+  # values that pass `valid?`; that is a 500, not a 422, unless validated.
+  test "out-of-range amounts are a 422, not a database RangeError" do
+    sign_in_as(@admin)
+    { "season_points_attendance" => "1000", "season_points_min_entries" => "99999999999" }.each do |field, value|
+      patch admin_club_season_points_path(@target_club), params: { club: valid_params.merge(field => value) }
+      assert_response :unprocessable_entity, "#{field}=#{value}"
+    end
+    assert_equal 0.5, @target_club.reload.season_points_attendance.to_f
+  end
+
+  # A junk base ladder / multiplier list used to come back as an EMPTY field on
+  # 422 (typed text lost) while the preview ran against the in-memory [] and
+  # showed blank cells or "0, 0, 0" under a heading that says "saved settings".
+  test "junk base-ladder or multiplier text re-renders as typed and the preview keeps the saved values" do
+    sign_in_as(@admin)
+    @target_club.update!(season_points_scheme: "base_ladder")
+    {
+      "season_points_base_ladder_text"     => "3, 2, x",
+      "season_points_tier_multipliers_text" => "1, 1.5, 2, 2.S"
+    }.each do |field, junk|
+      patch admin_club_season_points_path(@target_club),
+            params: { club: valid_params.merge("season_points_scheme" => "base_ladder", field => junk) }
+      assert_response :unprocessable_entity, field
+      assert_select "input[name='club[#{field}]'][value='#{junk}']", true, "#{field}: typed text is echoed"
+      preview = css_select("table").last.text
+      assert_match "3, 2, 1", preview, "#{field}: preview shows the saved base ladder x1"
+      assert_no_match(/0, 0, 0/, preview, "#{field}: preview must not run against an in-memory []")
+    end
+  end
+
   private
+
+  def valid_params
+    {
+      "season_points_scheme" => "tiered_ladders",
+      "season_points_attendance" => "0.5",
+      "season_points_min_entries" => "3",
+      "season_points_ladders_text" => ["3, 2, 1", "6, 4, 2", "9, 6, 3", "9, 6, 3"],
+      "season_points_base_ladder_text" => "3, 2, 1",
+      "season_points_tier_multipliers_text" => "1, 2, 3, 3"
+    }
+  end
 
   def sign_in_as(user)
     token = SignInToken.issue!(user: user)

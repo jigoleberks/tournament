@@ -341,4 +341,12 @@ class Organizers::TournamentsControllerTest < ActionDispatch::IntegrationTest
     token = SignInToken.issue!(user: user)
     get consume_session_path(token: token.token)
   end
+
+  test "the season-points hint on the form counts entries, not anglers" do
+    sign_in_as(@organizer)
+    get new_organizers_tournament_path
+    assert_response :success
+    assert_no_match(/angler count/, response.body)
+    assert_match(/entries/, response.body)
+  end
 end

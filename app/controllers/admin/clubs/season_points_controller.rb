@@ -1,12 +1,6 @@
 class Admin::Clubs::SeasonPointsController < Admin::Clubs::BaseController
-  # Field sizes shown in the preview table — one per band, derived from
-  # Club::SEASON_POINTS_BANDS (see Club.season_points_bands) so this can't
-  # drift out of sync with the labels or with the member-facing explainer.
-  # Set on every action, not just #edit, since #update re-renders :edit on
-  # both failure paths.
-  before_action :set_preview_field_sizes
-
   def edit
+    @preview_club = @foreign_club
   end
 
   def update
@@ -14,19 +8,25 @@ class Admin::Clubs::SeasonPointsController < Admin::Clubs::BaseController
     if @foreign_club.save
       redirect_to admin_club_path(@foreign_club), notice: "Season points updated."
     else
-      render :edit, status: :unprocessable_entity
+      render_edit_with_saved_preview
     end
   rescue ArgumentError
     # An out-of-range scheme (the radios are bypassable) raises on enum
     # assignment before any validation runs. Nothing is persisted; re-render.
     @foreign_club.errors.add(:season_points_scheme, "isn't a scheme we know")
-    render :edit, status: :unprocessable_entity
+    render_edit_with_saved_preview
   end
 
   private
 
-  def set_preview_field_sizes
-    @preview_field_sizes = Club.season_points_bands.map { |band| band[:sample] }
+  # The "What the saved settings pay" table must read the SAVED record, not
+  # the invalid in-memory one: a blank minimum used to 500 the 422 re-render
+  # (Integer <=> nil inside PointsScale), a blank attendance value 500'd
+  # format("%.2f", nil), and junk ladder text made the preview show "0, 0, 0"
+  # under a heading that says "saved".
+  def render_edit_with_saved_preview
+    @preview_club = Club.find(@foreign_club.id)
+    render :edit, status: :unprocessable_entity
   end
 
   def season_points_params

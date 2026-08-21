@@ -97,7 +97,7 @@
 <div class="mt-10">
   <h2 class="text-xl font-semibold mb-2">What the saved settings pay</h2>
   <p class="text-slate-400 text-sm mb-3">Placement points only. Every angler who fished also gets
-    <%= format_season_points(@foreign_club.season_points_attendance) %> attendance points.</p>
+    <%= format_season_points(@preview_club.season_points_attendance) %> attendance points.</p>
   <table class="w-full text-base">
     <thead>
       <tr class="text-left text-sm text-slate-300 border-b border-slate-700">
@@ -106,10 +106,16 @@
       </tr>
     </thead>
     <tbody>
-      <% @preview_field_sizes.each do |size| %>
-        <% scale = Tournaments::PointsScale.call(club: @foreign_club, entry_count: size) %>
+      <% if (below = @preview_club.season_points_attendance_only_label) %>
         <tr class="border-t border-slate-700">
-          <td class="px-3 py-3"><%= size %> entries</td>
+          <td class="px-3 py-3"><%= below %> entries</td>
+          <td class="px-3 py-3 font-mono">attendance only</td>
+        </tr>
+      <% end %>
+      <% @preview_club.effective_season_points_bands.each do |band| %>
+        <% scale = Tournaments::PointsScale.call(club: @preview_club, entry_count: band[:sample]) %>
+        <tr class="border-t border-slate-700">
+          <td class="px-3 py-3"><%= band[:label] %> entries</td>
           <td class="px-3 py-3 font-mono">
             <%= scale ? scale.map { |amount| format_season_points(amount) }.join(", ") : "attendance only" %>
           </td>

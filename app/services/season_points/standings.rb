@@ -73,7 +73,8 @@ module SeasonPoints
           tournament: t,
           top_entries: top_entries,
           member_ids: member_ids_by_tid[t.id] || [],
-          entry_count: entry_count
+          entry_count: entry_count,
+          scale: scale
         )
         awards.each do |user_id, points|
           totals[user_id] += points
