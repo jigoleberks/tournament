@@ -22,7 +22,8 @@ class Judges::ManualOverridesControllerTest < ActionDispatch::IntegrationTest
     {
       "raw length_inches param stored as-is" => {
         params: { length_inches: "19.75", note: "tail" },
-        expected_inches: 19.75
+        expected_inches: 19.75,
+        exact: true
       },
       "inches value stored as-is, records the inches unit" => {
         params: { length: "19.5", length_unit: "inches", note: "remeasured" },
@@ -52,7 +53,11 @@ class Judges::ManualOverridesControllerTest < ActionDispatch::IntegrationTest
            params: row[:params]
 
       @catch.reload
-      assert_in_delta row[:expected_inches], @catch.length_inches.to_f, 0.01, label
+      if row[:exact]
+        assert_equal row[:expected_inches], @catch.length_inches.to_f, label
+      else
+        assert_in_delta row[:expected_inches], @catch.length_inches.to_f, 0.01, label
+      end
       assert_equal row[:expected_unit], @catch.length_unit, label if row[:expected_unit]
     end
   end
@@ -129,20 +134,20 @@ class Judges::ManualOverridesControllerTest < ActionDispatch::IntegrationTest
 
   test "GET new shows the force-slot fields on a slot-based format, hides them on a re-derive format" do
     {
-      "slot-based format shows force-slot fields" => -> {
+      "slot-based format shows force-slot fields" => -> (label) {
         get new_judges_tournament_catch_manual_override_path(tournament_id: @t.id, catch_id: @catch.id)
-        assert_response :success
-        assert_select "input[name=slot_index]"
-        assert_select "input[name=entry_id]"
+        assert_response :success, label
+        assert_select "input[name=slot_index]", true, label
+        assert_select "input[name=entry_id]", true, label
       },
-      "re-derive format (Pro Walleye) hides force-slot fields" => -> {
+      "re-derive format (Pro Walleye) hides force-slot fields" => -> (label) {
         pw, catch = pro_walleye_setup
         get new_judges_tournament_catch_manual_override_path(tournament_id: pw.id, catch_id: catch.id)
-        assert_response :success
-        assert_select "input[name=slot_index]", count: 0
-        assert_select "input[name=entry_id]", count: 0
+        assert_response :success, label
+        assert_select "input[name=slot_index]", { count: 0 }, label
+        assert_select "input[name=entry_id]", { count: 0 }, label
       }
-    }.each { |_label, block| block.call }
+    }.each { |label, block| block.call(label) }
   end
 
   test "POST redirects with an alert instead of 500 on invalid input" do

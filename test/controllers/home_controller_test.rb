@@ -79,41 +79,41 @@ class HomeControllerTest < ActionDispatch::IntegrationTest
 
   test "home leaderboard hint appears once per entrants-only tournament, absent when none are locked" do
     {
-      "two locked tournaments show the hint twice" => -> {
+      "two locked tournaments show the hint twice" => -> (label) {
         club = create(:club)
         member = create(:user, club: club, role: :member)
         create(:tournament, club: club, entrants_only_leaderboard: true)
         create(:tournament, club: club, entrants_only_leaderboard: true)
         sign_in_as(member)
         get root_path
-        assert_response :success
+        assert_response :success, label
         assert_select "span",
-                      { text: "Ask an organizer to add you to see the leaderboard.", count: 2 }
+                      { text: "Ask an organizer to add you to see the leaderboard.", count: 2 }, label
       },
-      "a visible tournament shows no hint" => -> {
+      "a visible tournament shows no hint" => -> (label) {
         club = create(:club)
         member = create(:user, club: club, role: :member)
         create(:tournament, club: club, entrants_only_leaderboard: false)
         sign_in_as(member)
         get root_path
-        assert_response :success
-        assert_not_includes @response.body, "Ask an organizer to add you to see the leaderboard."
+        assert_response :success, label
+        assert_not_includes @response.body, "Ask an organizer to add you to see the leaderboard.", label
       }
-    }.each { |_label, block| block.call }
+    }.each { |label, block| block.call(label) }
   end
 
   test "home routes 'Log Catch' to the teammate chooser for a team member, straight to the form for a solo-only member" do
     {
-      "team member" => -> {
+      "team member" => -> (label) {
         member = create(:user, club: @club, role: :member)
         team_tournament_with_mate_for(member, name: "Team Cup")
         sign_in_as(member)
         get root_path
-        assert_response :success
-        assert_select "a[href=?]", select_teammate_catches_path, text: "Log Catch"
-        assert_no_match "Log for teammate", response.body
+        assert_response :success, label
+        assert_select "a[href=?]", select_teammate_catches_path, { text: "Log Catch" }, label
+        assert_no_match "Log for teammate", response.body, label
       },
-      "solo-only member" => -> {
+      "solo-only member" => -> (label) {
         member = create(:user, club: @club, role: :member)
         t = create(:tournament, club: @club, mode: :solo,
                                 starts_at: 1.hour.ago, ends_at: 1.hour.from_now)
@@ -121,11 +121,11 @@ class HomeControllerTest < ActionDispatch::IntegrationTest
         create(:tournament_entry_member, tournament_entry: entry, user: member)
         sign_in_as(member)
         get root_path
-        assert_response :success
-        assert_select "a[href=?]", select_species_catches_path, text: "Log Catch"
-        assert_no_match "Log for teammate", response.body
+        assert_response :success, label
+        assert_select "a[href=?]", select_species_catches_path, { text: "Log Catch" }, label
+        assert_no_match "Log for teammate", response.body, label
       }
-    }.each { |_label, block| block.call }
+    }.each { |label, block| block.call(label) }
   end
 
   # Downgraded from test/system/merch_button_test.rb (4 system tests -> 1 table test):
@@ -234,6 +234,5 @@ class HomeControllerTest < ActionDispatch::IntegrationTest
   def setup
     @club = create(:club)
     @member = create(:user, club: @club, role: :member)
-    @organizer = create(:user, club: @club, role: :organizer)
   end
 end

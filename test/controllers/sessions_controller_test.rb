@@ -6,23 +6,23 @@ class SessionsControllerTest < ActionDispatch::IntegrationTest
 
   test "POST /session emails a token for a known address and stays silent for an unknown one" do
     {
-      "known email" => -> {
-        assert_difference "SignInToken.count", 2 do
+      "known email" => -> (label) {
+        assert_difference "SignInToken.count", 2, label do
           assert_emails 1 do
             post session_path, params: { email: "joe@example.com" }
           end
         end
       },
       # No enumeration: an unknown address must not create a token or send mail.
-      "unknown email" => -> {
-        assert_no_difference "SignInToken.count" do
+      "unknown email" => -> (label) {
+        assert_no_difference "SignInToken.count", label do
           assert_no_emails do
             post session_path, params: { email: "nobody@example.com" }
           end
         end
       }
     }.each do |label, block|
-      block.call
+      block.call(label)
       assert_redirected_to "/session/check_email", label
     end
   end

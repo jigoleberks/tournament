@@ -9,16 +9,16 @@ class RulesControllerTest < ActionDispatch::IntegrationTest
 
   test "shows the active season's latest revision body, switching with the club's active season" do
     {
-      "default (open water) season shows the open-water body" => -> {
+      "default (open water) season shows the open-water body" => -> (label) {
         create(:club_rules_revision, club: @club, edited_by_user: @organizer,
                                      season: :open_water, body: "<h1>Open water</h1><ul><li>No live bait</li></ul>")
         sign_in_as(@member)
         get rules_path
-        assert_response :success
-        assert_match "Open water", response.body
-        assert_match "No live bait", response.body
+        assert_response :success, label
+        assert_match "Open water", response.body, label
+        assert_match "No live bait", response.body, label
       },
-      "active_rules_season: ice shows the ice body, not open water" => -> {
+      "active_rules_season: ice shows the ice body, not open water" => -> (label) {
         create(:club_rules_revision, club: @club, edited_by_user: @organizer,
                                      season: :open_water, body: "<div>OPEN WATER BODY</div>")
         create(:club_rules_revision, club: @club, edited_by_user: @organizer,
@@ -26,14 +26,14 @@ class RulesControllerTest < ActionDispatch::IntegrationTest
         @club.update!(active_rules_season: :ice)
         sign_in_as(@member)
         get rules_path
-        assert_match "ICE BODY", response.body
-        assert_no_match "OPEN WATER BODY", response.body
+        assert_match "ICE BODY", response.body, label
+        assert_no_match "OPEN WATER BODY", response.body, label
       }
     }.each do |label, block|
       @club = create(:club)
       @member = create(:user, club: @club, role: :member)
       @organizer = create(:user, club: @club, role: :organizer)
-      block.call
+      block.call(label)
     end
   end
 
