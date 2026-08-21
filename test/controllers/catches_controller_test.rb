@@ -24,6 +24,8 @@ class CatchesControllerTest < ActionDispatch::IntegrationTest
           length_inches: 18.5,
           captured_at_device: Time.current,
           client_uuid: "client-1",
+          tag_number: "a1234",
+          weight_text: "4 lbs 3oz",
           photo: photo
         }
       }
@@ -32,6 +34,11 @@ class CatchesControllerTest < ActionDispatch::IntegrationTest
     placement = CatchPlacement.last
     assert_equal @entry, placement.tournament_entry
     assert_equal 0, placement.slot_index
+
+    # The HTML controller keeps its own permit list, independent of the API's.
+    persisted = Catch.find_by(client_uuid: "client-1")
+    assert_equal "A1234", persisted.tag_number, "tag_number is permitted and normalized"
+    assert_equal "4 lbs 3oz", persisted.weight_text, "weight_text is permitted"
   end
 
   test "POST /catches persists flags and status derived from the submitted GPS" do
@@ -193,6 +200,7 @@ class CatchesControllerTest < ActionDispatch::IntegrationTest
       assert_match "no GPS", response.body, "#{label}: a non-suppressed flag still shows"
       if staff
         assert_match "possible duplicate", response.body, "#{label}: should see the duplicate badge"
+        assert_match "imported photo", response.body, "#{label}: should see the imported-photo badge"
       else
         refute_match "possible duplicate", response.body, "#{label}: duplicate badge must be hidden"
         refute_match "imported photo", response.body, "#{label}: imported-photo badge must be hidden"
@@ -541,7 +549,9 @@ class CatchesControllerTest < ActionDispatch::IntegrationTest
   # reaches the service from both the list and the map.
   test "every filter param reaches ApplyFilters on the index and the map" do
     pike = create(:species, club: @club, name: "Pike")
-    now = Time.current
+    # Pinned to a fixed August instant: the month=5 row below asserts an exact
+    # id list, which these "recent" fixtures would join if the suite ran in May.
+    now = Time.zone.local(2026, 8, 1, 12)
     w_tobin = create(:catch, user: @user, species: @walleye, length_inches: 22.5, lake: "tobin",
                              captured_at_device: now, latitude: 53.55, longitude: -103.65,
                              wind_direction_deg: 45, barometric_pressure_hpa: 1025)
@@ -576,8 +586,8 @@ class CatchesControllerTest < ActionDispatch::IntegrationTest
     get catches_path, params: { month: 5, start: "2026-01-01", end: "2026-12-31" }
     assert_equal [old_may.id], assigns(:catches).map(&:id), "month=5 overrides an explicit date range"
 
-    today = Date.current.iso8601
-    get catches_path, params: { start: today, end: today, species: pike.id, sort: "longest" }
+    day = now.to_date.iso8601
+    get catches_path, params: { start: day, end: day, species: pike.id, sort: "longest" }
     assert_equal [p_tobin.id], assigns(:catches).map(&:id), "range + species + sort all apply together"
   end
 
