@@ -22,6 +22,12 @@ class Admin::LeagueNightsControllerTest < ActionDispatch::IntegrationTest
     assert_response :success
     assert_match(/League Night - Main/, response.body)
     assert_match(/League Night - Side/, response.body)
+    # The date picker is a standalone GET form in this view (not a shared
+    # partial), so its action has to be pinned to the admin path helper or a
+    # drift to the organizers one would go uncaught.
+    assert_select "form[action=?][method=get]",
+                  new_admin_tournament_template_league_night_path(tournament_template_id: @main.id)
+    assert_select "input[type=date][name='date']"
   end
 
   # The footer clause and the Stimulus value the leak warning reads are written

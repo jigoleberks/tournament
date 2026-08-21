@@ -6,8 +6,6 @@ require "test_helper"
 # page) plus one happy-path smoke per mutating action; the actions themselves
 # are the shared OrganizerActions::Boats concern.
 class Admin::BoatsControllerTest < ActionDispatch::IntegrationTest
-  include ActiveJob::TestHelper
-
   setup do
     @club = create(:club)
     @organizer = create(:user, club: @club, role: :organizer)
