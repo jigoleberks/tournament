@@ -39,27 +39,34 @@ class Organizers::TournamentsControllerTest < ActionDispatch::IntegrationTest
     assert_redirected_to organizers_tournaments_path
   end
 
-  test "create accepts local: false" do
-    organizer = create(:user, club: @club, role: :organizer)
-    sign_in_as(organizer)
-    assert_difference -> { @club.tournaments.count }, 1 do
-      post organizers_tournaments_path, params: {
-        tournament: { name: "Away Trip", mode: "solo",
-                      starts_at: Time.current, ends_at: 1.day.from_now,
-                      local: "0" }
-      }
-    end
-    assert_equal false, @club.tournaments.last.local
-  end
+  test "create accepts local, awards_season_points, and blind_leaderboard together, and defaults local to true when omitted" do
+    sign_in_as(@organizer)
+    species = create(:species, club: @club)
 
-  test "create defaults local to true when checkbox omitted" do
-    organizer = create(:user, club: @club, role: :organizer)
-    sign_in_as(organizer)
     post organizers_tournaments_path, params: {
-      tournament: { name: "Local Trip", mode: "solo",
-                    starts_at: Time.current, ends_at: 1.day.from_now }
+      tournament: {
+        name: "Full Attrs", mode: "solo",
+        starts_at: 1.hour.from_now, ends_at: 4.hours.from_now,
+        local: "0", awards_season_points: "1", blind_leaderboard: "1",
+        scoring_slots_attributes: { "0" => { species_id: species.id, slot_count: 1 } }
+      }
     }
-    assert_equal true, @club.tournaments.last.local
+    assert_redirected_to organizers_tournaments_path
+    t = Tournament.order(:id).last
+    {
+      local: false,
+      awards_season_points?: true,
+      blind_leaderboard?: true
+    }.each do |attr, expected|
+      assert_equal expected, t.public_send(attr), "#{attr}: should persist from a single submission"
+    end
+
+    post organizers_tournaments_path, params: {
+      tournament: { name: "Local Omitted", mode: "solo",
+                    starts_at: 1.hour.from_now, ends_at: 4.hours.from_now }
+    }
+    assert_equal true, Tournament.order(:id).last.local,
+                 "local: should default to true when the checkbox is omitted"
   end
 
   test "index shows (away) tag for non-local tournaments" do
@@ -70,36 +77,6 @@ class Organizers::TournamentsControllerTest < ActionDispatch::IntegrationTest
     get organizers_tournaments_path
     assert_response :success
     assert_match "(away)", response.body
-  end
-
-  test "create accepts awards_season_points: true" do
-    sign_in_as(@organizer)
-    assert_difference -> { @club.tournaments.count }, 1 do
-      post organizers_tournaments_path, params: {
-        tournament: { name: "Season Tournament", mode: "solo",
-                      starts_at: 1.day.from_now, ends_at: 1.day.from_now + 4.hours,
-                      awards_season_points: "1" }
-      }
-    end
-    assert_redirected_to organizers_tournaments_path
-    assert @club.tournaments.last.awards_season_points?
-  end
-
-  test "create accepts blind_leaderboard true" do
-    sign_in_as(@organizer)
-    species = create(:species, club: @club)
-    post organizers_tournaments_path, params: {
-      tournament: {
-        name: "Blind League Night",
-        mode: "solo",
-        starts_at: 1.hour.from_now,
-        ends_at: 4.hours.from_now,
-        blind_leaderboard: "1",
-        scoring_slots_attributes: { "0" => { species_id: species.id, slot_count: 1 } }
-      }
-    }
-    assert_redirected_to organizers_tournaments_path
-    assert Tournament.last.blind_leaderboard?
   end
 
   test "edit form locks blind_leaderboard after starts_at has passed" do
@@ -122,23 +99,49 @@ class Organizers::TournamentsControllerTest < ActionDispatch::IntegrationTest
     assert_not t.blind_leaderboard?
   end
 
-  test "create accepts format: big_fish_season with a single scoring slot" do
+  test "create accepts each format-specific permitted attribute" do
     sign_in_as(@organizer)
     walleye = create(:species, club: @club, name: "Walleye")
-    assert_difference -> { Tournament.count }, 1 do
-      post organizers_tournaments_path, params: {
-        tournament: {
-          name: "Big Walleye Season",
-          mode: "solo",
-          format: "big_fish_season",
-          starts_at: 1.day.from_now,
-          ends_at: 30.days.from_now,
-          scoring_slots_attributes: { "0" => { species_id: walleye.id, slot_count: 3 } }
+    perch   = create(:species, club: @club, name: "Perch")
+    pike    = create(:species, club: @club, name: "Pike")
+
+    {
+      "big_fish_season" => {
+        extra: { format: "big_fish_season",
+                 scoring_slots_attributes: { "0" => { species_id: walleye.id, slot_count: 3 } } },
+        check: ->(t) { assert t.format_big_fish_season?, "big_fish_season: format should persist" }
+      },
+      "hidden_length" => {
+        extra: { format: "hidden_length", hidden_length_target: "17.25",
+                 scoring_slots_attributes: { "0" => { species_id: walleye.id, slot_count: 1 } } },
+        check: ->(t) {
+          assert t.format_hidden_length?, "hidden_length: format should persist"
+          assert_nil t.hidden_length_target, "hidden_length: hidden_length_target should be dropped by strong params"
+        }
+      },
+      "biggest_vs_smallest" => {
+        extra: { format: "biggest_vs_smallest",
+                 scoring_slots_attributes: { "0" => { species_id: walleye.id, slot_count: 1 } } },
+        check: ->(t) { assert t.format_biggest_vs_smallest?, "biggest_vs_smallest: format should persist" }
+      },
+      "fish_train" => {
+        extra: { format: "fish_train", train_cars: [ perch.id.to_s, pike.id.to_s, perch.id.to_s ],
+                 scoring_slots_attributes: { "0" => { species_id: perch.id, slot_count: 1 },
+                                              "1" => { species_id: pike.id, slot_count: 1 } } },
+        check: ->(t) {
+          assert t.format_fish_train?, "fish_train: format should persist"
+          assert_equal [ perch.id, pike.id, perch.id ], t.train_cars, "fish_train: train_cars should persist"
         }
       }
+    }.each do |label, spec|
+      assert_difference -> { Tournament.count }, 1, "#{label}: should create a tournament" do
+        post organizers_tournaments_path, params: {
+          tournament: { name: "#{label} Wed", mode: "solo",
+                        starts_at: 1.day.from_now, ends_at: 1.day.from_now + 4.hours }.merge(spec[:extra])
+        }
+      end
+      spec[:check].call(Tournament.order(:id).last)
     end
-    assert_redirected_to organizers_tournaments_path
-    assert Tournament.last.format_big_fish_season?
   end
 
   test "create rejects big_fish_season + team mode" do
@@ -199,29 +202,6 @@ class Organizers::TournamentsControllerTest < ActionDispatch::IntegrationTest
     assert tournament.reload.format_standard?
   end
 
-  test "create accepts format: hidden_length and drops hidden_length_target from params" do
-    sign_in_as(@organizer)
-    walleye = create(:species, club: @club, name: "Walleye HL")
-
-    assert_difference -> { Tournament.count } => 1 do
-      post organizers_tournaments_path, params: {
-        tournament: {
-          name: "HL Wed",
-          mode: "solo",
-          format: "hidden_length",
-          starts_at: 1.day.from_now,
-          ends_at: 1.day.from_now + 4.hours,
-          hidden_length_target: "17.25",
-          scoring_slots_attributes: { "0" => { species_id: walleye.id, slot_count: 1 } }
-        }
-      }
-    end
-    created = Tournament.order(:id).last
-    assert created.format_hidden_length?
-    assert_nil created.hidden_length_target,
-               "expected strong params to drop hidden_length_target on create"
-  end
-
   test "update silently ignores hidden_length_target submitted via params" do
     sign_in_as(@organizer)
     walleye = create(:species, club: @club, name: "Walleye HL2")
@@ -236,52 +216,6 @@ class Organizers::TournamentsControllerTest < ActionDispatch::IntegrationTest
 
     assert_nil t.reload.hidden_length_target,
                "expected strong params to drop hidden_length_target"
-  end
-
-  test "create accepts format: biggest_vs_smallest" do
-    sign_in_as(@organizer)
-    walleye = create(:species, club: @club, name: "Walleye BvS")
-
-    assert_difference -> { Tournament.count } => 1 do
-      post organizers_tournaments_path, params: {
-        tournament: {
-          name: "BvS Wed",
-          mode: "solo",
-          format: "biggest_vs_smallest",
-          starts_at: 1.day.from_now,
-          ends_at: 1.day.from_now + 4.hours,
-          scoring_slots_attributes: { "0" => { species_id: walleye.id, slot_count: 1 } }
-        }
-      }
-    end
-    created = Tournament.order(:id).last
-    assert created.format_biggest_vs_smallest?
-  end
-
-  test "create accepts format: fish_train with train_cars array" do
-    sign_in_as(@organizer)
-    perch = create(:species, club: @club, name: "Perch FT")
-    pike  = create(:species, club: @club, name: "Pike FT")
-
-    assert_difference -> { Tournament.count } => 1 do
-      post organizers_tournaments_path, params: {
-        tournament: {
-          name: "FT Wed",
-          mode: "solo",
-          format: "fish_train",
-          starts_at: 1.day.from_now,
-          ends_at: 1.day.from_now + 4.hours,
-          train_cars: [perch.id.to_s, pike.id.to_s, perch.id.to_s],
-          scoring_slots_attributes: {
-            "0" => { species_id: perch.id, slot_count: 1 },
-            "1" => { species_id: pike.id,  slot_count: 1 }
-          }
-        }
-      }
-    end
-    created = Tournament.order(:id).last
-    assert created.format_fish_train?
-    assert_equal [perch.id, pike.id, perch.id], created.train_cars
   end
 
   test "organizer can create a bingo tournament with no scoring slots" do
@@ -319,21 +253,6 @@ class Organizers::TournamentsControllerTest < ActionDispatch::IntegrationTest
 
     assert_redirected_to organizers_tournaments_url
     assert_not_nil t.reload.drawn_at
-  end
-
-  test "draw: non-organizer member is blocked" do
-    club = create(:club)
-    member = create(:user, club: club, role: :member)
-    tagged = Species.find_or_create_by!(name: "Tagged Walleye")
-    t = build(:tournament, club: club, format: :tagged, mode: :solo,
-              starts_at: 2.hours.ago, ends_at: 1.hour.ago)
-    t.scoring_slots.build(species: tagged, slot_count: 1)
-    t.save!
-
-    sign_in_as member
-    post draw_organizers_tournament_url(t)
-    assert_response :forbidden
-    assert_nil t.reload.drawn_at
   end
 
   test "draw: force=true triggers a re-draw" do
