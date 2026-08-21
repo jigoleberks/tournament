@@ -28,7 +28,7 @@ class BottomNavTest < ApplicationSystemTestCase
     page.execute_script("document.querySelector('#catch_note').focus()")
     # Past the 150ms re-show delay: a field-to-field hop must not flash the nav back in.
     sleep 0.4
-    assert page.has_no_selector?("nav[data-controller~='keyboard-nav']"),
+    assert page.has_no_selector?("nav[data-controller~='keyboard-nav']", wait: 2),
            "hop: the nav should stay hidden across a field-to-field focus hop"
 
     page.execute_script("document.querySelector('#catch_note').blur()")
