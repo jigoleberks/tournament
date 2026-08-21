@@ -30,32 +30,24 @@ class TournamentsControllerTest < ActionDispatch::IntegrationTest
     assert_redirected_to new_session_path
   end
 
-  test "archived returns 200 when signed in" do
-    get archived_tournaments_path
-    assert_response :success
-  end
-
-  test "archived includes tournaments ended more than 24h ago, newest first" do
+  # Merges: "returns 200 when signed in", "includes tournaments ended >24h ago,
+  # newest first", "excludes tournaments ended within the last 24h", "excludes
+  # tournaments with no ends_at".
+  test "archived lists tournaments ended more than 24h ago (newest first), excluding recently-ended and open-ended ones" do
     older = create(:tournament, club: @club, name: "Older", starts_at: 6.days.ago, ends_at: 5.days.ago)
     newer = create(:tournament, club: @club, name: "Newer", starts_at: 2.days.ago, ends_at: 26.hours.ago)
+    create(:tournament, club: @club, name: "RecentlyEnded", starts_at: 4.hours.ago, ends_at: 2.hours.ago)
+    # Legacy NULL-ends_at row: bypass the now-required ends_at validation.
+    build(:tournament, club: @club, name: "OpenEnded", ends_at: nil).save!(validate: false)
+
     get archived_tournaments_path
+    assert_response :success
     assert_match "Older", response.body
     assert_match "Newer", response.body
     assert response.body.index("Newer") < response.body.index("Older"),
       "Newer (more recent ends_at) should appear before Older"
-  end
-
-  test "archived excludes tournaments ended within the last 24h" do
-    create(:tournament, club: @club, name: "RecentlyEnded", starts_at: 4.hours.ago, ends_at: 2.hours.ago)
-    get archived_tournaments_path
-    assert_no_match "RecentlyEnded", response.body
-  end
-
-  test "archived excludes tournaments with no ends_at" do
-    # Legacy NULL-ends_at row: bypass the now-required ends_at validation.
-    build(:tournament, club: @club, name: "OpenEnded", ends_at: nil).save!(validate: false)
-    get archived_tournaments_path
-    assert_no_match "OpenEnded", response.body
+    assert_no_match "RecentlyEnded", response.body, "ended within the last 24h should be excluded"
+    assert_no_match "OpenEnded", response.body, "no ends_at should be excluded"
   end
 
   test "archived is scoped to the current user's club" do
@@ -65,7 +57,9 @@ class TournamentsControllerTest < ActionDispatch::IntegrationTest
     assert_no_match "OtherClubTourney", response.body
   end
 
-  test "archived renders the winner's display_name for tournaments with a placed catch" do
+  # Merges: "renders the winner's display_name for tournaments with a placed
+  # catch", "omits the winner suffix when a tournament has no placed catches".
+  test "archived shows the winner's display_name only for tournaments with a placed catch" do
     species = create(:species, club: @club)
     t = create(:tournament, club: @club, name: "BigFishNight",
                starts_at: 6.days.ago, ends_at: 5.days.ago)
@@ -77,19 +71,17 @@ class TournamentsControllerTest < ActionDispatch::IntegrationTest
                                   captured_at_device: 5.days.ago - 1.hour)
     create(:catch_placement, catch: catch_record, tournament: t,
                               tournament_entry: entry, species: species, slot_index: 0)
-
-    get archived_tournaments_path
-    assert_response :success
-    assert_match "Galen Patterson", response.body
-    assert_match "winner", response.body
-  end
-
-  test "archived omits the winner suffix when a tournament has no placed catches" do
     create(:tournament, club: @club, name: "EmptyTourney", starts_at: 6.days.ago, ends_at: 5.days.ago)
+
     get archived_tournaments_path
     assert_response :success
-    assert_match "EmptyTourney", response.body
-    assert_no_match "winner", response.body
+
+    rows = css_select("li").map(&:text)
+    winner_row = rows.find { |r| r.include?("BigFishNight") }
+    empty_row  = rows.find { |r| r.include?("EmptyTourney") }
+    assert_match "Galen Patterson", winner_row, "placed-catch tournament should show the winner"
+    assert_match "winner", winner_row
+    assert_no_match "winner", empty_row, "tournament with no placed catches should omit the winner suffix"
   end
 
   test "archived does not render the season_tag on rows" do
@@ -101,18 +93,17 @@ class TournamentsControllerTest < ActionDispatch::IntegrationTest
     assert_no_match "Spring 2026", response.body
   end
 
-  test "index shows the leaderboard hint on a locked entrants-only row" do
+  test "index shows the leaderboard hint only on locked entrants-only rows" do
     create(:tournament, club: @club, name: "Closed Active", entrants_only_leaderboard: true)
-    get tournaments_path
-    assert_response :success
-    assert_match "Ask an organizer to add you", response.body
-  end
-
-  test "index shows no leaderboard hint when the tournament is open to everyone" do
     create(:tournament, club: @club, name: "Open Active")
     get tournaments_path
     assert_response :success
-    assert_no_match "Ask an organizer to add you", response.body
+
+    rows = css_select("li").map(&:text)
+    closed_row = rows.find { |r| r.include?("Closed Active") }
+    open_row   = rows.find { |r| r.include?("Open Active") }
+    assert_match "Ask an organizer to add you", closed_row, "locked entrants-only row should show the hint"
+    assert_no_match "Ask an organizer to add you", open_row, "open row should not show the hint"
   end
 
   # Downgraded from test/system/season_filter_test.rb.
@@ -167,39 +158,34 @@ class TournamentsControllerTest < ActionDispatch::IntegrationTest
     assert_redirected_to new_session_path
   end
 
-  test "show with entrants_only_leaderboard on: entered member is allowed" do
+  # Merges: entered member, assigned judge, club organizer, site admin — all
+  # allowed through the entrants-only gate despite (for the latter three) not
+  # being entered.
+  test "show with entrants_only_leaderboard on: entered member, judge, organizer and site admin are all allowed" do
     tournament = create(:tournament, club: @club, entrants_only_leaderboard: true)
-    enroll_user_in(tournament)
-    get tournament_path(tournament)
-    assert_response :success
-  end
-
-  test "show with entrants_only_leaderboard on: assigned judge (not entered) is allowed" do
-    judge = create(:user, club: @club, name: "Hon. Judge", role: :member)
-    tournament = create(:tournament, club: @club, entrants_only_leaderboard: true)
-    create(:tournament_judge, tournament: tournament, user: judge)
-    post session_path, params: { email: judge.email }
-    get consume_session_path(token: SignInToken.last.token)
-    get tournament_path(tournament)
-    assert_response :success
-  end
-
-  test "show with entrants_only_leaderboard on: club organizer (not entered) is allowed" do
-    organizer = create(:user, club: @club, name: "Org", role: :organizer)
-    tournament = create(:tournament, club: @club, entrants_only_leaderboard: true)
-    post session_path, params: { email: organizer.email }
-    get consume_session_path(token: SignInToken.last.token)
-    get tournament_path(tournament)
-    assert_response :success
-  end
-
-  test "show with entrants_only_leaderboard on: site admin (not entered) is allowed" do
-    admin = create(:user, club: @club, name: "Site Admin", role: :member, admin: true)
-    tournament = create(:tournament, club: @club, entrants_only_leaderboard: true)
-    post session_path, params: { email: admin.email }
-    get consume_session_path(token: SignInToken.last.token)
-    get tournament_path(tournament)
-    assert_response :success
+    {
+      "entered member" => -> { enroll_user_in(tournament) },
+      "assigned judge (not entered)" => -> {
+        judge = create(:user, club: @club, name: "Hon. Judge", role: :member)
+        create(:tournament_judge, tournament: tournament, user: judge)
+        post session_path, params: { email: judge.email }
+        get consume_session_path(token: SignInToken.last.token)
+      },
+      "club organizer (not entered)" => -> {
+        organizer = create(:user, club: @club, name: "Org", role: :organizer)
+        post session_path, params: { email: organizer.email }
+        get consume_session_path(token: SignInToken.last.token)
+      },
+      "site admin (not entered)" => -> {
+        admin = create(:user, club: @club, name: "Site Admin", role: :member, admin: true)
+        post session_path, params: { email: admin.email }
+        get consume_session_path(token: SignInToken.last.token)
+      }
+    }.each do |label, setup|
+      setup.call
+      get tournament_path(tournament)
+      assert_response :success, "#{label} should be allowed"
+    end
   end
 
   test "show with entrants_only_leaderboard off (default): any signed-in club member can view" do
@@ -219,17 +205,26 @@ class TournamentsControllerTest < ActionDispatch::IntegrationTest
     end
   end
 
-  test "show shows a green check beside an approved fish on the leaderboard (no 'Approved by' tag here)" do
+  # Merges: "shows a green check beside an approved fish (no 'Approved by' tag
+  # here)" and "does not render approved markers for unreviewed fish" — one
+  # tournament with an approved catch and an unreviewed catch shows exactly
+  # one check.
+  test "show: approved check renders only for the judge-approved catch, never an 'Approved by' tag" do
     tournament = create(:tournament, club: @club)
     species = create(:species, club: @club)
-    create(:scoring_slot, tournament: tournament, species: species, slot_count: 1)
+    create(:scoring_slot, tournament: tournament, species: species, slot_count: 2)
     entry = create(:tournament_entry, tournament: tournament, name: "Team Reel Deal")
     create(:tournament_entry_member, tournament_entry: entry, user: @user)
-    catch_record = create(:catch, user: @user, species: species, length_inches: 18.5)
-    create(:catch_placement, catch: catch_record, tournament: tournament,
+    approved_catch = create(:catch, user: @user, species: species, length_inches: 18.5,
+                                    captured_at_device: 20.minutes.ago)
+    unreviewed_catch = create(:catch, user: @user, species: species, length_inches: 15.0,
+                                      captured_at_device: 10.minutes.ago)
+    create(:catch_placement, catch: approved_catch, tournament: tournament,
                               tournament_entry: entry, species: species, slot_index: 0)
+    create(:catch_placement, catch: unreviewed_catch, tournament: tournament,
+                              tournament_entry: entry, species: species, slot_index: 1)
     judge = create(:user, club: @club, name: "Judge Judy")
-    create(:judge_action, judge_user: judge, catch: catch_record, action: :approve)
+    create(:judge_action, judge_user: judge, catch: approved_catch, action: :approve)
 
     get tournament_path(tournament)
     assert_response :success
@@ -262,23 +257,9 @@ class TournamentsControllerTest < ActionDispatch::IntegrationTest
     assert_select "[data-test=approved-check]", count: 1
   end
 
-  test "show does not render approved markers for unreviewed fish" do
-    tournament = create(:tournament, club: @club)
-    species = create(:species, club: @club)
-    create(:scoring_slot, tournament: tournament, species: species, slot_count: 1)
-    entry = create(:tournament_entry, tournament: tournament, name: "Team Reel Deal")
-    create(:tournament_entry_member, tournament_entry: entry, user: @user)
-    catch_record = create(:catch, user: @user, species: species, length_inches: 18.5)
-    create(:catch_placement, catch: catch_record, tournament: tournament,
-                              tournament_entry: entry, species: species, slot_index: 0)
-
-    get tournament_path(tournament)
-    assert_response :success
-    assert_select "[data-test=approved-check]", count: 0
-    assert_no_match "Approved by", response.body
-  end
-
-  test "blind+active show page: entered angler sees own entry's fish, others blanked" do
+  # Merges: "entered angler sees own entry's fish, others blanked" and
+  # "entered angler subscribes to entry stream and reveal".
+  test "blind+active show page: entered angler sees own fish (others blanked) and subscribes to entry+reveal streams" do
     species = create(:species, club: @club)
     t = create(:tournament, club: @club, starts_at: 1.hour.ago, ends_at: 1.hour.from_now,
                blind_leaderboard: true)
@@ -313,9 +294,16 @@ class TournamentsControllerTest < ActionDispatch::IntegrationTest
     # away alongside the table.
     assert_match(/Blind leaderboard/i, response.body)
     assert_select "#leaderboard #blind-leaderboard-banner"
+
+    # Subscribed to own entry's stream and the reveal stream, not :full.
+    assert_match Turbo::StreamsChannel.signed_stream_name("tournament:#{t.id}:leaderboard:entry:#{my_entry.id}"), response.body
+    assert_match Turbo::StreamsChannel.signed_stream_name("tournament:#{t.id}:leaderboard:reveal"), response.body
+    assert_no_match Regexp.new(Regexp.escape(Turbo::StreamsChannel.signed_stream_name("tournament:#{t.id}:leaderboard:full"))), response.body
   end
 
-  test "blind+active show page: non-entered, non-organizer member sees only entry names, totals dashed" do
+  # Merges: "non-entered, non-organizer member sees only entry names, totals
+  # dashed" and "non-entered member subscribes only to reveal".
+  test "blind+active show page: non-entered member sees names only and subscribes only to reveal" do
     member = create(:user, club: @club, name: "Bystander", role: :member)
     post session_path, params: { email: member.email }
     get consume_session_path(token: SignInToken.last.token)
@@ -336,6 +324,18 @@ class TournamentsControllerTest < ActionDispatch::IntegrationTest
     assert_response :success
     assert_match "Sole Entry", response.body
     assert_no_match "31.25", response.body
+
+    assert_match Turbo::StreamsChannel.signed_stream_name("tournament:#{t.id}:leaderboard:reveal"), response.body
+    assert_no_match Regexp.new(Regexp.escape(Turbo::StreamsChannel.signed_stream_name("tournament:#{t.id}:leaderboard:full"))), response.body
+    # No entry-stream subscription. We match the un-signed-name prefix encoded into the signed token's payload.
+    # Since signed names don't surface plaintext, fall back to: any entry-stream signed name would change per entry id;
+    # easiest invariant — assert there's no signed turbo-cable-stream-source that decodes to an entry stream.
+    sources = response.body.scan(/signed-stream-name="([^"]+)"/).flatten
+    decoded_names = sources.map do |signed|
+      Turbo::StreamsChannel.send(:verifier).verified(signed) rescue nil
+    end.compact
+    assert decoded_names.none? { |n| n.start_with?("tournament:#{t.id}:leaderboard:entry:") },
+      "Expected no entry-stream subscription, got: #{decoded_names.inspect}"
   end
 
   test "blind+active show page: judge sees full data" do
@@ -381,45 +381,6 @@ class TournamentsControllerTest < ActionDispatch::IntegrationTest
     assert_no_match "blind-leaderboard-banner", response.body
   end
 
-  test "blind+active show page: entered angler subscribes to entry stream and reveal" do
-    species = create(:species, club: @club)
-    t = create(:tournament, club: @club, starts_at: 1.hour.ago, ends_at: 1.hour.from_now,
-               blind_leaderboard: true)
-    create(:scoring_slot, tournament: t, species: species, slot_count: 1)
-
-    entry = create(:tournament_entry, tournament: t, name: "My Entry")
-    create(:tournament_entry_member, tournament_entry: entry, user: @user)
-
-    get tournament_path(t)
-    assert_response :success
-    assert_match Turbo::StreamsChannel.signed_stream_name("tournament:#{t.id}:leaderboard:entry:#{entry.id}"), response.body
-    assert_match Turbo::StreamsChannel.signed_stream_name("tournament:#{t.id}:leaderboard:reveal"), response.body
-    assert_no_match Regexp.new(Regexp.escape(Turbo::StreamsChannel.signed_stream_name("tournament:#{t.id}:leaderboard:full"))), response.body
-  end
-
-  test "blind+active show page: non-entered member subscribes only to reveal" do
-    member = create(:user, club: @club, name: "Bystander", role: :member)
-    post session_path, params: { email: member.email }
-    get consume_session_path(token: SignInToken.last.token)
-
-    t = create(:tournament, club: @club, starts_at: 1.hour.ago, ends_at: 1.hour.from_now,
-               blind_leaderboard: true)
-
-    get tournament_path(t)
-    assert_response :success
-    assert_match Turbo::StreamsChannel.signed_stream_name("tournament:#{t.id}:leaderboard:reveal"), response.body
-    assert_no_match Regexp.new(Regexp.escape(Turbo::StreamsChannel.signed_stream_name("tournament:#{t.id}:leaderboard:full"))), response.body
-    # No entry-stream subscription. We match the un-signed-name prefix encoded into the signed token's payload.
-    # Since signed names don't surface plaintext, fall back to: any entry-stream signed name would change per entry id;
-    # easiest invariant — assert there's no signed turbo-cable-stream-source that decodes to an entry stream.
-    sources = response.body.scan(/signed-stream-name="([^"]+)"/).flatten
-    decoded_names = sources.map do |signed|
-      Turbo::StreamsChannel.send(:verifier).verified(signed) rescue nil
-    end.compact
-    assert decoded_names.none? { |n| n.start_with?("tournament:#{t.id}:leaderboard:entry:") },
-      "Expected no entry-stream subscription, got: #{decoded_names.inspect}"
-  end
-
   test "non-blind tournament: every viewer subscribes to :full" do
     t = create(:tournament, club: @club, starts_at: 1.hour.ago, ends_at: 1.hour.from_now,
                blind_leaderboard: false)
@@ -429,88 +390,70 @@ class TournamentsControllerTest < ActionDispatch::IntegrationTest
     assert_no_match Regexp.new(Regexp.escape(Turbo::StreamsChannel.signed_stream_name("tournament:#{t.id}:leaderboard:reveal"))), response.body
   end
 
-  test "show: ended solo tournament with entries renders angler count footer in Scoring section" do
+  # Merges: "ended solo tournament with entries renders angler count footer",
+  # "active tournament does not render the participation footer", "ended
+  # tournament with zero entries does not render participation footer".
+  test "show: participation footer renders only for an ended tournament with entries" do
     species = create(:species, club: @club)
-    t = create(:tournament, club: @club, mode: :solo,
-               starts_at: 2.hours.ago, ends_at: 1.hour.ago)
-    create(:scoring_slot, tournament: t, species: species, slot_count: 1)
 
+    ended_with_entries = create(:tournament, club: @club, mode: :solo,
+               starts_at: 2.hours.ago, ends_at: 1.hour.ago)
+    create(:scoring_slot, tournament: ended_with_entries, species: species, slot_count: 1)
     3.times do
       angler = create(:user, club: @club)
-      entry  = create(:tournament_entry, tournament: t)
+      entry  = create(:tournament_entry, tournament: ended_with_entries)
       create(:tournament_entry_member, tournament_entry: entry, user: angler)
     end
-
-    get tournament_path(t)
+    get tournament_path(ended_with_entries)
     assert_response :success
-    assert_match "3 anglers", response.body
+    assert_match "3 anglers", response.body, "ended tournament with entries should show the footer"
     assert_no_match "team", response.body
+
+    active = create(:tournament, club: @club, mode: :solo,
+               starts_at: 1.hour.ago, ends_at: 1.hour.from_now)
+    create(:scoring_slot, tournament: active, species: species, slot_count: 1)
+    3.times do
+      angler = create(:user, club: @club)
+      entry  = create(:tournament_entry, tournament: active)
+      create(:tournament_entry_member, tournament_entry: entry, user: angler)
+    end
+    get tournament_path(active)
+    assert_response :success
+    assert_no_match "anglers", response.body, "active tournament should not show the footer"
+
+    ended_zero_entries = create(:tournament, club: @club, mode: :solo,
+               starts_at: 2.hours.ago, ends_at: 1.hour.ago)
+    create(:scoring_slot, tournament: ended_zero_entries, species: species, slot_count: 1)
+    get tournament_path(ended_zero_entries)
+    assert_response :success
+    assert_no_match "anglers", response.body, "ended tournament with zero entries should not show the footer"
   end
 
-  test "show: ended team tournament renders 'N anglers across M teams' footer" do
+  # Merges: "ended team tournament renders 'N anglers across M teams' footer"
+  # and "ended team tournament lists member names under a custom team name".
+  test "show: ended team tournament renders the angler/team count and lists member names under the custom team name" do
     species = create(:species, club: @club)
     t = create(:tournament, club: @club, mode: :team,
                starts_at: 2.hours.ago, ends_at: 1.hour.ago)
     create(:scoring_slot, tournament: t, species: species, slot_count: 1)
 
-    # Two teams: one with 3 anglers, one with 2 anglers — 5 anglers across 2 teams.
-    team1 = create(:tournament_entry, tournament: t)
-    3.times do
-      create(:tournament_entry_member, tournament_entry: team1, user: create(:user, club: @club))
-    end
+    # Named team: 2 anglers.
+    entry = create(:tournament_entry, tournament: t, name: "Reel Deal")
+    create(:tournament_entry_member, tournament_entry: entry,
+                                      user: create(:user, club: @club, name: "Alice Angler"))
+    create(:tournament_entry_member, tournament_entry: entry,
+                                      user: create(:user, club: @club, name: "Bob Bobber"))
+    # Second team: 3 anglers — 5 anglers across 2 teams overall.
     team2 = create(:tournament_entry, tournament: t)
-    2.times do
+    3.times do
       create(:tournament_entry_member, tournament_entry: team2, user: create(:user, club: @club))
     end
 
     get tournament_path(t)
     assert_response :success
     assert_match "5 anglers across 2 teams", response.body
-  end
-
-  test "show: active tournament does not render the participation footer" do
-    species = create(:species, club: @club)
-    t = create(:tournament, club: @club, mode: :solo,
-               starts_at: 1.hour.ago, ends_at: 1.hour.from_now)
-    create(:scoring_slot, tournament: t, species: species, slot_count: 1)
-
-    3.times do
-      angler = create(:user, club: @club)
-      entry  = create(:tournament_entry, tournament: t)
-      create(:tournament_entry_member, tournament_entry: entry, user: angler)
-    end
-
-    get tournament_path(t)
-    assert_response :success
-    assert_no_match "anglers", response.body
-  end
-
-  test "show: ended team tournament lists member names under a custom team name" do
-    t = create(:tournament, club: @club, mode: :team,
-               starts_at: 2.hours.ago, ends_at: 1.hour.ago)
-    entry = create(:tournament_entry, tournament: t, name: "Reel Deal")
-    create(:tournament_entry_member, tournament_entry: entry,
-                                      user: create(:user, club: @club, name: "Alice Angler"))
-    create(:tournament_entry_member, tournament_entry: entry,
-                                      user: create(:user, club: @club, name: "Bob Bobber"))
-
-    get tournament_path(t)
-    assert_response :success
     assert_match "Reel Deal", response.body
     assert_match "Alice Angler + Bob Bobber", response.body
-  end
-
-  test "show: ended tournament with zero entries does not render participation footer" do
-    species = create(:species, club: @club)
-    t = create(:tournament, club: @club, mode: :solo,
-               starts_at: 2.hours.ago, ends_at: 1.hour.ago)
-    create(:scoring_slot, tournament: t, species: species, slot_count: 1)
-    # Intentionally no tournament_entry records.
-
-    get tournament_path(t)
-    assert_response :success
-    assert_no_match "0 anglers", response.body
-    assert_no_match "anglers", response.body
   end
 
   # ---------------------------------------------------------------------------
