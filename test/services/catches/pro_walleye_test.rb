@@ -7,7 +7,6 @@ module Catches
       assert_equal 2, ProWalleye::BIG_CAP
       assert_equal 55, ProWalleye::THRESHOLD_CM
 
-
       assert_not ProWalleye.big?(BigDecimal("21.65")), "55.0 cm stores 21.65 in => small"
       assert     ProWalleye.big?(BigDecimal("21.66")), "just over threshold => big"
       assert_not ProWalleye.big?(20),   "well under => small"

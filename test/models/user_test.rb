@@ -48,7 +48,7 @@ class UserTest < ActiveSupport::TestCase
     assert_not deactivated.member_of?(@club)
   end
 
-  test "touch_last_seen! writes when last_seen_at is nil or older than the throttle window" do
+  test "touch_last_seen! writes when last_seen_at is nil or older than the throttle window, without bumping updated_at" do
     u = create(:user, club: @club)
     assert_nil u.last_seen_at
     freeze_time do
@@ -58,10 +58,13 @@ class UserTest < ActiveSupport::TestCase
 
     stale = create(:user, club: @club, last_seen_at: 2.hours.ago)
     before = stale.last_seen_at
-    freeze_time do
+    original_updated_at = stale.reload.updated_at
+    travel 1.minute do
       stale.touch_last_seen!
       assert_equal Time.current, stale.reload.last_seen_at
       assert_not_equal before, stale.last_seen_at
+      assert_equal original_updated_at, stale.reload.updated_at,
+                   "write path must use update_columns, not bump updated_at"
     end
   end
 
