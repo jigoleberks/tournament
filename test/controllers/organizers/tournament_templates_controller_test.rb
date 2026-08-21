@@ -19,12 +19,13 @@ class Organizers::TournamentTemplatesControllerTest < ActionDispatch::Integratio
     assert_redirected_to organizers_tournaments_path
   end
 
-  test "create accepts season_tag, awards_season_points, and blind_leaderboard together" do
+  test "create accepts season_tag, default_duration_days, awards_season_points, blind_leaderboard, and entrants_only_leaderboard together" do
     assert_difference -> { TournamentTemplate.count }, 1 do
       post organizers_tournament_templates_path, params: {
         tournament_template: {
           name: "Wednesday League", mode: "solo",
-          season_tag: "2026", awards_season_points: "1", blind_leaderboard: "1"
+          season_tag: "2026", default_duration_days: 2,
+          awards_season_points: "1", blind_leaderboard: "1", entrants_only_leaderboard: "1"
         }
       }
     end
@@ -32,8 +33,10 @@ class Organizers::TournamentTemplatesControllerTest < ActionDispatch::Integratio
     t = TournamentTemplate.last
     {
       season_tag: "2026",
+      default_duration_days: 2,
       awards_season_points?: true,
-      blind_leaderboard?: true
+      blind_leaderboard?: true,
+      entrants_only_leaderboard?: true
     }.each do |attr, expected|
       assert_equal expected, t.public_send(attr), "#{attr}: should persist from a single submission"
     end

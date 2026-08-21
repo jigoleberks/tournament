@@ -131,7 +131,6 @@ class Organizers::CatchesControllerTest < ActionDispatch::IntegrationTest
     assert_response :not_found
   end
 
-
   test "index links each catch to its detail page" do
     sign_in_as(@organizer)
     get organizers_catches_path

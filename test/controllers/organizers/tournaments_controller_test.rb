@@ -39,7 +39,7 @@ class Organizers::TournamentsControllerTest < ActionDispatch::IntegrationTest
     assert_redirected_to organizers_tournaments_path
   end
 
-  test "create accepts local, awards_season_points, and blind_leaderboard together, and defaults local to true when omitted" do
+  test "create accepts season_tag, local, awards_season_points, blind_leaderboard, entrants_only_leaderboard, and judged together, and defaults local to true when omitted" do
     sign_in_as(@organizer)
     species = create(:species, club: @club)
 
@@ -47,16 +47,21 @@ class Organizers::TournamentsControllerTest < ActionDispatch::IntegrationTest
       tournament: {
         name: "Full Attrs", mode: "solo",
         starts_at: 1.hour.from_now, ends_at: 4.hours.from_now,
+        season_tag: "Full Attrs 2026",
         local: "0", awards_season_points: "1", blind_leaderboard: "1",
+        entrants_only_leaderboard: "1", judged: "1",
         scoring_slots_attributes: { "0" => { species_id: species.id, slot_count: 1 } }
       }
     }
     assert_redirected_to organizers_tournaments_path
     t = Tournament.order(:id).last
     {
+      season_tag: "Full Attrs 2026",
       local: false,
       awards_season_points?: true,
-      blind_leaderboard?: true
+      blind_leaderboard?: true,
+      entrants_only_leaderboard?: true,
+      judged?: true
     }.each do |attr, expected|
       assert_equal expected, t.public_send(attr), "#{attr}: should persist from a single submission"
     end
