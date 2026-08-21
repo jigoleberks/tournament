@@ -485,4 +485,333 @@ class TournamentsControllerTest < ActionDispatch::IntegrationTest
     assert_no_match "0 anglers", response.body
     assert_no_match "anglers", response.body
   end
+
+  # ---------------------------------------------------------------------------
+  # Per-format leaderboard rendering.
+  #
+  # These were browser tests (test/system/<format>_tournament_test.rb) until
+  # 2026-08-21. Nothing they asserted needed JS — every one of them seeded
+  # catches through Catches::PlaceInSlots and then read the server-rendered
+  # leaderboard — so they run here against the HTML instead. The format-select
+  # and draft-format-switch behaviour that *did* need JS lives in
+  # test/system/tournament_format_select_test.rb and
+  # test/system/tournament_format_switch_test.rb.
+  # ---------------------------------------------------------------------------
+
+  include LengthHelper
+
+  # Nokogiri's #text keeps the template's literal whitespace, unlike Capybara's.
+  # Squeeze it so assertions can be written the way the browser rendered them.
+  def leaderboard_rows
+    css_select("#leaderboard tbody tr").map { |tr| tr.text.gsub(/\s+/, " ").strip }
+  end
+
+  test "big_fish_season leaderboard renders one row per catch, longest first, under a Length header" do
+    walleye  = create(:species, club: @club, name: "Walleye")
+    galen    = create(:user, club: @club, name: "Galen Patterson")
+    galen_pc = create(:user, club: @club, name: "Galen PC")
+
+    t = build(:tournament, club: @club, name: "Big Walleye Season", mode: :solo,
+              format: :big_fish_season, starts_at: 1.hour.ago, ends_at: 1.day.from_now)
+    t.save!(validate: false)
+    create(:scoring_slot, tournament: t, species: walleye, slot_count: 3)
+    t.reload
+
+    enroll_user_in(t, user: galen)
+    enroll_user_in(t, user: galen_pc)
+
+    # Galen Patterson: 25", 21", 18". Galen PC: 22".
+    [[galen, 25], [galen, 21], [galen, 18], [galen_pc, 22]].each do |angler, length|
+      Catches::PlaceInSlots.call(
+        catch: create(:catch, user: angler, species: walleye, length_inches: length,
+                              captured_at_device: 30.minutes.ago)
+      )
+    end
+    # PlaceInSlots silently no-ops when captured_at_device falls outside the
+    # tournament window — fail loudly here rather than as a row-count mismatch.
+    assert_equal 4, t.catch_placements.active.count
+
+    get tournament_path(t)
+    assert_response :success
+
+    assert_select "#leaderboard th", text: "Length"
+    assert_select "#leaderboard th", text: "Biggest", count: 0
+    assert_select "#leaderboard th", text: "Total", count: 0
+
+    rows = leaderboard_rows
+    assert_equal 4, rows.size, "expected one row per placed catch"
+    assert_match "Galen Patterson", rows[0]
+    assert_match "25.00\"",         rows[0]
+    assert_match "Galen PC",        rows[1]
+    assert_match "22.00\"",         rows[1]
+    assert_match "Galen Patterson", rows[2]
+    assert_match "21.00\"",         rows[2]
+    assert_match "Galen Patterson", rows[3]
+    assert_match "18.00\"",         rows[3]
+  end
+
+  test "biggest_vs_smallest leaderboard renders a Spread column ranked by spread" do
+    walleye  = create(:species, club: @club, name: "Walleye")
+    angler_a = create(:user, club: @club, name: "Angler A")
+    angler_b = create(:user, club: @club, name: "Angler B")
+
+    t = build(:tournament, club: @club, name: "BvS Wed", format: :biggest_vs_smallest,
+              mode: :solo, starts_at: 30.minutes.ago, ends_at: 30.minutes.from_now)
+    t.scoring_slots.build(species: walleye, slot_count: 1)
+    t.save!
+
+    enroll_user_in(t, user: angler_a)
+    enroll_user_in(t, user: angler_b)
+
+    # Angler A: 22, 12 -> spread 10. Angler B: 18, 14 -> spread 4.
+    [[angler_a, 22, 20], [angler_a, 12, 10], [angler_b, 18, 15], [angler_b, 14, 5]].each do |angler, length, mins|
+      Catches::PlaceInSlots.call(
+        catch: create(:catch, user: angler, species: walleye, length_inches: length,
+                              captured_at_device: mins.minutes.ago)
+      )
+    end
+
+    get tournament_path(t)
+    assert_response :success
+    assert_select "#leaderboard th", text: "Spread"
+
+    rows = leaderboard_rows
+    assert_equal 2, rows.size, "expected 2 per-entry rows"
+    assert_match "Angler A", rows.first, "expected Angler A (spread 10) on top"
+
+    # The spread renders via format_length_parts (two separate <div>s), so
+    # assert on each part rather than the joined format_length_dual string.
+    inches_part, cm_part = format_length_parts(10)
+    assert_match inches_part, rows.first
+    assert_match cm_part,     rows.first
+    assert_match "Biggest",   rows.first
+    assert_match "Smallest",  rows.first
+    assert_match format_length_dual(22, "inches"), rows.first
+    assert_match format_length_dual(12, "inches"), rows.first
+  end
+
+  test "fish_train leaderboard renders the cars in order with a current badge on the last one" do
+    perch   = create(:species, club: @club, name: "Perch")
+    pike    = create(:species, club: @club, name: "Pike")
+    walleye = create(:species, club: @club, name: "Walleye")
+    angler_a = create(:user, club: @club, name: "Angler A")
+    angler_b = create(:user, club: @club, name: "Angler B")
+
+    t = build(:tournament, club: @club, name: "FT Wed", format: :fish_train, mode: :solo,
+              starts_at: 30.minutes.ago, ends_at: 30.minutes.from_now,
+              train_cars: [perch.id, pike.id, walleye.id, perch.id])
+    [perch, pike, walleye].each { |sp| t.scoring_slots.build(species: sp, slot_count: 1) }
+    t.save!
+
+    enroll_user_in(t, user: angler_a)
+    enroll_user_in(t, user: angler_b)
+
+    # Angler A: full 4-car train, sum 12+22+18+14 = 66.
+    # Angler B: stalls at car 1 (perch) — larger perch replaces smaller. Sum 17.
+    [
+      [angler_a, perch,   12, 25], [angler_a, pike,    22, 20],
+      [angler_a, walleye, 18, 15], [angler_a, perch,   14, 10],
+      [angler_b, perch,   16, 24], [angler_b, perch,   17, 18]
+    ].each do |angler, species, length, mins|
+      Catches::PlaceInSlots.call(
+        catch: create(:catch, user: angler, species: species, length_inches: length,
+                              captured_at_device: mins.minutes.ago)
+      )
+    end
+
+    get tournament_path(t)
+    assert_response :success
+
+    rows = leaderboard_rows
+    assert_equal 2, rows.size
+    assert_match "Angler A", rows.first
+    inches_part, cm_part = format_length_parts(66)
+    assert_match inches_part, rows.first
+    assert_match cm_part,     rows.first
+    assert_match "Perch",     rows.first
+    assert_match "Pike",      rows.first
+    assert_match "Walleye",   rows.first
+    assert_match(/current/i, rows.first, "last (most-recent) car should be tagged 'current'")
+  end
+
+  test "hidden_length leaderboard renders per-catch rows before the roll and per-entry rows after" do
+    walleye  = create(:species, club: @club, name: "Walleye")
+    angler_a = create(:user, club: @club, name: "Angler A")
+    angler_b = create(:user, club: @club, name: "Angler B")
+
+    t = build(:tournament, club: @club, name: "HL Wed", format: :hidden_length, mode: :solo,
+              starts_at: 30.minutes.ago, ends_at: 5.minutes.from_now)
+    t.scoring_slots.build(species: walleye, slot_count: 1)
+    t.save!
+
+    enroll_user_in(t, user: angler_a)
+    enroll_user_in(t, user: angler_b)
+
+    catches_data = [[angler_a, 22, 20], [angler_a, 17.5, 10], [angler_b, 14, 15], [angler_b, 19, 5]]
+    catches_data.each do |angler, length, mins|
+      Catches::PlaceInSlots.call(
+        catch: create(:catch, user: angler, species: walleye, length_inches: length,
+                              captured_at_device: mins.minutes.ago)
+      )
+    end
+
+    get tournament_path(t)
+    assert_response :success
+    assert_equal 4, leaderboard_rows.size, "expected 4 per-catch rows pre-reveal"
+    assert_match "22", leaderboard_rows.first
+    assert_match "Target rolls when the tournament ends", response.body
+
+    # Travel past ends_at and run the lifecycle job, which rolls the target.
+    t.update_columns(ends_at: 1.minute.ago)
+    TournamentLifecycleAnnounceJob.perform_now(tournament_id: t.id, kind: "ended")
+    t.reload
+    assert_not_nil t.hidden_length_target
+    target = t.hidden_length_target
+
+    get tournament_path(t)
+    assert_response :success
+    assert_match "Target was", response.body
+    # Pin to the helper output so a typography change in format_length_dual
+    # is caught here rather than silently flipping the substring match.
+    assert_select "#hidden-length-banner", text: /#{Regexp.escape(format_length_dual(target))}/
+
+    rows = leaderboard_rows
+    assert_equal 2, rows.size, "expected 2 per-entry rows post-reveal"
+
+    # Each angler's qualifying catch is the closest to the target; ties break to
+    # the earliest captured_at_device, per club rule.
+    expected_winner = catches_data
+      .group_by { |angler, _length, _mins| angler }
+      .values
+      .map { |for_angler| for_angler.min_by { |_a, length, mins| [(length - target.to_f).abs, -mins] } }
+      .min_by { |_a, length, mins| [(length - target.to_f).abs, -mins] }
+      .first.name
+    assert_match expected_winner, rows.first
+  end
+
+  test "progressive_length leaderboard ranks by up-sizes and renders the ladder smallest-first" do
+    walleye  = create(:species, club: @club, name: "Walleye")
+    angler_a = create(:user, club: @club, name: "Angler A")
+    angler_b = create(:user, club: @club, name: "Angler B")
+
+    t = build(:tournament, club: @club, name: "Progressive Thu", format: :progressive_length,
+              mode: :solo, starts_at: 3.hours.ago, ends_at: 1.hour.from_now)
+    t.scoring_slots.build(species: walleye, slot_count: 1)
+    t.save!
+
+    # Angler B's entry is created first so it gets the LOWER id, while Angler A
+    # (the correct winner by up-sizes) gets the HIGHER id. That makes the
+    # ranker's id-asc tiebreak fight the correct ordering, so a regression that
+    # dropped the up-sizes/race/top-rung sort keys surfaces B first and fails.
+    enroll_user_in(t, user: angler_b)
+    enroll_user_in(t, user: angler_a)
+
+    # Angler A climbs 12 -> 15 -> 18 (2 up-sizes). The 10" is a silent no-op.
+    [[12, 150], [10, 140], [15, 120], [18, 100]].each do |length, mins|
+      Catches::PlaceInSlots.call(
+        catch: create(:catch, user: angler_a, species: walleye, length_inches: length,
+                              captured_at_device: mins.minutes.ago),
+        broadcast: false
+      )
+    end
+    # Angler B climbs 20 -> 22 (1 up-size) — bigger fish, fewer up-sizes.
+    [[20, 150], [22, 120]].each do |length, mins|
+      Catches::PlaceInSlots.call(
+        catch: create(:catch, user: angler_b, species: walleye, length_inches: length,
+                              captured_at_device: mins.minutes.ago),
+        broadcast: false
+      )
+    end
+
+    get tournament_path(t)
+    assert_response :success
+    assert_select "#leaderboard th", text: "Up-sizes"
+    assert_match "most up-sizes of walleye", response.body
+    assert_no_match "Largest walleye", response.body
+
+    rows = leaderboard_rows
+    assert_match "Angler A",   rows[0]
+    assert_match "2 up-sizes", rows[0]
+    assert_match "Angler B",   rows[1]
+    assert_match "1 up-size",  rows[1]
+
+    # The ladder renders smallest-first and the 10" no-op never appears.
+    assert_no_match(/10"/, rows[0])
+    assert_operator rows[0].index('12"'), :<, rows[0].index('15"'),
+                    "ladder must render smallest-first: 12\" before 15\""
+    assert_operator rows[0].index('15"'), :<, rows[0].index('18"'),
+                    "ladder must render smallest-first: 15\" before 18\""
+  end
+
+  test "smallest_fish leaderboard ranks by lowest total under the standard Total header" do
+    walleye  = create(:species, club: @club, name: "Walleye")
+    angler_a = create(:user, club: @club, name: "Angler A")
+    angler_b = create(:user, club: @club, name: "Angler B")
+
+    t = build(:tournament, club: @club, name: "Smallest Wed", format: :smallest_fish,
+              mode: :solo, starts_at: 30.minutes.ago, ends_at: 30.minutes.from_now)
+    t.scoring_slots.build(species: walleye, slot_count: 2)
+    t.save!
+
+    enroll_user_in(t, user: angler_a)
+    enroll_user_in(t, user: angler_b)
+
+    # Angler A: 12, 10 -> total 22. Angler B: 9, 8 -> total 17 (lower wins).
+    [[angler_a, 12, 20], [angler_a, 10, 10], [angler_b, 9, 15], [angler_b, 8, 5]].each do |angler, length, mins|
+      Catches::PlaceInSlots.call(
+        catch: create(:catch, user: angler, species: walleye, length_inches: length,
+                              captured_at_device: mins.minutes.ago)
+      )
+    end
+
+    get tournament_path(t)
+    assert_response :success
+    assert_select "#leaderboard th", text: "Total"
+
+    rows = leaderboard_rows
+    assert_equal 2, rows.size, "expected 2 per-entry rows"
+    assert_match "Angler B", rows.first, "expected Angler B (total 17) on top"
+
+    inches_part, cm_part = format_length_parts(17)
+    assert_match inches_part, rows.first
+    assert_match cm_part,     rows.first
+    assert_match format_length_dual(8, "inches"), rows.first
+    assert_match format_length_dual(9, "inches"), rows.first
+  end
+
+  test "tagged leaderboard renders a ticket count per angler and the drawn winner" do
+    tagged = Species.find_or_create_by!(name: "Tagged Walleye")
+    angler = create(:user, club: @club, name: "Tagged Angler")
+
+    t = build(:tournament, club: @club, name: "Test Tagged", format: :tagged, mode: :solo,
+              starts_at: 1.hour.ago, ends_at: 1.hour.from_now)
+    t.scoring_slots.build(species: tagged, slot_count: 1)
+    t.save!
+    enroll_user_in(t, user: angler)
+
+    %w[A0001 A0002].each do |tag|
+      Catches::PlaceInSlots.call(
+        catch: create(:catch, user: angler, species: tagged, length_inches: 18.0,
+                              tag_number: tag, captured_at_device: 30.minutes.ago)
+      )
+    end
+
+    get tournament_path(t)
+    assert_response :success
+    rows = leaderboard_rows
+    assert_equal 1, rows.size
+    assert_match "Tagged Angler", rows.first
+    assert_match "2",     rows.first   # ticket count
+    assert_match "A0001", rows.first
+    assert_match "A0002", rows.first
+
+    # After the draw, the winner banner renders above the table.
+    t.update_columns(starts_at: 2.hours.ago, ends_at: 1.hour.ago)
+    Tournaments::DrawTaggedWinner.call(tournament: t.reload, drawn_by: @user)
+
+    get tournament_path(t)
+    assert_response :success
+    assert_select "#leaderboard", text: /Winner/
+    assert_match "Tagged Angler", response.body
+  end
 end
