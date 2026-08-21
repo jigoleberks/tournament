@@ -98,11 +98,11 @@ class SignInTokenTest < ActiveSupport::TestCase
   end
 
   test "consume_code! returns nil on email mismatch or when no open code exists" do
+    assert_nil SignInToken.consume_code!(email: @user.email, code: "12345678"), "no open code exists"
+
     code = SignInToken.issue_code!(user: @user)
     assert_nil SignInToken.consume_code!(email: "wrong@example.com", code: code.token), "email mismatch"
     assert_nil code.reload.used_at
-
-    assert_nil SignInToken.consume_code!(email: @user.email, code: "12345678"), "no open code exists"
   end
 
   test "consume! and consume_code! return nil for a deactivated user" do

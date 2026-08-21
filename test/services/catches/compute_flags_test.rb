@@ -33,16 +33,18 @@ class Catches::ComputeFlagsTest < ActiveSupport::TestCase
   test "geofence overrides suppress only their own flag" do
     cases = {
       "override_in_lake suppresses out_of_bounds" => {
-        lat: 50.45, lon: -104.61, override: :override_in_lake, suppressed: "out_of_bounds"
+        lat: 50.45, lon: -104.61, override: :override_in_lake, suppressed: "out_of_bounds", still_set: nil
       },
       "override_in_sask suppresses out_of_province" => {
-        lat: 49.9, lon: -97.1, override: :override_in_sask, suppressed: "out_of_province"
+        lat: 49.9, lon: -97.1, override: :override_in_sask, suppressed: "out_of_province", still_set: "out_of_bounds"
       }
     }
     cases.each do |label, c|
       catch_record = build(:catch, user: @user, species: @walleye,
                             latitude: c[:lat], longitude: c[:lon], **{ c[:override] => true })
-      refute_includes Catches::ComputeFlags.call(catch_record), c[:suppressed], label
+      flags = Catches::ComputeFlags.call(catch_record)
+      refute_includes flags, c[:suppressed], label
+      assert_includes flags, c[:still_set], "#{label}: #{c[:still_set]} should still be set" if c[:still_set]
     end
   end
 

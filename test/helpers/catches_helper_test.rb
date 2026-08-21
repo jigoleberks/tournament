@@ -42,8 +42,13 @@ class CatchesHelperTest < ActionView::TestCase
     }.each do |label, c|
       url = month_calendar_link_url(c[:d], current_start: c[:current_start], current_end: c[:current_end],
                                      params: {}, path_helper: :catches_path)
-      assert_match "start=#{c[:start]}", url, label
-      assert_match "end=#{c[:end]}", url, label
+      if c[:current_start].nil?
+        assert_match %r{\?.*start=#{c[:start]}}, url, label
+        assert_match %r{\?.*end=#{c[:end]}}, url, label
+      else
+        assert_match "start=#{c[:start]}", url, label
+        assert_match "end=#{c[:end]}", url, label
+      end
     end
   end
 
