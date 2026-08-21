@@ -32,21 +32,17 @@ module Tournaments
       [tournament, anglers]
     end
 
-    test "returns {} when not points-eligible" do
-      tournament = create(:tournament, club: @club, awards_season_points: false, starts_at: 3.hours.ago, ends_at: 1.hour.ago)
-      assert_equal({}, SeasonPointsAwarded.call(tournament: tournament))
-    end
+    test "returns {} when not points-eligible, not yet ended, or ends_at is nil" do
+      not_eligible = create(:tournament, club: @club, awards_season_points: false, starts_at: 3.hours.ago, ends_at: 1.hour.ago)
+      assert_equal({}, SeasonPointsAwarded.call(tournament: not_eligible), "not points-eligible")
 
-    test "returns {} when tournament has not ended" do
-      tournament = create(:tournament, club: @club, awards_season_points: true, starts_at: 1.hour.ago, ends_at: 1.hour.from_now)
-      assert_equal({}, SeasonPointsAwarded.call(tournament: tournament))
-    end
+      not_ended = create(:tournament, club: @club, awards_season_points: true, starts_at: 1.hour.ago, ends_at: 1.hour.from_now)
+      assert_equal({}, SeasonPointsAwarded.call(tournament: not_ended), "tournament has not ended")
 
-    test "returns {} when ends_at is nil" do
       # Legacy NULL-ends_at row: bypass the now-required ends_at validation.
-      tournament = build(:tournament, club: @club, awards_season_points: true, starts_at: 1.hour.ago, ends_at: nil)
-      tournament.save!(validate: false)
-      assert_equal({}, SeasonPointsAwarded.call(tournament: tournament))
+      nil_ends_at = build(:tournament, club: @club, awards_season_points: true, starts_at: 1.hour.ago, ends_at: nil)
+      nil_ends_at.save!(validate: false)
+      assert_equal({}, SeasonPointsAwarded.call(tournament: nil_ends_at), "ends_at is nil")
     end
 
     test "fewer than 3 solo entries awards only the 0.5 attendance bonus" do
@@ -149,19 +145,13 @@ module Tournaments
       end
     end
 
-    test "team mode: 2 teams awards only attendance bonuses regardless of angler count" do
-      teams = build_finished_teams([5, 5])
-      # 10 anglers would satisfy PointsScale, but 2 entries is below the cutoff.
-      result = SeasonPointsAwarded.call(tournament: @team_tournament)
-      assert_equal 10, result.size
-      teams.flatten.each { |u| assert_equal 0.5, result[u.id], "member #{u.id} should get only the attendance bonus" }
-    end
-
-    test "team mode: an entry with no members doesn't count toward the 3-entry cutoff" do
+    test "team mode: 2 teams awards only attendance bonuses regardless of angler count, and a memberless entry doesn't count toward the cutoff" do
       teams = build_finished_teams([5, 5])
       # A leftover entry whose last member was removed (or that was created
       # before anyone was added) is not a competing team.
       create(:tournament_entry, tournament: @team_tournament)
+
+      # 10 anglers would satisfy PointsScale, but 2 competing entries is below the cutoff.
       result = SeasonPointsAwarded.call(tournament: @team_tournament)
       assert_equal 10, result.size
       teams.flatten.each { |u| assert_equal 0.5, result[u.id], "member #{u.id} should get only the attendance bonus" }
